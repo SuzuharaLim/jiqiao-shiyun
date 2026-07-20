@@ -98,7 +98,7 @@ gcloud secrets add-iam-policy-binding jiqiao-gmail-pass \
   --role="roles/secretmanager.secretAccessor"
 
 # 3) 掛到服務上
-gcloud run services update jiqiao-app --region=asia-east1 \
+gcloud run services update jiqiao --region=asia-east1 \
   --set-secrets=GMAIL_APP_PASSWORD=jiqiao-gmail-pass:latest \
   --update-env-vars=GMAIL_USER=你的帳號@gmail.com,MAIL_FROM='機巧時運 <你的帳號@gmail.com>'
 ```
@@ -126,7 +126,7 @@ bash deploy/deploy.sh
 3. 設定改成通用 SMTP 模式：
 
 ```bash
-gcloud run services update jiqiao-app --region=asia-east1 \
+gcloud run services update jiqiao --region=asia-east1 \
   --set-secrets=SMTP_PASS=jiqiao-smtp-pass:latest \
   --update-env-vars=SMTP_HOST=smtp-relay.gmail.com,SMTP_PORT=465,SMTP_USER=noreply@chengqi.tw,MAIL_FROM='機巧時運 <noreply@chengqi.tw>'
 ```
@@ -198,5 +198,5 @@ gcloud run services update jiqiao-app --region=asia-east1 \
 查看寄信記錄：
 
 ```bash
-gcloud run services logs read jiqiao-app --region=asia-east1 --limit=50 | grep mail
+gcloud run services logs read jiqiao --region=asia-east1 --limit=50 | grep mail
 ```
