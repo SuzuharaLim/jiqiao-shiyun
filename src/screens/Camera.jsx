@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { api } from '../api.js'
 import { useContent } from '../hooks/useApi.js'
 import AnimatedText from '../components/AnimatedText.jsx'
-import { dayFor, todayOffset } from '../data/almanac.js'
 
 // 相機工作室 —— 純瀏覽器 API（getUserMedia / MediaRecorder / Canvas / DeviceMotion / CSS filter），零第三方。
 // 模式：拍攝(單點=照片,長按=錄影) / 版面(2–6格拼貼) / 建立(純色漸層+文字+票選+倒數限動)。
@@ -101,22 +99,14 @@ export default function Camera({ onDone }) {
   }
   const stopRec = () => { try { recRef.current?.stop() } catch { /* ignore */ } setRecording(false) }
 
-  // 檢視／建立完成 → 帶回新貼文或發佈
-  // ★ 這裡一定要真的上傳照片並帶 imageId，否則貼文只會顯示 📷 emoji 佔位圖（先前的問題）
+  // 檢視完成 → 進「發文頁」讓使用者自己填說明再發佈（IG 式流程）
+  // ★ 刻意「不」在這裡直接發佈：拍完就上線會讓人來不及反悔，也無法自訂說明/地點/是否上架。
+  //   照片在這裡還沒上傳，等使用者在發文頁按「發佈」才真的送出。
   const usePhoto = async (url) => {
-    if (onDone) { onDone(url); return }
-    // 沒有 onDone（直接進相機）→ 當作發佈：需登入
+    if (onDone) { onDone(url); return }        // 由別的畫面呼叫相機時，把照片交回去
     if (!requireAccount('發佈作品')) return
-    try {
-      setToast('上傳中…')
-      const { id: imageId } = await api.uploadImage(url)
-      const term = dayFor(todayOffset()).term          // 自動標記當前節氣
-      await api.createPost({
-        emoji: '📷', bg: '#141210', term, title: `${term}・相機作品`,
-        caption: '用機巧時運相機拍攝 📷', tags: term ? [term] : [], imageId,
-      })
-      setToast('已發佈 📷'); popAll(); push('todayShots', { term })
-    } catch (e) { setToast(e?.message || '發佈失敗') }
+    popAll()
+    push('newPost', { photo: url })            // 帶著照片進發文頁（可寫說明、標節氣地點、決定是否上架）
   }
 
   // ── 檢視畫面（拍照後）──
@@ -378,7 +368,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
             } catch (e) {
               setToast(e?.message || '照片處理失敗')
             } finally { setBaking(false) }
-          }}>{baking ? '處理中…' : '使用照片'}</button>
+          }}>{baking ? '處理中…' : '下一步 →'}</button>
       </div>
 
       {/* 特效庫 */}

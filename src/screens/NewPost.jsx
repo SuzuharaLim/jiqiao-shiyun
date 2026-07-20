@@ -30,10 +30,13 @@ function compressImage(file) {
   })
 }
 
-export default function NewPost() {
+// fromCamera：由相機「下一步」帶進來的照片（已套好濾鏡）。
+// 走這條路徑時不再另外壓縮——相機的 bakeImage() 已縮到 1600px / JPEG 0.85。
+export default function NewPost({ photo: incomingPhoto = null }) {
   const { pop, popAll, setToast, requireAccount } = useNav()
   const [sel, setSel] = useState(0)
-  const [photo, setPhoto] = useState(null)     // 使用者選的照片（壓縮後 dataURL）
+  const [photo, setPhoto] = useState(incomingPhoto)   // 使用者選的照片（壓縮後 dataURL）
+  const fromCamera = !!incomingPhoto
   const fileRef = useRef(null)
   const [cap, setCap] = useState('')
   const [onSale, setOnSale] = useState(true)
@@ -87,19 +90,29 @@ export default function NewPost() {
           {photo ? <PhotoImg src={photo} /> : thumbs[sel].e}
         </div>
 
-        {/* 選照片（真實上傳）／或用 emoji 佔位圖 */}
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFile} aria-label="選擇照片" />
-        <div style={{ display: 'flex', gap: 8, padding: '10px 13px 0' }}>
-          <button className="b dark tap" style={{ flex: 1 }} onClick={() => fileRef.current?.click()}>
-            📷 {photo ? '換一張照片' : '上傳照片（相簿/拍照）'}
-          </button>
-          {photo && <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>}
-        </div>
-        {!photo && <div className="thumbs">
-          {thumbs.map((t, i) => (
-            <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}>{t.e}</button>
-          ))}
-        </div>}
+        {/* 從相機帶照片進來時，就不再顯示選圖選項（照片已定案，要重拍請返回相機）*/}
+        {fromCamera ? (
+          <div className="note" style={{ marginTop: 10 }}>
+            📷 這張照片來自相機（已套用你選的濾鏡）
+            <button className="acc tap" onClick={pop}>返回重拍</button>
+          </div>
+        ) : (
+          <>
+            {/* 選照片（真實上傳）／或用 emoji 佔位圖 */}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFile} aria-label="選擇照片" />
+            <div style={{ display: 'flex', gap: 8, padding: '10px 13px 0' }}>
+              <button className="b dark tap" style={{ flex: 1 }} onClick={() => fileRef.current?.click()}>
+                📷 {photo ? '換一張照片' : '上傳照片（相簿/拍照）'}
+              </button>
+              {photo && <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>}
+            </div>
+            {!photo && <div className="thumbs">
+              {thumbs.map((t, i) => (
+                <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}>{t.e}</button>
+              ))}
+            </div>}
+          </>
+        )}
 
         <div className="capin">
           <textarea placeholder="撰寫說明…　#芒種 #田間" aria-label="貼文說明" maxLength={400}
