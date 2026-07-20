@@ -45,4 +45,51 @@ export const api = {
   orders: () => req('/orders'),
   createOrder: (b) => req('/orders', { method: 'POST', body: b }),
   updateProfile: (b) => req('/me', { method: 'PATCH', body: b }),
+  // 社群內容（真實資料庫）
+  posts: (term) => req('/posts' + (term ? `?term=${encodeURIComponent(term)}` : '')),
+  post: (id) => req('/posts/' + encodeURIComponent(id)),
+  createPost: (b) => req('/posts', { method: 'POST', body: b }),
+  likePost: (id) => req(`/posts/${encodeURIComponent(id)}/like`, { method: 'POST' }),
+  addComment: (id, body) => req(`/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
+  works: (term) => req('/works' + (term && term !== '全部' ? `?term=${encodeURIComponent(term)}` : '')),
+  work: (id) => req('/works/' + encodeURIComponent(id)),
+  createWork: (b) => req('/works', { method: 'POST', body: b }),
+  leaderboard: () => req('/leaderboard'),
+  uploadImage: (dataUrl) => req('/images', { method: 'POST', body: { data: dataUrl } }),
+  userProfile: (handle) => req('/users/' + encodeURIComponent(handle)),
+  follow: (b) => req('/follow', { method: 'POST', body: b }),
+  notifications: () => req('/notifications'),
+  notificationsRead: () => req('/notifications/read', { method: 'POST' }),
+  deletePost: (id) => req('/posts/' + encodeURIComponent(id), { method: 'DELETE' }),
+  deleteComment: (id) => req('/comments/' + encodeURIComponent(id), { method: 'DELETE' }),
+  deleteWork: (id) => req('/works/' + encodeURIComponent(id), { method: 'DELETE' }),
+  report: (type, targetId, reason) => req('/reports', { method: 'POST', body: { type, targetId, reason } }),
+  adminReports: () => req('/admin/reports'),
+  resolveReport: (id, status) => req('/admin/reports/' + encodeURIComponent(id), { method: 'PATCH', body: { status } }),
+  // 參考／編輯內容（種子灌入的清單）
+  content: (kind) => req('/content/' + encodeURIComponent(kind)),
+  // 帳號 handle 即時檢查 + Email 驗證
+  handleAvailable: (h) => req('/handle-available?handle=' + encodeURIComponent(h)),
+  resendEmail: () => req('/email/resend', { method: 'POST' }),
+  // 地點：搜尋 / 常用位置
+  placesSearch: (q) => req('/places/search?q=' + encodeURIComponent(q)),
+  placesReverse: (lat, lon) => req(`/places/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`),
+  myPlaces: () => req('/places'),
+  savePlace: (b) => req('/places', { method: 'POST', body: b }),
+  deletePlace: (id) => req('/places/' + encodeURIComponent(id), { method: 'DELETE' }),
+  // 管理者：使用者/角色 + 內容 CMS
+  adminUsers: () => req('/admin/users'),
+  setUserRole: (id, role) => req(`/admin/users/${encodeURIComponent(id)}/role`, { method: 'PATCH', body: { role } }),
+  adminContent: (kind) => req('/admin/content/' + encodeURIComponent(kind)),
+  saveContent: (kind, id, data, sort = 0) => req(`/admin/content/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'PUT', body: { data, sort } }),
+  deleteContent: (kind, id) => req(`/admin/content/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  seedInfo: () => req('/admin/seed'),
+  purgeSeed: () => req('/admin/seed', { method: 'DELETE' }),
+  // 系統狀態 / 寄信測試（管理者）
+  health: () => req('/health'),
+  mailTest: (to) => req('/admin/mail-test', { method: 'POST', body: { to } }),
+  // 金流（scaffold）
+  payIntent: (b) => req('/payments/intent', { method: 'POST', body: b }),
+  // AI 時光顧問（後端代呼叫 OpenAI；未設金鑰時回 {fallback:true}）
+  aiChat: (messages, context) => req('/ai/chat', { method: 'POST', body: { messages, context } }),
 }

@@ -1,31 +1,62 @@
+import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { works } from '../data/mock.js'
+import { api } from '../api.js'
 
+// 作品詳情 —— 嚴格來自資料庫（GET /api/works/:id）。
 export default function WorkDetail({ id }) {
-  const { push, setToast, addToCart, saved, toggleSave, requireAccount } = useNav()
-  const w = works.find(x => x.id === id) || works[0]
+  const { push, pop, setToast, addToCart, saved, toggleSave, requireAccount, user } = useNav()
+  const [w, setW] = useState(null)
+  useEffect(() => {
+    let alive = true
+    api.work(id).then(r => { if (alive && r.work) setW(r.work) }).catch(() => {})
+    return () => { alive = false }
+  }, [id])
+
+  if (!w) {
+    return (
+      <>
+        <TopBar title="作品" onBack />
+        <div className="body"><div className="empty"><div className="big">🖼️</div>載入中…</div></div>
+      </>
+    )
+  }
+
   const price = w.price || 30
   const isSaved = saved[w.id]
 
   return (
     <>
-      <TopBar title="作品" onBack right={<button className="iconbtn tap" aria-label="分享" onClick={() => {
-        const url = location.href
-        if (navigator.share) navigator.share({ title: `機巧時運 · ${w.title}`, url }).catch(() => {})
-        else { try { navigator.clipboard.writeText(url) } catch { /* ignore */ } setToast('已複製連結') }
-      }}><Icon name="share" /></button>} />
+      <TopBar title="作品" onBack right={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {!!user && !user.guest && w.author === user.handle
+          ? <button className="acc tap" onClick={async () => {
+              if (!window.confirm('確定刪除這件作品？（無法復原）')) return
+              try { await api.deleteWork(w.id); setToast('作品已刪除'); pop() } catch { setToast('刪除失敗，請稍後再試') }
+            }}>刪除</button>
+          : <button className="acc tap" onClick={async () => {
+              if (!requireAccount('檢舉這件作品')) return
+              try { const r = await api.report('work', w.id, ''); setToast(r.message || '已收到檢舉') } catch { setToast('檢舉失敗，請稍後再試') }
+            }}>檢舉</button>}
+        <button className="iconbtn tap" aria-label="分享" onClick={() => {
+          const url = location.href
+          if (navigator.share) navigator.share({ title: `機巧時運 · ${w.title}`, url }).catch(() => {})
+          else { try { navigator.clipboard.writeText(url) } catch { /* ignore */ } setToast('已複製連結') }
+        }}><Icon name="share" /></button>
+      </span>} />
       <div className="body wd-body">
         <div className="wd-media">
-          <div className="img" style={{ background: w.bg, height: 320, fontSize: 60 }}>{w.emoji}</div>
+          <div className="img" style={{ background: w.bg, height: 320, fontSize: 60, padding: 0, position: 'relative', overflow: 'hidden' }}>
+            {w.image ? <PhotoImg src={w.image} /> : w.emoji}
+          </div>
         </div>
 
         <div className="wd-info">
-          <div className="post-hd">
-            <div className="av" style={{ background: w.bg }}>{w.emoji}</div>
+          <button className="post-hd tap" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left' }}
+            onClick={() => push('creatorPage', { user: w.author, avatar: w.avatar || w.emoji, avatarBg: w.avatarBg || w.bg })}>
+            <div className="av" style={{ background: w.avatarBg || w.bg }}>{w.avatar || w.emoji}</div>
             <div className="uname">{w.author}</div>
-          </div>
+          </button>
 
           <div className="cap2" style={{ marginTop: 10 }}><b>{w.title}</b>　<span className="tag">#{w.term}</span></div>
           <div className="cap2 muted">節氣攝影作品，可授權用於個人植物月曆與手帳排版。</div>

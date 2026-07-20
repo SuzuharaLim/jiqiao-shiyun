@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
-import { zodiacs } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 export default function Matchmaking() {
+  const zodiacs = useContent('zodiacs')   // 生肖清單嚴格來自資料庫
   const [a, setA] = useState(null)
   const [b, setB] = useState(null)
   const done = a && b

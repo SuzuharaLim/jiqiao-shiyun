@@ -1,9 +1,10 @@
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { challenges } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 export default function Challenges() {
   const { push } = useNav()
+  const challenges = useContent('challenges')
   return (
     <>
       <TopBar title="節氣挑戰活動" onBack />

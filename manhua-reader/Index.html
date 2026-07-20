@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <style>
+    :root {
+      --bg: #0e0f13; --panel: #16181f; --panel2: #1e212b; --line: #2a2e3a;
+      --txt: #e8e9ee; --sub: #9aa0ad; --accent: #ff5a5f; --accent2: #ffd166;
+      --ok: #4ade80; --radius: 14px;
+      --safe-t: env(safe-area-inset-top); --safe-b: env(safe-area-inset-bottom);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; background: var(--bg); color: var(--txt);
+      font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+      -webkit-text-size-adjust: 100%; overscroll-behavior-y: none;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; }
+    button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+    input { font-size: 16px; } /* 16px 以上避免 iOS 聚焦時自動放大 */
+
+    /* ---- 頂欄 ---- */
+    .topbar {
+      position: sticky; top: 0; z-index: 40; background: rgba(14,15,19,.94);
+      backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; padding-top: calc(10px + var(--safe-t));
+    }
+    .topbar .brand { font-weight: 800; letter-spacing: .5px; color: var(--accent); font-size: 17px; white-space: nowrap; }
+    .search {
+      flex: 1; display: flex; align-items: center; gap: 6px; background: var(--panel2);
+      border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px;
+    }
+    .search input { flex: 1; background: none; border: none; outline: none; color: var(--txt); }
+    .search button { color: var(--sub); font-size: 17px; padding: 0; }
+    .iconbtn {
+      width: 42px; height: 42px; border-radius: 11px; background: var(--panel2);
+      border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; flex: 0 0 auto;
+    }
+
+    /* ---- 內容 ---- */
+    .wrap { max-width: 720px; margin: 0 auto; padding: 12px; padding-bottom: calc(78px + var(--safe-b)); }
+
+    /* ---- 底部分頁列（手機）---- */
+    .tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex;
+      background: var(--panel); border-top: 1px solid var(--line);
+      padding-bottom: var(--safe-b);
+    }
+    .tabs button {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 9px 0 8px; color: var(--sub); font-size: 11px;
+    }
+    .tabs button .ic { font-size: 21px; line-height: 1; }
+    .tabs button.on { color: var(--accent); }
+
+    /* ---- 漫畫格（手機 3 欄）---- */
+    .grid { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+    @media (min-width: 520px) { .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .card .cov { position: relative; aspect-ratio: 3/4; background: var(--panel2); }
+    .card .cov img { width: 100%; height: 100%; object-fit: cover; }
+    .card .cov .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sub); font-size: 12px; }
+    .card .nm { padding: 7px 8px; font-size: 12.5px; line-height: 1.35; height: 50px; overflow: hidden; }
+    .card .fav { position: absolute; top: 5px; right: 5px; width: 32px; height: 32px; border-radius: 9px;
+      background: rgba(0,0,0,.5); display: grid; place-items: center; font-size: 15px; }
+
+    /* ---- 詳情 ---- */
+    .detail-head { display: flex; gap: 12px; margin-bottom: 14px; }
+    .detail-head .cov { width: 108px; flex: 0 0 108px; aspect-ratio: 3/4; border-radius: 12px; overflow: hidden; background: var(--panel2); }
+    .detail-head .cov img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-head h2 { margin: 0 0 8px; font-size: 19px; line-height: 1.3; }
+    .detail-head .intro { color: var(--sub); font-size: 13px; line-height: 1.5; max-height: 140px; overflow: auto; }
+    .btnrow { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 15px; font-size: 14px; font-weight: 600; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.ok { background: var(--ok); border-color: var(--ok); color: #06210f; }
+    .btnrow .btn { flex: 1 1 auto; min-width: 44%; text-align: center; }
+    .btnrow .btn.primary { min-width: 100%; }
+
+    .chapters { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+    .chapters button { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 6px;
+      font-size: 12.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .chapters button.cur { border-color: var(--accent); color: var(--accent2); }
+
+    .sechead { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 10px; }
+    .sechead h3 { margin: 0; font-size: 16px; }
+    .sechead .link { color: var(--accent); font-size: 13px; padding: 6px; }
+
+    /* ---- 閱讀器 ---- */
+    .reader { position: fixed; inset: 0; z-index: 60; background: #000; display: none; flex-direction: column; }
+    .reader.on { display: flex; }
+    .reader-top {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+      padding: 10px 12px; padding-top: calc(10px + var(--safe-t));
+      background: linear-gradient(#000d, transparent); display: flex; align-items: center; gap: 10px;
+      transition: opacity .25s; font-size: 14px;
+    }
+    .reader-bottom {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+      padding: 10px 12px; padding-bottom: calc(14px + var(--safe-b));
+      background: linear-gradient(transparent, #000e); transition: opacity .25s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .reader.hud-off .reader-top, .reader.hud-off .reader-bottom { opacity: 0; pointer-events: none; }
+    .reader-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+    .page { position: relative; margin: 0 auto var(--gap, 0) auto; width: 100%; max-width: var(--maxw, 720px); background: #111; min-height: 160px; }
+    .page img { width: 100%; display: block; }
+    .page .spin { position: absolute; inset: 0; display: grid; place-items: center; color: #888; font-size: 13px; }
+    .page .idx { position: absolute; left: 6px; top: 6px; background: #0008; color: #ccc; font-size: 11px; padding: 2px 6px; border-radius: 6px; }
+    .progressbar { position: absolute; top: 0; left: 0; height: 3px; background: var(--accent); z-index: 6; transition: width .1s; }
+    .reader-bottom input[type=range] { flex: 1; accent-color: var(--accent); height: 24px; }
+    .chapnav button { background: #ffffff1a; border: 1px solid #ffffff33; border-radius: 9px; padding: 10px 12px; font-size: 13px; }
+    .chapnav button:disabled { opacity: .35; }
+    .endcard { text-align: center; padding: 36px 20px; color: #aaa; }
+
+    /* ---- 設定抽屜 ---- */
+    .drawer { position: fixed; inset: 0; z-index: 70; background: #000a; display: none; }
+    .drawer.on { display: block; }
+    .drawer .panel { position: absolute; right: 0; top: 0; bottom: 0; width: min(340px, 88vw);
+      background: var(--panel); border-left: 1px solid var(--line); padding: 18px; padding-top: calc(18px + var(--safe-t)); overflow: auto; }
+    .drawer h3 { margin: 4px 0 16px; }
+    .setrow { margin: 16px 0; }
+    .setrow label { display: block; color: var(--sub); font-size: 13px; margin-bottom: 8px; }
+    .setrow input[type=range] { width: 100%; accent-color: var(--accent); height: 26px; }
+    .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .seg button { flex: 1; padding: 11px; font-size: 13px; background: var(--panel2); }
+    .seg button.on { background: var(--accent); color: #fff; }
+
+    /* ---- 其他 ---- */
+    .empty { text-align: center; color: var(--sub); padding: 46px 20px; font-size: 14px; }
+    .loading { text-align: center; color: var(--sub); padding: 40px; }
+    .spinner { display: inline-block; width: 22px; height: 22px; border: 3px solid #ffffff33; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast { position: fixed; left: 50%; bottom: calc(90px + var(--safe-b)); transform: translateX(-50%); z-index: 90;
+      background: #000e; border: 1px solid var(--line); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px;
+      opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90vw; text-align: center; }
+    .toast.on { opacity: 1; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .histitem { display: flex; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); margin-bottom: 8px; align-items: center; }
+    .histitem .cov { width: 44px; height: 58px; border-radius: 6px; object-fit: cover; background: var(--panel2); flex: 0 0 44px; }
+    .histitem .meta { flex: 1; min-width: 0; }
+    .histitem .meta .t { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .histitem .meta .s { font-size: 12px; color: var(--sub); }
+    .chip { display: inline-block; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; margin: 0 6px 8px 0; }
+    .modal { position: fixed; inset: 0; z-index: 80; background: #000b; display: none; place-items: center; padding: 20px; }
+    .modal.on { display: grid; }
+    .modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: min(360px, 92vw); }
+    .modal h3 { margin: 0 0 14px; }
+    .modal input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--txt); margin-bottom: 10px; }
+    .modal .collist button { display: block; width: 100%; text-align: left; padding: 14px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); margin-bottom: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <!-- 頂欄 -->
+  <div class="topbar">
+    <div class="brand" id="homeBtn">漫畫櫃</div>
+    <form class="search" id="searchForm">
+      <input id="searchInput" placeholder="搜尋漫畫…" autocomplete="off" enterkeyhint="search" />
+      <button type="submit">🔍</button>
+    </form>
+    <button class="iconbtn" id="ssBtn" title="開啟 Google 試算表">📊</button>
+  </div>
+
+  <div class="wrap" id="view"><div class="loading"><span class="spinner"></span></div></div>
+
+  <!-- 底部分頁列 -->
+  <nav class="tabs" id="tabs">
+    <button data-tab="home" class="on"><span class="ic">🏠</span>首頁</button>
+    <button data-tab="shelf"><span class="ic">📚</span>書架</button>
+    <button data-tab="history"><span class="ic">🕘</span>歷史</button>
+  </nav>
+
+  <!-- 閱讀器 -->
+  <div class="reader" id="reader">
+    <div class="progressbar" id="progressbar" style="width:0"></div>
+    <div class="reader-top" id="readerTop">
+      <button class="iconbtn" id="readerClose">✕</button>
+      <div style="flex:1;min-width:0">
+        <div id="rTitle" style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+        <div id="rChap" style="font-size:12px;color:var(--sub)"></div>
+      </div>
+      <button class="iconbtn" id="readerSettings">⚙️</button>
+    </div>
+    <div class="reader-scroll" id="readerScroll"></div>
+    <div class="reader-bottom" id="readerBottom">
+      <div class="chapnav"><button id="prevChap">‹</button></div>
+      <span id="pageLabel" style="font-size:12px;color:#ccc;min-width:52px;text-align:center">0/0</span>
+      <input type="range" id="pageSlider" min="0" max="0" value="0" />
+      <div class="chapnav"><button id="nextChap">›</button></div>
+    </div>
+  </div>
+
+  <!-- 設定抽屜 -->
+  <div class="drawer" id="drawer">
+    <div class="panel">
+      <h3>閱讀設定</h3>
+      <div class="setrow">
+        <label>圖片寬度：<span id="maxwLabel">720</span> px</label>
+        <input type="range" id="maxwRange" min="360" max="1400" step="20" value="720" />
+      </div>
+      <div class="setrow">
+        <label>頁間距：<span id="gapLabel">0</span> px</label>
+        <input type="range" id="gapRange" min="0" max="40" step="2" value="0" />
+      </div>
+      <div class="setrow">
+        <label>閱讀模式</label>
+        <div class="seg" id="modeSeg">
+          <button data-mode="scroll" class="on">連續滑動</button>
+          <button data-mode="single">單頁翻閱</button>
+        </div>
+      </div>
+      <div class="setrow">
+        <label>章末自動接續下一話</label>
+        <div class="seg" id="autoSeg">
+          <button data-auto="1" class="on">開</button>
+          <button data-auto="0">關</button>
+        </div>
+      </div>
+      <button class="btn" id="drawerClose" style="width:100%;margin-top:10px">關閉</button>
+    </div>
+  </div>
+
+  <!-- 收藏夾選擇 -->
+  <div class="modal" id="colModal">
+    <div class="box">
+      <h3>加入收藏夾</h3>
+      <div class="collist" id="colList"></div>
+      <div class="row">
+        <input id="newColInput" placeholder="＋ 新收藏夾名稱" />
+        <button class="btn primary" id="createColBtn">建立</button>
+      </div>
+      <button class="btn" id="colModalClose" style="width:100%;margin-top:12px">關閉</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  /* ============================================================
+   *  漫畫閱讀器 — 前端（手機版，單檔）
+   * ============================================================ */
+  function call(fn, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+    });
+  }
+  const $ = sel => document.querySelector(sel);
+  const el = (tag, cls, html) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  };
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('on'), 1800);
+  }
+  function esc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  const state = {
+    tab: 'home', favorites: [], collections: { names: [], map: {} },
+    favSet: new Set(), ssUrl: '', pendingCollectComic: null, settings: loadSettings()
+  };
+  function loadSettings() {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('mr_settings') || '{}'); } catch (e) {}
+    return Object.assign({ maxw: 720, gap: 0, mode: 'scroll', auto: 1 }, s);
+  }
+  function saveSettings() { localStorage.setItem('mr_settings', JSON.stringify(state.settings)); }
+
+  // ---- 圖片代理載入（併發佇列）----
+  const imgQueue = []; let imgActive = 0; const IMG_CONCURRENCY = 4; const imgCache = new Map();
+  function loadProxyImage(imgEl, url, onload) {
+    if (imgCache.has(url)) { imgEl.src = imgCache.get(url); if (onload) onload(); return; }
+    imgQueue.push({ imgEl, url, onload }); pumpImgQueue();
+  }
+  function pumpImgQueue() {
+    while (imgActive < IMG_CONCURRENCY && imgQueue.length) {
+      const job = imgQueue.shift(); imgActive++;
+      call('apiImage', job.url)
+        .then(dataUri => { imgCache.set(job.url, dataUri); if (job.imgEl) job.imgEl.src = dataUri; if (job.onload) job.onload(); })
+        .catch(() => { if (job.imgEl) job.imgEl.alt = '⚠ 載入失敗'; })
+        .finally(() => { imgActive--; pumpImgQueue(); });
+    }
+  }
+
+  function cardEl(comic) {
+    const c = el('div', 'card');
+    const fav = state.favSet.has(String(comic.id));
+    c.innerHTML =
+      `<div class="cov"><div class="ph">封面</div><button class="fav" data-fav>${fav ? '❤️' : '🤍'}</button></div>
+       <div class="nm">${esc(comic.name)}</div>`;
+    const cov = c.querySelector('.cov');
+    if (comic.cover) {
+      const img = el('img'); img.loading = 'lazy';
+      cov.insertBefore(img, cov.firstChild);
+      observeCover(img, comic.cover, cov.querySelector('.ph'));
+    }
+    c.querySelector('.nm').onclick = () => openComic(comic.id);
+    cov.onclick = e => { if (!e.target.closest('[data-fav]')) openComic(comic.id); };
+    c.querySelector('[data-fav]').onclick = async e => {
+      e.stopPropagation();
+      const r = await call('toggleFavorite', comic);
+      if (r.favorited) { state.favSet.add(String(comic.id)); e.target.textContent = '❤️'; toast('已加入最愛'); }
+      else { state.favSet.delete(String(comic.id)); e.target.textContent = '🤍'; toast('已移除最愛'); }
+      refreshFavorites();
+    };
+    return c;
+  }
+
+  const coverObserver = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        const { url, ph } = en.target._coverData; const img = en.target;
+        img.onload = () => { if (ph) ph.remove(); };
+        img.onerror = () => { img.onerror = null; loadProxyImage(img, url, () => { if (ph) ph.remove(); }); };
+        img.src = url;
+        coverObserver.unobserve(img);
+      }
+    });
+  }, { rootMargin: '300px' });
+  function observeCover(img, url, ph) { if (!url) return; img._coverData = { url, ph }; coverObserver.observe(img); }
+
+  function gridOf(items) {
+    if (!items.length) return el('div', 'empty', '沒有結果');
+    const g = el('div', 'grid'); items.forEach(it => g.appendChild(cardEl(it))); return g;
+  }
+
+  // ---- 首頁（最新更新 + 翻頁）----
+  let homePage = 1;
+  function homePath(p) { return p <= 1 ? '/list/view.html' : '/list/view_p' + p + '.html'; }
+  async function renderHome() {
+    const v = $('#view'); v.innerHTML = '';
+    v.appendChild(el('div', 'sechead', '<h3>最新更新</h3>'));
+    const box = el('div', 'loading', '<span class="spinner"></span>'); v.appendChild(box);
+    try {
+      const r = (await call('apiList', homePath(homePage))) || {};
+      const items = Array.isArray(r.items) ? r.items : [];
+      if (r.error) { box.replaceWith(el('div', 'empty', '載入失敗：' + esc(r.error))); return; }
+      box.replaceWith(gridOf(items)); v.appendChild(pager());
+    } catch (e) { box.replaceWith(el('div', 'empty', '載入失敗：' + esc((e && e.message) || ('' + e)))); }
+  }
+  function pager() {
+    const wrap = el('div', 'row'); wrap.style.cssText = 'justify-content:center;gap:14px;margin:20px 0';
+    const prev = el('button', 'btn', '‹ 上一頁'); prev.disabled = homePage <= 1;
+    prev.onclick = () => { if (homePage > 1) { homePage--; renderHome(); window.scrollTo(0, 0); } };
+    const label = el('span', '', '第 ' + homePage + ' 頁'); label.style.color = 'var(--sub)';
+    const next = el('button', 'btn', '下一頁 ›');
+    next.onclick = () => { homePage++; renderHome(); window.scrollTo(0, 0); };
+    wrap.append(prev, label, next); return wrap;
+  }
+
+  async function renderShelf() {
+    const v = $('#view'); v.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
+    await refreshShelfData(); v.innerHTML = '';
+    v.appendChild(el('div', 'sechead', '<h3>❤️ 最愛</h3>'));
+    v.appendChild(state.favorites.length ? gridOf(state.favorites) : el('div', 'empty', '還沒有收藏的作品'));
+    const h2 = el('div', 'sechead'); h2.innerHTML = '<h3>📁 我的收藏夾</h3>';
+    const addBtn = el('button', 'link', '＋ 新收藏夾'); addBtn.onclick = () => createCollectionPrompt();
+    h2.appendChild(addBtn); v.appendChild(h2);
+    if (!state.collections.names.length) {
+      v.appendChild(el('div', 'empty', '尚未建立收藏夾，點右上「＋ 新收藏夾」開始'));
+    } else {
+      state.collections.names.forEach(name => {
+        const items = state.collections.map[name] || [];
+        const head = el('div', 'sechead');
+        head.innerHTML = `<h3 style="font-size:15px">${esc(name)} <span style="color:var(--sub);font-size:13px">(${items.length})</span></h3>`;
+        const del = el('button', 'link', '刪除'); del.style.color = 'var(--sub)';
+        del.onclick = async () => { if (confirm(`確定刪除收藏夾「${name}」？`)) { state.collections = await call('deleteCollection', name); renderShelf(); } };
+        head.appendChild(del); v.appendChild(head);
+        if (items.length) {
+          const g = el('div', 'grid');
+          items.forEach(it => {
+            const card = cardEl(it);
+            const rm = el('button', 'fav'); rm.style.top = '5px'; rm.style.left = '5px'; rm.style.right = 'auto'; rm.textContent = '🗑';
+            rm.onclick = async e => { e.stopPropagation(); state.collections = await call('removeFromCollection', name, it.id); renderShelf(); };
+            card.querySelector('.cov').appendChild(rm); g.appendChild(card);
+          });
+          v.appendChild(g);
+        } else { v.appendChild(el('div', 'empty', '（空）')); }
+      });
+    }
+  }
+
+  async function renderHistory() {
+    const v = $('#view'); v.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
+    const [views, searches] = await Promise.all([call('getViewHistory'), call('getSearchHistory')]);
+    v.innerHTML = '';
+    const h1 = el('div', 'sechead', '<h3>👁 觀看紀錄</h3>');
+    const c1 = el('button', 'link', '清除');
+    c1.onclick = async () => { if (confirm('清除全部觀看紀錄？')) { await call('clearHistory', 'view'); renderHistory(); } };
+    h1.appendChild(c1); v.appendChild(h1);
+    if (!views.length) v.appendChild(el('div', 'empty', '尚無觀看紀錄'));
+    views.forEach(h => {
+      const item = el('div', 'histitem');
+      item.innerHTML =
+        `<img class="cov" ${h.cover ? '' : 'style="display:none"'} />
+         <div class="meta">
+           <div class="t">${esc(h.comicName || h.comicId)}</div>
+           <div class="s">${esc(h.chapterName || '')} · 進度 ${h.progress || 0}% · ${esc(h.time)}</div>
+         </div>
+         <button class="btn" style="padding:9px 12px">續讀</button>`;
+      if (h.cover) observeCover(item.querySelector('.cov'), h.cover, null);
+      item.querySelector('button').onclick = () => openReader(h.comicId, h.chapterId, h.comicName, h.cover);
+      item.querySelector('.meta').onclick = () => openComic(h.comicId);
+      v.appendChild(item);
+    });
+    const h2 = el('div', 'sechead', '<h3>🔍 搜尋紀錄</h3>');
+    const c2 = el('button', 'link', '清除');
+    c2.onclick = async () => { if (confirm('清除全部搜尋紀錄？')) { await call('clearHistory', 'search'); renderHistory(); } };
+    h2.appendChild(c2); v.appendChild(h2);
+    if (!searches.length) v.appendChild(el('div', 'empty', '尚無搜尋紀錄'));
+    const chipwrap = el('div');
+    searches.forEach(s => {
+      const chip = el('button', 'chip', `${esc(s.keyword)} · ${s.count}`);
+      chip.onclick = () => { $('#searchInput').value = s.keyword; doSearch(s.keyword); };
+      chipwrap.appendChild(chip);
+    });
+    v.appendChild(chipwrap);
+  }
+
+  // ---- 作品詳情 ----
+  async function openComic(comicId) {
+    setTab(null);
+    const v = $('#view'); v.innerHTML = '<div class="loading"><span class="spinner"></span></div>'; window.scrollTo(0, 0);
+    let comic, resume;
+    try { [comic, resume] = await Promise.all([call('apiComic', comicId), call('getResume', comicId)]); }
+    catch (e) { v.innerHTML = '<div class="empty">載入失敗：' + esc(e.message || '' + e) + '</div>'; return; }
+    v.innerHTML = '';
+    const back = el('button', 'btn', '‹ 返回'); back.style.marginBottom = '12px';
+    back.onclick = () => setTab(state.tab || 'home'); v.appendChild(back);
+    const head = el('div', 'detail-head');
+    const fav = state.favSet.has(String(comicId));
+    head.innerHTML =
+      `<div class="cov"><div class="ph" style="display:grid;place-items:center;height:100%;color:var(--sub)">封面</div></div>
+       <div style="flex:1;min-width:0"><h2>${esc(comic.name)}</h2><div class="intro">${esc(comic.intro || '（無簡介）')}</div></div>`;
+    if (comic.cover) {
+      const img = el('img'); head.querySelector('.cov').innerHTML = ''; head.querySelector('.cov').appendChild(img);
+      observeCover(img, comic.cover, null);
+    }
+    v.appendChild(head);
+    const btnrow = el('div', 'btnrow');
+    const startBtn = el('button', 'btn primary', resume ? `▶ 續讀：${esc(resume.chapterName || '上次')}` : '▶ 從第一話開始');
+    startBtn.onclick = () => { const ch = resume ? resume.chapterId : (comic.chapters[0] && comic.chapters[0].id); if (ch) openReader(comic.id, ch, comic.name, comic.cover); };
+    btnrow.appendChild(startBtn);
+    const favBtn = el('button', 'btn' + (fav ? ' ok' : ''), fav ? '❤️ 已收藏' : '🤍 加最愛');
+    favBtn.onclick = async () => {
+      const r = await call('toggleFavorite', { id: comic.id, name: comic.name, cover: comic.cover });
+      if (r.favorited) { state.favSet.add(String(comic.id)); favBtn.className = 'btn ok'; favBtn.textContent = '❤️ 已收藏'; }
+      else { state.favSet.delete(String(comic.id)); favBtn.className = 'btn'; favBtn.textContent = '🤍 加最愛'; }
+      refreshFavorites();
+    };
+    btnrow.appendChild(favBtn);
+    const colBtn = el('button', 'btn', '📁 收藏夾');
+    colBtn.onclick = () => openCollectModal({ id: comic.id, name: comic.name, cover: comic.cover });
+    btnrow.appendChild(colBtn); v.appendChild(btnrow);
+    v.appendChild(el('div', 'sechead', `<h3>章節（${comic.chapters.length}）</h3>`));
+    const chapWrap = el('div', 'chapters');
+    comic.chapters.forEach(ch => {
+      const b = el('button', '', esc(ch.name));
+      if (resume && String(resume.chapterId) === String(ch.id)) b.classList.add('cur');
+      b.title = ch.name; b.onclick = () => openReader(comic.id, ch.id, comic.name, comic.cover);
+      chapWrap.appendChild(b);
+    });
+    v.appendChild(chapWrap);
+  }
+
+  // ---- 閱讀器 ----
+  const reader = { comicId: null, comicName: '', cover: '', chapterId: null, chapterName: '', prevId: '', nextId: '', pages: [], count: 0, observer: null, saveTimer: null, appendingNext: false };
+  function applyReaderVars() {
+    document.documentElement.style.setProperty('--maxw', state.settings.maxw + 'px');
+    document.documentElement.style.setProperty('--gap', state.settings.gap + 'px');
+  }
+  async function openReader(comicId, chapterId, comicName, cover) {
+    setTab(null); applyReaderVars();
+    reader.comicId = comicId; reader.comicName = comicName || ''; reader.cover = cover || '';
+    $('#reader').classList.add('on');
+    $('#readerScroll').innerHTML = '<div class="loading" style="color:#888"><span class="spinner"></span></div>';
+    await loadChapterInto(chapterId, true);
+  }
+  async function loadChapterInto(chapterId, replace) {
+    const scroll = $('#readerScroll');
+    let data;
+    try { data = await call('apiChapter', reader.comicId, chapterId); }
+    catch (e) { if (replace) scroll.innerHTML = '<div class="endcard">章節載入失敗：' + esc(e.message || '' + e) + '</div>'; else toast('下一話載入失敗'); return null; }
+    if (replace) {
+      scroll.innerHTML = ''; reader.pages = [];
+      reader.chapterId = data.chapterId; reader.chapterName = data.chapterName;
+      reader.prevId = data.prevId; reader.nextId = data.nextId; reader.count = data.count;
+      $('#rTitle').textContent = reader.comicName || data.comicName;
+      $('#rChap').textContent = data.chapterName + '（' + data.count + ' 頁）';
+      scroll.scrollTop = 0;
+    } else {
+      reader.chapterId = data.chapterId; reader.chapterName = data.chapterName; reader.nextId = data.nextId; reader.count += data.count;
+      const sep = el('div', 'endcard'); sep.style.padding = '20px'; sep.innerHTML = `— ${esc(data.chapterName)} —`;
+      scroll.appendChild(sep); $('#rChap').textContent = data.chapterName; toast('接續：' + data.chapterName);
+    }
+    buildPages(data.files, scroll); setupObserver(); updateChapNav(); logViewNow(0);
+    return data;
+  }
+  function buildPages(files, scroll) {
+    const startIdx = reader.pages.length;
+    files.forEach((url, i) => {
+      const p = el('div', 'page'); p.dataset.url = url;
+      p.innerHTML = `<div class="idx">${startIdx + i + 1}</div><div class="spin"><span class="spinner"></span></div>`;
+      scroll.appendChild(p); reader.pages.push(p);
+    });
+    if (state.settings.mode === 'single') applySingleMode();
+  }
+  function setupObserver() {
+    if (reader.observer) reader.observer.disconnect();
+    reader.observer = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        const p = en.target;
+        if (en.isIntersecting && !p._loaded) {
+          p._loaded = true;
+          const img = el('img'); img.onload = () => { const sp = p.querySelector('.spin'); if (sp) sp.remove(); };
+          p.appendChild(img); loadProxyImage(img, p.dataset.url); reader.observer.unobserve(p);
+        }
+      });
+    }, { root: $('#readerScroll'), rootMargin: '1200px 0px' });
+    reader.pages.forEach(p => { if (!p._loaded) reader.observer.observe(p); });
+  }
+  function updateChapNav() {
+    $('#prevChap').disabled = !reader.prevId; $('#nextChap').disabled = !reader.nextId;
+    $('#pageSlider').max = Math.max(reader.pages.length - 1, 0);
+  }
+  let scrollRaf;
+  function onReaderScroll() {
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = null;
+      const sc = $('#readerScroll');
+      const pct = sc.scrollHeight > sc.clientHeight ? sc.scrollTop / (sc.scrollHeight - sc.clientHeight) : 0;
+      $('#progressbar').style.width = (pct * 100).toFixed(1) + '%';
+      let cur = 0; const mid = sc.scrollTop + sc.clientHeight / 2;
+      for (let i = 0; i < reader.pages.length; i++) { if (reader.pages[i].offsetTop <= mid) cur = i; else break; }
+      $('#pageLabel').textContent = (cur + 1) + '/' + reader.pages.length; $('#pageSlider').value = cur;
+      if (state.settings.auto == 1 && pct > 0.985 && reader.nextId && !reader.appendingNext) {
+        reader.appendingNext = true;
+        loadChapterInto(reader.nextId, false).finally(() => { reader.appendingNext = false; });
+      }
+      clearTimeout(reader.saveTimer);
+      reader.saveTimer = setTimeout(() => logViewNow(Math.round(pct * 100)), 900);
+    });
+  }
+  function logViewNow(progress) {
+    call('logView', { comicId: reader.comicId, comicName: reader.comicName, chapterId: reader.chapterId, chapterName: reader.chapterName, cover: reader.cover, progress: progress }).catch(() => {});
+  }
+  function applySingleMode() {
+    reader.pages.forEach(p => { p.style.minHeight = $('#readerScroll').clientHeight + 'px'; p.style.display = 'grid'; p.style.placeItems = 'center'; });
+  }
+  $('#readerClose').onclick = () => { $('#reader').classList.remove('on'); if (reader.observer) reader.observer.disconnect(); logViewNow(getProgressPct()); };
+  function getProgressPct() { const sc = $('#readerScroll'); return sc.scrollHeight > sc.clientHeight ? Math.round(sc.scrollTop / (sc.scrollHeight - sc.clientHeight) * 100) : 0; }
+  $('#readerScroll').addEventListener('scroll', onReaderScroll, { passive: true });
+  $('#prevChap').onclick = () => { if (reader.prevId) loadChapterInto(reader.prevId, true); };
+  $('#nextChap').onclick = () => { if (reader.nextId) loadChapterInto(reader.nextId, true); };
+  $('#pageSlider').oninput = e => { const p = reader.pages[+e.target.value]; if (p) $('#readerScroll').scrollTo({ top: p.offsetTop, behavior: 'auto' }); };
+  $('#readerScroll').addEventListener('click', e => { if (e.target.closest('.page')) $('#reader').classList.toggle('hud-off'); });
+  document.addEventListener('keydown', e => {
+    if (!$('#reader').classList.contains('on')) return;
+    const sc = $('#readerScroll');
+    if (e.key === 'ArrowRight') { if (reader.nextId) loadChapterInto(reader.nextId, true); }
+    else if (e.key === 'ArrowLeft') { if (reader.prevId) loadChapterInto(reader.prevId, true); }
+    else if (e.key === ' ') { sc.scrollBy({ top: sc.clientHeight * 0.9 }); e.preventDefault(); }
+    else if (e.key === 'Escape') $('#readerClose').click();
+  });
+
+  // ---- 設定 ----
+  $('#readerSettings').onclick = () => openDrawer();
+  $('#drawerClose').onclick = () => $('#drawer').classList.remove('on');
+  function openDrawer() {
+    const s = state.settings;
+    $('#maxwRange').value = s.maxw; $('#maxwLabel').textContent = s.maxw;
+    $('#gapRange').value = s.gap; $('#gapLabel').textContent = s.gap;
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === s.mode));
+    document.querySelectorAll('#autoSeg button').forEach(b => b.classList.toggle('on', b.dataset.auto == s.auto));
+    $('#drawer').classList.add('on');
+  }
+  $('#maxwRange').oninput = e => { state.settings.maxw = +e.target.value; $('#maxwLabel').textContent = e.target.value; applyReaderVars(); saveSettings(); };
+  $('#gapRange').oninput = e => { state.settings.gap = +e.target.value; $('#gapLabel').textContent = e.target.value; applyReaderVars(); saveSettings(); };
+  document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => {
+    state.settings.mode = b.dataset.mode; saveSettings();
+    document.querySelectorAll('#modeSeg button').forEach(x => x.classList.toggle('on', x === b));
+    if (state.settings.mode === 'single') applySingleMode();
+    else reader.pages.forEach(p => { p.style.minHeight = ''; p.style.display = ''; });
+  });
+  document.querySelectorAll('#autoSeg button').forEach(b => b.onclick = () => {
+    state.settings.auto = +b.dataset.auto; saveSettings();
+    document.querySelectorAll('#autoSeg button').forEach(x => x.classList.toggle('on', x === b));
+  });
+
+  // ---- 收藏夾 modal ----
+  function openCollectModal(comic) { state.pendingCollectComic = comic; renderColList(); $('#colModal').classList.add('on'); }
+  function renderColList() {
+    const list = $('#colList'); list.innerHTML = '';
+    if (!state.collections.names.length) list.innerHTML = '<div class="empty" style="padding:16px">尚無收藏夾，先在下方建立</div>';
+    state.collections.names.forEach(name => {
+      const b = el('button', '', `📁 ${esc(name)}`);
+      b.onclick = async () => { state.collections = await call('addToCollection', name, state.pendingCollectComic); toast(`已加入「${name}」`); $('#colModal').classList.remove('on'); };
+      list.appendChild(b);
+    });
+  }
+  $('#createColBtn').onclick = async () => {
+    const name = $('#newColInput').value.trim(); if (!name) return;
+    try {
+      const names = await call('createCollection', name);
+      state.collections.names = names.map(n => n.name);
+      if (!state.collections.map[name]) state.collections.map[name] = [];
+      $('#newColInput').value = ''; renderColList(); toast('已建立收藏夾');
+    } catch (e) { toast(e.message || '建立失敗'); }
+  };
+  $('#colModalClose').onclick = () => $('#colModal').classList.remove('on');
+  async function createCollectionPrompt() {
+    const name = prompt('新收藏夾名稱：'); if (!name) return;
+    try {
+      const names = await call('createCollection', name.trim());
+      state.collections.names = names.map(n => n.name);
+      if (!state.collections.map[name.trim()]) state.collections.map[name.trim()] = [];
+      renderShelf();
+    } catch (e) { toast(e.message || '建立失敗'); }
+  }
+
+  // ---- 資料刷新 ----
+  async function refreshShelfData() {
+    const [favs, cols] = await Promise.all([call('getFavorites'), call('getCollections')]);
+    state.favorites = favs; state.collections = cols; state.favSet = new Set(favs.map(f => String(f.id)));
+  }
+  async function refreshFavorites() { state.favorites = await call('getFavorites'); state.favSet = new Set(state.favorites.map(f => String(f.id))); }
+
+  // ---- 搜尋 ----
+  $('#searchForm').onsubmit = e => { e.preventDefault(); $('#searchInput').blur(); doSearch($('#searchInput').value); };
+  async function doSearch(kw) {
+    kw = (kw || '').trim(); if (!kw) return; setTab(null);
+    const v = $('#view'); v.innerHTML = '<div class="loading"><span class="spinner"></span></div>'; window.scrollTo(0, 0);
+    try {
+      const r = (await call('apiSearch', kw)) || {};
+      const items = Array.isArray(r.items) ? r.items : [];
+      v.innerHTML = '';
+      if (r.error) { v.appendChild(el('div', 'empty', '搜尋失敗：' + esc(r.error))); return; }
+      v.appendChild(el('div', 'sechead', `<h3>「${esc(kw)}」結果（${items.length}）</h3>`));
+      v.appendChild(gridOf(items));
+    } catch (e) { v.innerHTML = '<div class="empty">搜尋失敗：' + esc((e && e.message) || ('' + e)) + '</div>'; }
+  }
+
+  // ---- 分頁 ----
+  function setTab(tab) {
+    if (tab) state.tab = tab;
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.tab && !!tab));
+    if (tab === 'home') renderHome();
+    else if (tab === 'shelf') renderShelf();
+    else if (tab === 'history') renderHistory();
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { window.scrollTo(0, 0); setTab(b.dataset.tab); });
+  $('#homeBtn').onclick = () => { window.scrollTo(0, 0); setTab('home'); };
+  $('#ssBtn').onclick = () => { if (state.ssUrl) window.open(state.ssUrl, '_blank'); else toast('資料表尚未建立'); };
+
+  // ---- 啟動 ----
+  (async function init() {
+    applyReaderVars();
+    try {
+      const boot = await call('bootstrap');
+      state.favorites = boot.favorites || [];
+      state.collections = boot.collections || { names: [], map: {} };
+      state.favSet = new Set(state.favorites.map(f => String(f.id)));
+      state.ssUrl = boot.ssUrl || '';
+    } catch (e) { console.warn('bootstrap 失敗', e); }
+    setTab('home');
+  })();
+  </script>
+</body>
+</html>

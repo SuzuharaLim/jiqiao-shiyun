@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',   // 絕對路徑：深層網址（/AR、/post/p1…）也能正確載入 assets
   build: {
     rollupOptions: {
       output: {

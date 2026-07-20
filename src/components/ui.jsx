@@ -90,6 +90,12 @@ export function Disclaimer({ text }) {
   )
 }
 
+// 使用者上傳的照片：填滿容器（.ph/.img/.gimg 等 emoji 佔位框），無圖時由呼叫端 fallback 到 emoji
+export function PhotoImg({ src, style }) {
+  return <img src={src} alt="" loading="lazy"
+    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit', ...style }} />
+}
+
 // 浮動提示（Toast）
 export function Toast() {
   const { toast } = useNav()

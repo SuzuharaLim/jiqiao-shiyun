@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
-import { zodiacs } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 // 依時間範圍對基礎分做確定性微調，讓今日/本週/本月有差異
 const scoreFor = (base, range) => {
@@ -9,6 +9,7 @@ const scoreFor = (base, range) => {
 }
 
 export default function Zodiac() {
+  const zodiacs = useContent('zodiacs')   // 生肖運勢嚴格來自資料庫
   const [range, setRange] = useState('今日')
   const [pick, setPick] = useState(null)
   return (

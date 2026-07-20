@@ -1,29 +1,81 @@
-import { useState } from 'react'
-import { TopBar, Switch } from '../components/ui.jsx'
+import { useState, useRef } from 'react'
+import { TopBar, Switch, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
+import { api } from '../api.js'
+import LocationPicker from '../components/LocationPicker.jsx'
 import { solarTermNames, licenseTiers } from '../data/mock.js'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 const thumbs = [
   { e: '🌾', bg: '#cfe3d3' }, { e: '🌊', bg: '#dbeafe' }, { e: '🌸', bg: '#fce7f3' },
   { e: '🌅', bg: '#ffedd5' }, { e: '🪷', bg: '#e9e3fb' },
 ]
-const places = ['台中・外埔', '台南・七股', '台北・植物園', '桃園・觀音', '不顯示地點']
+
+// 裝置端壓縮：最長邊 1600px、JPEG 0.82（上傳前先縮，省流量也符合後端 body 上限）
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const max = 1600
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      URL.revokeObjectURL(url)
+      resolve(c.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('讀取圖片失敗')) }
+    img.src = url
+  })
+}
 
 export default function NewPost() {
   const { pop, popAll, setToast, requireAccount } = useNav()
   const [sel, setSel] = useState(0)
+  const [photo, setPhoto] = useState(null)     // 使用者選的照片（壓縮後 dataURL）
+  const fileRef = useRef(null)
   const [cap, setCap] = useState('')
   const [onSale, setOnSale] = useState(true)
-  const [term, setTerm] = useState('芒種')
+  const [term, setTerm] = useState(() => dayFor(todayOffset()).term)   // 預設＝真實當前節氣
   const [pickTerm, setPickTerm] = useState(false)
-  const [placeI, setPlaceI] = useState(0)
+  const [place, setPlace] = useState('')
+  const [locOpen, setLocOpen] = useState(false)
   const [priceI, setPriceI] = useState(1) // licenseTiers 索引，預設 $30
 
+  const pickFile = async (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (!/^image\//.test(f.type)) return setToast('請選擇圖片檔')
+    try { setPhoto(await compressImage(f)) } catch { setToast('讀取圖片失敗，請換一張') }
+  }
+
   const price = licenseTiers[priceI]
-  const publish = () => {
+  const [busy, setBusy] = useState(false)
+  const publish = async () => {
     if (!requireAccount('發佈作品')) return
-    popAll()
-    setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
+    if (busy) return
+    setBusy(true)
+    const tags = (cap.match(/#[^\s#]+/g) || []).map(t => t.slice(1)).slice(0, 8)
+    const title = (cap.trim().split('\n')[0] || '').replace(/#[^\s#]+/g, '').trim().slice(0, 60) || `${term}・新作`
+    try {
+      // 1) 有照片先上傳（拿 imageId）
+      let imageId = null
+      if (photo) { const r = await api.uploadImage(photo); imageId = r.id }
+      // 2) 發佈貼文
+      await api.createPost({
+        emoji: thumbs[sel].e, bg: thumbs[sel].bg, term, title, caption: cap.trim(), tags,
+        place: place || '', imageId,
+      })
+      // 3) 勾「上架市集」→ 真的建立市集作品（同一張圖）
+      if (onSale) await api.createWork({ emoji: thumbs[sel].e, bg: thumbs[sel].bg, term, title, price: price || 0, imageId })
+      popAll()
+      setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
+    } catch (e) {
+      setBusy(false)
+      setToast(e?.message || '發佈失敗，請稍後再試')
+    }
   }
 
   return (
@@ -31,16 +83,28 @@ export default function NewPost() {
       <TopBar title="新貼文" onClose={pop}
         right={<button className="acc tap" onClick={publish}>發佈</button>} />
       <div className="body">
-        <div className="img" style={{ background: thumbs[sel].bg, height: 260, fontSize: 56 }}>{thumbs[sel].e}</div>
+        <div className="img" style={{ background: photo ? '#000' : thumbs[sel].bg, height: 260, fontSize: 56, padding: 0, position: 'relative', overflow: 'hidden' }}>
+          {photo ? <PhotoImg src={photo} /> : thumbs[sel].e}
+        </div>
 
-        <div className="thumbs">
+        {/* 選照片（真實上傳）／或用 emoji 佔位圖 */}
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFile} aria-label="選擇照片" />
+        <div style={{ display: 'flex', gap: 8, padding: '10px 13px 0' }}>
+          <button className="b dark tap" style={{ flex: 1 }} onClick={() => fileRef.current?.click()}>
+            📷 {photo ? '換一張照片' : '上傳照片（相簿/拍照）'}
+          </button>
+          {photo && <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>}
+        </div>
+        {!photo && <div className="thumbs">
           {thumbs.map((t, i) => (
             <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}>{t.e}</button>
           ))}
-        </div>
+        </div>}
 
         <div className="capin">
-          <textarea placeholder="撰寫說明…　#芒種 #田間" aria-label="貼文說明" value={cap} onChange={e => setCap(e.target.value)} />
+          <textarea placeholder="撰寫說明…　#芒種 #田間" aria-label="貼文說明" maxLength={400}
+            value={cap} onChange={e => setCap(e.target.value)} />
+          <div className="muted" style={{ textAlign: 'right', fontSize: 11, padding: '0 4px 4px' }}>{cap.length} / 400</div>
         </div>
 
         {/* 標記節氣 —— 真的可選 */}
@@ -57,10 +121,10 @@ export default function NewPost() {
           </div>
         )}
 
-        {/* 新增地點 —— 循環切換 */}
-        <button className="opt tap" onClick={() => setPlaceI(i => (i + 1) % places.length)}>
+        {/* 新增地點 —— 開地圖搜尋/目前位置/常用位置 */}
+        <button className="opt tap" onClick={() => setLocOpen(true)}>
           <div className="l">📍 新增地點</div>
-          <div className="muted">{places[placeI]} ›</div>
+          <div className="muted" style={{ color: place ? 'var(--cinnabar)' : undefined }}>{place || '搜尋或定位'} ›</div>
         </button>
 
         <div className="opt">
@@ -90,6 +154,8 @@ export default function NewPost() {
         </div>
         <div style={{ height: 16 }} />
       </div>
+
+      {locOpen && <LocationPicker onClose={() => setLocOpen(false)} onPick={(p) => setPlace(p.name)} />}
     </>
   )
 }

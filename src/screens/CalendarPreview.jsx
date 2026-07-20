@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { poemPool } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 const months = [
   { m: '一月', term: '小寒', e: '❄️', bg: '#dbeafe', poem: '寒盡春生，靜待新芽' },
@@ -20,9 +20,11 @@ const months = [
 
 export default function CalendarPreview({ count = 12 }) {
   const { pop, push, addToCart, setToast, requireAccount } = useNav()
+  const poemPool = useContent('poemPool')   // 詩詞池嚴格來自資料庫（後端已攤平為字串陣列）
   const [poems, setPoems] = useState(() => months.map(m => m.poem))
 
   const reshuffle = () => {
+    if (!poemPool.length) return
     // Fisher–Yates 真洗牌
     const arr = [...poemPool]
     for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[arr[i], arr[j]] = [arr[j], arr[i]] }
@@ -31,6 +33,7 @@ export default function CalendarPreview({ count = 12 }) {
   }
   // 點單月：從詩詞池循環替換該月一句
   const editMonth = (i) => setPoems(ps => {
+    if (!poemPool.length) return ps
     const cur = poemPool.indexOf(ps[i])
     const next = poemPool[(cur + 1 + poemPool.length) % poemPool.length]
     return ps.map((p, k) => (k === i ? next : p))

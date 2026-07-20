@@ -1,5 +1,6 @@
 import { TopBar, ToolRow, Switch, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
+import { api } from '../api.js'
 
 export default function Settings() {
   const { theme, toggleTheme, setToast, push, logout, user, prefs, setPref } = useNav()
@@ -14,6 +15,14 @@ export default function Settings() {
         <ToolRow icon="🔐" bg="#dbeafe" title="帳號安全" sub="變更密碼 · 匯出資料 · 刪除帳號" onClick={() => push('accountSecurity')} />
         <ToolRow icon="✦" bg="#ede9fe" title="訂閱與帳號" sub="Free / Premium" onClick={() => push('subscription')} />
         <ToolRow icon="💰" bg="#dcfce7" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
+
+        {['admin', 'moderator'].includes(user?.role) && (
+          <>
+            <SectionHead title="站務" />
+            <ToolRow icon="🛡️" bg="#e9e3fb" title="管理後台"
+              sub={user.role === 'admin' ? '使用者角色 · 內容 CMS' : '內容 CMS（版主）'} onClick={() => push('admin')} />
+          </>
+        )}
 
         <SectionHead title="偏好" />
         <div className="opt">
@@ -42,7 +51,12 @@ export default function Settings() {
         <SectionHead title="隱私與授權" />
         <div className="opt">
           <div className="l">🔒 私密帳號</div>
-          <Switch on={prefs.priv} onChange={(v) => { setPref('priv', v); setToast(v ? '已設為私密帳號' : '已設為公開帳號') }} />
+          <Switch on={prefs.priv} onChange={(v) => {
+            setPref('priv', v)
+            // 同步到伺服器：私密帳號時公開頁隱藏貼文/作品（訪客無帳號則僅本機偏好）
+            if (user && !user.guest) api.updateProfile({ priv: v }).catch(() => {})
+            setToast(v ? '已設為私密帳號（公開頁將隱藏你的貼文/作品）' : '已設為公開帳號')
+          }} />
         </div>
         <ToolRow icon="📜" bg="#ffedd5" title="服務條款" sub="使用規範 · 市集分潤 70% · 非商用授權" onClick={() => push('terms')} />
         <ToolRow icon="🛡️" bg="#fce7f3" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />

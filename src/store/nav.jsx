@@ -1,11 +1,63 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { creatorStats } from '../data/mock.js'
 import { api, setCsrf } from '../api.js'
 
+// ─────────────────────────────────────────────────────────────
+// 網址路由：每個畫面對應一個路徑，與 History API 同步（無 react-router）。
+// 根分頁用 TAB_PATHS；堆疊畫面用 SCREEN_PATH（:param 由 props 帶入，如 /post/:id）。
+// ─────────────────────────────────────────────────────────────
+const TAB_PATHS = ['/', '/explore', '/create', '/almanac', '/me']
+const SCREEN_PATH = {
+  aiChat: '/ai', checkout: '/checkout', workDetail: '/work/:id', postDetail: '/post/:id',
+  newPost: '/new', makeCalendar: '/calendar/make', calendarPreview: '/calendar/preview',
+  myProjects: '/projects', deities: '/deities', zodiac: '/zodiac', dream: '/dream',
+  nameFortune: '/name', matchmaking: '/match', bone: '/bone', proverbs: '/proverbs',
+  festivals: '/festivals', flowers: '/flowers', ingredients: '/ingredients', solarterms: '/solarterms',
+  subscription: '/subscription', wallet: '/wallet', notifications: '/notifications',
+  dms: '/messages', dmThread: '/messages/:user', settings: '/settings', records: '/records',
+  creatorConsole: '/creator-console', store: '/store', orders: '/orders',
+  scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day',
+  yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
+  ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
+  creatorPage: '/creator/:user', prePlan: '/preplan', editProfile: '/edit-profile',
+  about: '/about', accountSecurity: '/security', admin: '/admin',
+  privacy: '/privacy', terms: '/terms', contact: '/contact',
+}
+const SCREEN_MATCHERS = Object.entries(SCREEN_PATH).map(([screen, tpl]) => {
+  const names = []
+  const rx = new RegExp('^' + tpl.replace(/:(\w+)/g, (_, k) => { names.push(k); return '([^/]+)' }) + '/?$')
+  return { screen, rx, names }
+})
+function buildPath(screen, props = {}) {
+  const tpl = SCREEN_PATH[screen]; if (!tpl) return null
+  return tpl.replace(/:(\w+)/g, (_, k) => encodeURIComponent(props?.[k] ?? ''))
+}
+function pathFromState(tab, stack) {
+  const top = stack[stack.length - 1]
+  if (top) { const p = buildPath(top.screen, top.props); if (p) return p }
+  return TAB_PATHS[tab] || '/'
+}
+function routeFromPath(pathname) {
+  const p = (pathname || '/').replace(/\/+$/, '') || '/'
+  const ti = TAB_PATHS.indexOf(p)
+  if (ti >= 0) return { tab: ti, stack: [] }
+  for (const m of SCREEN_MATCHERS) {
+    const mm = m.rx.exec(p)
+    if (mm) {
+      const props = {}
+      m.names.forEach((n, i) => { try { props[n] = decodeURIComponent(mm[i + 1]) } catch { props[n] = mm[i + 1] } })
+      return { tab: 0, stack: [{ screen: m.screen, props }] }
+    }
+  }
+  return { tab: 0, stack: [] }   // 未知路徑 → 首頁
+}
+const initialRoute = () => { try { return routeFromPath(window.location.pathname) } catch { return { tab: 0, stack: [] } } }
+
 // 後端 auth user → App 使用者形狀
 const toAppUser = (u) => ({
-  name: u.name, handle: u.email ? u.email.split('@')[0] : 'user',
-  email: u.email, role: u.role, emailVerified: u.emailVerified, guest: false,
+  name: u.name, handle: u.handle || (u.email ? u.email.split('@')[0] : 'user'),
+  email: u.email, role: u.role, emailVerified: u.emailVerified,
+  bio: u.bio, avatar: u.avatar, avatarBg: u.avatarBg, guest: false,
 })
 
 const NavCtx = createContext(null)
@@ -50,8 +102,10 @@ export function NavProvider({ children }) {
   }
   const updateProfile = (patch) => {
     setUser(u => ({ ...u, ...patch }))
-    // 暱稱持久化到後端（真帳號）；簡介/頭像等展示欄位仍屬前端示範
-    if (patch.name && user && !user.guest) api.updateProfile({ name: patch.name }).catch(() => { /* 離線時僅本機生效 */ })
+    // 暱稱/簡介/頭像持久化到後端（真帳號）；emailVerified 等純狀態不觸發 PATCH
+    if (user && !user.guest && (patch.name || patch.bio !== undefined || patch.avatar)) {
+      api.updateProfile({ name: patch.name ?? user.name, bio: patch.bio, avatar: patch.avatar }).catch(() => { /* 離線時僅本機生效 */ })
+    }
   }
   // ---- 登入牆：下單/上傳/發佈等需要「真帳號」（非訪客）----
   const [authWall, setAuthWall] = useState(null)  // null | 動作說明字串
@@ -72,9 +126,9 @@ export function NavProvider({ children }) {
     } catch { /* ignore */ }
   }, [])
 
-  // ---- 分頁 + 畫面堆疊 ----
-  const [tab, setTabRaw] = useState(0)
-  const [stack, setStack] = useState([]) // [{screen, props}]
+  // ---- 分頁 + 畫面堆疊（初始狀態由網址解析）----
+  const [tab, setTabRaw] = useState(() => initialRoute().tab)
+  const [stack, setStack] = useState(() => initialRoute().stack) // [{screen, props}]
 
   // 桌機為整頁捲動：切換分頁/進出畫面時捲回頂端（否則會停在上一頁的捲動位置）
   const scrollTop = () => { try { window.scrollTo(0, 0) } catch { /* ignore */ } }
@@ -83,9 +137,35 @@ export function NavProvider({ children }) {
   const popAll = useCallback(() => { setStack([]); scrollTop() }, [])
   const setTab = useCallback((i) => { setStack([]); setTabRaw(i); scrollTop() }, [])
 
+  // ---- 網址同步（History API）：狀態變 → 更新網址；上一頁/下一頁 → 還原狀態 ----
+  const suppressSync = useRef(false)
+  useEffect(() => {
+    if (suppressSync.current) { suppressSync.current = false; return }  // popstate 造成的變動不再回推
+    const path = pathFromState(tab, stack)
+    try { if (path !== window.location.pathname) window.history.pushState({ tab, stack }, '', path) } catch { /* ignore */ }
+  }, [tab, stack])
+  useEffect(() => {
+    const onPop = (e) => {
+      const r = (e.state && typeof e.state.tab === 'number') ? e.state : routeFromPath(window.location.pathname)
+      suppressSync.current = true
+      setTabRaw(r.tab); setStack(r.stack || []); scrollTop()
+    }
+    window.addEventListener('popstate', onPop)
+    try { window.history.replaceState({ tab, stack }, '', pathFromState(tab, stack)) } catch { /* ignore */ }
+    return () => window.removeEventListener('popstate', onPop)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- 全域互動狀態（示範用）----
   const [liked, setLiked] = useState({})           // postId -> bool
-  const [saved, setSaved] = useState({})           // postId -> bool (加入月曆)
+  // 加入月曆（收藏）：持久化到 localStorage，重整不遺失
+  const [saved, setSavedRaw] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jq-saved') || '{}') } catch { return {} }
+  })
+  const setSaved = (updater) => setSavedRaw(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater
+    try { localStorage.setItem('jq-saved', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
   const [reminders, setReminders] = useState({ mazu: true, tudi: true }) // 神佛提醒
   const [subscribed, setSubscribed] = useState(false) // Premium
   const [cart, setCart] = useState([])             // 購物車 / 授權
@@ -135,8 +215,15 @@ export function NavProvider({ children }) {
   // 文字大小 / 減少動態：套到 <html> 資料屬性 → 由 CSS 生效
   useEffect(() => { document.documentElement.dataset.textsize = prefs.textSize || 'md' }, [prefs.textSize])
   useEffect(() => { document.documentElement.dataset.reduceMotion = prefs.reduceMotion ? 'on' : 'off' }, [prefs.reduceMotion])
-  // ---- 通知已讀（清紅點）----
-  const [notifRead, setNotifRead] = useState(false)
+  // ---- 通知已讀（清紅點）：以伺服器未讀數為準，跨重整一致 ----
+  const [notifRead, setNotifRead] = useState(true)
+  useEffect(() => {
+    let alive = true
+    if (user && !user.guest) {
+      api.notifications().then(r => { if (alive) setNotifRead(!r.unread) }).catch(() => {})
+    }
+    return () => { alive = false }
+  }, [user?.email, user?.guest])
 
   // ---- 社交 ----
   const [following, setFollowing] = useState({})   // 使用者名 -> bool（追蹤中）

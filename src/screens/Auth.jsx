@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { BRAND } from '../data/mock.js'
+
+const handleFmt = (h) => /^[a-z0-9_.]{3,20}$/.test(h)
 
 // 若使用者是點 email 裡的 /reset-password?token=... 進來，開場就進重設模式
 const initialReset = () => {
@@ -18,7 +20,8 @@ export default function Auth() {
   const { login, loginGuest, setToast } = useNav()
   const resetToken0 = initialReset()
   const [mode, setMode] = useState(resetToken0 ? 'reset' : 'login') // login|register|forgot|reset
-  const [f, setF] = useState({ name: '', email: '', pw: '', pw2: '' })
+  const [f, setF] = useState({ name: '', handle: '', email: '', pw: '', pw2: '' })
+  const [hchk, setHchk] = useState(null)         // handle 可用性 {loading|available|reason}
   const [hp, setHp] = useState('')               // honeypot（防機器人；真人不可見）
   const [agree, setAgree] = useState(false)
   const [showPw, setShowPw] = useState(false)
@@ -27,6 +30,20 @@ export default function Auth() {
   const [devLink, setDevLink] = useState(null)   // { type:'verify'|'reset', token }
   const [resetToken, setResetToken] = useState(resetToken0)
   const set = (k) => (e) => setF(s => ({ ...s, [k]: e.target.value }))
+  const setHandle = (e) => setF(s => ({ ...s, handle: e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20) }))
+
+  // handle 即時可用性檢查（防抖 450ms）
+  useEffect(() => {
+    if (mode !== 'register') return
+    const h = f.handle
+    if (!h) { setHchk(null); return }
+    if (!handleFmt(h)) { setHchk({ reason: '需 3–20 字，僅限英數・底線・句點', available: false }); return }
+    setHchk({ loading: true })
+    const t = setTimeout(async () => {
+      try { const r = await api.handleAvailable(h); setHchk(r) } catch { setHchk(null) }
+    }, 450)
+    return () => clearTimeout(t)
+  }, [f.handle, mode])
 
   const run = async (fn) => {
     if (busy) return
@@ -42,11 +59,13 @@ export default function Auth() {
   })
   const doRegister = () => run(async () => {
     if (!f.name.trim()) return setErr('請輸入暱稱')
+    if (!handleFmt(f.handle)) return setErr('請設定帳號（3–20 字，英數・底線・句點）')
+    if (hchk && hchk.available === false) return setErr('此帳號已被使用，請換一個')
     if (f.pw.length < 8) return setErr('密碼至少 8 碼')
     if (f.pw !== f.pw2) return setErr('兩次密碼不一致')
     if (!agree) return setErr('請先同意服務條款與隱私權政策')
     // website = honeypot 隱藏欄位：真人看不到也不會填，機器人自動填表會被後端擋下
-    const r = await api.register({ name: f.name.trim(), email: f.email.trim(), password: f.pw, website: hp })
+    const r = await api.register({ name: f.name.trim(), handle: f.handle, email: f.email.trim(), password: f.pw, website: hp })
     if (r.devVerifyLink) setDevLink({ type: 'verify', token: tokenFrom(r.devVerifyLink) })
     login(r.user, r.csrfToken)
     setToast('註冊成功，歡迎加入 🌾（請記得驗證 Email）')
@@ -95,6 +114,20 @@ export default function Auth() {
         {mode === 'register' && (
           <div className="field"><label>暱稱</label>
             <input value={f.name} onChange={set('name')} placeholder="你想被怎麼稱呼" autoComplete="nickname" aria-label="暱稱" /></div>
+        )}
+        {mode === 'register' && (
+          <div className="field"><label>帳號 handle（公開，不可重複）</label>
+            <div className="pw-wrap">
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}>@</span>
+              <input value={f.handle} onChange={setHandle} placeholder="your_handle" autoComplete="username"
+                aria-label="帳號 handle" style={{ paddingLeft: 26 }} />
+            </div>
+            {hchk && (
+              <div style={{ fontSize: 11.5, marginTop: 5, color: hchk.loading ? 'var(--muted)' : hchk.available ? 'var(--yi)' : 'var(--ji)' }}>
+                {hchk.loading ? '檢查中…' : `${hchk.available ? '✓ ' : '✕ '}${hchk.reason || (hchk.available ? '可以使用' : '無法使用')}`}
+              </div>
+            )}
+          </div>
         )}
         {mode === 'register' && (
           /* Honeypot：真人不可見不可及；機器人自動填表會填入 → 後端擋下 */

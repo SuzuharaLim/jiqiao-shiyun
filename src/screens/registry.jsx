@@ -28,7 +28,11 @@ import CreatorConsole from './CreatorConsole.jsx'
 import Store from './Store.jsx'
 import Orders from './Orders.jsx'
 import Scan from './Scan.jsx'
+import Camera from './Camera.jsx'
 import TodayShots from './TodayShots.jsx'
+import AlmanacDay from './AlmanacDay.jsx'
+import YearAlmanac from './YearAlmanac.jsx'
+import { FoodTaboo, Units, GanzhiTable } from './AppendixScreens.jsx'
 import Challenges from './Challenges.jsx'
 import CreatorPage from './CreatorPage.jsx'
 import Leaderboard from './Leaderboard.jsx'
@@ -37,6 +41,7 @@ import PrePlan from './PrePlan.jsx'
 import EditProfile from './EditProfile.jsx'
 import About from './About.jsx'
 import AccountSecurity from './AccountSecurity.jsx'
+import Admin from './Admin.jsx'
 import { Privacy, Terms, Contact } from './LegalScreens.jsx'
 import { Proverbs, Festivals, Flowers, Ingredients, SolarTerms, Bone } from './InfoScreens.jsx'
 
@@ -72,7 +77,13 @@ export const SCREENS = {
   store: Store,
   orders: Orders,
   scan: Scan,
+  camera: Camera,
   todayShots: TodayShots,
+  almanacDay: AlmanacDay,
+  yearAlmanac: YearAlmanac,
+  foodTaboo: FoodTaboo,
+  units: Units,
+  ganzhiTable: GanzhiTable,
   challenges: Challenges,
   challengesBoard: Leaderboard,
   creatorPage: CreatorPage,
@@ -81,6 +92,7 @@ export const SCREENS = {
   editProfile: EditProfile,
   about: About,
   accountSecurity: AccountSecurity,
+  admin: Admin,
   privacy: Privacy,
   terms: Terms,
   contact: Contact,

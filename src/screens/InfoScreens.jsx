@@ -1,23 +1,24 @@
 import { useState } from 'react'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { proverbs, festivals, flowers, ingredients, solarTermArticles } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 export function Proverbs() {
   const { setToast } = useNav()
+  const proverbs = useContent('proverbs')   // 諺語嚴格來自資料庫
   // 依日期輪替「每日一句」
-  const [i, setI] = useState(() => Math.floor(Date.now() / 86400000) % proverbs.length)
-  const cur = proverbs[i]
+  const [i, setI] = useState(() => Math.floor(Date.now() / 86400000))
+  const cur = proverbs.length ? proverbs[i % proverbs.length] : null
   return (
     <>
       <TopBar title="台灣諺語" onBack />
       <div className="body">
-        <div className="aicard">
+        {cur && <div className="aicard">
           <div className="t">💬 每日一句</div>
           <div className="d" style={{ fontSize: 15, fontWeight: 700, color: 'var(--acard-t)' }}>「{cur.tw}」</div>
           <div className="d" style={{ margin: '0 0 10px' }}>{cur.mean}</div>
           <button className="go tap" onClick={() => { setI(n => (n + 1) % proverbs.length); setToast('換一句 🗣️') }}>換一句</button>
-        </div>
+        </div>}
         <SectionHead title="更多諺語" />
         {proverbs.map((p, k) => (
           <div key={k} className="list-item">
@@ -32,6 +33,7 @@ export function Proverbs() {
 }
 
 export function Festivals() {
+  const festivals = useContent('festivals')
   return (
     <>
       <TopBar title="臺灣特色慶典活動" onBack />
@@ -51,6 +53,7 @@ export function Festivals() {
 }
 
 export function Flowers() {
+  const flowers = useContent('flowers')
   return (
     <>
       <TopBar title="臺灣賞花景點" onBack />
@@ -68,6 +71,7 @@ export function Flowers() {
 }
 
 export function Ingredients() {
+  const ingredients = useContent('ingredients')
   return (
     <>
       <TopBar title="當季食材 陸・海・空" onBack />
@@ -88,8 +92,9 @@ export function Ingredients() {
 }
 
 export function SolarTerms() {
+  const solarTermArticles = useContent('solarTerms')
   const [i, setI] = useState(0)
-  const a = solarTermArticles[i]
+  const a = solarTermArticles[i] || solarTermArticles[0]
   return (
     <>
       <TopBar title="24 節氣專欄" onBack />
@@ -99,12 +104,14 @@ export function SolarTerms() {
             <button key={t.term} className={`chip tap ${i === idx ? 'on' : ''}`} onClick={() => setI(idx)}>{t.emoji} {t.term}</button>
           ))}
         </div>
-        <div className="img" style={{ height: 150, background: '#f3e7c9', fontSize: 56 }}>{a.emoji}</div>
-        <div className="article">
-          <h3>{a.term}</h3>
-          <p className="muted" style={{ fontSize: 12 }}>{a.sub}</p>
-          {a.body.split('\n\n').map((para, k) => <p key={k}>{para}</p>)}
-        </div>
+        {a && <>
+          <div className="img" style={{ height: 150, background: '#f3e7c9', fontSize: 56 }}>{a.emoji}</div>
+          <div className="article">
+            <h3>{a.term}</h3>
+            <p className="muted" style={{ fontSize: 12 }}>{a.sub}</p>
+            {a.body.split('\n\n').map((para, k) => <p key={k}>{para}</p>)}
+          </div>
+        </>}
       </div>
     </>
   )

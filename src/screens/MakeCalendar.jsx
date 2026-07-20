@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { works } from '../data/mock.js'
-
-const pool = [...works, ...works.slice(0, 6)].map((w, i) => ({ ...w, key: w.id + '_' + i }))
+import { useWorks } from '../hooks/useApi.js'
 
 export default function MakeCalendar() {
   const { pop, push, setToast } = useNav()
+  const works = useWorks(null)   // 選圖來源＝真實市集作品（嚴格來自資料庫）
+  const pool = [...works, ...works.slice(0, 6)].map((w, i) => ({ ...w, key: w.id + '_' + i }))
   const [src, setSrc] = useState('我的照片')
   const [sel, setSel] = useState(() => new Set(pool.slice(0, 8).map(p => p.key)))
   const N = 12
@@ -46,8 +46,8 @@ export default function MakeCalendar() {
           {pool.filter(p => src === '市集' ? p.price : src === '收藏' ? p.term === '芒種' : true).map(p => {
             const on = sel.has(p.key)
             return (
-              <button key={p.key} className="gimg tap" style={{ background: p.bg }} onClick={() => toggle(p.key)}>
-                {p.emoji}
+              <button key={p.key} className="gimg tap" style={{ background: p.bg, position: 'relative', overflow: 'hidden' }} onClick={() => toggle(p.key)}>
+                {p.image ? <PhotoImg src={p.image} /> : p.emoji}
                 {on && <><div className="selo" /><div className="chk">✓</div></>}
               </button>
             )

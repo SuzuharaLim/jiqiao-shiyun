@@ -1,9 +1,23 @@
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { plans } from '../data/mock.js'
+import { useContent } from '../hooks/useApi.js'
 
 export default function Subscription() {
-  const { subscribed, setSubscribed, setToast, pop } = useNav()
+  const { subscribed, setSubscribed, setToast } = useNav()
+  // 方案內容嚴格來自資料庫 ref_items（可經管理後台 CMS 修改）
+  const arr = useContent('plans')
+  const plans = {
+    free: arr.find(p => p.id === 'free'),
+    premium: arr.find(p => p.id === 'premium'),
+  }
+  if (!plans.free || !plans.premium) {
+    return (
+      <>
+        <TopBar title="訂閱與帳號" onBack />
+        <div className="body"><div className="empty"><div className="big">✦</div>方案載入中…</div></div>
+      </>
+    )
+  }
   return (
     <>
       <TopBar title="訂閱與帳號" onBack />

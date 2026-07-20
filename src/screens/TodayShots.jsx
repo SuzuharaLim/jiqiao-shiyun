@@ -1,13 +1,15 @@
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { posts, works } from '../data/mock.js'
+import { usePosts, useWorks } from '../hooks/useApi.js'
 
 // 「今日大家拍的」看更多 —— 社群貼文＋市集作品合併成完整相簿，當前節氣的排前面。
 export default function TodayShots({ term }) {
   const { push } = useNav()
+  const posts = usePosts(null)
+  const works = useWorks(null)
   const items = [
-    ...posts.map(p => ({ id: p.id, kind: 'post', emoji: p.emoji, bg: p.bg, title: p.title, by: p.user, term: p.term })),
-    ...works.map(w => ({ id: w.id, kind: 'work', emoji: w.emoji, bg: w.bg, title: w.title, by: w.author, term: w.term, price: w.price })),
+    ...posts.map(p => ({ id: p.id, kind: 'post', emoji: p.emoji, bg: p.bg, image: p.image, title: p.title, by: p.user, term: p.term })),
+    ...works.map(w => ({ id: w.id, kind: 'work', emoji: w.emoji, bg: w.bg, image: w.image, title: w.title, by: w.author, term: w.term, price: w.price })),
   ]
   const sorted = [...items].sort((a, b) => (b.term === term) - (a.term === term))
   const open = (it) => it.kind === 'post' ? push('postDetail', { id: it.id }) : push('workDetail', { id: it.id })
@@ -20,7 +22,8 @@ export default function TodayShots({ term }) {
         <div className="album">
           {sorted.map((it, i) => (
             <button key={`${it.kind}-${it.id}-${i}`} className="it tap" onClick={() => open(it)}>
-              <div className="ph" style={{ background: it.bg }}>{it.emoji}
+              <div className="ph" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}>
+                {it.image ? <PhotoImg src={it.image} /> : it.emoji}
                 {it.price && <div className="gbadge">NT${it.price}</div>}
               </div>
               <div className="cap">{it.title}<small>@{it.by} · {it.term}</small></div>

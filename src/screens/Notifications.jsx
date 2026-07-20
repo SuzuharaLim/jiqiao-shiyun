@@ -1,12 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { notifications } from '../data/mock.js'
+import { api } from '../api.js'
 
 export default function Notifications() {
-  const { push, setNotifRead } = useNav()
+  const { push, setNotifRead, user } = useNav()
+  const [notifications, setNotifications] = useState([])   // 嚴格來自資料庫
   useEffect(() => { setNotifRead(true) }, [setNotifRead])
+  useEffect(() => {
+    if (!user) return
+    let alive = true
+    api.notifications().then(r => {
+      if (alive && r.notifications) setNotifications(r.notifications)
+      // 開啟通知中心＝全部標為已讀（存 DB，跨重整/裝置一致）
+      if (r.unread) api.notificationsRead().catch(() => {})
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [user])
   return (
     <>
       <TopBar title="通知" onBack />

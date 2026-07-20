@@ -2,10 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { today, aiOpen, aiQuickReplies, aiReply } from '../data/mock.js'
+import { api } from '../api.js'
+import { aiOpen, aiQuickReplies, aiReply } from '../data/mock.js'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 export default function AIChat() {
   const { setToast } = useNav()
+  const today = dayFor(todayOffset())   // 真實今日運勢
   const [msgs, setMsgs] = useState([{ who: 'ai', text: aiOpen }])
   const [text, setText] = useState('')
   const [typing, setTyping] = useState(false)
@@ -19,17 +22,28 @@ export default function AIChat() {
     if (el) el.scrollTop = el.scrollHeight
   }, [msgs, typing])
 
-  const send = (t) => {
+  const send = async (t) => {
     const q = (t ?? text).trim()
     if (!q) return
-    setMsgs(m => [...m, { who: 'me', text: q }])
+    const mine = { who: 'me', text: q }
+    const base = [...msgs, mine]
+    setMsgs(base)
     setText('')
     setShowQuick(false)
     setTyping(true)
-    setTimeout(() => {
-      setTyping(false)
-      setMsgs(m => [...m, { who: 'ai', text: aiReply(q) }])
-    }, 900)
+    // 真實 GPT：後端代呼叫（金鑰在後端）；未設金鑰／訪客／失敗 → 退回內建示範腳本
+    const history = base.filter(m => m.who === 'me' || m.who === 'ai')
+      .map(m => ({ role: m.who === 'me' ? 'user' : 'assistant', content: m.text }))
+    const ctx = `今天${today.term}，${today.ganzhi.replace('日', '')}日，宜${today.yi.join('、')}；忌${today.ji.join('、')}；吉時${today.luckyHours}`
+    let reply
+    try {
+      const r = await api.aiChat(history, ctx)
+      reply = (r && r.reply && !r.fallback) ? r.reply : aiReply(q)
+    } catch {
+      reply = aiReply(q)   // 離線/未登入/未設金鑰
+    }
+    setTyping(false)
+    setMsgs(m => [...m, { who: 'ai', text: reply }])
   }
 
   return (

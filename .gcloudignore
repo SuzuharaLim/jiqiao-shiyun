@@ -11,3 +11,8 @@ dist
 netlify.toml
 README.md
 docs
+server/data
+*.db
+*.db-shm
+*.db-wal
+.env

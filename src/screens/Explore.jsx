@@ -1,21 +1,26 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { works, exploreChips } from '../data/mock.js'
-
-const creators = [
-  { user: 'flora.tw', emoji: '🌸', bg: '#fce7f3', works: 36 },
-  { user: 'wang_photo', emoji: '🌾', bg: '#cfe8d6', works: 28 },
-  { user: 'lin_ocean', emoji: '🌊', bg: '#dbeafe', works: 21 },
-  { user: 'sky_diary', emoji: '🌅', bg: '#ffedd5', works: 17 },
-]
+import { useWorks, useContent } from '../hooks/useApi.js'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 export default function Explore() {
   const { push, setToast } = useNav()
+  const nowTerm = dayFor(todayOffset()).term   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
   const [q, setQ] = useState('')
 
+  const works = useWorks(null)   // 全部作品嚴格來自資料庫（前端再依 chip/搜尋篩選）
+  const chipsFromDb = useContent('exploreChips')   // 節氣篩選嚴格來自資料庫（後端已攤平為字串陣列）
+  const exploreChips = chipsFromDb.length ? chipsFromDb : ['全部']
+  // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
+  const creators = Object.values(works.reduce((m, w) => {
+    const k = w.author
+    if (!m[k]) m[k] = { user: w.author, emoji: w.avatar || w.emoji, bg: w.avatarBg || w.bg, works: 0 }
+    m[k].works++
+    return m
+  }, {})).sort((a, b) => b.works - a.works).slice(0, 8)
   const list = works.filter(w => {
     const okChip = chip === '全部' || w.term === chip
     const okQ = !q || w.title.includes(q) || w.author.includes(q) || w.term.includes(q)
@@ -40,19 +45,19 @@ export default function Explore() {
         {/* 節氣選擇輪 */}
         <div className="termwheel">
           {exploreChips.map(c => (
-            <button key={c} className={`tm tap ${chip === c ? 'on' : c === '芒種' ? 'now' : ''}`}
-              onClick={() => setChip(c)}>{c === '芒種' ? '● 芒種' : c}</button>
+            <button key={c} className={`tm tap ${chip === c ? 'on' : c === nowTerm ? 'now' : ''}`}
+              onClick={() => setChip(c)}>{c === nowTerm ? `● ${c}` : c}</button>
           ))}
         </div>
 
         {/* 節氣挑戰封面 */}
         <button className="coverbig tap" onClick={() => push('challenges')} style={{ width: 'calc(100% - 26px)' }}>
-          <div className="bt">🎯 芒種攝影挑戰</div>
-          <div className="bd">拍下你的芒種，前 3 名收錄官方植物月曆 · 328 人參加 · 剩 2 天</div>
+          <div className="bt">🎯 {nowTerm}攝影挑戰</div>
+          <div className="bd">拍下你的{nowTerm}，前 3 名收錄官方植物月曆</div>
         </button>
 
         {/* 本月人氣創作者 */}
-        <div className="railhd"><div className="t">本月人氣創作者</div><span className="more">依被選用數</span></div>
+        <div className="railhd"><div className="t">本月人氣創作者</div><span className="more">依作品數</span></div>
         <div className="rail">
           {creators.map(c => (
             <button key={c.user} className="railcard tap" style={{ width: 92 }}
@@ -72,8 +77,8 @@ export default function Explore() {
           <div className="album">
             {list.map(w => (
               <button key={w.id} className="it tap" onClick={() => push('workDetail', { id: w.id })}>
-                <div className="ph" style={{ background: w.bg }}>
-                  {w.emoji}
+                <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
+                  {w.image ? <PhotoImg src={w.image} /> : w.emoji}
                   {w.price && <div className="gbadge">NT${w.price}</div>}
                 </div>
                 <div className="cap">{w.title}<small>@{w.author} · {w.term}</small></div>

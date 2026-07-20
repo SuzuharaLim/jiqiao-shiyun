@@ -1,21 +1,24 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { BRAND, posts } from '../data/mock.js'
-import { dayFor, dateFromOffset, offsetFromDate, monthCells } from '../data/almanac.js'
+import { BRAND } from '../data/mock.js'
+import { usePosts } from '../hooks/useApi.js'
+import { dayFor, dateFromOffset, offsetFromDate, monthCells, todayOffset } from '../data/almanac.js'
 
 const WK = ['日', '一', '二', '三', '四', '五', '六']
 
 export default function Feed() {
   const { push, liked, notifRead } = useNav()
-  const [off, setOff] = useState(0)
+  const T0 = todayOffset()               // 真實今日對錨點的偏移
+  const [off, setOff] = useState(T0)     // 一開就停在系統當前日期
   const [cal, setCal] = useState(null) // {y, m} 開啟月曆選擇器
 
   const d = dayFor(off)
   const gzZi = d.ganzhi.replace(/日$/, '')
-  // 社群貼文（依節氣，開啟貼文詳情＋留言）
-  const shots = posts.filter(p => p.term === d.term).concat(posts).slice(0, 6)
+  // 社群貼文（嚴格來自資料庫）。依節氣排前，開啟貼文詳情＋留言
+  const allPosts = usePosts(null)
+  const shots = allPosts.filter(p => p.term === d.term).concat(allPosts).slice(0, 6)
 
   const RANGE = 1095 // 可翻閱範圍：今日前後約三年（示範演算，已標註近似）
   const clampOff = (o) => Math.max(-RANGE, Math.min(RANGE, o))
@@ -52,9 +55,9 @@ export default function Feed() {
         </div>
         {/* 固定高度插槽：切換日期時不會讓下方版面跳動 */}
         <div className="daytools">
-          {off === 0
+          {off === T0
             ? <span className="hint">點上方日期可翻閱任一天</span>
-            : <button className="pill sm tap" onClick={() => setOff(0)}>↩ 回今日</button>}
+            : <button className="pill sm tap" onClick={() => setOff(T0)}>↩ 回今日</button>}
         </div>
 
         {/* 今日曆頁（精簡） */}
@@ -86,6 +89,14 @@ export default function Feed() {
           ＊干支・農曆・宜忌為示範演算，正式版將接可靠曆算資料
         </div>
 
+        <button className="ad-more tap" onClick={() => push('almanacDay', { off })}>
+          <span className="ad-more-tx">
+            <b>📜 看完整農民曆</b>
+            <small>建除・星宿・彭祖百忌・胎神・沖煞歲數・財喜貴方位・十二時辰</small>
+          </span>
+          <span className="go">›</span>
+        </button>
+
         <div className="calacts">
           <button className="b dark tap" onClick={() => push('aiChat')}>✦ 問 AI 時光顧問</button>
           <button className="b tap" onClick={() => push('makeCalendar')}>＋ 做月曆</button>
@@ -102,8 +113,9 @@ export default function Feed() {
         <div className="rail">
           {shots.map((p, i) => (
             <button key={`${p.id}-${i}`} className="railcard tap" onClick={() => push('postDetail', { id: p.id })}>
-              <div className="ph" style={{ background: p.bg, fontSize: 56 }}>{p.emoji}
-                <span className="ph-like">♥ {p.likes + (liked[p.id] ? 1 : 0)}</span>
+              <div className="ph" style={{ background: p.bg, fontSize: 56, position: 'relative', overflow: 'hidden' }}>
+                {p.image ? <PhotoImg src={p.image} /> : p.emoji}
+                <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>♥ {p.likes + (liked[p.id] ? 1 : 0)}</span>
               </div>
               <div className="cap">{p.title}</div>
               <div className="by">@{p.user}</div>
@@ -140,13 +152,13 @@ export default function Feed() {
                   if (!c) return <span key={i} className="calcell empty" />
                   const far = Math.abs(c.off) > RANGE
                   return (
-                    <button key={i} className={`calcell tap ${c.off === off ? 'on' : ''} ${c.off === 0 ? 'today' : ''}`}
+                    <button key={i} className={`calcell tap ${c.off === off ? 'on' : ''} ${c.off === T0 ? 'today' : ''}`}
                       disabled={far} onClick={() => { setOff(c.off); setCal(null) }}>{c.day}</button>
                   )
                 })}
               </div>
               <div className="pad" style={{ display: 'flex', gap: 8 }}>
-                <button className="b tap" onClick={() => { setOff(0); setCal(null) }}>回今日</button>
+                <button className="b tap" onClick={() => { setOff(T0); setCal(null) }}>回今日</button>
                 <button className="b dark tap" onClick={() => setCal(null)}>完成</button>
               </div>
             </div>

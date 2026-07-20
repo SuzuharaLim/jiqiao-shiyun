@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -25,6 +25,21 @@ export default function AccountSecurity() {
       setToast(r?.message || '密碼已更新 ✓')
       setCur(''); setPw1(''); setPw2('')
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  // ---- 登入裝置（多裝置管理）----
+  const [sess, setSess] = useState([])
+  useEffect(() => {
+    if (guest) return
+    let alive = true
+    api.sessions().then(r => { if (alive) setSess(r.sessions || []) }).catch(() => {})
+    return () => { alive = false }
+  }, [guest])
+  const killAll = async () => {
+    if (!window.confirm('確定登出所有裝置？（包含本裝置，需重新登入）')) return
+    try { await api.logoutAll() } catch { /* ignore */ }
+    setToast('已登出所有裝置')
+    logout()
   }
 
   // ---- 匯出資料 ----
@@ -91,6 +106,20 @@ export default function AccountSecurity() {
           <button className="btn-primary tap" onClick={changePw} disabled={busy}
             style={busy ? { opacity: .6 } : null}>{busy ? '更新中…' : '更新密碼'}</button>
           <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>更新後其他裝置會自動登出，本裝置維持登入。</p>
+        </div>
+
+        <SectionHead title="登入裝置" />
+        <div className="acc-form">
+          {sess.map(s => (
+            <div key={s.id} className="kv" style={{ padding: '5px 0' }}>
+              <span style={{ fontSize: 13 }}>{s.current ? '🟢 本裝置' : '💻 其他裝置'}
+                <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>{s.ip || ''}</span></span>
+              <span className="muted" style={{ fontSize: 11 }}>{(s.created_at || '').slice(0, 10)}</span>
+            </div>
+          ))}
+          {sess.length === 0 && <p className="muted" style={{ fontSize: 12 }}>載入中…</p>}
+          <button className="b tap" style={{ width: '100%', marginTop: 6 }} onClick={killAll}>登出所有裝置（含本機）</button>
+          <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>發現可疑登入時，先登出所有裝置再變更密碼。</p>
         </div>
 
         <SectionHead title="我的資料（GDPR）" />
