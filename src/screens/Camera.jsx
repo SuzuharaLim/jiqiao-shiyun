@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -27,23 +27,45 @@ export default function Camera({ onDone }) {
   const [recording, setRecording] = useState(false)
   const [videoUrl, setVideoUrl] = useState(null)
 
+  const [stream, setStream] = useState(null)        // ★ 用 state 而非 ref：換串流一定會重新掛上 video
+  const [camKey, setCamKey] = useState(0)           // 「再試一次」用的重試計數
+
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const recRef = useRef(null)
   const chunksRef = useRef([])
   const pressTimer = useRef(null)
 
-  // 開關相機
-  const startCam = useCallback(async () => {
-    try {
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: true })
-      streamRef.current = s; setStatus('ready')
-    } catch { setStatus('denied') }
-  }, [facing])
+  // ── 相機生命週期（單一 effect 掌管，避免多處 startCam 互相競爭）──
+  // 雷區：先前 streamRef 是 ref、掛載 effect 依賴 status，切鏡頭時 status 一直是 'ready'
+  //       不觸發重掛，video 仍連著已停止的舊串流 → 黑畫面。改用 state 才會正確重掛。
+  useEffect(() => {
+    const stopAll = () => { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null }
+    const needCam = mode !== 'create' && !shot && !videoUrl
+    if (!needCam) { stopAll(); setStream(null); return }   // 檢視/建立時關閉鏡頭（省電、鏡頭燈不亮）
 
-  useEffect(() => { if (mode !== 'create' && !shot) startCam(); return () => streamRef.current?.getTracks().forEach(t => t.stop()) }, [facing, mode, shot, startCam])
-  useEffect(() => { if (status === 'ready' && videoRef.current && streamRef.current) { videoRef.current.srcObject = streamRef.current; videoRef.current.play().catch(() => {}) } }, [status, shot, mode])
+    let cancelled = false
+    ;(async () => {
+      stopAll()
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: true })
+        if (cancelled) { s.getTracks().forEach(t => t.stop()); return }  // 快速連按切鏡頭時丟棄過期串流
+        streamRef.current = s; setStream(s); setStatus('ready')
+      } catch { if (!cancelled) setStatus('denied') }
+    })()
+    return () => { cancelled = true }
+  }, [facing, mode, shot, videoUrl, camKey])
+
+  // 離開相機畫面時確實關閉（否則鏡頭燈會一直亮著）
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()) }, [])
+
+  // 串流或畫面模式一變就重新掛上 video 元素（mode 切換時 video 是不同的 DOM 節點）
+  useEffect(() => {
+    const v = videoRef.current
+    if (v && stream) { v.srcObject = stream; v.play().catch(() => {}) }
+  }, [stream, mode])
+
+  const retryCam = () => { setStatus('idle'); setCamKey(k => k + 1) }
 
   // 拍照（把當前視訊畫格畫到 canvas）
   const grabPhoto = () => {
@@ -90,15 +112,17 @@ export default function Camera({ onDone }) {
   }
 
   // ── 檢視畫面（拍照後）──
+  // 放棄編輯只需把 shot 清掉，相機由上面的生命週期 effect 自動重開
+  //（先前這裡另外呼叫 startCam() 會與 effect 互搶，導致回到拍攝畫面時黑畫面）
   if (shot) return <Review shot={shot} filters={storyFilters} feedFilters={feedFilters} effects={effects}
-    onBack={() => { setShot(null); startCam() }} onUse={usePhoto} setToast={setToast} />
+    onBack={() => setShot(null)} onUse={usePhoto} setToast={setToast} />
 
   // ── 錄影完成預覽 ──
   if (videoUrl) return (
     <div className="cam">
-      <TopBar title="影片" onClose={() => { setVideoUrl(null); startCam() }} />
+      <TopBar title="影片" onClose={() => setVideoUrl(null)} />
       <div className="cam-stage"><video src={videoUrl} controls autoPlay loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
-      <div className="cam-bottom"><button className="btn-primary tap" onClick={() => { setToast('影片已保存（示範）'); setVideoUrl(null); startCam() }}>使用影片</button></div>
+      <div className="cam-bottom"><button className="btn-primary tap" onClick={() => { setToast('影片已保存（示範）'); setVideoUrl(null) }}>使用影片</button></div>
     </div>
   )
 
@@ -112,11 +136,11 @@ export default function Camera({ onDone }) {
         right={<button className="iconbtn tap" aria-label="切換鏡頭" onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')}>🔄</button>} />
 
       {mode === 'layout'
-        ? <LayoutMode videoRef={videoRef} grab={grabPhoto} onComposed={setShot} setToast={setToast} status={status} startCam={startCam} facing={facing} />
+        ? <LayoutMode videoRef={videoRef} grab={grabPhoto} onComposed={setShot} setToast={setToast} status={status} facing={facing} />
         : (
           <div className="cam-stage">
             {status === 'denied'
-              ? <div className="cam-denied">📷<p>無法存取相機</p><small>請在瀏覽器允許相機權限，或用「建立」模式做純文字限動</small><button className="b dark tap" onClick={startCam}>再試一次</button></div>
+              ? <div className="cam-denied">📷<p>無法存取相機</p><small>請在瀏覽器允許相機權限，或用「建立」模式做純文字限動</small><button className="b dark tap" onClick={retryCam}>再試一次</button></div>
               : <video ref={videoRef} autoPlay playsInline muted className={facing === 'user' ? 'mirror' : ''} />}
           </div>
         )}
@@ -141,7 +165,7 @@ export default function Camera({ onDone }) {
 }
 
 // ═══════ 版面拼貼 ═══════
-function LayoutMode({ videoRef, grab, onComposed, setToast, status, startCam, facing }) {
+function LayoutMode({ videoRef, grab, onComposed, setToast, status, facing }) {
   const [lay, setLay] = useState(LAYOUTS[2])   // 預設 2x2
   const [shots, setShots] = useState([])
   useEffect(() => { if (status === 'ready' && videoRef.current) videoRef.current.play().catch(() => {}) }, [shots, status, videoRef])
@@ -339,6 +363,12 @@ function EffectsLibrary({ effects, shotUrl, onClose, onPick }) {
 }
 
 // ═══════ 建立模式：純色/漸層 + 文字 + 票選/問答/倒數 ═══════
+// datetime-local 需要「本地時間」字串（不能用 toISOString，那是 UTC 會差時區）
+const toLocalInput = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 function CreateStory({ onExit, onUse, setToast }) {
   const gradients = useContent('gradients', [{ id: 'ink', name: '墨', css: 'linear-gradient(160deg,#232526,#414345)' }])
   const [bg, setBg] = useState(0)
@@ -347,14 +377,58 @@ function CreateStory({ onExit, onUse, setToast }) {
   const [sticker, setSticker] = useState(null)   // poll | qa | countdown
   const bgCss = gradients[bg]?.css || '#141210'
 
+  // 貼紙內容（皆可自行編輯）
+  const [poll, setPoll] = useState({ q: '你喜歡哪個節氣？', opts: ['芒種', '夏至'] })
+  const [qa, setQa] = useState({ q: '問我任何事 💬', hint: '輸入你的問題…' })
+  const [cd, setCd] = useState(() => ({
+    q: '端午連假倒數',
+    target: toLocalInput(new Date(Date.now() + 7 * 86400000)),   // 預設七天後
+  }))
+
+  // 倒數每秒更新（只在選了倒數貼紙時才跑計時器）
+  const [nowTs, setNowTs] = useState(() => Date.now())
+  useEffect(() => {
+    if (sticker !== 'countdown') return
+    const t = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [sticker])
+
+  const remain = Math.max(0, new Date(cd.target).getTime() - nowTs)
+  const cdParts = Number.isFinite(remain)
+    ? [Math.floor(remain / 86400000), Math.floor(remain / 3600000) % 24, Math.floor(remain / 60000) % 60, Math.floor(remain / 1000) % 60]
+    : [0, 0, 0, 0]
+  const pad2 = (n) => String(n).padStart(2, '0')
+
+  const setOpt = (i, v) => setPoll(p => ({ ...p, opts: p.opts.map((o, k) => (k === i ? v : o)) }))
+  const addOpt = () => setPoll(p => (p.opts.length >= 4 ? p : { ...p, opts: [...p.opts, ''] }))
+  const delOpt = (i) => setPoll(p => (p.opts.length <= 2 ? p : { ...p, opts: p.opts.filter((_, k) => k !== i) }))
+
   return (
     <div className="cam">
       <TopBar title="建立限動" onClose={onExit} />
       <div className="cam-stage create" style={{ background: bgCss }}>
         <div className="cs-text"><AnimatedText text={text} fx={tfx} key={tfx + text} /></div>
-        {sticker === 'poll' && <div className="cs-sticker poll"><div className="q">你喜歡哪個節氣？</div><div className="opts"><span>芒種</span><span>夏至</span></div></div>}
-        {sticker === 'qa' && <div className="cs-sticker qa"><div className="q">問我任何事 💬</div><div className="box">輸入你的問題…</div></div>}
-        {sticker === 'countdown' && <div className="cs-sticker cd"><div className="q">端午連假倒數</div><div className="nums">03 : 12 : 45 : 09</div></div>}
+        {sticker === 'poll' && (
+          <div className="cs-sticker poll">
+            <div className="q">{poll.q || '（輸入票選問題）'}</div>
+            <div className="opts">{poll.opts.map((o, i) => <span key={i}>{o || `選項 ${i + 1}`}</span>)}</div>
+          </div>
+        )}
+        {sticker === 'qa' && (
+          <div className="cs-sticker qa">
+            <div className="q">{qa.q || '（輸入問題）'}</div>
+            <div className="box">{qa.hint || '輸入你的問題…'}</div>
+          </div>
+        )}
+        {sticker === 'countdown' && (
+          <div className="cs-sticker cd">
+            <div className="q">{cd.q || '（輸入倒數標題）'}</div>
+            {remain > 0
+              ? <div className="nums">{cdParts.map(pad2).join(' : ')}</div>
+              : <div className="nums">時間到 🎉</div>}
+            <div className="cd-lbl"><span>天</span><span>時</span><span>分</span><span>秒</span></div>
+          </div>
+        )}
       </div>
 
       <div className="cs-tools">
@@ -372,6 +446,46 @@ function CreateStory({ onExit, onUse, setToast }) {
             <button key={k} className={`chip tap ${sticker === k ? 'on' : ''}`} onClick={() => setSticker(s => s === k ? null : k)}>{l}</button>
           ))}
         </div>
+
+        {/* 貼紙內容編輯區 —— 選了哪個貼紙就顯示哪組欄位 */}
+        {sticker === 'poll' && (
+          <div className="cs-edit">
+            <label className="cs-lbl" htmlFor="cs-poll-q">票選問題</label>
+            <input id="cs-poll-q" className="cs-input" value={poll.q} maxLength={40}
+              onChange={e => setPoll(p => ({ ...p, q: e.target.value }))} placeholder="例：你喜歡哪個節氣？" />
+            {poll.opts.map((o, i) => (
+              <div key={i} className="cs-optrow">
+                <input className="cs-input" value={o} maxLength={20} aria-label={`選項 ${i + 1}`}
+                  onChange={e => setOpt(i, e.target.value)} placeholder={`選項 ${i + 1}`} />
+                {poll.opts.length > 2 && (
+                  <button className="cs-x tap" onClick={() => delOpt(i)} aria-label={`刪除選項 ${i + 1}`}>✕</button>
+                )}
+              </div>
+            ))}
+            {poll.opts.length < 4 && <button className="chip tap" onClick={addOpt}>＋ 新增選項</button>}
+          </div>
+        )}
+        {sticker === 'qa' && (
+          <div className="cs-edit">
+            <label className="cs-lbl" htmlFor="cs-qa-q">問答標題</label>
+            <input id="cs-qa-q" className="cs-input" value={qa.q} maxLength={40}
+              onChange={e => setQa(v => ({ ...v, q: e.target.value }))} placeholder="例：問我任何事 💬" />
+            <label className="cs-lbl" htmlFor="cs-qa-h">輸入框提示字</label>
+            <input id="cs-qa-h" className="cs-input" value={qa.hint} maxLength={20}
+              onChange={e => setQa(v => ({ ...v, hint: e.target.value }))} placeholder="例：輸入你的問題…" />
+          </div>
+        )}
+        {sticker === 'countdown' && (
+          <div className="cs-edit">
+            <label className="cs-lbl" htmlFor="cs-cd-q">倒數標題</label>
+            <input id="cs-cd-q" className="cs-input" value={cd.q} maxLength={40}
+              onChange={e => setCd(v => ({ ...v, q: e.target.value }))} placeholder="例：端午連假倒數" />
+            <label className="cs-lbl" htmlFor="cs-cd-t">結束時間</label>
+            <input id="cs-cd-t" className="cs-input" type="datetime-local" value={cd.target}
+              onChange={e => setCd(v => ({ ...v, target: e.target.value }))} />
+            {remain <= 0 && <div className="cs-warn">⚠️ 這個時間已經過了，倒數會顯示「時間到」</div>}
+          </div>
+        )}
       </div>
       <div className="cam-bottom"><button className="btn-primary tap" onClick={() => { setToast('限動已發佈（示範）'); onExit() }}>發佈限時動態</button></div>
     </div>

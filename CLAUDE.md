@@ -156,6 +156,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **資料層 SQL 一律用 `?` 佔位、TEXT 存時間（ISO）**：pg 驅動自動把 `?`→`$n`；時間用 ISO 字串字典序＝時間序，pg/sqlite 比較一致。**勿改用 `NOW()`/`SERIAL`/`AUTOINCREMENT`/boolean/timestamp 型別**（破可移植性）。`COUNT(*) AS c` 在 pg 回字串 → 取值要 `Number(row.c)`。新增查詢走 `db.get/all/run`（皆 async，記得 await）。
 - **改 schema 後本機要砍舊 sqlite**：`schema.sql` 是 `CREATE ... IF NOT EXISTS`，不會補欄位；本機新增欄位後需刪 `server/data/auth.db*` 再 `npm run seed`（正式 Cloud SQL 每次全新故無此問題）。
 - **種子作者是 `is_seed=1` 的 user**（`seed-<handle>`，無法登入）；貼文/作品 FK 到這些 user。前端顯示 `user`＝該作者 `handle`。
+- **相機生命週期只能由單一 effect 管理**（`Camera.jsx`，deps `facing/mode/shot/videoUrl/camKey`）：**串流必須放 state 不能放 ref**（ref 變動不觸發重繪 → 掛載 effect 不重跑 → video 仍連著已停止的舊串流＝切鏡頭失效／放棄編輯後黑畫面）；**不要在 onClick 另外呼叫開相機**（會與 effect 互搶產生競態），放棄編輯只需 `setShot(null)`。快速連按切鏡頭靠 effect 內 `cancelled` 旗標丟棄過期的 getUserMedia 結果。無實體鏡頭時可覆寫 `getUserMedia` 回傳 `canvas.captureStream()` 假串流做自動化測試。
+- **限動貼紙（票選/問答/倒數）內容可由使用者自訂**（`CreateStory` 的 `poll`/`qa`/`cd` state），倒數每秒更新且僅在選中時啟動計時器。
 - **相機需 CSP `img-src`/`media-src` 含 `blob:`**（拍照/錄影預覽）；`camera` 在 `App.jsx` fullScreens（隱藏 tabbar）。臉部貼合是 **CSS 疊加/濾鏡近似**（無第三方 face-tracking）；搖晃顯影用 DeviceMotion（iOS 需 `requestPermission`，桌機給「點我模擬」fallback）。濾鏡/特效/漸層/字體＝DB `ref_items`（feedFilters/storyFilters/effects/gradients/textFx），改資料走 CMS 不動碼。
 - **RBAC 階層**：`ROLES=['user','creator','moderator','admin']`，`requireRole(min)` 用 `roleRank` 比大小（非等值）。moderator+ 可改內容、admin 可改角色；**admin 不能改自己的角色**（防自鎖）。
 - **handle 唯一**：`CREATE UNIQUE INDEX idx_users_handle ON users(lower(handle))`（大小寫不敏感、NULL 可重複）；註冊存小寫。競態時捕捉 unique 例外回 409。
