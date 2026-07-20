@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg } from '../components/ui.jsx'
+import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
 import { usePosts } from '../hooks/useApi.js'
@@ -13,6 +13,8 @@ export default function Feed() {
   const T0 = todayOffset()               // 真實今日對錨點的偏移
   const [off, setOff] = useState(T0)     // 一開就停在系統當前日期
   const [cal, setCal] = useState(null) // {y, m} 開啟月曆選擇器
+  const gl = useGlossary()               // 宜/忌 詞彙白話解釋
+  const [provOpen, setProvOpen] = useState(false)  // 今日一諺是否展開解釋
 
   const d = dayFor(off)
   const gzZi = d.ganzhi.replace(/日$/, '')
@@ -69,21 +71,29 @@ export default function Feed() {
           <div className="yjcols">
             <div className="yi-col">
               <div className="hh"><i>宜</i>宜</div>
-              <div className="it">{d.yi.join('　')}</div>
+              <div className="it">{d.yi.map(t => <GlossTerm key={t} term={t} gl={gl} />)}</div>
             </div>
             <div className="ji-col">
               <div className="hh"><i>忌</i>忌</div>
-              <div className="it">{d.ji.join('　')}</div>
+              <div className="it">{d.ji.map(t => <GlossTerm key={t} term={t} gl={gl} />)}</div>
             </div>
           </div>
+          <GlossPanel gl={gl} />
 
           <div className="calnote">
             <span className="k">吉時</span><span className="v">{d.luckyHours}</span>
             <span className="stars">{'★'.repeat(d.stars)}{'☆'.repeat(5 - d.stars)}</span>
           </div>
-          <div className="calnote">
-            <span className="k">今日一諺</span><span className="v">「{d.proverb}」</span>
-          </div>
+          {/* 今日一諺：點一下展開白話解釋 */}
+          <button className={`calnote asrow tap${provOpen ? ' on' : ''}`} aria-expanded={provOpen}
+            onClick={() => setProvOpen(v => !v)}>
+            <span className="k">今日一諺</span>
+            <span className="v">「{d.proverb}」</span>
+            <span className="more">{provOpen ? '收合' : '解釋'}</span>
+          </button>
+          {provOpen && d.proverbMean && (
+            <div className="glosspanel inrow"><span>{d.proverbMean}</span></div>
+          )}
         </div>
         <div className="center muted" style={{ fontSize: 10, padding: '6px 16px 0' }}>
           ＊干支・農曆・宜忌為示範演算，正式版將接可靠曆算資料

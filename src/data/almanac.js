@@ -150,7 +150,9 @@ export function dayFor(off) {
   const ji = jiRaw.length ? jiRaw : ['諸事不宜']
   const luckyHours = sample ? sample.luckyHours : HOURS[mod(off * 7, HOURS.length)]
   const stars = sample ? sample.stars : 1 + mod(off * 3 + 2, 5)
+  // 諺語連同白話解釋一起回傳（樣本日只存諺語本身，回查 proverbs 取得 mean）
   const proverb = sample ? sample.proverb : proverbs[mod(off, proverbs.length)].tw
+  const proverbMean = (proverbs.find(p => p.tw === proverb) || {}).mean || ''
 
   // ---- 傳統擇日項目 ----
   const jc = mod(zi - TERM_ZHI[term], 12)          // 建除十二神
@@ -206,7 +208,7 @@ export function dayFor(off) {
     zheng: `沖${ZODIAC[chongZodiac]}(${chongGZ})煞${dir}`,
     chong: { zodiac: ZODIAC[chongZodiac], gz: chongGZ, dir, ages: chongAges },
     wuxing: NAYIN[mod(gi * 2 + zi, NAYIN.length)],
-    luckyHours, stars, yi, ji, proverb,
+    luckyHours, stars, yi, ji, proverb, proverbMean,
     // 傳統項目
     jianchu: JIANCHU[jc], jianchuYi: JIANCHU_YI[JIANCHU[jc]],
     xiu: XIU[xiuIdx], xiuAnimal: XIU_ANIMAL[xiuIdx], xiuLuck: XIU_LUCK[xiuIdx],

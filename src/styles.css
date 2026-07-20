@@ -1235,3 +1235,35 @@ a { color:inherit; text-decoration:none; }
 @keyframes kara { 0%,100% { color:rgba(255,255,255,.35); text-shadow:none } 45%,55% { color:var(--gold); text-shadow:0 0 10px var(--gold) } }
 .atx.neon span { color:#fff; animation:neonpop 1.9s ease-in-out infinite; }
 @keyframes neonpop { 0%,100% { transform:translateY(0) scale(1); text-shadow:0 0 6px #ff4d6d,0 0 14px #ff4d6d } 50% { transform:translateY(-7px) scale(1.14); text-shadow:0 0 12px #4dd2ff,0 0 22px #4dd2ff } }
+
+/* ---------- 宜／忌 詞彙白話解釋（可點擊查看）---------- */
+/* 曆頁兩欄內的詞：保持原本純文字外觀，只加虛線底線暗示可點 */
+.yjcols .it button.glossable {
+  border:none; background:none; color:inherit; font:inherit; padding:0 0 1px;
+  margin:0 10px 2px 0; cursor:pointer; border-bottom:1px dotted var(--muted);
+}
+.yjcols .it button.glossable.on { border-bottom-style:solid; color:var(--cinnabar); font-weight:700; }
+/* 標籤型（.ty/.tn）的詞：沿用原本膠囊樣式，選中時加外框 */
+button.ty.glossable, button.tn.glossable { border:none; cursor:pointer; font:inherit; }
+button.ty.glossable.on { outline:1.5px solid var(--yi); outline-offset:1px; }
+button.tn.glossable.on { outline:1.5px solid var(--ji); outline-offset:1px; }
+
+/* 解釋面板 */
+.glosspanel {
+  display:flex; align-items:flex-start; gap:8px; margin:8px 14px 10px; padding:10px 12px;
+  border-radius:10px; background:var(--acard-bg); border:1px solid var(--line2);
+  font-size:12.5px; line-height:1.8;
+}
+.glosspanel b { flex:0 0 auto; color:var(--acard-t); font-weight:800; }
+.glosspanel span { flex:1; min-width:0; color:var(--text); }
+.glosspanel .x { flex:0 0 auto; background:none; border:none; color:var(--muted);
+  font-size:13px; cursor:pointer; padding:0 2px; line-height:1.4; }
+.glosspanel.inrow { margin:0 15px 10px; }
+
+/* 今日一諺列改為可點按鈕：外觀維持與其他 .calnote 一致 */
+button.calnote.asrow {
+  width:100%; text-align:left; background:none; font:inherit; color:inherit;
+  cursor:pointer; border-left:none; border-right:none; border-bottom:none;
+}
+button.calnote.asrow .more { flex:0 0 auto; font-size:11.5px; color:var(--cinnabar); font-weight:700; }
+button.calnote.asrow.on .v { white-space:normal; overflow:visible; }

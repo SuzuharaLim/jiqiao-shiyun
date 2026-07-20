@@ -131,6 +131,41 @@ export const zodiacs = [
 ]
 
 // 台灣諺語
+// 宜／忌 詞彙白話解釋 —— 曆頁上每個詞可點擊查看意思（存 ref_items，可經管理後台 CMS 修改）
+// term 需與 almanac.js 的 YI_POOL / JI_POOL / 建除樣本用詞一致，否則點了查不到解釋。
+export const almanacTerms = [
+  // ── 宜 ──
+  { term: '祈福', type: 'yi', mean: '向神明祈求平安順遂，例如安太歲、點光明燈、還願。' },
+  { term: '開市', type: 'yi', mean: '店面開張、公司開業，或年後第一次營業。' },
+  { term: '納財', type: 'yi', mean: '收進錢財，例如收帳款、存錢、進貨。' },
+  { term: '出行', type: 'yi', mean: '出遠門、旅行或出差。' },
+  { term: '嫁娶', type: 'yi', mean: '結婚，包含迎娶與宴客。' },
+  { term: '祭祀', type: 'yi', mean: '祭拜神明或祖先，例如上香、掃墓、普渡。' },
+  { term: '安床', type: 'yi', mean: '安放或移動床位。新婚、搬家、久病換房時特別講究。' },
+  { term: '入宅', type: 'yi', mean: '搬進新家、新居落成正式入住（俗稱入厝）。' },
+  { term: '交易', type: 'yi', mean: '買賣成交、談生意。' },
+  { term: '立券', type: 'yi', mean: '訂立契約、簽合約。與「交易」相近，但偏重書面文件。' },
+  { term: '沐浴', type: 'yi', mean: '齋戒沐浴、潔淨身體，多用於祭祀前的準備。' },
+  { term: '會親友', type: 'yi', mean: '拜訪親友、聚餐宴客。' },
+  { term: '裁衣', type: 'yi', mean: '裁製新衣。傳統上特指婚禮禮服或壽衣的縫製。' },
+  { term: '栽種', type: 'yi', mean: '種植作物花木、播種育苗。' },
+  { term: '解除', type: 'yi', mean: '清除穢氣、消災解厄，例如大掃除、除舊佈新。' },
+  { term: '求嗣', type: 'yi', mean: '求子、祈求生育。' },
+  { term: '掃舍', type: 'yi', mean: '打掃房屋、清理居家環境。' },
+  // ── 忌 ──
+  { term: '動土', type: 'ji', mean: '房屋建築開工的第一鏟（陽宅用）。與墓地的「破土」不同。' },
+  { term: '安葬', type: 'ji', mean: '舉行喪葬儀式、下葬入土。' },
+  { term: '出火', type: 'ji', mean: '移動神明或祖先牌位，例如搬家時遷移神位。' },
+  { term: '開倉', type: 'ji', mean: '開啟倉庫出貨，或大批取出存糧存貨。' },
+  { term: '伐木', type: 'ji', mean: '砍伐樹木，古時也指取用建材。' },
+  { term: '作樑', type: 'ji', mean: '架設房屋主樑（上樑），是建築中最關鍵的工序。' },
+  { term: '行喪', type: 'ji', mean: '辦理喪事、出殯送葬。' },
+  { term: '破土', type: 'ji', mean: '墓地動工（陰宅用）。與蓋房子的「動土」是不同的事。' },
+  { term: '針灸', type: 'ji', mean: '針灸施針治療，引申也包含動刀手術。' },
+  { term: '掘井', type: 'ji', mean: '開鑿水井、挖掘地下水源。' },
+  { term: '諸事不宜', type: 'ji', mean: '這天多數事情都不適合進行，建議低調行事、不辦大事。' },
+]
+
 export const proverbs = [
   { tw: '食緊弄破碗', mean: '欲速則不達，急躁反而壞事。' },
   { tw: '一兼二顧，摸蜊仔兼洗褲', mean: '一舉兩得，做一件事同時得到兩種好處。' },

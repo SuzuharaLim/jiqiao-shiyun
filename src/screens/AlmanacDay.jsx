@@ -1,9 +1,10 @@
-import { TopBar, SectionHead, Disclaimer } from '../components/ui.jsx'
+import { TopBar, SectionHead, Disclaimer, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
 // 完整農民曆日頁 —— 傳統每日曆頁的所有項目（建除、星宿、彭祖百忌、胎神、沖煞歲數、財喜貴方位、十二時辰、特殊日）。
 export default function AlmanacDay({ off }) {
   const d = dayFor(off ?? todayOffset())
+  const gl = useGlossary()   // 宜/忌 詞彙白話解釋
   return (
     <>
       <TopBar title="完整農民曆" onBack />
@@ -38,9 +39,11 @@ export default function AlmanacDay({ off }) {
         <SectionHead title="今日宜忌" />
         <div className="card">
           <div className="ad-yj">
-            <div className="col"><div className="yl" style={{ color: 'var(--yi)' }}>宜</div>{d.yi.map(t => <span key={t} className="ty">{t}</span>)}</div>
-            <div className="col"><div className="yl" style={{ color: 'var(--ji)' }}>忌</div>{d.ji.map(t => <span key={t} className="tn">{t}</span>)}</div>
+            <div className="col"><div className="yl" style={{ color: 'var(--yi)' }}>宜</div>{d.yi.map(t => <GlossTerm key={t} term={t} cls="ty" gl={gl} />)}</div>
+            <div className="col"><div className="yl" style={{ color: 'var(--ji)' }}>忌</div>{d.ji.map(t => <GlossTerm key={t} term={t} cls="tn" gl={gl} />)}</div>
           </div>
+          <GlossPanel gl={gl} />
+          <div className="ad-note">💡 點任一宜忌詞可看白話解釋</div>
         </div>
 
         {/* 值日神煞 */}

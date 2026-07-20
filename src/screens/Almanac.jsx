@@ -1,5 +1,5 @@
 import Icon from '../components/Icon.jsx'
-import { TopBar, ToolRow, SectionHead } from '../components/ui.jsx'
+import { TopBar, ToolRow, SectionHead, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 import { yearOverview, dayFor, todayOffset } from '../data/almanac.js'
@@ -8,6 +8,7 @@ export default function Almanac() {
   const { push } = useNav()
   const fortuneTools = useContent('fortuneTools')   // 命理工具清單嚴格來自資料庫
   const cultureTools = useContent('cultureTools')   // 節氣文化工具清單嚴格來自資料庫
+  const gl = useGlossary()   // 宜/忌 詞彙白話解釋
   const T0 = todayOffset()
   const today = dayFor(T0)   // 真實今日曆頁（取代靜態 mock）
   return (
@@ -27,9 +28,10 @@ export default function Almanac() {
         <div className="yiji">
           <div className="gz">今日 · {today.term}　{today.ganzhi}　吉時 {today.luckyHours}</div>
           <div className="yj">
-            <div><div className="yl" style={{ color: 'var(--yi)' }}>宜</div>{today.yi.map(t => <span key={t} className="ty">{t}</span>)}</div>
-            <div><div className="yl" style={{ color: 'var(--ji)' }}>忌</div>{today.ji.map(t => <span key={t} className="tn">{t}</span>)}</div>
+            <div><div className="yl" style={{ color: 'var(--yi)' }}>宜</div>{today.yi.map(t => <GlossTerm key={t} term={t} cls="ty" gl={gl} />)}</div>
+            <div><div className="yl" style={{ color: 'var(--ji)' }}>忌</div>{today.ji.map(t => <GlossTerm key={t} term={t} cls="tn" gl={gl} />)}</div>
           </div>
+          <GlossPanel gl={gl} />
         </div>
 
         <SectionHead title="農民曆 · 曆頁" />

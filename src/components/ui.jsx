@@ -1,5 +1,7 @@
+import { useState, useMemo } from 'react'
 import Icon from './Icon.jsx'
 import { useNav } from '../store/nav.jsx'
+import { useContent } from '../hooks/useApi.js'
 
 // 頂列（Top bar）
 export function TopBar({ title, brand, left, right, onBack, onClose }) {
@@ -87,6 +89,44 @@ export function Disclaimer({ text }) {
     <p className="muted" style={{ padding: '6px 16px 16px', fontSize: 11, lineHeight: 1.7 }}>
       ＊{text || '本結果結合傳統民俗文化與 AI 生成內容，僅供參考娛樂，不構成醫療、法律、財務、婚姻或投資等專業建議。'}
     </p>
+  )
+}
+
+// ---------- 宜／忌 詞彙白話解釋 ----------
+// 用法：父層 const gl = useGlossary() → 用 <GlossTerm term={t} cls="ty" gl={gl} /> 取代原本的文字，
+// 再在合適位置放一個 <GlossPanel gl={gl} />（通常放在兩欄之下，才有整行寬度顯示說明）。
+// 詞彙表存 DB 的 ref_items（kind=almanacTerms），查不到解釋的詞會自動退化成純文字（不可點）。
+export function useGlossary() {
+  const items = useContent('almanacTerms')
+  const map = useMemo(
+    () => Object.fromEntries((items || []).map(it => [it.term, it.mean])),
+    [items])
+  const [open, setOpen] = useState(null)
+  return {
+    map, open,
+    toggle: (t) => setOpen(o => (o === t ? null : t)),
+    close: () => setOpen(null),
+  }
+}
+
+export function GlossTerm({ term, cls = '', gl }) {
+  if (!gl?.map[term]) return <span className={cls}>{term}</span>   // 無解釋 → 純文字
+  const on = gl.open === term
+  return (
+    <button type="button" className={`${cls} glossable tap${on ? ' on' : ''}`}
+      aria-expanded={on} aria-label={`${term}，查看說明`}
+      onClick={() => gl.toggle(term)}>{term}</button>
+  )
+}
+
+export function GlossPanel({ gl }) {
+  if (!gl?.open) return null
+  return (
+    <div className="glosspanel" role="status">
+      <b>{gl.open}</b>
+      <span>{gl.map[gl.open]}</span>
+      <button type="button" className="x tap" aria-label="關閉說明" onClick={gl.close}>✕</button>
+    </div>
   )
 }
 
