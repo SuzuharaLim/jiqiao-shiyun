@@ -170,16 +170,6 @@ export default function Auth() {
           </div>
         )}
 
-        {(mode === 'login' || mode === 'register') && (
-          <>
-            <div className="auth-sep">或使用以下方式</div>
-            <div className="social-row">
-              <button className="social-btn tap" onClick={() => setToast('Google 登入需設定 OAuth（Demo）')}>🔵 Google</button>
-              <button className="social-btn tap" onClick={() => setToast('LINE 登入需設定 OAuth（Demo）')}>🟢 LINE</button>
-              <button className="social-btn tap" onClick={() => setToast('Apple 登入需設定 OAuth（Demo）')}>⚫ Apple</button>
-            </div>
-          </>
-        )}
       </div>
 
       <div className="auth-alt">
@@ -191,7 +181,7 @@ export default function Auth() {
       <div className="auth-guest">
         <button className="btn-ghost tap" onClick={loginGuest}>訪客先逛逛（免註冊）</button>
         <p className="muted" style={{ fontSize: 11, lineHeight: 1.7, marginTop: 12 }}>
-          ＊帳號由後端建立、密碼經 bcrypt 雜湊。此示範環境無真實寄信與 OAuth，驗證信改為就地顯示連結。
+          ＊帳號由後端建立、密碼經 bcrypt 雜湊，登入狀態存於 HttpOnly Cookie。
         </p>
       </div>
     </div>

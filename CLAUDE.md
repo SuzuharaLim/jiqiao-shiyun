@@ -12,7 +12,7 @@
 - **後端**：Node/Express + better-sqlite3 + bcryptjs（`server/`），真實帳號認證（非 mock）。
 - **狀態**：單一 React Context（`src/store/nav.jsx`），無 Redux、無 react-router。
 - **後端 DB**：正式＝**Cloud SQL PostgreSQL**（`pg`）；本機無雲端時自動退回 **SQLite**（`better-sqlite3`，optional dep）。同一套 async 介面＋同份 `server/schema.sql`（見 `server/db.js`）。
-- **資料**：**社群內容已資料庫化**——貼文/作品/留言/按讚/追蹤/通知/訂單皆真實存 DB、可持久化（`mock.js` 降為**種子來源**＋離線 fallback）。**曆算為確定性演算**（`almanac.js`）。仍模擬：金流、AI 對話、社群登入（Google/LINE/Apple）。
+- **資料**：**社群內容已資料庫化**——貼文/作品/留言/按讚/追蹤/通知/訂單皆真實存 DB、可持久化（`mock.js` 降為**種子來源**＋離線 fallback）。**曆算為確定性演算**（`almanac.js`）。仍模擬：金流。（社群登入 Google/LINE/Apple 的假按鈕已於 2026-07 移除——只有 Email 註冊登入。）
 - 目標用途：募資／提案／使用者測試展示，並已備妥 Cloud Run + Cloud SQL 全端部署（見 `docs/部署-CloudRun-PostgreSQL.md`）。
 
 ---
@@ -170,7 +170,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 - 干支/農曆/節氣/命理/建除/星宿/沖煞/胎神等**擇日神煞層為確定性示範演算**（`almanac.js`＋各頁 Disclaimer 已標明；規則正確但非權威曆算），正式版應接 lunar-javascript 等函式庫或通書資料核對。年神方位（三煞/五黃/歲破/大將軍）逐年變動，切勿沿用。
 - **AI 顧問有守備範圍限制（2026-07）**：`server/index.js` 的 `AI_SYSTEM` 明確界定只回答農民曆/節氣/生肖/民俗/節氣攝影/App 用法，並以三層防護避免被當成免費通用 ChatGPT（寫程式、寫作業、翻譯）——(1) 系統提示界定範圍與婉拒方式 (2) `AI_ABUSE_RE` 輸入預檢擋明顯越獄與程式碼區塊（**刻意不擋「寫程式」等字眼**，因為「今天適合寫程式嗎」是正常提問）(3) `looksLikeCode()` 輸出守門攔截漏網的程式碼並改回婉拒。攔截會寫 `ai_offtopic` / `ai_offtopic_output` 稽核記錄。改文案找 `AI_SYSTEM` 與 `AI_REFUSAL`。**模型預設 `gpt-5.4-nano`**（最便宜一階，$0.20/$1.25 每 1M tokens；2026-07 查詢值）——本顧問只做限定範圍短問答，不需旗艦模型；換模型設 `OPENAI_MODEL` 環境變數即可，不必改碼。價格表與成本估算見 `docs/操作手冊.md`。
-- 金流、分潤金額、社群登入（Google/LINE/Apple）皆為**前端模擬**（訂單、貼文、留言、按讚、追蹤、通知已真實入 DB）。
+- 金流、分潤金額為**前端模擬**（訂單、貼文、留言、按讚、追蹤、通知已真實入 DB）。
+- **社群登入（Google/LINE/Apple）已移除（2026-07）**：原本只是彈 Demo 提示的假按鈕，會讓使用者以為能用。目前只提供 Email 註冊/登入。日後要接真 OAuth 再重新加回，設計參考 `docs/登入需求-前端整合.md` §3.6。
 - **寄信已可正式化（2026-07）**：`mailer.js` 支援 **Gmail SMTP／通用 SMTP／Resend／SendGrid／Mailgun／Brevo**，**零新相依**——SMTP 走自寫的 `server/smtp.js`（`net`/`tls`，465 隱式 TLS、587 自動 STARTTLS、AUTH PLAIN/LOGIN、RFC 2047 中文標頭、multipart/alternative、內文 base64 免 dot-stuffing），HTTP API 走內建 `fetch`。**Cloud Run 只封鎖 25 埠，465/587 可用**（先前註記「不能用 SMTP」有誤）。推薦 Gmail＋應用程式密碼（免費 500 封/日）；`GMAIL_USER` 必須與 `GMAIL_APP_PASSWORD` 成對，程式會**自動把 `MAIL_FROM` 位址對齊成 `GMAIL_USER`**（Gmail 只准以登入身分寄信，否則會被改寫）。**雷區：SMTP 錯誤碼語意與 HTTP 相反——4xx 才是暫時性可重試、5xx（如 535 帳密錯）是永久失敗不該重試**。**未設金鑰＝維持原 dev 行為**（只 log 連結＋回傳 `devLink`）；設了金鑰即自動真寄，不需改碼。設計重點：`sendMail()` 維持**同步回傳**介面（呼叫端不需改），實際送信在背景 fire-and-forget，**寄信失敗不會擋住註冊/下單**（實測註冊 408ms 完成）；**已接供應商時不再回傳 `devLink`**（避免一次性連結外洩到 API 回應）；HTML＋純文字雙版本、零外部資源（不被擋圖）。驗證工具：`npm run mail:test -- you@example.com`、`GET /api/health` 的 `mail` 欄、管理後台「系統狀態」分頁可寄測試信（`POST /api/admin/mail-test`，admin 限定）。**`APP_URL` 沒設對信中連結會指向 localhost**。設定教學見 `docs/寄信-Email設定.md`。
 - 無真分析（GA4）/Search Console/Sentry —— 需外部帳號後接。
 - ~~SQLite 在 Cloud Run `/tmp` 會重置~~：**已改 Cloud SQL PostgreSQL**（session 與內容持久化、多實例共享）。本機仍用 SQLite 後備。
