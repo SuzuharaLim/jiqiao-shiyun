@@ -820,7 +820,12 @@ app.post('/api/payments/webhook', ah(async (req, res) => {
 // ── AI 時光顧問（接 OpenAI / 相容 API）──────────────────────
 // ★ 金鑰只在後端讀 env（Secret Manager 注入），永不進前端 bundle。未設金鑰 → 回 {fallback:true}，前端改用內建示範腳本。
 const OPENAI_KEY = process.env.OPENAI_API_KEY
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+// 預設用最輕量便宜的模型：本顧問只做「限定範圍的短問答」（回覆限 200 字、有速率限制），
+// 不需要旗艦模型的通用能力。要換model 設環境變數 OPENAI_MODEL 即可，不必改碼。
+// 價格參考（2026-07 查詢，每 1M tokens 輸入/輸出）：
+//   gpt-5.4-nano $0.20/$1.25 ← 預設　gpt-5.4-mini $0.75/$4.50　gpt-5.6-luna $1.00/$6.00
+// 最新價格與可用模型見 https://developers.openai.com/api/docs/pricing
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-nano'
 const OPENAI_BASE = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
 // ★ 守備範圍限制：避免有人把這個顧問當成免費的通用 ChatGPT（寫程式、寫作業、翻譯…），
 //   那既浪費你的 API 額度，也不是產品該提供的服務。三層防護：
