@@ -59,17 +59,20 @@ else
   printf "%s" "$DB_PASS" | gcloud secrets create jiqiao-db-pass --data-file=-
 fi
 
-# 寄信金鑰（選用）：執行前若 export 了下列任一變數，會自動建 Secret 並在部署時掛上。
-#   Gmail：export GMAIL_USER=you@gmail.com GMAIL_APP_PASSWORD="16碼應用程式密碼"
-#   其他 ：RESEND_API_KEY / SENDGRID_API_KEY / BREVO_API_KEY / SMTP_PASS(+SMTP_HOST,SMTP_USER)
+# 選用金鑰：執行前若 export 了下列任一變數，會自動建 Secret 並在部署時掛上。
+#   寄信 Gmail：export GMAIL_USER=you@gmail.com GMAIL_APP_PASSWORD="16碼應用程式密碼"
+#   寄信 其他 ：RESEND_API_KEY / SENDGRID_API_KEY / BREVO_API_KEY / SMTP_PASS(+SMTP_HOST,SMTP_USER)
+#   AI 顧問  ：export OPENAI_API_KEY=sk-...
+# 未 export 的金鑰不會被動到（部署用 --update-secrets，只改指定項目）。
 # 設定教學見 docs/寄信-Email設定.md
-MAIL_SECRETS=""
-MAIL_ENVS=""
-for v in GMAIL_USER SMTP_HOST SMTP_PORT SMTP_USER MAIL_FROM MAIL_REPLY_TO; do
-  [ -n "${!v:-}" ] && MAIL_ENVS="${MAIL_ENVS},${v}=${!v}"
+EXTRA_SECRETS=""
+EXTRA_ENVS=""
+for v in GMAIL_USER SMTP_HOST SMTP_PORT SMTP_USER MAIL_FROM MAIL_REPLY_TO OPENAI_MODEL; do
+  [ -n "${!v:-}" ] && EXTRA_ENVS="${EXTRA_ENVS},${v}=${!v}"
 done
 for pair in "GMAIL_APP_PASSWORD:jiqiao-gmail-pass" "SMTP_PASS:jiqiao-smtp-pass" \
-            "RESEND_API_KEY:jiqiao-resend-key" "SENDGRID_API_KEY:jiqiao-sendgrid-key" "BREVO_API_KEY:jiqiao-brevo-key"; do
+            "RESEND_API_KEY:jiqiao-resend-key" "SENDGRID_API_KEY:jiqiao-sendgrid-key" \
+            "BREVO_API_KEY:jiqiao-brevo-key" "OPENAI_API_KEY:jiqiao-openai-key"; do
   VAR="${pair%%:*}"; SECRET="${pair##*:}"; VAL="${!VAR:-}"
   [ -z "$VAL" ] && continue
   if gcloud secrets describe "$SECRET" >/dev/null 2>&1; then
@@ -77,9 +80,9 @@ for pair in "GMAIL_APP_PASSWORD:jiqiao-gmail-pass" "SMTP_PASS:jiqiao-smtp-pass" 
   else
     printf "%s" "$VAL" | gcloud secrets create "$SECRET" --data-file=- >/dev/null
   fi
-  MAIL_SECRETS="${MAIL_SECRETS},${VAR}=${SECRET}:latest"
-  MAIL_SECRET_NAMES="${MAIL_SECRET_NAMES:-} $SECRET"
-  echo "   已設定寄信 Secret：$SECRET"
+  EXTRA_SECRETS="${EXTRA_SECRETS},${VAR}=${SECRET}:latest"
+  EXTRA_SECRET_NAMES="${EXTRA_SECRET_NAMES:-} $SECRET"
+  echo "   已設定 Secret：$SECRET"
 done
 
 echo "== [3/6] IAM：授權執行時/建置服務帳號（否則首次部署會 500 / 建置失敗）=="
@@ -90,7 +93,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${RUNTIME_SA}" --role="roles/cloudsql.client" --condition=None >/dev/null
 gcloud secrets add-iam-policy-binding jiqiao-db-pass \
   --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
-for S in ${MAIL_SECRET_NAMES:-}; do
+for S in ${EXTRA_SECRET_NAMES:-}; do
   gcloud secrets add-iam-policy-binding "$S" \
     --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
 done
@@ -119,8 +122,8 @@ echo "== [5/6] 部署到 Cloud Run（從原始碼建置）=="
 #   不可用 --set-*（那會「取代全部」，把本腳本沒列出的設定如 OPENAI_API_KEY 清掉）。
 gcloud run deploy "$SERVICE" --source . --region="$REGION" --allow-unauthenticated \
   --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
-  --update-env-vars="NODE_ENV=production,INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},DB_USER=${DB_USER},DB_NAME=${DB_NAME}${MAIL_ENVS}" \
-  --update-secrets="DB_PASS=jiqiao-db-pass:latest${MAIL_SECRETS}" \
+  --update-env-vars="NODE_ENV=production,INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},DB_USER=${DB_USER},DB_NAME=${DB_NAME}${EXTRA_ENVS}" \
+  --update-secrets="DB_PASS=jiqiao-db-pass:latest${EXTRA_SECRETS}" \
   --cpu=1 --memory=512Mi --min-instances=0 --max-instances=3
 
 echo "== [6/6] 回填 APP_URL & 驗證 =="
@@ -136,5 +139,6 @@ gcloud run services update "$SERVICE" --region="$REGION" --update-env-vars="APP_
 echo "   對外網址：$APP_URL（信件連結會用這個）"
 echo "   健康檢查：$(curl -s "${APP_URL}/api/health")"
 echo "   ↑ db 應為 pg；mail 非 log 表示寄信已接；ai 為 off 表示未設 OPENAI_API_KEY"
-echo "✅ 完成。用 admin@jiqiao.local / admin12345（管理者）或 newuser@example.com / secret12345 登入測試。"
+echo "✅ 完成。"
+echo "   ⚠️ 若這是正式站，請確認管理者帳號不是預設密碼（見 docs/操作手冊.md 的『建立你自己的管理員』）"
 echo "   停用計費（Cloud SQL 24h 計費）： gcloud sql instances stop $SQL_INSTANCE"
