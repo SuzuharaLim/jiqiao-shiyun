@@ -15,6 +15,18 @@ DB_USER="${DB_USER:-jiqiao_app}"
 SERVICE="${SERVICE:-jiqiao}"
 : "${DB_PASS:?請先 export DB_PASS（請用 URL 安全字串：openssl rand -hex 24；勿用 base64，'/' 會破壞種子連線字串）}"
 
+# 變數健檢：錯的值（例如把 Email 誤設成 REGION）會讓 gcloud 丟出難懂的端點錯誤，這裡先擋下來
+if ! printf '%s' "$REGION" | grep -qE '^[a-z]+-[a-z]+[0-9]$'; then
+  echo "❌ REGION 的值不像區域名稱：[$REGION]"
+  echo "   應為 asia-east1 這種格式。請重設： export REGION=\"asia-east1\""
+  exit 1
+fi
+if printf '%s' "$PROJECT_ID" | grep -qE '[@ ]'; then
+  echo "❌ PROJECT_ID 看起來不對：[$PROJECT_ID]（不該含 @ 或空白）"; exit 1
+fi
+# 殘留的端點覆寫會讓部署一直失敗，先清掉
+gcloud config unset api_endpoint_overrides/run >/dev/null 2>&1 || true
+
 echo "== [0/6] 設定專案 & 啟用 API =="
 gcloud config set project "$PROJECT_ID" >/dev/null
 # 需先綁定「有效帳單帳戶」，否則 Cloud SQL/Run 建立會失敗（帳單需你在 Console 或 gcloud billing 設定）
