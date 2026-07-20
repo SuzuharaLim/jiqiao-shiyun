@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
