@@ -39,10 +39,13 @@ async function upsertUser(u) {
 
 async function run() {
   console.log(`[seed] driver=${db.kind}`)
-  // SEED_DEMO=0 → 只灌「參考清單」（濾鏡/諺語/工具…設定型內容），不灌示範作者/貼文/作品/留言/通知。
-  // 正式站清除 Demo 後重佈署時用，避免測試資料被自動塞回。
-  const DEMO = process.env.SEED_DEMO !== '0'
-  if (!DEMO) console.log('[seed] SEED_DEMO=0 → 略過示範內容，只更新參考清單 ref_items')
+  // 示範內容（示範作者/貼文/作品/留言/通知）預設「不灌」——避免已上線的站每次部署都被塞回測試資料。
+  // 需要示範資料時（例如第一次展示、本機開發）才明確開啟：SEED_DEMO=1 npm run seed
+  // 參考清單（濾鏡/諺語/宜忌解釋等 ref_items）與登入帳號則一律更新，不受此開關影響。
+  const DEMO = process.env.SEED_DEMO === '1'
+  console.log(DEMO
+    ? '[seed] SEED_DEMO=1 → 一併灌入示範作者/貼文/作品'
+    : '[seed] 只更新參考清單（要示範資料請設 SEED_DEMO=1）')
   const lockedHash = await bcrypt.hash('seed-account-no-login-' + Math.random(), 10)
 
   // 1) 種子作者

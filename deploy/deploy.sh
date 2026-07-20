@@ -109,9 +109,9 @@ trap 'kill $PROXY_PID 2>/dev/null || true' EXIT
 sleep 4
 npm ci --omit=optional
 # DB_PASS 為 hex（URL 安全）；DATABASE_URL 優先於 INSTANCE_CONNECTION_NAME（db.js 已修正），故走 proxy TCP。
-# SEED_DEMO=0 → 只更新參考清單（濾鏡/諺語等），不灌示範作者/貼文/作品——正式站清除 Demo 後請用：
-#   SEED_DEMO=0 bash deploy/deploy.sh
-SEED_DEMO="${SEED_DEMO:-1}" DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}" npm run seed
+# ★ 預設「不灌示範資料」，只更新參考清單（濾鏡/諺語/宜忌解釋等）——避免已上線的站每次部署被塞回測試資料。
+#   要示範資料時才明確開啟： SEED_DEMO=1 bash deploy/deploy.sh
+SEED_DEMO="${SEED_DEMO:-0}" DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}" npm run seed
 kill $PROXY_PID 2>/dev/null || true; trap - EXIT
 
 echo "== [5/6] 部署到 Cloud Run（從原始碼建置）=="
