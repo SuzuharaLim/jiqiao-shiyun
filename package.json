@@ -13,7 +13,8 @@
     "start": "node server/index.js",
     "seed": "node server/seed.js",
     "mail:test": "node server/mail-test.js",
-    "purge:demo": "node server/purge-demo.js"
+    "purge:demo": "node server/purge-demo.js",
+    "make:admin": "node server/make-admin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
