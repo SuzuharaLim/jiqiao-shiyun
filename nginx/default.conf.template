@@ -1,0 +1,42 @@
+# Cloud Run 靜態 SPA 服務設定（${PORT} 由容器啟動時 envsubst 帶入，預設 8080）
+server {
+    listen       ${PORT};
+    listen       [::]:${PORT};
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    server_tokens off;
+
+    # 壓縮
+    gzip              on;
+    gzip_vary         on;
+    gzip_min_length   1024;
+    gzip_proxied      any;
+    gzip_types        text/plain text/css application/javascript application/json
+                      image/svg+xml application/xml font/woff2;
+
+    # 安全標頭
+    add_header X-Content-Type-Options   "nosniff"                          always;
+    add_header X-Frame-Options          "SAMEORIGIN"                       always;
+    add_header Referrer-Policy          "strict-origin-when-cross-origin"  always;
+    add_header Permissions-Policy       "camera=(), microphone=(), geolocation=()" always;
+
+    # 帶 hash 檔名的資產：長快取、不可變
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # index.html 不快取（確保每次拿到最新的 asset 指向）
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    # SPA fallback：任何路徑都回到 index.html（此 App 為單一 URL，仍保險起見）
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

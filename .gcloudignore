@@ -1,0 +1,13 @@
+# 上傳到 Cloud Build 時要排除的檔案（保留 Dockerfile、nginx/、src/、package*.json、index.html、vite.config.js、public/）
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+node_modules
+dist
+*.log
+netlify.toml
+README.md
+docs

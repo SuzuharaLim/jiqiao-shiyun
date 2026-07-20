@@ -1,0 +1,13 @@
+# Netlify 部署設定 —— 連結 GitLab 後會自動讀取
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# 單頁應用（SPA）路由 fallback：任何路徑都回到 index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

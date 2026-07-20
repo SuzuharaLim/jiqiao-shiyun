@@ -1,0 +1,187 @@
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { creatorStats } from '../data/mock.js'
+import { api, setCsrf } from '../api.js'
+
+// 後端 auth user → App 使用者形狀
+const toAppUser = (u) => ({
+  name: u.name, handle: u.email ? u.email.split('@')[0] : 'user',
+  email: u.email, role: u.role, emailVerified: u.emailVerified, guest: false,
+})
+
+const NavCtx = createContext(null)
+export const useNav = () => useContext(NavCtx)
+
+// 訪客瀏覽時的示範訂單（真帳號一律以後端 /api/orders 為準）
+const DEMO_ORDERS = [
+  { id: 'JQ-260528-01', date: '2026/05/28', items: [{ name: '植物萬年曆手帳', price: 800 }], total: 800, status: '已出貨', pay: '信用卡 ·· 4242' },
+  { id: 'JQ-260602-07', date: '2026/06/02', items: [{ name: '七股晨海 授權', price: 30 }, { name: '夏至日出 授權', price: 45 }], total: 75, status: '已完成', pay: 'LINE Pay' },
+]
+
+export function NavProvider({ children }) {
+  // ---- 主題（記憶到 localStorage，reload 不重置）----
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('jq-theme') || 'light' } catch { return 'light' }
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#141210' : '#F4EFE6')
+    try { localStorage.setItem('jq-theme', theme) } catch { /* 隱私模式忽略 */ }
+  }, [theme])
+  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+
+  // ---- 登入身分（由後端 Session Cookie 決定；啟動時打 /api/me 還原）----
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  useEffect(() => {
+    let alive = true
+    api.me()
+      .then(({ user: u, csrfToken }) => { if (!alive) return; setCsrf(csrfToken); setUser(toAppUser(u)) })
+      .catch(() => { if (alive) setUser(null) })
+      .finally(() => { if (alive) setAuthLoading(false) })
+    return () => { alive = false }
+  }, [])
+  // 由 Auth 畫面登入/註冊成功後呼叫（傳入後端回的 user 與 csrfToken）
+  const login = (apiUser, csrfToken) => { setCsrf(csrfToken); setUser(toAppUser(apiUser)) }
+  const loginGuest = () => { setCsrf(null); setUser({ name: '訪客', handle: 'guest', guest: true, role: 'guest', emailVerified: false }) }
+  const logout = async () => {
+    try { if (!user?.guest) await api.logout() } catch { /* 忽略：仍在前端登出 */ }
+    setCsrf(null); setUser(null); setStack([]); setTabRaw(0)
+  }
+  const updateProfile = (patch) => {
+    setUser(u => ({ ...u, ...patch }))
+    // 暱稱持久化到後端（真帳號）；簡介/頭像等展示欄位仍屬前端示範
+    if (patch.name && user && !user.guest) api.updateProfile({ name: patch.name }).catch(() => { /* 離線時僅本機生效 */ })
+  }
+  // ---- 登入牆：下單/上傳/發佈等需要「真帳號」（非訪客）----
+  const [authWall, setAuthWall] = useState(null)  // null | 動作說明字串
+  const requireAccount = (reason) => {
+    if (!user || user.guest) { setAuthWall(reason || '此功能'); return false }
+    return true
+  }
+  // 點 email 內 /verify-email?token=... 進來 → 驗證後清掉 URL
+  useEffect(() => {
+    try {
+      if (location.pathname.includes('verify-email')) {
+        const t = new URLSearchParams(location.search).get('token')
+        if (t) api.verifyEmail({ token: t })
+          .then(() => setToastRaw('Email 已驗證 ✓'))
+          .catch(() => setToastRaw('驗證連結已失效'))
+          .finally(() => history.replaceState(null, '', '/'))
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // ---- 分頁 + 畫面堆疊 ----
+  const [tab, setTabRaw] = useState(0)
+  const [stack, setStack] = useState([]) // [{screen, props}]
+
+  // 桌機為整頁捲動：切換分頁/進出畫面時捲回頂端（否則會停在上一頁的捲動位置）
+  const scrollTop = () => { try { window.scrollTo(0, 0) } catch { /* ignore */ } }
+  const push = useCallback((screen, props = {}) => { setStack(s => [...s, { screen, props }]); scrollTop() }, [])
+  const pop = useCallback(() => { setStack(s => s.slice(0, -1)); scrollTop() }, [])
+  const popAll = useCallback(() => { setStack([]); scrollTop() }, [])
+  const setTab = useCallback((i) => { setStack([]); setTabRaw(i); scrollTop() }, [])
+
+  // ---- 全域互動狀態（示範用）----
+  const [liked, setLiked] = useState({})           // postId -> bool
+  const [saved, setSaved] = useState({})           // postId -> bool (加入月曆)
+  const [reminders, setReminders] = useState({ mazu: true, tudi: true }) // 神佛提醒
+  const [subscribed, setSubscribed] = useState(false) // Premium
+  const [cart, setCart] = useState([])             // 購物車 / 授權
+  const [projectPhotos, setProjectPhotos] = useState({}) // 做月曆選圖 id->bool
+  // ---- 購買紀錄（訂單）----
+  // 真帳號 → 後端為準（/api/orders，伺服器產生單號並寄確認信）；訪客瀏覽 → 本機示範資料
+  const [orders, setOrders] = useState(DEMO_ORDERS)
+  useEffect(() => {
+    let alive = true
+    if (user && !user.guest) {
+      api.orders().then(r => { if (alive) setOrders(r.orders) }).catch(() => { /* 離線時保持現狀 */ })
+    } else {
+      setOrders(DEMO_ORDERS)
+    }
+    return () => { alive = false }
+  }, [user?.email, user?.guest])
+  // 回傳 Promise：Checkout 需等後端建單成功才清購物車
+  const addOrder = (order) => {
+    if (user && !user.guest) {
+      return api.createOrder({ items: order.items, pay: order.pay })
+        .then(r => { setOrders(o => [r.order, ...o]); return r.order })
+    }
+    // 訪客備援（正常被登入牆擋下）：本機補齊單號/日期/狀態
+    const d = new Date(), pad = (n) => String(n).padStart(2, '0')
+    const full = {
+      id: `JQ-${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}-L${pad((d.getMinutes() + d.getSeconds()) % 100)}`,
+      date: `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`,
+      status: '處理中', total: (order.items || []).reduce((s, i) => s + (i.price || 0), 0),
+      ...order,
+    }
+    setOrders(o => [full, ...o])
+    return Promise.resolve(full)
+  }
+  // ---- 錢包餘額（Wallet / CreatorConsole 共用同一來源）----
+  const [balance, setBalance] = useState(creatorStats.balance)
+  const withdraw = () => { if (balance <= 0) return false; setBalance(0); return true }
+  // ---- 設定偏好（持久化）----
+  const [prefs, setPrefsRaw] = useState(() => {
+    try { return { notif: true, priv: false, textSize: 'md', ...JSON.parse(localStorage.getItem('jq-prefs') || '{}') } }
+    catch { return { notif: true, priv: false, textSize: 'md' } }
+  })
+  const setPref = (k, v) => setPrefsRaw(p => {
+    const next = { ...p, [k]: v }
+    try { localStorage.setItem('jq-prefs', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
+  // 文字大小 / 減少動態：套到 <html> 資料屬性 → 由 CSS 生效
+  useEffect(() => { document.documentElement.dataset.textsize = prefs.textSize || 'md' }, [prefs.textSize])
+  useEffect(() => { document.documentElement.dataset.reduceMotion = prefs.reduceMotion ? 'on' : 'off' }, [prefs.reduceMotion])
+  // ---- 通知已讀（清紅點）----
+  const [notifRead, setNotifRead] = useState(false)
+
+  // ---- 社交 ----
+  const [following, setFollowing] = useState({})   // 使用者名 -> bool（追蹤中）
+  const [comments, setComments] = useState({})     // postId -> [{ user, text, mine }]
+  const [likedComments, setLikedComments] = useState({}) // commentKey -> bool
+
+  const toggleLike = (id) => setLiked(m => ({ ...m, [id]: !m[id] }))
+  const toggleSave = (id) => setSaved(m => ({ ...m, [id]: !m[id] }))
+  const toggleReminder = (id) => setReminders(m => ({ ...m, [id]: !m[id] }))
+  const togglePhoto = (id) => setProjectPhotos(m => ({ ...m, [id]: !m[id] }))
+  const addToCart = (item) => setCart(c => (c.find(x => x.id === item.id) ? c : [...c, item]))
+  const clearCart = () => setCart([])
+  const toggleFollow = (user) => setFollowing(m => ({ ...m, [user]: !m[user] }))
+  const followCount = () => Object.values(following).filter(Boolean).length
+  const addComment = (postId, text) =>
+    setComments(m => ({ ...m, [postId]: [...(m[postId] || []), { user: 'lim_suzuhara', text, mine: true }] }))
+  const toggleCommentLike = (key) => setLikedComments(m => ({ ...m, [key]: !m[key] }))
+
+  // ---- Toast ----
+  const [toast, setToastRaw] = useState(null)
+  const toastTimer = useState({ t: null })[0]
+  const setToast = useCallback((msg) => {
+    setToastRaw(msg)
+    if (toastTimer.t) clearTimeout(toastTimer.t)
+    toastTimer.t = setTimeout(() => setToastRaw(null), 1800)
+  }, [toastTimer])
+
+  const value = {
+    theme, toggleTheme,
+    user, authLoading, login, loginGuest, logout, updateProfile,
+    authWall, setAuthWall, requireAccount,
+    tab, setTab, stack, push, pop, popAll,
+    liked, toggleLike, saved, toggleSave,
+    reminders, toggleReminder,
+    subscribed, setSubscribed,
+    cart, addToCart, clearCart,
+    orders, addOrder,
+    projectPhotos, togglePhoto,
+    following, toggleFollow, followCount,
+    comments, addComment,
+    likedComments, toggleCommentLike,
+    balance, withdraw,
+    prefs, setPref,
+    notifRead, setNotifRead,
+    toast, setToast,
+  }
+  return <NavCtx.Provider value={value}>{children}</NavCtx.Provider>
+}
