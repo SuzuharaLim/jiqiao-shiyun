@@ -4,6 +4,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { useContent } from '../hooks/useApi.js'
 import AnimatedText from '../components/AnimatedText.jsx'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 // 相機工作室 —— 純瀏覽器 API（getUserMedia / MediaRecorder / Canvas / DeviceMotion / CSS filter），零第三方。
 // 模式：拍攝(單點=照片,長按=錄影) / 版面(2–6格拼貼) / 建立(純色漸層+文字+票選+倒數限動)。
@@ -101,13 +102,20 @@ export default function Camera({ onDone }) {
   const stopRec = () => { try { recRef.current?.stop() } catch { /* ignore */ } setRecording(false) }
 
   // 檢視／建立完成 → 帶回新貼文或發佈
+  // ★ 這裡一定要真的上傳照片並帶 imageId，否則貼文只會顯示 📷 emoji 佔位圖（先前的問題）
   const usePhoto = async (url) => {
     if (onDone) { onDone(url); return }
     // 沒有 onDone（直接進相機）→ 當作發佈：需登入
     if (!requireAccount('發佈作品')) return
     try {
-      await api.createPost({ emoji: '📷', bg: '#141210', term: '', title: '相機作品', caption: '用機巧時運相機拍攝 📷', tags: [] })
-      setToast('已發佈 📷'); popAll(); push('todayShots', {})
+      setToast('上傳中…')
+      const { id: imageId } = await api.uploadImage(url)
+      const term = dayFor(todayOffset()).term          // 自動標記當前節氣
+      await api.createPost({
+        emoji: '📷', bg: '#141210', term, title: `${term}・相機作品`,
+        caption: '用機巧時運相機拍攝 📷', tags: term ? [term] : [], imageId,
+      })
+      setToast('已發佈 📷'); popAll(); push('todayShots', { term })
     } catch (e) { setToast(e?.message || '發佈失敗') }
   }
 
@@ -210,6 +218,56 @@ function LayoutMode({ videoRef, grab, onComposed, setToast, status, facing }) {
   )
 }
 
+// 把檢視畫面的編輯結果「烘」成一張真的圖檔（濾鏡/強度/疊加特效/文字），
+// 並縮到最長邊 1600px、JPEG 0.85 —— 與發貼文的上傳規格一致。
+// 註：畫面上的濾鏡只是 CSS 預覽，不烘進來的話上傳的會是原圖。
+//     Canvas 的 ctx.filter 吃的語法與 CSS filter 相同，可直接沿用濾鏡設定。
+function bakeImage({ url, filterCss, strength = 100, overlayEmoji = '', overlayPos = 'top', text = '' }) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const max = 1600
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale)
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      const ctx = c.getContext('2d')
+
+      // 1) 套濾鏡畫一次
+      ctx.filter = filterCss && filterCss !== 'none' ? filterCss : 'none'
+      ctx.drawImage(img, 0, 0, w, h)
+      // 2) 強度 < 100：用原圖以不透明度疊回去內插（與畫面預覽同一套邏輯）
+      if (strength < 100) {
+        ctx.filter = 'none'
+        ctx.globalAlpha = 1 - strength / 100
+        ctx.drawImage(img, 0, 0, w, h)
+        ctx.globalAlpha = 1
+      }
+      ctx.filter = 'none'
+      // 3) 疊加型特效（貓耳/花冠…）
+      if (overlayEmoji) {
+        const size = Math.round(h * 0.22)
+        ctx.font = `${size}px serif`
+        ctx.textAlign = 'center'
+        const y = overlayPos === 'top' ? size * 1.1 : overlayPos === 'eyes' ? h * 0.42 : h * 0.55
+        ctx.fillText(overlayEmoji, w / 2, y)
+      }
+      // 4) 文字（動態效果是播放用的，靜態圖烘入文字本身）
+      if (text) {
+        const size = Math.round(h * 0.065)
+        ctx.font = `700 ${size}px "Songti TC", serif`
+        ctx.textAlign = 'center'
+        ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = size * 0.4
+        ctx.fillStyle = '#fff'
+        ctx.fillText(text.slice(0, 30), w / 2, h - size * 1.4)
+        ctx.shadowBlur = 0
+      }
+      resolve(c.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = () => reject(new Error('圖片處理失敗'))
+    img.src = url
+  })
+}
+
 // ═══════ 檢視（濾鏡/強度/文字/搖晃框）═══════
 function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }) {
   const [lib, setLib] = useState('story')            // story | feed（經典濾鏡庫）
@@ -223,6 +281,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
   const [textFxOpen, setTextFxOpen] = useState(false)
   const [tfx, setTfx] = useState('classic')
   const [shake, setShake] = useState(false)
+  const [baking, setBaking] = useState(false)      // 正在把效果烘進圖檔 / 上傳
   const [reveal, setReveal] = useState(0)            // 0=模糊 1=清晰（搖晃顯影）
   const startX = useRef(0)
   const lastAcc = useRef(0)
@@ -305,7 +364,21 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
 
       <div className="cam-bottom row">
         <button className={`chip tap ${shake ? 'on' : ''}`} onClick={() => setShake(s => !s)}>📳 搖晃顯影框</button>
-        <button className="btn-primary tap" onClick={() => onUse(shot.url)}>使用照片</button>
+        <button className="btn-primary tap" disabled={baking}
+          onClick={async () => {
+            setBaking(true)
+            try {
+              // 把濾鏡/強度/特效/文字烘進圖檔再交出去（否則上傳的會是沒套效果的原圖）
+              const baked = await bakeImage({
+                url: shot.url, filterCss, strength,
+                overlayEmoji: eff?.type === 'overlay' ? eff.emoji : '',
+                overlayPos: eff?.pos, text,
+              })
+              await onUse(baked)
+            } catch (e) {
+              setToast(e?.message || '照片處理失敗')
+            } finally { setBaking(false) }
+          }}>{baking ? '處理中…' : '使用照片'}</button>
       </div>
 
       {/* 特效庫 */}
