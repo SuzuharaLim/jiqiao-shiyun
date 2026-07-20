@@ -111,7 +111,18 @@ chengqi-main/
 
 唯一的 Context provider（`useNav()`）。涵蓋：主題(localStorage)、使用者(後端 session)、tab+stack 路由、以及所有互動狀態（liked/saved/cart/orders/following/comments/balance/prefs/…）與 Toast、登入牆。**改全域行為先看這支**。完整清單見 [docs/狀態與資料.md](docs/狀態與資料.md)。
 
-登入牆：`requireAccount(reason)` — 訪客/未登入回 `false` 並彈 `AuthWall`；已在結帳、發佈、購買、下單、加入購物車前呼叫。
+登入牆：`requireAccount(reason)` — 訪客/未登入回 `false` 並彈 `AuthWall`；已在結帳、發佈、購買、下單、加入購物車、按讚、留言、追蹤、檢舉、刪除、編輯個人檔案前呼叫。
+
+**訪客模式（2026-07 全面稽核）**：`loginGuest()` 是**純前端狀態**（無 session cookie、`setCsrf(null)`），
+所以後端天然安全——所有寫入 API 都有 `requireAuth`，訪客一律 401。已驗證會被擋下的操作：
+按讚／留言／追蹤／檢舉／發佈／購買授權／編輯個人檔案／管理後台 API。
+特性與刻意保留的行為：
+- **重新整理即失效**（無 cookie），會回到登入頁——這是無 session 的必然結果。
+- **AI 顧問**：訪客提問時 API 回 401，前端 fallback 到 `mock.js` 的 `aiReply` 示範腳本，
+  **不會消耗 OpenAI 額度**。屬刻意設計（讓訪客能體驗介面）。
+- **加入月曆（收藏）**：只存前端 localStorage，未擋（不寫後端，無副作用）。
+- 直接輸入 `/admin` 網址：`Admin.jsx` 以 `canManage` 擋下顯示「僅限版主與管理者」
+  （後端本來就 401，此為避免介面外露造成誤解）。
 
 ---
 

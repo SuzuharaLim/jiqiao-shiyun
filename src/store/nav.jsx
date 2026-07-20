@@ -63,11 +63,8 @@ const toAppUser = (u) => ({
 const NavCtx = createContext(null)
 export const useNav = () => useContext(NavCtx)
 
-// 訪客瀏覽時的示範訂單（真帳號一律以後端 /api/orders 為準）
-const DEMO_ORDERS = [
-  { id: 'JQ-260528-01', date: '2026/05/28', items: [{ name: '植物萬年曆手帳', price: 800 }], total: 800, status: '已出貨', pay: '信用卡 ·· 4242' },
-  { id: 'JQ-260602-07', date: '2026/06/02', items: [{ name: '七股晨海 授權', price: 30 }, { name: '夏至日出 授權', price: 45 }], total: 75, status: '已完成', pay: 'LINE Pay' },
-]
+// 訂單一律以後端 /api/orders 為準；訪客沒有帳號＝沒有訂單，顯示空狀態而非假資料。
+// （先前這裡放示範訂單，訪客會看到「植物萬年曆手帳 NT$800 已出貨」這種不存在的購買紀錄。）
 
 export function NavProvider({ children }) {
   // ---- 主題（記憶到 localStorage，reload 不重置）----
@@ -172,13 +169,13 @@ export function NavProvider({ children }) {
   const [projectPhotos, setProjectPhotos] = useState({}) // 做月曆選圖 id->bool
   // ---- 購買紀錄（訂單）----
   // 真帳號 → 後端為準（/api/orders，伺服器產生單號並寄確認信）；訪客瀏覽 → 本機示範資料
-  const [orders, setOrders] = useState(DEMO_ORDERS)
+  const [orders, setOrders] = useState([])
   useEffect(() => {
     let alive = true
     if (user && !user.guest) {
       api.orders().then(r => { if (alive) setOrders(r.orders) }).catch(() => { /* 離線時保持現狀 */ })
     } else {
-      setOrders(DEMO_ORDERS)
+      setOrders([])   // 訪客/未登入：沒有訂單
     }
     return () => { alive = false }
   }, [user?.email, user?.guest])

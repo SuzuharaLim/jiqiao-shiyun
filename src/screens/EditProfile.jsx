@@ -5,13 +5,15 @@ import { useNav } from '../store/nav.jsx'
 const AVATARS = ['🌾', '🌸', '🌊', '🌅', '🪷', '🍃', '⛰️', '🌻']
 
 export default function EditProfile() {
-  const { user, updateProfile, pop, setToast } = useNav()
+  const { user, updateProfile, pop, setToast, requireAccount } = useNav()
   const [name, setName] = useState(user?.name || '')
   const [bio, setBio] = useState(user?.bio || '')
   const [avatar, setAvatar] = useState(user?.avatar || '🌾')
   const handle = user?.handle || ''
 
   const save = () => {
+    // 訪客沒有後端帳號，存了也不會保留 → 直接引導註冊，不給假的成功訊息
+    if (!requireAccount('編輯個人檔案')) return
     if (!name.trim()) { setToast('暱稱不可空白'); return }
     updateProfile({ name: name.trim(), bio: bio.trim(), avatar })
     setToast('個人檔案已更新 ✓')

@@ -11,6 +11,9 @@ const ROLE_LABEL = { user: '一般使用者', creator: '創作者', moderator: '
 
 export default function Admin() {
   const { user, setToast } = useNav()
+  // 權限守門：後端每支 admin API 都有 requireRole 擋著（資料本來就安全），
+  // 但直接輸入 /admin 網址仍會看到管理介面外殼，容易誤會「我進得去」。這裡明確擋掉。
+  const canManage = ['moderator', 'admin'].includes(user?.role)
   const isAdmin = user?.role === 'admin'
   const [tab, setTab] = useState(isAdmin ? 'users' : 'content')
   const [users, setUsers] = useState([]); const [roles, setRoles] = useState(['user', 'creator', 'moderator', 'admin'])
@@ -71,6 +74,24 @@ export default function Admin() {
     if (items.some(x => x.id === id)) return setToast('id 已存在')
     setItems(list => [...list, { kind, id, sort: list.length, data: {}, _json: '{\n  "name": ""\n}' }])
     setNewId('')
+  }
+
+  // 非版主/管理者（含訪客）直接輸入 /admin 網址時，顯示明確的無權限畫面
+  if (!canManage) {
+    return (
+      <>
+        <TopBar title="管理後台" onBack />
+        <div className="body">
+          <div className="empty">
+            <div className="big">🔒</div>
+            此頁僅限版主與管理者<br />
+            <span className="muted" style={{ fontSize: 12 }}>
+              {user?.guest ? '你目前是訪客，請先註冊登入' : '你的帳號沒有管理權限'}
+            </span>
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (
