@@ -115,16 +115,26 @@ SEED_DEMO="${SEED_DEMO:-1}" DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@127
 kill $PROXY_PID 2>/dev/null || true; trap - EXIT
 
 echo "== [5/6] 部署到 Cloud Run（從原始碼建置）=="
+# ★ 用 --update-env-vars / --update-secrets（只新增或更新指定項目），
+#   不可用 --set-*（那會「取代全部」，把本腳本沒列出的設定如 OPENAI_API_KEY 清掉）。
 gcloud run deploy "$SERVICE" --source . --region="$REGION" --allow-unauthenticated \
   --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
-  --set-env-vars="NODE_ENV=production,INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},DB_USER=${DB_USER},DB_NAME=${DB_NAME}${MAIL_ENVS}" \
-  --set-secrets="DB_PASS=jiqiao-db-pass:latest${MAIL_SECRETS}" \
+  --update-env-vars="NODE_ENV=production,INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},DB_USER=${DB_USER},DB_NAME=${DB_NAME}${MAIL_ENVS}" \
+  --update-secrets="DB_PASS=jiqiao-db-pass:latest${MAIL_SECRETS}" \
   --cpu=1 --memory=512Mi --min-instances=0 --max-instances=3
 
 echo "== [6/6] 回填 APP_URL & 驗證 =="
-URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
-gcloud run services update "$SERVICE" --region="$REGION" --update-env-vars="APP_URL=${URL}" >/dev/null
-echo "   服務網址：$URL"
-echo "   健康檢查：$(curl -s "$URL/api/health")   （應為 {\"ok\":true,\"db\":\"pg\",...}）"
+# APP_URL 決定驗證信/重設密碼信裡的連結網址。已綁自訂網域就優先用它，
+# 否則退回 Cloud Run 預設網址。可用 export APP_URL=... 覆寫。
+if [ -z "${APP_URL:-}" ]; then
+  DOMAIN="$(gcloud beta run domain-mappings list --region="$REGION" \
+            --filter="spec.routeName=${SERVICE}" --format='value(metadata.name)' 2>/dev/null | head -1)"
+  if [ -n "$DOMAIN" ]; then APP_URL="https://${DOMAIN}"
+  else APP_URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"; fi
+fi
+gcloud run services update "$SERVICE" --region="$REGION" --update-env-vars="APP_URL=${APP_URL}" >/dev/null
+echo "   對外網址：$APP_URL（信件連結會用這個）"
+echo "   健康檢查：$(curl -s "${APP_URL}/api/health")"
+echo "   ↑ db 應為 pg；mail 非 log 表示寄信已接；ai 為 off 表示未設 OPENAI_API_KEY"
 echo "✅ 完成。用 admin@jiqiao.local / admin12345（管理者）或 newuser@example.com / secret12345 登入測試。"
 echo "   停用計費（Cloud SQL 24h 計費）： gcloud sql instances stop $SQL_INSTANCE"
