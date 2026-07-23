@@ -218,6 +218,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 | [docs/狀態與資料.md](docs/狀態與資料.md) | `nav.jsx` Context 完整 API、`mock.js` 資料形狀 | 開發 |
 | [docs/後端-認證.md](docs/後端-認證.md) | `server/` 認證端點、DB schema、安全設計（端點全表見 API-總表） | 開發 |
 | [docs/部署-CloudRun-PostgreSQL.md](docs/部署-CloudRun-PostgreSQL.md) | ★Cloud Run + Cloud SQL 部署 runbook（全程 Cloud Shell、免本機、免 GitHub） | 部署 |
+| [docs/legal/terms-of-service-en.md](docs/legal/terms-of-service-en.md) · [docs/legal/privacy-policy-en.md](docs/legal/privacy-policy-en.md) | ★英文版服務條款與隱私權政策草案（**未經律師審閱**，`[BRACKETED]` 佔位待填；免責條款的「法律不允許排除者除外」但書切勿刪除，刪了整條可能被判無效） | 法務 |
 | [docs/寄信-Email設定.md](docs/寄信-Email設定.md) | ★如何讓驗證信/重設密碼信真的寄出：供應商比較、金鑰、網域驗證、Secret Manager、疑難排解 | 部署 |
 | [docs/金流-付款串接.md](docs/金流-付款串接.md) | ★如何讓使用者付款：金流商比較、金鑰、Stripe/TapPay/藍新、webhook、PCI | 部署 |
 | [docs/社交平台檢驗報告.md](docs/社交平台檢驗報告.md) | ★95 項社交平台 QA 逐項檢驗結果（含 2026-07 已修 23 項與 P0/P1/P2 待辦） | 開發/營運 |
