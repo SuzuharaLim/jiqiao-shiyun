@@ -1647,3 +1647,26 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   padding: 2px 2px 10px; font-size: 11.5px; color: var(--muted);
 }
 .pw-rules .ok { color: var(--yi); font-weight: 600; }
+
+/* 登入頁的條款覆蓋層：未登入時無法 push 畫面，就地蓋一層可捲動的全螢幕頁 */
+.legal-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  animation: fade .18s var(--ease);
+}
+.legal-overlay > .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.legal-overlay .body { overflow-y: auto; }
+@media (min-width: 900px) {
+  .legal-overlay > .screen { width: min(100%, 760px); margin: 0 auto; }
+}
+
+/* 同意列：連結與勾選框分離，連結用朱紅底線標示可點 */
+.auth-agree { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.auth-agree label { display: flex; align-items: center; gap: 7px; margin: 0; }
+.auth-agree .lnk {
+  background: none; border: none; padding: 0;
+  color: var(--cinnabar); font-weight: 700; font-size: inherit;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.auth-agree .sep { color: var(--muted); }

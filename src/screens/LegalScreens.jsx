@@ -4,12 +4,15 @@ import { useNav } from '../store/nav.jsx'
 // 法務與聯絡頁（上架合規：隱私權政策 / 服務條款 / 聯絡我們——取代原本的 toast 佔位）
 // 文案為示範版本，正式上線前應由法務確認；聯絡資訊待業主提供後替換。
 
+// Privacy / Terms 也會被登入頁以「覆蓋層」方式直接渲染（未登入時 App 只渲染 <Auth/>，
+// 無法 push 畫面）。TopBar 的 onBack 可為 bare flag（true → 預設 pop）或函式；
+// 故傳 `onClose || true`：有給關閉函式就用它，沒給就維持原本的返回行為。
 const P = ({ children }) => <p className="article" style={{ padding: '4px 16px' }}>{children}</p>
 
-export function Privacy() {
+export function Privacy({ onClose }) {
   return (
     <>
-      <TopBar title="隱私權政策" onBack />
+      <TopBar title="隱私權政策" onBack={onClose || true} />
       <div className="body">
         <SectionHead title="我們如何蒐集與使用資料" />
         <P>「機巧時運」（下稱本服務）重視你的隱私。本政策說明我們蒐集哪些資料、如何使用與你的權利。示範版本，正式上線前將由法務審閱。</P>
@@ -35,10 +38,10 @@ export function Privacy() {
   )
 }
 
-export function Terms() {
+export function Terms({ onClose }) {
   return (
     <>
-      <TopBar title="服務條款" onBack />
+      <TopBar title="服務條款" onBack={onClose || true} />
       <div className="body">
         <SectionHead title="服務內容" />
         <P>「機巧時運」提供互動農民曆、節氣攝影社群、月曆創作市集與 AI 時光顧問等服務。目前為展示原型：金流、AI 對話與部分內容為模擬，正式功能以上線公告為準。</P>

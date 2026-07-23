@@ -3,6 +3,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { BRAND } from '../data/mock.js'
 import { pwError, pwChecks } from '../lib/password.js'
+import { Privacy, Terms } from './LegalScreens.jsx'
 
 const handleFmt = (h) => /^[a-z0-9_.]{3,20}$/.test(h)
 
@@ -26,6 +27,7 @@ export default function Auth() {
   const [hp, setHp] = useState('')               // honeypot（防機器人；真人不可見）
   const [agree, setAgree] = useState(false)
   const [showPw, setShowPw] = useState(false)
+  const [legal, setLegal] = useState(null)   // null | 'terms' | 'privacy'
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [devLink, setDevLink] = useState(null)   // { type:'verify'|'reset', token }
@@ -157,10 +159,16 @@ export default function Auth() {
           </div>
         )}
         {mode === 'register' && (
-          <label className="auth-agree">
-            <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
-            <span>我同意 <b>服務條款</b> 與 <b>隱私權政策</b></span>
-          </label>
+          <div className="auth-agree">
+            {/* 連結必須放在 label 之外——包在 label 裡的話，點連結會連帶切換勾選框 */}
+            <label>
+              <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
+              <span>我同意</span>
+            </label>
+            <button type="button" className="lnk tap" onClick={() => setLegal('terms')}>服務條款</button>
+            <span className="sep">與</span>
+            <button type="button" className="lnk tap" onClick={() => setLegal('privacy')}>隱私權政策</button>
+          </div>
         )}
 
         {mode === 'login' && <button className="auth-btn tap" onClick={doLogin} disabled={busy}>{busy ? '登入中…' : '登入'}</button>}
@@ -188,9 +196,20 @@ export default function Auth() {
 
       <div className="auth-guest">
         <button className="btn-ghost tap" onClick={loginGuest}>訪客先逛逛（免註冊）</button>
-        <p className="muted" style={{ fontSize: 11, lineHeight: 1.7, marginTop: 12 }}>
-        </p>
       </div>
+
+      {/* 服務條款／隱私權政策：未登入時 App 只渲染 <Auth/>，無法用 push 開畫面，
+          所以就地蓋一層。使用者可以在同意之前真的讀到條款內容。 */}
+      {legal && (
+        <div className="legal-overlay" role="dialog" aria-modal="true"
+          aria-label={legal === 'terms' ? '服務條款' : '隱私權政策'}>
+          <div className="screen">
+            {legal === 'terms'
+              ? <Terms onClose={() => setLegal(null)} />
+              : <Privacy onClose={() => setLegal(null)} />}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
