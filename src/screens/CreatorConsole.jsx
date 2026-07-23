@@ -24,6 +24,22 @@ export default function CreatorConsole() {
     ['粉絲', my ? my.stats.followers : 0],
   ]
 
+  // 訪客沒有後端帳號，這裡的數字與功能都不成立 → 直接擋下並引導註冊
+  if (!user || user.guest) {
+    return (
+      <>
+        <TopBar title="創作者後台" onBack />
+        <div className="body">
+          <div className="empty">
+            <div className="big">🎨</div>
+            創作者後台需要註冊帳號<br />
+            <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <TopBar title="創作者後台" onBack />

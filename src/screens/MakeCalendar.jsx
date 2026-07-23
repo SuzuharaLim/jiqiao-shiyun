@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { useWorks } from '../hooks/useApi.js'
 
 export default function MakeCalendar() {
-  const { pop, push, setToast } = useNav()
+  const { pop, push, setToast, user } = useNav()
   const works = useWorks(null)   // 選圖來源＝真實市集作品（嚴格來自資料庫）
   const pool = [...works, ...works.slice(0, 6)].map((w, i) => ({ ...w, key: w.id + '_' + i }))
   const [src, setSrc] = useState('我的照片')
@@ -33,6 +33,26 @@ export default function MakeCalendar() {
     for (const p of pool) { if (n.size >= N) break; n.add(p.key) }
     setSel(n)
     setToast('AI 已為你補齊 12 張 ✨')
+  }
+
+  // 做月曆會產生要下單的商品，且專案需要綁在帳號上才留得住 → 訪客先擋下。
+  // （後端本來就會擋，這裡是避免使用者做完 12 張才發現不能存。）
+  if (!user || user.guest) {
+    return (
+      <>
+        <TopBar title="做月曆" onClose={pop} />
+        <div className="body">
+          <div className="empty">
+            <div className="big">🗓️</div>
+            做月曆需要註冊帳號<br />
+            <span style={{ fontSize: 12 }}>月曆專案要綁在帳號上才留得住，也才能下單印製</span>
+          </div>
+          <div className="pad">
+            <button className="btn-primary tap" onClick={() => setToast('請先從「我的」註冊或登入')}>註冊 / 登入</button>
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (

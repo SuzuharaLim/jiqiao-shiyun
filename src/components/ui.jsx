@@ -92,7 +92,9 @@ export function Switch({ on, onChange }) {
 
 // 區段標題
 export function SectionHead({ title, extra }) {
-  return <div className="sech">{title}{extra && <span>{extra}</span>}</div>
+  // 標題包成 span，朱紅標記才能當成標題的一部分。
+  // 先前用 .sech::before 絕對定位，位置要用 padding 反推，在不同畫面會跑掉。
+  return <div className="sech"><span className="sech-t">{title}</span>{extra && <span>{extra}</span>}</div>
 }
 
 // 命理／占卜 免責聲明（上線合規）

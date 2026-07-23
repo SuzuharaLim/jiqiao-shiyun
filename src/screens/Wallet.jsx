@@ -7,12 +7,28 @@ import { useNav } from '../store/nav.jsx'
 // 且 nav.jsx 把餘額初始化成 NT$1,840。使用者會看到自己從沒賺過的錢。
 // 在真的接上金流與結算之前，一律顯示 0 與空狀態。
 export default function Wallet() {
-  const { setToast, balance, withdraw } = useNav()
+  const { setToast, balance, withdraw , user } = useNav()
   const doWithdraw = () => {
     const amt = balance
     if (!withdraw()) { setToast('目前沒有可提領餘額'); return }
     setToast(`提領 NT$${amt.toLocaleString()} 已送出，1–3 個工作天入帳 💸`)
   }
+  // 訪客沒有後端帳號，這裡的數字與功能都不成立 → 直接擋下並引導註冊
+  if (!user || user.guest) {
+    return (
+      <>
+        <TopBar title="錢包 / 收益" onBack />
+        <div className="body">
+          <div className="empty">
+            <div className="big">💸</div>
+            錢包與收益需要註冊帳號<br />
+            <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <TopBar title="錢包 / 收益" onBack />

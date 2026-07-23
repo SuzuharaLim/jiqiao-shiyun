@@ -1275,12 +1275,7 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   border-bottom: 1px solid var(--line2);
   padding-bottom: 6px;
 }
-.ad-sheet .sech::before {
-  content: ""; position: absolute;
-  left: 14px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 0.95em;
-  background: var(--cinnabar);
-}
+/* 曆頁沿用全站的 .sech-t::before，不需另外定義 */
 
 /* 節氣做成朱印：方章而非圓膠囊 */
 .ad-sheet .ad-term {
@@ -1450,14 +1445,13 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   /* ⚠️ .sech 是 flex + justify-content:space-between。
      ::before 若當成一般 flex item，會被 space-between 推到最左邊、
      與標題分離（標題還會被擠到置中）。必須絕對定位才會貼著標題。 */
-  position: relative;
-  padding-left: 24px;
 }
-.sech::before {
-  content: ""; position: absolute;
-  left: 14px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 0.95em;
-  background: var(--cinnabar);
+/* 標記貼在標題文字前面（inline），不再絕對定位——絕對定位得用 padding 反推位置，
+   在有 tabs 或標題較高的畫面會跑到文字上方，看起來像多出來一塊紅色。 */
+.sech-t::before {
+  content: ""; display: inline-block;
+  width: 3px; height: 0.9em; margin-right: 7px;
+  background: var(--cinnabar); vertical-align: -1px;
 }
 /* 曆頁上面已有同樣規則，這裡不重複套（避免出現兩條標記） */
 
@@ -1600,3 +1594,49 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   .stage.signed-in .screen-store .st-item { padding: 16px 18px; }
   .stage.signed-in .screen-store .st-item .ti { width: 64px; height: 64px; font-size: 30px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   AI 對話：建立層次
+   ——————————————————————————————————————————————————————————
+   使用者回饋「這個介面太扁了」。原因不是缺陰影，而是缺「階層」：
+   AI 訊息、快速鍵、輸入框全都是同一個明度的方塊，眼睛找不到重點。
+   紙的做法是靠「線的粗細」與「留白」分層，不是靠浮起來。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* AI 訊息：像書頁上的引文——左側一條朱紅粗線，底色比紙略深一階 */
+.msg.ai {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--cinnabar);
+  padding: 12px 15px;
+  max-width: 88%;
+}
+/* 自己的訊息：實心朱紅，維持對比（白字對比 5.94） */
+.msg.me { border: 1px solid var(--cinnabar); }
+
+/* 快速提問：這是「可以按的」，要跟訊息明顯不同——用墨線框＋朱紅字 */
+.qchip {
+  background: none;
+  border: 1px solid var(--line2);
+  color: var(--cinnabar);
+  font-weight: 600;
+  padding: 9px 14px;
+}
+.qchip:hover { border-color: var(--cinnabar); }
+
+/* 輸入區：整條加一條上緣墨線，把「輸入」與「對話」分開 */
+.cinput {
+  border-top: 1px solid var(--line2);
+  padding: 12px;
+  background: var(--card);
+}
+.cinput .f {
+  background: var(--bg);
+  border: 1px solid var(--line2);
+  height: 44px;
+}
+.cinput .f:focus-within { border-color: var(--cinnabar); }
+
+/* 運勢卡與下方免責之間拉開，讓卡片成為真正的視覺起點 */
+.aicard { margin-bottom: 4px; }
+.msgs { gap: 14px; padding-top: 14px; }
