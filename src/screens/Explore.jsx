@@ -61,7 +61,13 @@ export default function Explore() {
           else { try { navigator.clipboard.writeText(url) } catch { /* ignore */ } setToast('已複製連結') }
         }}><Icon name="share" /></button>} />
 
-      <div className="body">
+      <div className="body ex-body">
+        {/* 版面分三區：ex-top(搜尋+篩選) / ex-main(作品) / ex-side(挑戰+創作者)。
+            手機上三個包裝層都是 display:contents（版面=原本的直向堆疊），
+            ≥900px 變成雙欄 grid：作品是這頁的主角，佔主欄；挑戰與創作者
+            是輔助內容，收進側欄——原本它們排在作品前面，導致照片全部
+            落在摺線以下，而挑戰看板一行字佔掉畫面最大一塊。 */}
+        <div className="ex-top">
         <div className="search">
           <Icon name="search" style={{ width: 17, height: 17, stroke: 'var(--muted)' }} />
           <input placeholder="搜尋節氣、植物、創作者" aria-label="搜尋節氣、植物、創作者" value={q} onChange={e => setQ(e.target.value)} />
@@ -97,26 +103,10 @@ export default function Explore() {
           </div>
         )}
 
-        {/* 節氣挑戰封面 */}
-        <button className="coverbig tap" onClick={() => push('challenges')} style={{ width: 'calc(100% - 26px)' }}>
-          <div className="bt">🎯 {nowTerm}攝影挑戰</div>
-          <div className="bd">拍下你的{nowTerm}，前 3 名收錄官方植物月曆</div>
-        </button>
-
-        {/* 本月人氣創作者 */}
-        <div className="railhd"><div className="t">本月人氣創作者</div><span className="more">依作品數</span></div>
-        <div className="rail">
-          {creators.map(c => (
-            <button key={c.user} className="railcard tap" style={{ width: 92 }}
-              onClick={() => push('creatorPage', { user: c.user, avatar: c.emoji, avatarBg: c.bg })}>
-              <div className="seal" style={{ background: c.bg, width: 66, height: 66, margin: '0 auto', borderRadius: '50%', border: '2px solid var(--gold)' }}>{c.emoji}</div>
-              <div className="cap center" style={{ marginTop: 7 }}>@{c.user}</div>
-              <div className="by center">{c.works} 件作品</div>
-            </button>
-          ))}
         </div>
 
-        {/* 作品冊頁（2 欄框卡，非 IG 無縫方格） */}
+        {/* ── 主欄：作品（這頁的主角，緊跟在篩選後面）── */}
+        <div className="ex-main">
         <div className="railhd">
           <div className="t">
             {chip === '全部' && tag === '全部' && !q ? '全部作品' : (
@@ -149,6 +139,34 @@ export default function Explore() {
             ))}
           </div>
         )}
+        </div>
+
+        {/* ── 側欄：輔助內容（桌機在右側；手機排在作品後面）── */}
+        <div className="ex-side">
+          {/* 挑戰改為精簡卡：原本是一行標題+一行字撐出約 170px 的空看板 */}
+          <button className="ex-chal tap" onClick={() => push('challenges')}>
+            <div className="xc-t">🎯 {nowTerm}攝影挑戰</div>
+            <div className="xc-d">拍下你的{nowTerm}，前 3 名收錄官方植物月曆</div>
+            <span className="xc-go">參加投稿 ›</span>
+          </button>
+
+          {/* 創作者改為名單列：原本是 66px 圓頭像橫向漂浮，只有一人時
+              整排都是空白；名單列在 1 人或 8 人時都成立 */}
+          <div className="railhd"><div className="t">本月人氣創作者</div><span className="more">依作品數</span></div>
+          <div className="ex-creators">
+            {creators.map((c, i) => (
+              <button key={c.user} className="ex-cr tap"
+                onClick={() => push('creatorPage', { user: c.user, avatar: c.emoji, avatarBg: c.bg })}>
+                <span className="xr-rank">{i + 1}</span>
+                <span className="xr-ava" style={{ background: c.bg }}>{c.emoji}</span>
+                <span className="xr-name">@{c.user}</span>
+                <span className="xr-n">{c.works} 件</span>
+              </button>
+            ))}
+            {creators.length === 0 && <div className="empty" style={{ padding: '20px 12px' }}>還沒有創作者上架作品</div>}
+          </div>
+        </div>
+
         <div style={{ height: 16 }} />
       </div>
     </>

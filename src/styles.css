@@ -1818,3 +1818,76 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   color: var(--cinnabar); font-size: 11.5px;
   text-decoration: underline; text-underline-offset: 3px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   探索頁版面（2026-07 重設計）
+   問題：照片瀏覽頁但照片排最後——搜尋→篩選→170px 的挑戰看板→創作者→
+   作品，860px 視窗裡照片全在摺線下；桌機單欄拉滿，一個創作者頭像
+   孤零零漂在整片空白裡。
+   解法：桌機雙欄（作品=主欄、挑戰+創作者=側欄）；手機改序（作品緊跟
+   篩選、宣傳內容移後）。三個包裝層手機上 display:contents，版面透明。
+   ══════════════════════════════════════════════════════════════════════ */
+.ex-top, .ex-main, .ex-side { display: contents; }
+
+/* 挑戰精簡卡：紙底+朱紅雙線框（沿用重點卡語彙），但尺寸收斂 */
+.ex-chal {
+  display: block; text-align: left; cursor: pointer;
+  margin: 14px 13px 4px; padding: 14px 16px;
+  background: var(--card); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 60%, transparent);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 3px var(--card),
+              inset 0 0 0 4px color-mix(in srgb, var(--cinnabar) 30%, transparent);
+}
+.ex-chal .xc-t { font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--cinnabar); }
+.ex-chal .xc-d { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.6; }
+.ex-chal .xc-go {
+  display: inline-block; margin-top: 9px;
+  font-size: 12px; font-weight: 700; color: var(--cinnabar);
+}
+
+/* 創作者名單列：1 人或 8 人都成立（原本的漂浮圓頭像在 1 人時整排空白） */
+.ex-creators { padding: 0 13px; }
+.ex-cr {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 4px; cursor: pointer; background: none; border: none;
+  border-bottom: 1px solid var(--line); text-align: left;
+}
+.ex-cr:last-of-type { border-bottom: none; }
+.xr-rank {
+  flex: 0 0 18px; text-align: center;
+  font-family: var(--serif); font-size: 13px; font-weight: 800; color: var(--gold);
+}
+.ex-cr:first-of-type .xr-rank { color: var(--cinnabar); }
+.xr-ava {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 17px;
+  overflow: hidden;
+}
+.xr-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xr-n { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); }
+
+/* ── 桌機：雙欄。作品主欄自適應、側欄固定 300px ── */
+@media (min-width: 900px) {
+  .stage.signed-in .tab-1 .body.ex-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas:
+      "top  top"
+      "main side";
+    column-gap: 30px;
+    align-content: start;
+  }
+  .stage.signed-in .tab-1 .ex-top  { display: block; grid-area: top; }
+  .stage.signed-in .tab-1 .ex-main { display: block; grid-area: main; min-width: 0; }
+  .stage.signed-in .tab-1 .ex-side { display: block; grid-area: side; }
+
+  /* 側欄内容貼齊欄位（手機的 13px 外距在欄裡多餘） */
+  .stage.signed-in .tab-1 .ex-chal { margin: 20px 0 4px; }
+  .stage.signed-in .tab-1 .ex-creators { padding: 0; }
+  .stage.signed-in .tab-1 .ex-side .railhd { padding-left: 2px; padding-right: 2px; }
+
+  /* 側欄整體像一頁冊眉：頂端對齊主欄的第一個標題 */
+  .stage.signed-in .tab-1 .ex-side { border-left: 1px solid var(--line); padding-left: 26px; }
+}
