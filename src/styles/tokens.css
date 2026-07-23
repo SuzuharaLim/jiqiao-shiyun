@@ -1,0 +1,120 @@
+/* ==========================================================================
+   設計代幣（Design Tokens）—— 全站唯一的視覺真相來源
+   依 DESIGN_BRIEF.md 建立。所有元件只引用變數，不寫死色碼或 px。
+
+   方案 B：結構極簡、保留品牌識別
+   ─ 採用規格的字級音階、間距系統、版面代幣、留白節奏、去裝飾原則
+   ─ 但強調色維持品牌朱紅（非規格的中性近黑），標題維持襯線
+     理由：極簡編輯感的核心是「層級、留白、字體」而非「必須用灰色」；
+           歐洲編輯設計也常見單一飽和強調色。
+     對比實測：朱紅 #C8352B on 白 5.25:1、on 宣紙 4.96:1，皆通過 WCAG AA。
+
+   深色模式：本專案為「使用者手動切換」（[data-theme="dark"]，記憶偏好、
+   有 theme-init.js 防閃爍），非規格的純 prefers-color-scheme。故此處延用
+   [data-theme]，另在未設定偏好時以系統偏好為初始值（見 theme-init.js）。
+   ========================================================================== */
+
+:root {
+  /* ---- 色彩：中性階（宣紙暖白系）---------------------------------------
+     語意對應規格：c-bg / c-surface / c-border / c-text / c-text-2 / c-text-3
+     並保留既有變數名以相容目前 1,279 行樣式（漸進遷移，不破壞現有畫面）。 */
+  --c-bg:       #F4EFE6;   /* 頁面底 */
+  --c-surface:  #FBF7EF;   /* 卡片/浮層 */
+  --c-border:   #E5DBC9;   /* 分隔線（極簡風主要靠它，不靠陰影） */
+  --c-border-2: #D6C9B2;   /* 較強的分隔 */
+  --c-text:     #2A2622;   /* 正文 */
+  --c-text-2:   #5A5148;   /* 次要文字 */
+  --c-text-3:   #6A5B49;   /* 說明、metadata */
+
+  /* 強調色：品牌朱紅（規格的 --c-accent 位置） */
+  --c-accent:      #C8352B;
+  --c-accent-hover:#A82A22;
+
+  --c-focus:  #2563EB;     /* focus ring 專用，需足夠對比 */
+  --c-danger: #A83232;
+
+  /* ---- 內容色票 ------------------------------------------------------
+     稽核發現 JSX 內 66 個硬編碼色碼全是「內容縮圖/工具圖示的柔和底色」，
+     語意相同，故收斂為一組色票，取代逐一替換。 */
+  --tone-1: #F3E7C9;   /* 米 */
+  --tone-2: #DCFCE7;   /* 綠 */
+  --tone-3: #DBEAFE;   /* 藍 */
+  --tone-4: #FCE7F3;   /* 粉 */
+  --tone-5: #FFEDD5;   /* 橙 */
+  --tone-6: #E9E3FB;   /* 紫 */
+
+  /* ---- 字體 ----------------------------------------------------------
+     全用系統字體堆疊：無網路請求、無 FOIT/FOUT、中文不需 subset。
+     （規格建議的 Inter / Source Serif 4 需自行託管或連 CDN，
+       CSP 為 'self' 且中文字重檔案龐大，故採系統堆疊——效能更好。） */
+  --f-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+            "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --f-serif:"Noto Serif TC", "Songti TC", "Source Han Serif TC", "MingLiU", Georgia, serif;
+  --f-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---- 字級：模組化音階，比例 1.25 ----------------------------------
+     稽核發現現況有 35 種字級（12/12.5/13/13.5px 肉眼難辨卻各自散布）。
+     收斂為 7 檔，新元件一律用這些。 */
+  --t-xs:   0.75rem;    /* 12px  metadata、標籤 */
+  --t-sm:   0.875rem;   /* 14px  輔助文字 */
+  --t-base: 1rem;       /* 16px  正文 */
+  --t-lg:   1.25rem;    /* 20px  副標 */
+  --t-xl:   1.5625rem;  /* 25px  區塊標題 */
+  --t-2xl:  1.953rem;   /* 31px  頁面標題 */
+  --t-3xl:  clamp(2.2rem, 1.4rem + 3.2vw, 3.8rem);  /* 主標，流體 */
+
+  --lh-tight: 1.15;
+  --lh-body:  1.65;     /* 中文正文偏鬆 */
+  --ls-tight: -0.02em;  /* 只用於大字級 */
+
+  /* ---- 間距：8px 基準 ---- */
+  --s-1: 4px;   --s-2: 8px;   --s-3: 12px;  --s-4: 16px;
+  --s-5: 24px;  --s-6: 32px;  --s-7: 48px;  --s-8: 64px;
+  --s-9: 96px;  --s-10: 128px;
+
+  /* ---- 版面 ---- */
+  --measure: 68ch;                        /* 正文最大行長 */
+  --container: 1180px;
+  --gutter: clamp(20px, 5vw, 64px);
+
+  /* ---- 其他 ---- */
+  --radius: 3px;                          /* 極簡風：小圓角 */
+  --border: 1px solid var(--c-border);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 220ms;
+}
+
+[data-theme="dark"] {
+  --c-bg:       #141210;
+  --c-surface:  #201C18;
+  --c-border:   #322C24;
+  --c-border-2: #3E362B;
+  --c-text:     #EDE4D3;
+  --c-text-2:   #BFB3A0;
+  --c-text-3:   #A99C88;
+
+  --c-accent:      #E0574B;   /* 深底上的朱紅需提亮才有足夠對比 */
+  --c-accent-hover:#C8352B;
+
+  --c-focus:  #60A5FA;
+  --c-danger: #E08A80;
+
+  /* 內容色票：深色下降低明度，避免刺眼 */
+  --tone-1: #2A2419;
+  --tone-2: #1E2A21;
+  --tone-3: #1A2333;
+  --tone-4: #2B1E28;
+  --tone-5: #2E2418;
+  --tone-6: #241F33;
+}
+
+/* 尊重使用者的動效偏好（規格要求，全站生效） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

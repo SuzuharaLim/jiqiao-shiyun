@@ -32,6 +32,11 @@ function buildPath(screen, props = {}) {
   const tpl = SCREEN_PATH[screen]; if (!tpl) return null
   return tpl.replace(/:(\w+)/g, (_, k) => encodeURIComponent(props?.[k] ?? ''))
 }
+// 給 <Link> 產生真實 href 用（SPA 的連結必須是真的 <a href>，才能支援
+// Cmd/Ctrl+click 開新分頁、右鍵複製網址、爬蟲辨識）。
+// ★ 這裡是路徑組成的唯一真相，Link 不可自行重實作一份。
+export const hrefForScreen = (screen, props) => buildPath(screen, props)
+export const hrefForTab = (tab) => TAB_PATHS[tab] || '/'
 function pathFromState(tab, stack) {
   const top = stack[stack.length - 1]
   if (top) { const p = buildPath(top.screen, top.props); if (p) return p }

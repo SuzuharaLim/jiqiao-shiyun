@@ -1,0 +1,104 @@
+/* ==========================================================================
+   最小 reset（modern-normalize 等級，手寫，不裝套件）
+   必須在 tokens.css 之後、styles.css 之前載入。
+
+   原則：只做「跨瀏覽器一致化」與「無障礙基礎」，不做任何視覺主張——
+   視覺一律交給 tokens 與元件層。
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* 移除預設 margin，垂直節奏改由元件的間距代幣掌控 */
+* { margin: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;   /* 防 iOS 橫向時自動放大字級 */
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  tab-size: 4;
+}
+
+body {
+  min-height: 100svh;
+  font-family: var(--f-sans);
+  font-size: var(--t-base);
+  line-height: var(--lh-body);
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 標題預設不繼承 body 的鬆行高；字級一律由元件指定，避免瀏覽器預設值介入 */
+h1, h2, h3, h4, h5, h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: var(--lh-tight);
+}
+
+/* 媒體：block 化並限制寬度，避免溢出破版 */
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* 表單元素預設不繼承字體，這裡強制繼承（否則按鈕/輸入框會變成瀏覽器預設字） */
+input, button, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* 長字串（網址、無空格的中文）自動斷行，避免撐破容器 */
+p, h1, h2, h3, h4, h5, h6, li, dd, dt {
+  overflow-wrap: break-word;
+}
+
+a { color: inherit; text-decoration: none; }
+
+ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
+
+/* ---- 無障礙基礎 ------------------------------------------------------ */
+
+/* 全站統一的 focus 樣式：鍵盤操作時明顯可見（滑鼠點擊不顯示）
+   稽核發現全站僅 3 處 :focus-visible，這裡補上預設值 */
+:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* 螢幕閱讀器可讀、視覺隱藏（skip link、僅供輔助技術的說明文字用） */
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 跳至主要內容：平時視覺隱藏，鍵盤 Tab 聚焦時滑入（規格要求項目） */
+.skip-link {
+  position: fixed;
+  top: var(--s-2);
+  left: var(--s-2);
+  z-index: 999;
+  transform: translateY(calc(-100% - var(--s-4)));
+  padding: var(--s-2) var(--s-4);
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: var(--border);
+  border-radius: var(--radius);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.skip-link:focus { transform: translateY(0); }
