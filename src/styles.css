@@ -1476,3 +1476,100 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 [data-theme="dark"] .ph, [data-theme="dark"] .img,
 [data-theme="dark"] .gimg, [data-theme="dark"] .album .it,
 [data-theme="dark"] .wd-media .img { background-color: #171614; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   分類列重做：方框按鈕 → 報紙欄目列
+   ——————————————————————————————————————————————————————————
+   前一版把圓角一律改 2px 卻沒重新設計，結果 .chip 變成「方框＋填色」，
+   也就是瀏覽器預設表單控制項的長相＝廉價感的來源。
+   紙上的分類導覽本來就不是按鈕：是一排欄目名，底下一條線，
+   選中的那個用朱紅標記。拿掉框之後，朱紅才回到「標記」的角色，
+   而不是一整塊飽和色。
+   ══════════════════════════════════════════════════════════════════════ */
+.chips {
+  gap: 20px;
+  padding: 2px 16px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: stretch;
+}
+.chip {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 8px 1px 9px;
+  font-family: var(--serif);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--muted);
+  position: relative;
+  transition: color var(--dur-fast) var(--ease);
+}
+.chip:hover { color: var(--text); }
+/* ⚠️ 必須顯式清掉 background：上面舊的 .chip.on 有 background:var(--cinnabar)，
+   只改 color 的話會變成「朱紅底 + 朱紅字」＝文字完全看不見。 */
+.chip.on { background: none; color: var(--cinnabar); font-weight: 700; }
+/* 朱紅欄線壓在容器的底線上（bottom:-1px），像套印上去的 */
+.chip.on::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--cinnabar);
+}
+
+/* 節氣輪同型：24 個節氣本來就是「欄目」，同樣拿掉方框 */
+.termwheel { gap: 16px; padding: 2px 13px 0; align-items: stretch; }
+.termwheel .tm {
+  background: none; border: none; border-radius: 0;
+  padding: 8px 1px 9px; color: var(--muted);
+  font-family: var(--serif); font-size: 13.5px; letter-spacing: .04em;
+  position: relative;
+}
+.termwheel .tm:hover { color: var(--text); }
+/* .now＝當前節氣（未選中時仍應看得出來）。
+   注意：Explore.jsx 已在文字前面加了「●」，這裡不可再補 ::before 圓點（會變兩個）。*/
+.termwheel .tm.now { color: var(--cinnabar); }
+/* 同上：舊的 .termwheel .tm.on 有 background + border-color，都要清掉 */
+.termwheel .tm.on {
+  background: none; border-color: transparent;
+  color: var(--cinnabar); font-weight: 700;
+}
+.termwheel .tm.on::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--cinnabar);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   重點卡：漸層紅色塊 → 紙底朱紅雙線框
+   ——————————————————————————————————————————————————————————
+   .feedchal / .coverbig / .ya-hero 原本是 linear-gradient 的飽和紅色塊。
+   漸層是廉價感最典型的來源，而且和「紙」直接矛盾——印刷不會有漸層。
+   改成印刷品實際用來強調的手法：紙底、朱紅雙線框（公告／獎狀的邊框）、
+   墨色標題、朱紅點題。份量仍然夠，但質感完全不同。
+   雙線框做法：外框 1px 朱紅 + inset 陰影疊出 3px 紙間隔與 1px 內線。
+   ══════════════════════════════════════════════════════════════════════ */
+.feedchal, .coverbig, .ya-hero {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 60%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--card),
+    inset 0 0 0 4px color-mix(in srgb, var(--cinnabar) 30%, transparent);
+}
+
+/* 首頁節氣挑戰入口 */
+.feedchal .fc-t b { color: var(--cinnabar); }
+.feedchal .fc-t small { color: var(--muted); opacity: 1; }
+
+/* 作品集／工作室封面：背景那個大「印」字改朱紅淡墨 */
+.coverbig::after { color: color-mix(in srgb, var(--cinnabar) 12%, transparent); }
+.coverbig .bt { color: var(--cinnabar); }
+.coverbig .bd { color: var(--muted); opacity: 1; }
+.coverbig .cta {
+  background: none;
+  color: var(--cinnabar);
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 55%, transparent);
+}
+
+/* 年度總覽卷首：干支是主角，用朱紅；其餘退為墨與次文 */
+.ya-hero .ya-gz { color: var(--cinnabar); }
+.ya-hero .ya-year { color: var(--text); opacity: 1; }
+.ya-hero .ya-meta { color: var(--muted); opacity: 1; }
