@@ -73,7 +73,7 @@ export function Contact() {
       <div className="body">
         <SectionHead title="服務資訊" />
         <div className="kv" style={{ padding: '12px 16px' }}><span>服務名稱</span><b>機巧時運</b></div>
-        <div className="kv" style={{ padding: '12px 16px' }}><span>營運團隊</span><span className="muted">大葉大學 高教深耕計畫團隊</span></div>
+        <div className="kv" style={{ padding: '12px 16px' }}><span>營運團隊</span><span className="muted">承氣有限公司</span></div>
         <div className="kv" style={{ padding: '12px 16px' }}><span>所在地</span><span className="muted">彰化縣大村鄉（大葉大學）</span></div>
         <SectionHead title="聯絡方式" />
         <button className="kv tap" style={{ padding: '12px 16px', width: '100%', textAlign: 'left' }}

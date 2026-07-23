@@ -1670,3 +1670,59 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .auth-agree .sep { color: var(--muted); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   聯絡我們表單
+   桌機原本整片拉滿寬、欄位之間沒有節奏，textarea 一大塊空白 → 很鬆散。
+   收斂成一欄書信式版面：固定行寬、欄位有明確標籤、選項用方框而非欄目列。
+   ══════════════════════════════════════════════════════════════════════ */
+.ct-body { padding-bottom: 8px; }
+.ct-note {
+  margin: 12px 16px 4px;
+  border-left: 3px solid var(--cinnabar);
+  font-size: 12.5px; line-height: 1.7;
+}
+.ct-field { padding: 14px 16px 0; }
+.ct-label {
+  display: block; font-family: var(--serif);
+  font-size: 13px; font-weight: 700; margin-bottom: 8px;
+}
+.ct-label::before {
+  content: ""; display: inline-block;
+  width: 3px; height: 0.85em; margin-right: 7px;
+  background: var(--cinnabar); vertical-align: -1px;
+}
+.ct-hint { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+
+/* 選項：方框可選，選中用朱紅實心（明確是「選了哪一個」，不是「在哪一頁」） */
+.ct-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-opt {
+  padding: 9px 14px; font-size: 12.5px; font-weight: 600;
+  border: 1px solid var(--line2); border-radius: 2px;
+  background: none; color: var(--text); cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.ct-opt:hover { border-color: var(--cinnabar); }
+.ct-opt.on {
+  background: var(--cinnabar); color: var(--pfg); border-color: var(--cinnabar);
+}
+
+/* 輸入欄：墨線框，聚焦轉朱紅 */
+.ct-input {
+  width: 100%; padding: 11px 13px;
+  border: 1px solid var(--line2); border-radius: 2px;
+  background: var(--card); color: var(--text);
+  font: inherit; font-size: 13.5px; line-height: 1.7;
+  outline: none;
+}
+.ct-input::placeholder { color: var(--c-text-3); }
+.ct-input:focus { border-color: var(--cinnabar); }
+.ct-area { resize: vertical; min-height: 132px; }
+.ct-count { text-align: right; font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+.ct-actions { padding: 20px 16px 0; }
+
+/* 桌機：收斂成單欄書信寬度，不要拉滿整個視窗 */
+@media (min-width: 900px) {
+  .stage.signed-in .screen-dms .body.ct-body { width: min(100%, 620px); margin: 0 auto; }
+}

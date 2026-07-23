@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TopBar, SectionHead } from '../components/ui.jsx'
+import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -54,42 +54,49 @@ export default function DMs() {
   return (
     <>
       <TopBar title="聯絡我們" onBack />
-      <div className="body">
-        <div className="note">
+      <div className="body ct-body">
+        <div className="note ct-note">
           使用者之間的私訊功能尚未開放。有問題、企業客製需求或想回報狀況，都可以從這裡直接傳給我們。
         </div>
 
-        <SectionHead title="主題" />
-        <div className="chips">
-          {TOPICS.map(t => (
-            <button key={t} className={`chip tap ${topic === t ? 'on' : ''}`} onClick={() => setTopic(t)}>{t}</button>
-          ))}
+        {/* 主題是「表單選項」不是導覽——不能借用 .chips（那已改成欄目列的語彙） */}
+        <div className="ct-field">
+          <label className="ct-label">主題</label>
+          <div className="ct-opts" role="radiogroup" aria-label="主題">
+            {TOPICS.map(t => (
+              <button key={t} type="button" role="radio" aria-checked={topic === t}
+                className={`ct-opt tap ${topic === t ? 'on' : ''}`} onClick={() => setTopic(t)}>{t}</button>
+            ))}
+          </div>
         </div>
 
         {needEmail && (
-          <div className="auth-form" style={{ maxWidth: 'none' }}>
-            <div className="field">
-              <label>你的 Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="name@example.com" aria-label="你的 Email" />
-            </div>
+          <div className="ct-field">
+            <label className="ct-label" htmlFor="ct-email">你的 Email</label>
+            <input id="ct-email" className="ct-input" type="email" value={email}
+              onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
+            <div className="ct-hint">我們只用它回覆你這則訊息</div>
           </div>
         )}
 
-        <SectionHead title="訊息內容" />
-        <div className="capin">
-          <textarea rows={6} maxLength={2000} value={body} onChange={e => setBody(e.target.value)}
-            placeholder="想說什麼都可以，越具體我們越好處理…" aria-label="訊息內容" />
-          <div className="muted" style={{ textAlign: 'right', fontSize: 11, padding: '0 4px 4px' }}>{body.length} / 2000</div>
+        <div className="ct-field">
+          <label className="ct-label" htmlFor="ct-body">訊息內容</label>
+          <textarea id="ct-body" className="ct-input ct-area" rows={7} maxLength={2000}
+            value={body} onChange={e => setBody(e.target.value)}
+            placeholder="想說什麼都可以，越具體我們越好處理…" />
+          <div className="ct-count">{body.length} / 2000</div>
         </div>
 
-        <div className="pad">
+        <div className="ct-actions">
           <button className="btn-primary tap" onClick={send} disabled={sending}
             style={sending ? { opacity: .6 } : null}>
             {sending ? '送出中…' : '送出訊息'}
           </button>
+          <p className="ct-hint" style={{ textAlign: 'center', marginTop: 10 }}>
+            我們通常在 1–2 個工作天內回覆
+          </p>
         </div>
-        <div style={{ height: 16 }} />
+        <div style={{ height: 20 }} />
       </div>
     </>
   )

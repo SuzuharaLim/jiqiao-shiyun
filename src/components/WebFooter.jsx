@@ -13,7 +13,7 @@ export default function WebFooter() {
           <button className="tap" onClick={() => push('terms')}>服務條款</button>
           <button className="tap" onClick={() => push('contact')}>聯絡我們</button>
         </nav>
-        <div className="wf-copy">© 2026 機巧時運 · 大葉大學高教深耕計畫團隊</div>
+        <div className="wf-copy">© 2026 機巧時運 · 承氣有限公司</div>
       </div>
     </footer>
   )
