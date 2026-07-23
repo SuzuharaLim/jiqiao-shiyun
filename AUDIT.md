@@ -307,3 +307,115 @@ CLAUDE.md 甚至明文記載：**「不要放回 IG 風格元素——刻意去 
   屬合理用途；靜態的可後續漸進遷移。
 - 35 種字級尚未全站收斂——新元件已走 7 檔音階，既有畫面維持原樣以避免破版。
 - Lighthouse 未實測（需 Chrome DevTools，非本工具可自動化）。
+
+
+---
+---
+
+# Phase 0 盤點 — WEBSITE_REDESIGN_BRIEF.md（2026-07）
+
+> 依第二份規格書 `WEBSITE_REDESIGN_BRIEF.md` Phase 0 執行：**未改動任何程式碼**。
+> 本節只補「上一份稽核沒涵蓋」的面向（檔案結構/資產/JS/CSS 健康度細項）。
+
+## ⚠️ 首要問題：規格書的技術棧前提與本專案不符
+
+規格書開宗明義：「技術棧：**純 HTML + CSS + JavaScript，無框架、無 build step**」，
+工作原則第 3 條並要求「不要引入 build step、不要 npm install、不要加框架」。
+
+**但本專案是 Vite 5 + React 18 SPA**，已有 build step 與 48 個 React 畫面。
+
+這份規格書看起來是通用模板，非為本專案量身撰寫。**需要你裁示如何解讀**（見文末）。
+我的建議：把它當成**設計方向與品質標準**來遵循（tokens、字級尺度、留白、
+無障礙、效能門檻都適用），但「不用框架」那條視為「不新增額外框架」而非「拆掉 React」。
+
+## 檔案結構
+
+| 檔案 | 大小 | 說明 |
+| --- | --- | --- |
+| `index.html` | 1.5 KB | 進入點，含完整 OG/meta |
+| `src/styles.css` | 78.9 KB | 既有主樣式（1,279 行） |
+| `src/styles/tokens.css` | 5.1 KB | ★ 上一階段新增 |
+| `src/styles/reset.css` | 3.0 KB | ★ 上一階段新增 |
+| `src/styles/components.css` | 7.4 KB | ★ 上一階段新增 |
+| **建置產物** | | |
+| `index-*.js` | **201.2 KB** | 應用程式碼（⚠️ 超過規格 200KB 提示線） |
+| `react-*.js` | 137.6 KB | vendor chunk（已分離，可長快取） |
+| `index-*.css` | 67.4 KB | 全站樣式 |
+
+引用關係：`index.html` → `theme-init.js`（同步，0.3KB，刻意阻塞以防主題閃爍）
+→ `main.jsx` → tokens → reset → styles → components。
+
+## CSS 健康度
+
+| 指標 | 現況 | 評價 |
+| --- | --- | --- |
+| `!important` | styles.css **9 處**、tokens.css 4 處 | tokens 那 4 處是 `prefers-reduced-motion` 覆寫，**屬正當用途**；styles.css 的 9 處需個案檢視 |
+| 選擇器最深巢狀 | **3 層** | ✓ 健康（一般建議 ≤3） |
+| 間距值種類 | **27 種** px 值 | ⚠️ 規格要求收斂為 9 階 |
+| 字級種類 | 35 種（前次稽核） | ⚠️ 規格要求 7 階 |
+| 顏色值 | 141 次硬編碼（前次稽核） | ⚠️ |
+
+## 資產盤點
+
+**本專案幾乎沒有靜態圖片資產**——這是罕見的優勢：
+
+| 資產 | 大小 |
+| --- | --- |
+| `favicon.svg` | 0.3 KB |
+| `theme-init.js` | 0.3 KB |
+| `503.html` | 1.1 KB |
+| `robots.txt` | 0.2 KB |
+
+- 內容視覺以 **emoji + CSS 色塊** 呈現，無點陣圖
+- 使用者照片存 **DB（base64）**，經 `/api/images/:id` 供圖，前端已做 canvas 壓縮（≤1600px JPEG 0.85）
+- **無 >200KB 的靜態資產**；唯一超標的是應用程式 JS bundle
+
+⚠️ **發現缺失**：`PhotoImg` 元件**未標 `width`/`height`**（0 處）→ 圖片載入前無保留空間，
+有 CLS 風險。規格 Phase 6 明列此項。
+
+## JS 盤點
+
+| 項目 | 現況 |
+| --- | --- |
+| 前端依賴 | 僅 `react` + `react-dom`（**無 jQuery/lodash/moment 等冗餘函式庫**）✓ |
+| script 標籤 | 2 個：`theme-init.js`（同步，刻意）、`main.jsx`（`type=module`，預設 defer）✓ |
+| 阻塞渲染 | 僅 0.3KB 的 theme-init，為避免深色使用者看到白閃的必要取捨 ✓ |
+
+## SEO 現況（Phase 7 前置）
+
+| 項目 | 現況 |
+| --- | --- |
+| `<title>` / `meta description` | ✓ 有 |
+| Open Graph | ✓ 有 type/site_name/title/description/locale |
+| **`og:image`** | ❌ **缺** → 分享到 LINE/FB 沒有預覽圖 |
+| `og:url` | ❌ 缺 |
+| `robots.txt` | ✓ 有 |
+| `sitemap.xml` | ❌ 缺 |
+| JSON-LD 結構化資料 | ❌ 缺 |
+| 每頁獨立 title | ✓ 有（`App.jsx` 依畫面更新） |
+
+## 前五大問題（依 影響 ÷ 修復成本 排序）
+
+| # | 問題 | 影響 | 成本 | 說明 |
+| --- | --- | --- | --- | --- |
+| 1 | **缺 `og:image`** | 高 | 極低 | 分享連結無預覽圖，直接影響傳播；加一張圖 + 兩行 meta 即可 |
+| 2 | **`PhotoImg` 無 width/height** | 中高 | 極低 | CLS 風險，加 `aspect-ratio` 或屬性即可 |
+| 3 | 間距 27 種 / 字級 35 種未收斂 | 中 | 中 | 已有 token，但既有畫面未遷移；全面替換有破版風險 |
+| 4 | JS bundle 201KB | 中 | 中 | 可用動態 import 拆分次要畫面（相機/管理後台/掃描） |
+| 5 | 缺 sitemap.xml / JSON-LD | 中 | 低 | SEO 基礎，但本站多數內容需登入，效益有限 |
+
+## 與前一份規格（DESIGN_BRIEF.md）的重疊
+
+兩份規格的 Phase 高度重疊，且前一份**已執行完畢**：
+
+| 本規格 Phase | 狀態 |
+| --- | --- |
+| 1 Design tokens | ✅ 已做（`tokens.css`，含字級/間距/色彩/圓角/緩動/measure） |
+| 2 字體排印 | ⚠️ 部分（系統字體堆疊已定，但既有畫面字級未收斂） |
+| 3 版面格線 | ⚠️ 部分（`.grid12` 已建，既有畫面未套用） |
+| 4 動效 | ✅ 已做（進場動畫、hover 只改色、reduced-motion） |
+| 5 無障礙 | ✅ 大致完成（h1 每頁 1 個、skip-link、focus-visible、焦點移轉） |
+| 6 效能 | ⚠️ 部分（零外部字體、lazy loading；但缺 width/height、bundle 偏大） |
+| 7 內容轉換 | ❌ 未做（og:image、sitemap、JSON-LD、CTA 檢視） |
+
+**真正還有價值的是 Phase 7（內容與轉換）與 Phase 6 的補強**——那是前一份規格沒涵蓋的。
