@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
+// 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isProd = process.env.NODE_ENV === 'production'
@@ -696,6 +698,33 @@ app.get('/api/users/:handle/:rel(followers|following)', ah(async (req, res) => {
       WHERE ${followers ? 'f.followee_id' : 'f.follower_id'} = ?
       ORDER BY f.created_at DESC LIMIT 200`, [u.id])
   res.json({ users: rows.map(r => ({ id: r.id, name: r.name, handle: r.handle, avatar: r.avatar, avatarBg: r.avatar_bg, avatarImageId: r.avatar_image_id || null, bio: r.bio })) })
+}))
+
+// ================= 客服／聯絡訊息 =================
+// 取代原本「假的私訊列表」與「企業詢價已送出（Demo）」——訊息真的存進 DB，
+// 並在有設定寄信服務時通知營運信箱。管理後台可在「檢舉/訊息」看到。
+const SUPPORT_TOPICS = ['一般問題', '企業客製詢價', '帳號問題', '回報問題']
+app.post('/api/support', ah(async (req, res) => {
+  const topic = String(req.body?.topic || '').trim()
+  if (!SUPPORT_TOPICS.includes(topic)) return res.status(400).json({ error: '請選擇主題' })
+  const body = String(req.body?.body || '').trim()
+  if (body.length < 5 || body.length > 2000) return res.status(400).json({ error: '訊息需為 5–2000 字' })
+  // 登入者用帳號 email；訪客必須自己留 email，否則我們無法回覆
+  const email = req.user ? req.user.email : String(req.body?.email || '').trim().toLowerCase()
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: '請填寫可回覆的 Email' })
+  const id = uuid()
+  await db.run('INSERT INTO support_messages (id,user_id,email,topic,body,status,created_at) VALUES (?,?,?,?,?,?,?)',
+    [id, req.user?.id || null, email, topic, body, 'open', now()])
+  await audit('support_message', req, req.user?.id || null)
+  // 通知營運信箱（未設寄信服務時 mailer 只會 log，不影響送出成功）
+  try { sendMail({ to: ADMIN_EMAIL, subject: `[機巧時運] ${topic}｜${email}`, link: body.slice(0, 500), kind: 'generic' }) } catch { /* 寄信失敗不擋使用者送出 */ }
+  res.json({ ok: true, id })
+}))
+
+// 管理後台：檢視客服訊息
+app.get('/api/admin/support', requireAuth, requireRole('moderator'), ah(async (req, res) => {
+  const rows = await db.all('SELECT * FROM support_messages ORDER BY created_at DESC LIMIT 200')
+  res.json({ messages: rows })
 }))
 
 // 追蹤 / 取消（by author id 或 handle）

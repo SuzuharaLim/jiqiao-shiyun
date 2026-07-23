@@ -1586,3 +1586,17 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
    使用者看到的是一個純紅色塊。（圓角時像個圓鈕，改方之後就更明顯了。）
    與先前 .chip.on／.tm.on 是同一類錯誤：改配色時沒清掉舊規則的 background。 */
 .ad-more .go { background: none; padding: 0 4px; }
+
+/* 商店商品列：原本價格與按鈕擠在同一行、按鈕貼著文字，桌機看起來零散。
+   改為價格與行動分置兩端、之間一條細墨線，像商品目錄的條目。 */
+.st-item .st-buy {
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.st-item .st-price { font-family: var(--serif); font-size: 16px; }
+.st-item .pill { padding: 8px 16px; font-size: 12.5px; }
+@media (min-width: 900px) {
+  .stage.signed-in .screen-store .st-item { padding: 16px 18px; }
+  .stage.signed-in .screen-store .st-item .ti { width: 64px; height: 64px; font-size: 30px; }
+}

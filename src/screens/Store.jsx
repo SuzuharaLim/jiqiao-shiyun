@@ -23,17 +23,17 @@ export default function Store() {
           </div>
         )}
         {products.map(p => (
-          <div key={p.id} className="tool" style={{ alignItems: 'flex-start' }}>
-            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 26, borderRadius: 12 }}>{p.e}</div>
+          <div key={p.id} className="tool st-item" style={{ alignItems: 'flex-start' }}>
+            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 26 }}>{p.e}</div>
             <div className="tn2">
               <b>{p.name}</b>
               <span>{p.desc}</span>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <b style={{ fontSize: 14 }}>{p.price ? `NT$${p.price}` : '洽詢報價'}</b>
+              <div className="st-buy">
+                <b className="st-price">{p.price ? `NT$${p.price}` : '洽詢報價'}</b>
                 {p.price ? (
                   <button className="pill dark tap" onClick={() => { if (!requireAccount('購買商品')) return; addToCart({ id: p.id, name: p.name, price: p.price }); setToast(`已加入購物車：${p.name}`); push('checkout') }}>加入購物車</button>
                 ) : (
-                  <button className="pill tap" onClick={() => setToast('企業詢價功能仍在開發中')}>企業詢價</button>
+                  <button className="pill tap" onClick={() => push('dms')}>企業詢價</button>
                 )}
               </div>
             </div>

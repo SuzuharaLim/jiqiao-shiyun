@@ -92,6 +92,7 @@ export const api = {
   mailTest: (to) => req('/admin/mail-test', { method: 'POST', body: { to } }),
   // 金流（scaffold）
   payIntent: (b) => req('/payments/intent', { method: 'POST', body: b }),
+  support: (b) => req('/support', { method: 'POST', body: b }),   // 客服／聯絡訊息（真的會送出）
   // AI 時光顧問（後端代呼叫 OpenAI；未設金鑰時回 {fallback:true}）
   aiChat: (messages, context) => req('/ai/chat', { method: 'POST', body: { messages, context } }),
 }

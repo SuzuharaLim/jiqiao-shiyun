@@ -210,3 +210,14 @@ CREATE INDEX IF NOT EXISTS idx_works_created  ON works(created_at);
 CREATE INDEX IF NOT EXISTS idx_notis_user     ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_ref_kind       ON ref_items(kind);
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+
+-- 客服／聯絡訊息：使用者傳給營運團隊的訊息（取代原本假的私訊列表與假的「詢價已送出」）
+CREATE TABLE IF NOT EXISTS support_messages (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+  email       TEXT NOT NULL,
+  topic       TEXT NOT NULL,          -- 一般問題／企業客製詢價／帳號問題／回報問題
+  body        TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'open',   -- open | closed
+  created_at  TEXT NOT NULL
+);
