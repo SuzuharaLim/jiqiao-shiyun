@@ -75,7 +75,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         place: place || '', imageId,
       })
       // 3) 勾「上架市集」→ 真的建立市集作品（同一張圖）
-      if (onSale) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, price: price || 0, imageId })
+      if (onSale) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, tags, price: price || 0, imageId })
       popAll()
       setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
     } catch (e) {

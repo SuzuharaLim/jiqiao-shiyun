@@ -95,6 +95,7 @@ for (const sql of [
   "ALTER TABLE posts ADD COLUMN image_id TEXT",
   "ALTER TABLE works ADD COLUMN image_id TEXT",
   "ALTER TABLE users ADD COLUMN avatar_image_id TEXT",
+  "ALTER TABLE works ADD COLUMN tags_json TEXT",
 ]) {
   try { await db.exec(sql) } catch { /* 欄位已存在 */ }
 }

@@ -535,6 +535,7 @@ const postShape = (r) => ({
 })
 const workShape = (w) => ({
   id: w.id, emoji: w.emoji, bg: w.bg, term: w.term, author: w.handle || w.uname, title: w.title,
+  tags: w.tags_json ? JSON.parse(w.tags_json) : [],
   image: w.image_id ? `/api/images/${w.image_id}` : null, ...(w.price ? { price: w.price } : {}),
 })
 const POST_SELECT = `SELECT p.*, u.handle, u.name AS uname, u.avatar, u.avatar_bg
@@ -647,9 +648,13 @@ app.post('/api/works', requireAuth, requireCsrf, ah(async (req, res) => {
     if (img) imageId = img.id
   }
   const id = uuid()
-  await db.run(`INSERT INTO works (id,user_id,emoji,bg,term,title,price,image_id,like_count,created_at) VALUES (?,?,?,?,?,?,?,?,0,?)`,
+  // 題材標籤：與貼文同源（發文時從說明的 #標籤 解析），供探索頁篩選
+  const tags = Array.isArray(b.tags)
+    ? b.tags.map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 8)
+    : []
+  await db.run(`INSERT INTO works (id,user_id,emoji,bg,term,title,tags_json,price,image_id,like_count,created_at) VALUES (?,?,?,?,?,?,?,?,?,0,?)`,
     [id, req.user.id, String(b.emoji || '🌾').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
-     String(b.term || '').slice(0, 8), title, price, imageId, now()])
+     String(b.term || '').slice(0, 8), title, JSON.stringify(tags), price, imageId, now()])
   await audit('work_create', req, req.user.id, id)
   res.json({ work: { id, title, price, image: imageId ? `/api/images/${imageId}` : null } })
 }))

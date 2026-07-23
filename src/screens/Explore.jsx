@@ -9,6 +9,7 @@ export default function Explore() {
   const { push, setToast } = useNav()
   const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
+  const [tag, setTag] = useState('全部')     // 題材（與節氣可同時生效）
   const [q, setQ] = useState('')
 
   const works = useWorks(null)   // 全部作品嚴格來自資料庫（前端再依 chip/搜尋篩選）
@@ -27,6 +28,15 @@ export default function Explore() {
   }, {})
   const exploreChips = ['全部', ...[...new Set([nowTerm, ...Object.keys(termCounts)])]
     .sort((a, b) => TERM_ORDER.indexOf(a) - TERM_ORDER.indexOf(b))]
+
+  // 題材：由作品實際帶的 #標籤 聚合。節氣是「時間軸」、題材是「主題軸」，
+  // 兩者是不同維度，所以分成兩排並且可以疊加（原設計把兩者混在同一排，
+  // 導致選了節氣就沒辦法再選題材）。只列真的有作品的題材，依件數排序。
+  const tagCounts = works.reduce((m, w) => {
+    (w.tags || []).forEach(t => { m[t] = (m[t] || 0) + 1 })
+    return m
+  }, {})
+  const tagList = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 12)
   // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
   const creators = Object.values(works.reduce((m, w) => {
     const k = w.author
@@ -36,8 +46,10 @@ export default function Explore() {
   }, {})).sort((a, b) => b.works - a.works).slice(0, 8)
   const list = works.filter(w => {
     const okChip = chip === '全部' || w.term === chip
+    const okTag = tag === '全部' || (w.tags || []).includes(tag)
     const okQ = !q || w.title.includes(q) || w.author.includes(q) || w.term.includes(q)
-    return okChip && okQ
+      || (w.tags || []).some(t => t.includes(q))
+    return okChip && okTag && okQ
   })
 
   return (
@@ -66,6 +78,18 @@ export default function Explore() {
           ))}
         </div>
 
+        {/* 題材列：只有真的存在標籤時才出現，避免空排佔版面 */}
+        {tagList.length > 0 && (
+          <div className="tagwheel">
+            <span className="tw-lbl">題材</span>
+            {['全部', ...tagList].map(t => (
+              <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`} onClick={() => setTag(t)}>
+                {t}{t !== '全部' && <small className="tm-n">{tagCounts[t]}</small>}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* 節氣挑戰封面 */}
         <button className="coverbig tap" onClick={() => push('challenges')} style={{ width: 'calc(100% - 26px)' }}>
           <div className="bt">🎯 {nowTerm}攝影挑戰</div>
@@ -88,7 +112,7 @@ export default function Explore() {
         {/* 作品冊頁（2 欄框卡，非 IG 無縫方格） */}
         <div className="railhd"><div className="t">{chip === '全部' ? '全部作品' : <>〈<small>{chip}</small>〉作品</>}</div><span className="more">{list.length} 件</span></div>
         {list.length === 0 ? (
-          <div className="empty"><div className="big">🔍</div>找不到「{q || chip}」的作品</div>
+          <div className="empty"><div className="big">🔍</div>找不到{[chip !== '全部' && chip, tag !== '全部' && tag, q].filter(Boolean).join('・') || '任何'}的作品</div>
         ) : (
           <div className="album">
             {list.map(w => (

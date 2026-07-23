@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS works (
   bg          TEXT,
   term        TEXT,
   title       TEXT NOT NULL,
+  tags_json   TEXT,                              -- ["花卉","海"]；供探索頁的題材篩選
   price       INTEGER NOT NULL DEFAULT 0,        -- 0＝僅展示未販售
   image_id    TEXT,                              -- 使用者上傳的照片（images 表）
   like_count  INTEGER NOT NULL DEFAULT 0,
