@@ -1,3 +1,4 @@
+import { Avatar } from './ui.jsx'
 // 桌機版「網站式」頂部導覽列（≥900px；取代側邊欄與底部分頁列，讓電腦版像網頁而非 App）
 import Icon from './Icon.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -31,7 +32,9 @@ export default function WebNav() {
           <button className="wn-icon tap" onClick={() => push('dms')} aria-label="私訊"><Icon name="send" /></button>
           <button className="wn-icon tap" onClick={toggleTheme} aria-label="切換主題">{theme === 'dark' ? '☀️' : '🌙'}</button>
           <button className="wn-user tap" onClick={() => push('settings')} aria-label="帳號與設定">
-            <span className="wn-ava">{user?.avatar || (user?.guest ? '👤' : '🌾')}</span>
+            <span className="wn-ava" style={{ overflow: 'hidden' }}>
+              <Avatar imageId={user?.avatarImageId} emoji={user?.avatar || (user?.guest ? '👤' : '🌾')} />
+            </span>
             <span className="wn-uname">{user?.name || '使用者'}</span>
           </button>
           <button className="wn-logout tap" onClick={logout}>登出</button>

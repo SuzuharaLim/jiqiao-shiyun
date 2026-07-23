@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, ToolRow, SectionHead, PhotoImg } from '../components/ui.jsx'
+import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar} from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -18,7 +18,7 @@ export default function Profile() {
 
   const me = {
     name: user?.name || user?.handle || '訪客', handle: user?.handle || 'guest',
-    bio: user?.bio || '尚未填寫簡介', avatar: user?.avatar || '🌾',
+    bio: user?.bio || '尚未填寫簡介', avatar: user?.avatar || '🌾', avatarImageId: user?.avatarImageId || null,
     avatarBg: user?.avatarBg || '#f3e7c9', guest: user?.guest,
   }
   // 統計與作品嚴格來自資料庫；未登入/未載入 → 顯示 0 與空狀態
@@ -38,7 +38,9 @@ export default function Profile() {
         <div className="tiepost">
           <div className="band" />
           <div className="row1">
-            <div className="seal" style={{ background: me.avatarBg }}>{me.avatar}</div>
+            <div className="seal" style={{ background: me.avatarBg, overflow: 'hidden' }}>
+              <Avatar imageId={me.avatarImageId} emoji={me.avatar} />
+            </div>
             <div className="nm">
               <div className="n">{me.name} {subscribed && <span style={{ color: 'var(--gold)', fontSize: 13 }}>· Premium ✦</span>}</div>
               <div className="h">@{me.handle}</div>

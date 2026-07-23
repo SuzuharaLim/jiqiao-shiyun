@@ -104,8 +104,11 @@ export function NavProvider({ children }) {
   const updateProfile = (patch) => {
     setUser(u => ({ ...u, ...patch }))
     // 暱稱/簡介/頭像持久化到後端（真帳號）；emailVerified 等純狀態不觸發 PATCH
-    if (user && !user.guest && (patch.name || patch.bio !== undefined || patch.avatar)) {
-      api.updateProfile({ name: patch.name ?? user.name, bio: patch.bio, avatar: patch.avatar }).catch(() => { /* 離線時僅本機生效 */ })
+    if (user && !user.guest && (patch.name || patch.bio !== undefined || patch.avatar || patch.avatarImageId !== undefined)) {
+      api.updateProfile({
+        name: patch.name ?? user.name, bio: patch.bio, avatar: patch.avatar,
+        avatarImageId: patch.avatarImageId,   // 使用者上傳的頭像；null＝改回 emoji
+      }).catch(() => { /* 離線時僅本機生效 */ })
     }
   }
   // ---- 登入牆：下單/上傳/發佈等需要「真帳號」（非訪客）----

@@ -3,8 +3,11 @@ import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 
-const PAY = ['💳 信用卡 ·· 4242', '🏧 ATM 轉帳', '📱 LINE Pay', '🏪 超商代碼']
-const PICK = ['📦 7-11 大墩門市', '📦 全家 大葉店', '🚚 宅配到府', '🏬 門市自取']
+// ⚠️ 付款方式原本寫「信用卡 ·· 4242」——那是測試卡號，會讓人以為系統裡
+// 已經存了一張自己的卡。取貨點原本寫死兩間不存在的門市。
+// 金流與物流都尚未串接，這裡只列「方式」，不編造已綁定的卡片或指定門市。
+const PAY = ['💳 信用卡', '🏧 ATM 轉帳', '📱 LINE Pay', '🏪 超商代碼']
+const PICK = ['🚚 宅配到府', '🏪 超商取貨', '🏬 門市自取']
 const INV = ['🧾 手機載具', '🧾 自然人憑證', '🏢 公司統編', '❤️ 捐贈發票']
 
 export default function Checkout() {

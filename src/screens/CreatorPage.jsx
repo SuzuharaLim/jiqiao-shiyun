@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TopBar, PhotoImg } from '../components/ui.jsx'
+import { TopBar, PhotoImg, Avatar} from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -38,7 +38,9 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = '#c
       <TopBar title={u.handle || user} onBack />
       <div className="body">
         <div className="pf-hd">
-          <div className="pf-av" style={{ background: u.avatarBg || avatarBg }}>{u.avatar || avatar}</div>
+          <div className="pf-av" style={{ background: u.avatarBg || avatarBg, overflow: 'hidden' }}>
+            <Avatar imageId={u.avatarImageId} emoji={u.avatar || avatar} />
+          </div>
           <div className="stats">
             <div className="stat"><b>{data?.stats?.posts + data?.stats?.works || gallery.length}</b><span>作品</span></div>
             <div className="stat"><b>{followers.toLocaleString()}</b><span>粉絲</span></div>

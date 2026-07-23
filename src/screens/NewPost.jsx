@@ -6,7 +6,10 @@ import LocationPicker from '../components/LocationPicker.jsx'
 import { solarTermNames, licenseTiers } from '../data/mock.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
-const thumbs = [
+// ⚠️ 這裡原本叫 thumbs，5 個 emoji 排成一列「相簿縮圖」的樣子，
+// 看起來像使用者自己的照片，其實是假的。改名並改為明確的「封面色票」——
+// 沒有上傳照片時貼文用的佔位配色，不再假裝是相簿。
+const COVERS = [
   { e: '🌾', bg: '#cfe3d3' }, { e: '🌊', bg: '#dbeafe' }, { e: '🌸', bg: '#fce7f3' },
   { e: '🌅', bg: '#ffedd5' }, { e: '🪷', bg: '#e9e3fb' },
 ]
@@ -68,11 +71,11 @@ export default function NewPost({ photo: incomingPhoto = null }) {
       if (photo) { const r = await api.uploadImage(photo); imageId = r.id }
       // 2) 發佈貼文
       await api.createPost({
-        emoji: thumbs[sel].e, bg: thumbs[sel].bg, term, title, caption: cap.trim(), tags,
+        emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, caption: cap.trim(), tags,
         place: place || '', imageId,
       })
       // 3) 勾「上架市集」→ 真的建立市集作品（同一張圖）
-      if (onSale) await api.createWork({ emoji: thumbs[sel].e, bg: thumbs[sel].bg, term, title, price: price || 0, imageId })
+      if (onSale) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, price: price || 0, imageId })
       popAll()
       setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
     } catch (e) {
@@ -86,8 +89,8 @@ export default function NewPost({ photo: incomingPhoto = null }) {
       <TopBar title="新貼文" onClose={pop}
         right={<button className="acc tap" onClick={publish}>發佈</button>} />
       <div className="body">
-        <div className="img" style={{ background: photo ? '#000' : thumbs[sel].bg, height: 260, fontSize: 56, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {photo ? <PhotoImg src={photo} /> : thumbs[sel].e}
+        <div className="img" style={{ background: photo ? '#000' : COVERS[sel].bg, height: 260, fontSize: 56, padding: 0, position: 'relative', overflow: 'hidden' }}>
+          {photo ? <PhotoImg src={photo} /> : COVERS[sel].e}
         </div>
 
         {/* 從相機帶照片進來時，就不再顯示選圖選項（照片已定案，要重拍請返回相機）*/}
@@ -106,11 +109,15 @@ export default function NewPost({ photo: incomingPhoto = null }) {
               </button>
               {photo && <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>}
             </div>
-            {!photo && <div className="thumbs">
-              {thumbs.map((t, i) => (
+            {!photo && <>
+            <div className="muted" style={{ fontSize: 11, padding: '2px 16px 6px' }}>
+              沒有照片也可以發文，先挑一個封面配色：
+            </div>
+            <div className="thumbs">
+              {COVERS.map((t, i) => (
                 <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}>{t.e}</button>
               ))}
-            </div>}
+            </div></>}
           </>
         )}
 

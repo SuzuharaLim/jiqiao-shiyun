@@ -154,3 +154,11 @@ export function Toast() {
   if (!toast) return null
   return <div className="toast">{toast}</div>
 }
+
+// 頭像：有上傳的照片就顯示照片，否則回退 emoji。
+// 放在 .pf-av/.av/.wn-ava 等既有圓形容器內，靠 object-fit 填滿。
+export function Avatar({ imageId, emoji = '🌾' }) {
+  if (!imageId) return <>{emoji}</>
+  return <img src={`/api/images/${imageId}`} alt=""
+    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, Avatar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -26,8 +26,8 @@ export default function FollowList({ handle, rel = 'followers' }) {
       <div className="body">
         {users.map(u => (
           <button key={u.id} className="tool tap" onClick={() => push('creatorPage', { user: u.handle })}>
-            <div className="ti" style={{ background: u.avatarBg || 'var(--chip)', borderRadius: '50%', width: 44, height: 44, fontSize: 20 }}>
-              {u.avatar || '🌾'}
+            <div className="ti" style={{ background: u.avatarBg || 'var(--chip)', borderRadius: '50%', width: 44, height: 44, fontSize: 20, overflow: 'hidden' }}>
+              <Avatar imageId={u.avatarImageId} emoji={u.avatar || '🌾'} />
             </div>
             <div className="tn2">
               <b>{u.name || u.handle}</b>
