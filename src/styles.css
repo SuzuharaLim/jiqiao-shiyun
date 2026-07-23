@@ -1276,9 +1276,10 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   padding-bottom: 6px;
 }
 .ad-sheet .sech::before {
-  content: ""; display: inline-block;
-  width: 3px; height: 0.9em; margin-right: 7px;
-  background: var(--cinnabar); vertical-align: -1px;
+  content: ""; position: absolute;
+  left: 14px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 0.95em;
+  background: var(--cinnabar);
 }
 
 /* 節氣做成朱印：方章而非圓膠囊 */
@@ -1446,11 +1447,17 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   font-family: var(--serif);
   border-bottom: 1px solid var(--line2);
   padding-bottom: 6px;
+  /* ⚠️ .sech 是 flex + justify-content:space-between。
+     ::before 若當成一般 flex item，會被 space-between 推到最左邊、
+     與標題分離（標題還會被擠到置中）。必須絕對定位才會貼著標題。 */
+  position: relative;
+  padding-left: 24px;
 }
 .sech::before {
-  content: ""; display: inline-block;
-  width: 3px; height: 0.9em; margin-right: 7px;
-  background: var(--cinnabar); vertical-align: -1px;
+  content: ""; position: absolute;
+  left: 14px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 0.95em;
+  background: var(--cinnabar);
 }
 /* 曆頁上面已有同樣規則，這裡不重複套（避免出現兩條標記） */
 
@@ -1573,3 +1580,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .ya-hero .ya-gz { color: var(--cinnabar); }
 .ya-hero .ya-year { color: var(--text); opacity: 1; }
 .ya-hero .ya-meta { color: var(--muted); opacity: 1; }
+
+/* 「看完整農民曆」的箭頭：.go 基礎樣式有 background:var(--cinnabar)，
+   而 .ad-more .go 只覆寫了 color 成朱紅 → 朱紅底＋朱紅字，箭頭完全看不見，
+   使用者看到的是一個純紅色塊。（圓角時像個圓鈕，改方之後就更明顯了。）
+   與先前 .chip.on／.tm.on 是同一類錯誤：改配色時沒清掉舊規則的 background。 */
+.ad-more .go { background: none; padding: 0 4px; }

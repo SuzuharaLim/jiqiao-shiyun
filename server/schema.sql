@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio                TEXT,
   avatar             TEXT,                       -- emoji 頭像
   avatar_bg          TEXT,
+  avatar_image_id    TEXT,                      -- 使用者上傳的頭像（images.id）；有值時優先於 emoji
   is_seed            INTEGER NOT NULL DEFAULT 0, -- 1＝種子內容作者（非真人登入）
   is_private         INTEGER NOT NULL DEFAULT 0, -- 1＝私密帳號（公開頁隱藏貼文/作品）
   email_verified_at  TEXT,

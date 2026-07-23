@@ -3,19 +3,20 @@ import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
-import { aiOpen, aiQuickReplies, aiReply } from '../data/mock.js'
+import { aiOpenFor, aiQuickRepliesFor, aiReply } from '../data/mock.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
 export default function AIChat() {
   const { setToast } = useNav()
   const today = dayFor(todayOffset())   // 真實今日運勢
-  const [msgs, setMsgs] = useState([{ who: 'ai', text: aiOpen }])
+  const opening = aiOpenFor(today)          // 依真實今日節氣與干支生成
+  const [msgs, setMsgs] = useState([{ who: 'ai', text: opening }])
   const [text, setText] = useState('')
   const [typing, setTyping] = useState(false)
   const [showQuick, setShowQuick] = useState(true)
   const scroller = useRef(null)
 
-  const restart = () => { setMsgs([{ who: 'ai', text: aiOpen }]); setShowQuick(true); setText(''); setToast('已開始新的對話 🌿') }
+  const restart = () => { setMsgs([{ who: 'ai', text: opening }]); setShowQuick(true); setText(''); setToast('已開始新的對話 🌿') }
 
   useEffect(() => {
     const el = scroller.current
@@ -38,9 +39,9 @@ export default function AIChat() {
     let reply
     try {
       const r = await api.aiChat(history, ctx)
-      reply = (r && r.reply && !r.fallback) ? r.reply : aiReply(q)
+      reply = (r && r.reply && !r.fallback) ? r.reply : aiReply(q, today)
     } catch {
-      reply = aiReply(q)   // 離線/未登入/未設金鑰
+      reply = aiReply(q, today)   // 離線/未登入/未設金鑰
     }
     setTyping(false)
     setMsgs(m => [...m, { who: 'ai', text: reply }])
@@ -67,7 +68,7 @@ export default function AIChat() {
 
       {showQuick && (
         <div className="quick">
-          {aiQuickReplies.map(q => (
+          {aiQuickRepliesFor(today).map(q => (
             <button key={q} className="qchip tap" onClick={() => send(q)}>{q}</button>
           ))}
         </div>

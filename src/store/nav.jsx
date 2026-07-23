@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import { creatorStats } from '../data/mock.js'
 import { api, setCsrf } from '../api.js'
 
 // ─────────────────────────────────────────────────────────────
@@ -19,7 +18,7 @@ const SCREEN_PATH = {
   scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day',
   yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
   ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
-  creatorPage: '/creator/:user', prePlan: '/preplan', editProfile: '/edit-profile',
+  creatorPage: '/creator/:user', followList: '/creator/:handle/:rel', prePlan: '/preplan', editProfile: '/edit-profile',
   about: '/about', accountSecurity: '/security', admin: '/admin',
   privacy: '/privacy', terms: '/terms', contact: '/contact',
 }
@@ -202,7 +201,9 @@ export function NavProvider({ children }) {
     return Promise.resolve(full)
   }
   // ---- 錢包餘額（Wallet / CreatorConsole 共用同一來源）----
-  const [balance, setBalance] = useState(creatorStats.balance)
+  // ⚠️ 曾經初始化成 creatorStats.balance（NT$1,840），等於每個新使用者一開帳
+  // 就看到自己從沒賺過的錢。分潤結算系統尚未建置，餘額一律從 0 開始。
+  const [balance, setBalance] = useState(0)
   const withdraw = () => { if (balance <= 0) return false; setBalance(0); return true }
   // ---- 設定偏好（持久化）----
   const [prefs, setPrefsRaw] = useState(() => {

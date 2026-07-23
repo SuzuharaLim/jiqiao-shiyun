@@ -324,6 +324,15 @@ export const projects = [
   { id: 'pr3', emoji: '🎁', name: '企業客製 · 大葉大學', status: '報價中', color: '#e9e3fb' },
 ]
 
+// 商店品項 —— 灌入 ref_items('storeProducts')，可由管理後台 CMS 編輯。
+// （原本硬編在 Store.jsx 檔案裡，是最後一個寫死在畫面檔的內容清單。）
+export const storeProducts = [
+  { id: 's1', e: '📔', bg: '#f3e7c9', name: '植物萬年曆手帳（無時效）', desc: '鋼筆防透墨紙材 · 24 節氣植物插畫', price: 800 },
+  { id: 's2', e: '🖊️', bg: '#dbeafe', name: '時光訊息典藏套組', desc: '手帳 ＋ 自立式鋼筆 ＋ 皮革收納', price: 1280 },
+  { id: 's3', e: '🎁', bg: '#e9e3fb', name: '企業客製版', desc: '封面壓印 LOGO · 專屬 AI 歡迎語', price: null },
+  { id: 's4', e: '✨', bg: '#fce7f3', name: '數位手帳素材包', desc: '節慶貼紙 · 電子模板（邊際成本近零）', price: 120 },
+]
+
 // 結帳明細
 export const checkoutItems = [
   { id: 'ck1', name: '植物月曆 ×1（12 張）', price: 480 },
@@ -366,8 +375,13 @@ export const profile = {
 }
 
 // AI 時光顧問：示範對話腳本（依關鍵字回覆，其餘走預設）
-export const aiOpen = '午安～今天是「芒種」，丙午日 🌾\n想問今日運勢、宜忌，還是抽支籤、解個夢？我都在。'
-export const aiQuickReplies = ['今天適合簽約嗎？', '幫我抽一支今日運勢籤', '芒種要注意什麼？', '解夢：夢到下雨']
+// ⚠️ 開場白與快速鍵曾經寫死「芒種／丙午日」，但 App 開在真實今日，
+// 於是使用者在大暑當天會看到 AI 說「今天是芒種」。改成依實際日期生成。
+export const aiOpenFor = (d) =>
+  `今天是「${d.term.replace('（交節）', '')}」，${d.ganzhi.replace('日', '')}日 🌾
+想問今日運勢、宜忌，還是抽支籤、解個夢？我都在。`
+export const aiQuickRepliesFor = (d) =>
+  ['今天適合簽約嗎？', '幫我抽一支今日運勢籤', `${d.term.replace('（交節）', '')}要注意什麼？`, '解夢：夢到下雨']
 export const aiScript = [
   { keys: ['簽約', '合約', '開市', '生意'], reply: '今日「宜開市、納財」，午後尤佳 ✨\n重要簽約建議排在 13–15 時（未時），並避開正沖屬鼠者。要我幫你記到行事曆嗎？' },
   { keys: ['籤', '抽'], reply: '🎋 為你抽得「中吉・芒種第七籤」：\n『耕耘有時，靜待花開；心誠則靈，秋來滿載。』\n\n解：此籤宜守成積累，勿急於一時。近期的努力會在秋收時見效。' },
@@ -375,8 +389,15 @@ export const aiScript = [
   { keys: ['夢', '解夢'], reply: '夢到「下雨」多主財與情緒的洗滌 🌧️\n《周公解夢》云：雨降主潤澤、有財氣將至；但若夢中淋雨狼狽，則提醒近期別把事情攬太滿。你夢裡的雨是大是小呢？' },
   { keys: ['運勢', '今天', '今日'], reply: '今日運勢 ⭐⭐⭐⭐☆（丙午日）\n總體：宜開市納財、出行祈福；忌動土安葬。\n貼心話：火氣偏旺的一天，說話放慢半拍，貴人自來。' },
 ]
-export function aiReply(text) {
+// day 為選填：帶入時會把腳本裡寫死的節氣／干支換成真實的今日值，
+// 否則訪客會在大暑當天收到「芒種第七籤」「丙午日運勢」這種明顯過期的內容。
+export function aiReply(text, day) {
   const hit = aiScript.find(s => s.keys.some(k => text.includes(k)))
-  if (hit) return hit.reply
+  if (hit) {
+    if (!day) return hit.reply
+    const term = day.term.replace('（交節）', '')
+    const gz = day.ganzhi.replace('日', '')
+    return hit.reply.replaceAll('芒種', term).replaceAll('丙午', gz)
+  }
   return '我聽見了 🌿 這題我可以結合農民曆與你的近況幫你細看。\n（Demo 示範：實際版本會由 AI 時光顧問依你的問題與歷史紀錄，給出個人化的宜忌、運勢與生活建議。）'
 }

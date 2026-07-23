@@ -1,6 +1,5 @@
 import { TopBar, ToolRow, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { projects } from '../data/mock.js'
 
 export default function Create() {
   const { push } = useNav()
@@ -15,16 +14,20 @@ export default function Create() {
         </button>
 
         <SectionHead title="建立內容" />
-        <ToolRow icon="📸" bg="#fde9d0" title="相機工作室" sub="拍攝 · 版面 · 限動 · 濾鏡 · 特效 · 搖晃顯影" onClick={() => push('camera')} />
-        <ToolRow icon="📷" bg="#dcfce7" title="發貼文（打字）" sub="選圖 · 標節氣 · 地點 · 上架市集" onClick={() => push('newPost')} />
+        {/* 相機與發貼文原本是兩個並排入口，但流程上是同一件事的前後兩段：
+            拍照 →（IG 式）寫說明、標節氣地點、決定是否上架 → 發布。
+            分成兩個入口會讓人以為是兩種不同功能，且「發貼文」那條會跳過拍攝。
+            合併成單一入口，想用既有照片的人從相機裡選相簿即可。 */}
+        <ToolRow icon="📸" bg="#fde9d0" title="拍照發布"
+          sub="拍攝／選圖 · 濾鏡特效 · 標節氣地點 · 上架市集" onClick={() => push('camera')} />
         <ToolRow icon="🗓️" bg="#e9e3fb" title="做月曆工作室" sub="選圖 → AI 排版 → 詩詞 → 預覽" onClick={() => push('makeCalendar')} />
         <ToolRow icon="🔮" bg="#dbeafe" title="明年預拍" sub="節氣提醒 → 一鍵成曆" onClick={() => push('prePlan')} />
 
-        <SectionHead title="我的專案" extra="全部" />
-        {projects.map(pr => (
-          <ToolRow key={pr.id} icon={pr.emoji} bg={pr.color} title={pr.name} sub={pr.status}
-            onClick={() => push('myProjects', { focus: pr.id })} />
-        ))}
+        {/* ⚠️ 專案子系統尚未建置，這裡曾經列出 mock.js 的示範專案，
+            會讓使用者看到自己從未建立過的東西。改成單一入口，實際清單交給 MyProjects 顯示空狀態。 */}
+        <SectionHead title="我的專案" />
+        <ToolRow icon="📔" bg="#e9e3fb" title="查看我的專案" sub="做好的月曆與手帳"
+          onClick={() => push('myProjects')} />
         <div style={{ height: 16 }} />
       </div>
     </>

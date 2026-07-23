@@ -2,7 +2,6 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { checkoutItems } from '../data/mock.js'
 
 const PAY = ['💳 信用卡 ·· 4242', '🏧 ATM 轉帳', '📱 LINE Pay', '🏪 超商代碼']
 const PICK = ['📦 7-11 大墩門市', '📦 全家 大葉店', '🚚 宅配到府', '🏬 門市自取']
@@ -10,7 +9,9 @@ const INV = ['🧾 手機載具', '🧾 自然人憑證', '🏢 公司統編', '
 
 export default function Checkout() {
   const { pop, popAll, setToast, cart, clearCart, subscribed, addOrder, requireAccount } = useNav()
-  const items = cart.length ? cart : checkoutItems
+  // ⚠️ 原本是 `cart.length ? cart : checkoutItems`——購物車空的時候會塞三筆
+  // 示範商品（合計 NT$630），使用者會看到自己從沒加入的東西。只吃真實購物車。
+  const items = cart
   const sub = items.reduce((s, i) => s + (i.price || 0), 0)
   const discount = subscribed ? Math.round(sub * 0.1) : 0
   const total = sub - discount
@@ -48,6 +49,19 @@ export default function Checkout() {
     <>
       <TopBar title="結帳" onBack={pop} />
       <div className="body">
+        {items.length === 0 && (
+          <>
+            <div className="empty">
+              <div className="big">🧺</div>
+              購物車是空的<br />
+              <span style={{ fontSize: 12 }}>到市集挑一張作品授權，或做一本自己的月曆</span>
+            </div>
+            <div className="pad">
+              <button className="btn-primary tap" onClick={() => { popAll(); }}>去逛逛</button>
+            </div>
+          </>
+        )}
+        {items.length > 0 && <>
         <div className="sumcard">
           {items.map((it, i) => (
             <div key={i} className="sumrow"><span>{it.name}</span><b>${it.price}</b></div>
@@ -82,14 +96,18 @@ export default function Checkout() {
           <div className="l">{INV[inv]}</div><Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />
         </button>
         <div className="muted" style={{ fontSize: 11, padding: '10px 16px' }}>＊點各列可切換選項。金流與物流串接為正式版功能（此處為模擬）。</div>
+        </>}
       </div>
 
-      <div className="paybar">
-        <button className="btn-primary tap" onClick={confirm} disabled={paying}
-          style={paying ? { opacity: .6 } : null}>
-          {paying ? '處理中…' : `確認付款　NT$${total}`}
-        </button>
-      </div>
+      {/* 空車時不顯示付款列——否則會出現一個可以按下去的「確認付款 NT$0」 */}
+      {items.length > 0 && (
+        <div className="paybar">
+          <button className="btn-primary tap" onClick={confirm} disabled={paying}
+            style={paying ? { opacity: .6 } : null}>
+            {paying ? '處理中…' : `確認付款　NT$${total}`}
+          </button>
+        </div>
+      )}
     </>
   )
 }

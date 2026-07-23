@@ -94,6 +94,7 @@ for (const sql of [
   "ALTER TABLE users ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE posts ADD COLUMN image_id TEXT",
   "ALTER TABLE works ADD COLUMN image_id TEXT",
+  "ALTER TABLE users ADD COLUMN avatar_image_id TEXT",
 ]) {
   try { await db.exec(sql) } catch { /* 欄位已存在 */ }
 }

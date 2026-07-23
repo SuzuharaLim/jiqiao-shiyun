@@ -39,16 +39,19 @@ export default function Subscription() {
           <div className="price" style={{ color: 'var(--acard-t)' }}>NT${plans.premium.price}<small> / 月</small></div>
           {plans.premium.feats.map(f => <div key={f} className="feat"><span className="dot">✓</span>{f}</div>)}
           <div style={{ height: 12 }} />
+          {/* ⚠️ 這裡原本是「按一下就 setSubscribed(true)」——沒有任何付款流程，
+              等於免費帳號可以直接變成 Premium。訂閱金流尚未串接（PAY_PROVIDER=demo），
+              在真的能收款之前不得授予付費權益。串好金流後改成導向結帳即可。 */}
           {subscribed ? (
-            <button className="btn-ghost tap" onClick={() => { setSubscribed(false); setToast('已取消 Premium（Demo）') }}>取消訂閱</button>
+            <button className="btn-ghost tap" onClick={() => { setSubscribed(false); setToast('已取消 Premium') }}>取消訂閱</button>
           ) : (
-            <button className="btn-primary tap" onClick={() => { setSubscribed(true); setToast('升級 Premium 成功 ✦ 已解鎖高階 AI 模型') }}>升級 Premium</button>
+            <button className="btn-primary tap" onClick={() => setToast('訂閱功能尚未開放（金流尚未串接）')}>升級 Premium</button>
           )}
         </div>
 
         <p className="muted" style={{ padding: '4px 16px 16px', fontSize: 11.5, lineHeight: 1.7 }}>
           免費方案提供基礎 AI 模型並每日限額，付費可切換高階 AI 模型與無限對話。
-          （示範 Demo；實際模型供應商與計費將於正式上線時公告）
+          訂閱付款功能仍在開發中（金流尚未串接），目前無法升級。
         </p>
       </div>
     </>

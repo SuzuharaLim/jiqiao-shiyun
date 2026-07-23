@@ -44,11 +44,19 @@ export default function Profile() {
               <div className="h">@{me.handle}</div>
             </div>
           </div>
-          <div className="bio">{me.bio}　<span className="muted" style={{ fontSize: 12 }}>· 追蹤中 {stats.following ?? followCount()} 位</span></div>
+          <div className="bio">{me.bio}　<button className="acc tap" style={{ fontSize: 12, fontWeight: 400 }}
+            onClick={() => push('followList', { handle: me.handle, rel: 'following' })}>· 追蹤中 {stats.following ?? followCount()} 位</button></div>
+          {/* 三個統計都可點：作品／市集上架切換下方清單，粉絲開真實名單 */}
           <div className="nums">
-            <div><b>{stats.works}</b><span>作品</span></div>
-            <div><b>{stats.followers}</b><span>粉絲</span></div>
-            <div><b>{my ? my.stats.works : 0}</b><span>市集上架</span></div>
+            <button className="tap" onClick={() => setView('works')}>
+              <b>{stats.works}</b><span>作品</span>
+            </button>
+            <button className="tap" onClick={() => push('followList', { handle: me.handle, rel: 'followers' })}>
+              <b>{stats.followers}</b><span>粉絲</span>
+            </button>
+            <button className="tap" onClick={() => setView('market')}>
+              <b>{my ? my.stats.works : 0}</b><span>市集上架</span>
+            </button>
           </div>
         </div>
 

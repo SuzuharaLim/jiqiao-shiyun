@@ -52,6 +52,7 @@ async function audit(event, req, userId = null, detail = null) {
 const publicUser = (u) => ({
   id: u.id, email: u.email, name: u.name, role: u.role, emailVerified: !!u.email_verified_at,
   handle: u.handle || null, bio: u.bio || null, avatar: u.avatar || null, avatarBg: u.avatar_bg || null,
+  avatarImageId: u.avatar_image_id || null,
   isPrivate: !!u.is_private,
 })
 // 站內通知（讚/留言/追蹤等真實互動時寫入；自己對自己的動作不通知）
@@ -438,7 +439,19 @@ app.patch('/api/me', requireAuth, requireCsrf, ah(async (req, res) => {
   const bio = req.body?.bio != null ? String(req.body.bio).trim().slice(0, 80) : req.user.bio
   const avatar = req.body?.avatar != null ? String(req.body.avatar).slice(0, 8) : req.user.avatar
   const isPrivate = req.body?.priv != null ? (req.body.priv ? 1 : 0) : (req.user.is_private || 0)
-  await db.run('UPDATE users SET name=?, bio=?, avatar=?, is_private=?, updated_at=? WHERE id=?', [name, bio, avatar, isPrivate, now(), req.user.id])
+  // 上傳頭像：只接受自己擁有的圖片；傳 null 代表改回 emoji 頭像
+  let avatarImageId = req.user.avatar_image_id || null
+  if (req.body?.avatarImageId !== undefined) {
+    const v = req.body.avatarImageId
+    if (v === null || v === '') avatarImageId = null
+    else {
+      const img = await db.get('SELECT id FROM images WHERE id=? AND user_id=?', [String(v), req.user.id])
+      if (!img) return res.status(400).json({ error: '找不到這張圖片' })
+      avatarImageId = img.id
+    }
+  }
+  await db.run('UPDATE users SET name=?, bio=?, avatar=?, avatar_image_id=?, is_private=?, updated_at=? WHERE id=?',
+    [name, bio, avatar, avatarImageId, isPrivate, now(), req.user.id])
   await audit('profile_update', req, req.user.id)
   const u = await db.get('SELECT * FROM users WHERE id=?', [req.user.id])
   res.json({ user: publicUser(u) })
@@ -648,7 +661,7 @@ app.get('/api/works/:id', ah(async (req, res) => {
 // 使用者公開頁（創作者頁／自己的個人頁共用）：資料＋貼文＋作品＋統計
 app.get('/api/users/:handle', ah(async (req, res) => {
   const handle = String(req.params.handle).toLowerCase()
-  const u = await db.get('SELECT id,name,handle,avatar,avatar_bg,bio,role,is_seed,is_private FROM users WHERE lower(handle)=?', [handle])
+  const u = await db.get('SELECT id,name,handle,avatar,avatar_bg,avatar_image_id,bio,role,is_seed,is_private FROM users WHERE lower(handle)=?', [handle])
   if (!u) return res.status(404).json({ error: '找不到使用者' })
   // 私密帳號：非本人只給基本資料與統計，隱藏貼文/作品內容
   const hidden = !!u.is_private && (!req.user || req.user.id !== u.id)
@@ -661,12 +674,28 @@ app.get('/api/users/:handle', ah(async (req, res) => {
   let isFollowing = false
   if (req.user) isFollowing = !!(await db.get('SELECT 1 FROM follows WHERE follower_id=? AND followee_id=?', [req.user.id, u.id]))
   res.json({
-    user: { id: u.id, name: u.name, handle: u.handle, avatar: u.avatar, avatarBg: u.avatar_bg, bio: u.bio, role: u.role },
+    user: { id: u.id, name: u.name, handle: u.handle, avatar: u.avatar, avatarBg: u.avatar_bg, avatarImageId: u.avatar_image_id || null, bio: u.bio, role: u.role },
     stats: { posts: postCount, works: workCount, followers, following },
     posts: posts.map(postShape),
     works: worksRows.map(workShape),
     isFollowing, authorId: u.id, isPrivate: !!u.is_private,
   })
+}))
+
+// 粉絲／追蹤中清單 —— 讓個人檔案的統計數字可以點進去看真實名單。
+// 私密帳號只有本人能看自己的名單。
+app.get('/api/users/:handle/:rel(followers|following)', ah(async (req, res) => {
+  const handle = String(req.params.handle).toLowerCase()
+  const u = await db.get('SELECT id,is_private FROM users WHERE lower(handle)=?', [handle])
+  if (!u) return res.status(404).json({ error: '找不到使用者' })
+  if (u.is_private && (!req.user || req.user.id !== u.id)) return res.json({ users: [], hidden: true })
+  const followers = req.params.rel === 'followers'
+  const rows = await db.all(
+    `SELECT us.id, us.name, us.handle, us.avatar, us.avatar_bg, us.avatar_image_id, us.bio
+       FROM follows f JOIN users us ON us.id = ${followers ? 'f.follower_id' : 'f.followee_id'}
+      WHERE ${followers ? 'f.followee_id' : 'f.follower_id'} = ?
+      ORDER BY f.created_at DESC LIMIT 200`, [u.id])
+  res.json({ users: rows.map(r => ({ id: r.id, name: r.name, handle: r.handle, avatar: r.avatar, avatarBg: r.avatar_bg, avatarImageId: r.avatar_image_id || null, bio: r.bio })) })
 }))
 
 // 追蹤 / 取消（by author id 或 handle）

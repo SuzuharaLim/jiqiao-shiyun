@@ -35,6 +35,7 @@ import YearAlmanac from './YearAlmanac.jsx'
 import { FoodTaboo, Units, GanzhiTable } from './AppendixScreens.jsx'
 import Challenges from './Challenges.jsx'
 import CreatorPage from './CreatorPage.jsx'
+import FollowList from './FollowList.jsx'
 import Leaderboard from './Leaderboard.jsx'
 import DMThread from './DMThread.jsx'
 import PrePlan from './PrePlan.jsx'
@@ -87,6 +88,7 @@ export const SCREENS = {
   challenges: Challenges,
   challengesBoard: Leaderboard,
   creatorPage: CreatorPage,
+  followList: FollowList,
   dmThread: DMThread,
   prePlan: PrePlan,
   editProfile: EditProfile,
