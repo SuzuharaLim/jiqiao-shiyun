@@ -1962,3 +1962,40 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .tagwheel.wrap { flex-wrap: wrap; overflow-x: visible; }
 .tw-toggle { border-style: dashed; color: var(--muted); }
 .tw-toggle:hover { color: var(--cinnabar); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   探索頁桌機的「上半部」（2026-07 補課）
+   雙欄改版只處理了下半部；上半部仍是手機版拉寬——搜尋框一整條
+   1300px 的空盒子獨佔第一行，篩選列孤零零攤在全寬上。
+   桌機慣例：篩選在左、搜尋收窄靠右、同一行；題材列跟在下面。
+   手機不受影響（維持搜尋在頂、逐列堆疊）。
+   ══════════════════════════════════════════════════════════════════════ */
+@media (min-width: 900px) {
+  .stage.signed-in .tab-1 .ex-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-areas:
+      "terms search"
+      "panel panel"
+      "tags  tags";
+    align-items: center;
+    column-gap: 24px;
+    border-bottom: 1px solid var(--line);   /* 整個篩選區共用一條底線 */
+    margin-bottom: 4px;
+  }
+  .stage.signed-in .tab-1 .ex-top .search {
+    grid-area: search;
+    height: 40px; margin: 0; font-size: 13.5px;
+  }
+  .stage.signed-in .tab-1 .ex-top .termwheel {
+    grid-area: terms;
+    border-bottom: none;                    /* 底線交給 ex-top，避免只劃到半寬 */
+    padding-left: 0; padding-right: 0;
+  }
+  .stage.signed-in .tab-1 .ex-top .term-panel { grid-area: panel; margin-left: 0; margin-right: 0; }
+  .stage.signed-in .tab-1 .ex-top .tagwheel {
+    grid-area: tags;
+    border-bottom: none;
+    padding-left: 0; padding-right: 0; padding-top: 2px;
+  }
+}
