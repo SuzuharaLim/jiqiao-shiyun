@@ -1770,48 +1770,8 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   outline-offset: 4px;
 }
 
-/* 題材列 —— 與節氣列刻意採用「不同的視覺語彙」：
-     節氣＝底線頁籤（導覽：我在看哪一區）
-     題材＝可開關的藥丸（篩選：我加了什麼條件）
-   先前兩列都是底線頁籤、字級只差 1px，讀起來像一個混亂的雙層導覽，
-   而且次要的題材列高度（61px）還超過主要的節氣列（43px），階層顛倒。
-   這裡把題材列壓到 ~40px 並降低視覺重量。 */
-.tagwheel {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 13px; overflow-x: auto; flex: 0 0 auto;
-  border-bottom: 1px solid var(--line);
-}
-.tagwheel::-webkit-scrollbar { height: 0; }
-.tw-lbl {
-  flex: 0 0 auto; font-size: 11px; color: var(--c-text-3);
-  font-family: var(--serif); letter-spacing: .1em; margin-right: 2px;
-}
-.tw-t {
-  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
-  padding: 4px 11px; font-size: 12px; line-height: 1.6;
-  background: none; color: var(--muted);
-  border: 1px solid var(--line2); border-radius: 2px;
-  /* 刻意不過渡 color：選中時底色變朱紅，若文字色還在漸變，中間會有一段
-     「朱紅底＋灰字」的低對比空窗。狀態切換要立刻可讀。 */
-  transition: border-color var(--dur-fast) var(--ease);
-}
-.tw-t:hover { color: var(--text); border-color: var(--cinnabar); }
-.tw-t.on {
-  color: var(--pfg); background: var(--cinnabar); border-color: var(--cinnabar);
-  font-weight: 600;
-}
-.tw-t.on .tm-n { color: var(--pfg); opacity: .75; }
-.tw-t:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 3px; }
 
-/* 節氣列是主軸：字級與字重都提一階，與題材藥丸拉開差距 */
-.termwheel .tm { font-size: 14.5px; }
-
-/* 結果列：顯示目前套用的條件，並提供一鍵清除
-   （原本只寫「全部作品 N 件」，套了篩選後看不出自己在看什麼） */
-.railhd .rh-tag {
-  display: inline-block; margin: 0 2px;
-  color: var(--cinnabar); font-family: var(--serif);
-}
+/* 結果列：顯示目前套用的條件，並提供一鍵清除 */
 .railhd .rh-clear {
   background: none; border: none; cursor: pointer;
   margin-left: 10px; padding: 2px 0;
@@ -1937,12 +1897,11 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .tp-t .tm-n { margin-left: 2px; }
 
 /* ── 修復：焦點框被捲動容器裁切 ──
-   .termwheel/.tagwheel 有 overflow-x:auto（同時建立垂直裁切），
+   .termwheel 有 overflow-x:auto（同時建立垂直裁切），
    項目的 2px 焦點框 + 4px offset 會被上下切掉、只剩左右兩條紅豎線。
    給容器足夠的垂直內距讓框畫得下，並把 offset 收到 2px。 */
 .termwheel { padding-top: 8px; padding-bottom: 8px; }
 .termwheel .tm { padding-top: 5px; padding-bottom: 6px; }
-.tagwheel { padding-top: 9px; padding-bottom: 9px; }
 .termwheel .tm:focus-visible, .tw-t:focus-visible {
   outline: 2px solid var(--cinnabar);
   outline-offset: 2px;
@@ -1956,12 +1915,6 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .chip.on::after { display: none; }
 .chip.on { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
 
-/* 題材列的「更多／收合」：展開時換行鋪開（不是變成更長的水平捲軸）。
-   題材與節氣不同——使用者自由產生、無上限、無固定結構，
-   所以用「前幾名＋展開」而不是節氣那種固定面板。 */
-.tagwheel.wrap { flex-wrap: wrap; overflow-x: visible; }
-.tw-toggle { border-style: dashed; color: var(--muted); }
-.tw-toggle:hover { color: var(--cinnabar); }
 
 /* ══════════════════════════════════════════════════════════════════════
    探索頁桌機的「上半部」（2026-07 補課）
@@ -1993,11 +1946,6 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
     padding-left: 0; padding-right: 0;
   }
   .stage.signed-in .tab-1 .ex-top .term-panel { grid-area: panel; margin-left: 0; margin-right: 0; }
-  .stage.signed-in .tab-1 .ex-top .tagwheel {
-    grid-area: tags;
-    border-bottom: none;
-    padding-left: 0; padding-right: 0; padding-top: 2px;
-  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -2027,11 +1975,6 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .fmenu { flex: 0 0 auto; animation: fade .14s var(--ease); }
 .tp-quick { display: flex; gap: 8px; padding: 10px 13px 0; }
 .fmenu .term-panel { margin-top: 8px; }
-.tag-menu {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin: 10px 13px 4px; padding: 12px;
-  border: 1px solid var(--line2); border-radius: 2px; background: var(--card);
-}
 
 /* 桌機：選單列在左、搜尋在右同一行；展開面板跨全寬（覆蓋先前 termwheel 版 grid） */
 @media (min-width: 900px) {
@@ -2045,7 +1988,6 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
     border-bottom: none; padding-left: 0; padding-right: 0;
   }
   .stage.signed-in .tab-1 .ex-top .fmenu { grid-area: menu; }
-  .stage.signed-in .tab-1 .ex-top .fmenu .term-panel,
-  .stage.signed-in .tab-1 .ex-top .tag-menu { margin-left: 0; margin-right: 0; }
+  .stage.signed-in .tab-1 .ex-top .fmenu .term-panel { margin-left: 0; margin-right: 0; }
   .stage.signed-in .tab-1 .ex-top .tp-quick { padding-left: 0; padding-right: 0; }
 }

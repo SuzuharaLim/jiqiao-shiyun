@@ -9,8 +9,7 @@ export default function Explore() {
   const { push, setToast } = useNav()
   const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
-  const [openMenu, setOpenMenu] = useState(null)      // null | 'term' | 'tag'（同時只開一個選單）
-  const [tag, setTag] = useState('全部')     // 題材（與節氣可同時生效）
+  const [openTerm, setOpenTerm] = useState(false)     // 節氣選單
   const [q, setQ] = useState('')
 
   const works = useWorks(null)   // 全部作品嚴格來自資料庫（前端再依 chip/搜尋篩選）
@@ -31,17 +30,10 @@ export default function Explore() {
   }, {})
 
 
-  // 題材：由作品實際帶的 #標籤 聚合。節氣是「時間軸」、題材是「主題軸」，
-  // 兩者是不同維度，所以分成兩排並且可以疊加（原設計把兩者混在同一排，
-  // 導致選了節氣就沒辦法再選題材）。只列真的有作品的題材，依件數排序。
-  const tagCounts = works.reduce((m, w) => {
-    (w.tags || []).forEach(t => { m[t] = (m[t] || 0) + 1 })
-    return m
-  }, {})
-  // 題材是使用者自由產生的（無上限、無固定結構），與節氣不同：
-  // 不能攤平也沒有四季那種表可收。改「依件數取前幾名＋更多展開」，
-  // 展開時換行鋪開而不是變成更長的水平捲軸。
-  const tagList = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a])
+  // ⚠️ 曾經有「題材」作為第二個篩選維度，已移除。
+  // 這個 App 的組織軸就是節氣——加第二個維度會稀釋核心概念，而且標籤是
+  // 使用者自由輸入的，久了會分裂成「花卉／花／花朵」這種難以收斂的集合。
+  // 標籤本身保留在資料裡並繼續參與「搜尋」比對：它是搜尋的輔助，不是導覽軸。
   // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
   const creators = Object.values(works.reduce((m, w) => {
     const k = w.author
@@ -51,10 +43,9 @@ export default function Explore() {
   }, {})).sort((a, b) => b.works - a.works).slice(0, 8)
   const list = works.filter(w => {
     const okChip = chip === '全部' || w.term === chip
-    const okTag = tag === '全部' || (w.tags || []).includes(tag)
     const okQ = !q || w.title.includes(q) || w.author.includes(q) || w.term.includes(q)
       || (w.tags || []).some(t => t.includes(q))
-    return okChip && okTag && okQ
+    return okChip && okQ
   })
 
   return (
@@ -79,36 +70,25 @@ export default function Explore() {
         </div>
 
         {/* 篩選選單列：平常只顯示「目前選了什麼」，點開才出現選項。
-            原本兩排選項直接攤在頁面上（節氣一排＋題材一排），
-            使用者回饋應做成選單選取。兩顆選擇器＋展開面板，
-            同時只開一個選單。 */}
+            原本選項直接攤在頁面上，使用者回饋應做成選單選取。 */}
         <div className="fbar">
-          <button className={`fsel tap ${openMenu === 'term' ? 'open' : ''}`}
-            aria-expanded={openMenu === 'term'} aria-haspopup="true"
-            onClick={() => setOpenMenu(m => m === 'term' ? null : 'term')}>
+          <button className={`fsel tap ${openTerm ? 'open' : ''}`}
+            aria-expanded={openTerm} aria-haspopup="true"
+            onClick={() => setOpenTerm(v => !v)}>
             <span className="fs-l">節氣</span>
             <b className={chip !== '全部' ? 'sel' : ''}>{chip === nowTerm ? `● ${chip}` : chip}</b>
-            <span className="fs-c">{openMenu === 'term' ? '▴' : '▾'}</span>
+            <span className="fs-c">{openTerm ? '▴' : '▾'}</span>
           </button>
-          {tagList.length > 0 && (
-            <button className={`fsel tap ${openMenu === 'tag' ? 'open' : ''}`}
-              aria-expanded={openMenu === 'tag'} aria-haspopup="true"
-              onClick={() => setOpenMenu(m => m === 'tag' ? null : 'tag')}>
-              <span className="fs-l">題材</span>
-              <b className={tag !== '全部' ? 'sel' : ''}>{tag}</b>
-              <span className="fs-c">{openMenu === 'tag' ? '▴' : '▾'}</span>
-            </button>
-          )}
         </div>
 
         {/* 節氣選單：快速列（全部／今日）＋傳統四季節氣表 */}
-        {openMenu === 'term' && (
+        {openTerm && (
           <div className="fmenu">
             <div className="tp-quick">
               <button className={`tw-t tap ${chip === '全部' ? 'on' : ''}`}
-                onClick={() => { setChip('全部'); setOpenMenu(null) }}>全部節氣</button>
+                onClick={() => { setChip('全部'); setOpenTerm(false) }}>全部節氣</button>
               <button className={`tw-t tap ${chip === nowTerm ? 'on' : ''}`}
-                onClick={() => { setChip(nowTerm); setOpenMenu(null) }}>● {nowTerm}（今日）</button>
+                onClick={() => { setChip(nowTerm); setOpenTerm(false) }}>● {nowTerm}（今日）</button>
             </div>
             <div className="term-panel">
               {[['春', ['立春', '雨水', '驚蟄', '春分', '清明', '穀雨']],
@@ -120,7 +100,7 @@ export default function Explore() {
                   {terms.map(t => (
                     <button key={t}
                       className={`tp-t tap ${chip === t ? 'on' : ''} ${!termCounts[t] ? 'dim' : ''} ${t === nowTerm ? 'now' : ''}`}
-                      onClick={() => { setChip(t); setOpenMenu(null) }}>
+                      onClick={() => { setChip(t); setOpenTerm(false) }}>
                       {t}{termCounts[t] ? <small className="tm-n">{termCounts[t]}</small> : null}
                     </button>
                   ))}
@@ -130,44 +110,25 @@ export default function Explore() {
           </div>
         )}
 
-        {/* 題材選單：全部＋依件數排序的標籤（換行鋪開） */}
-        {openMenu === 'tag' && (
-          <div className="fmenu">
-            <div className="tag-menu">
-              <button className={`tw-t tap ${tag === '全部' ? 'on' : ''}`}
-                onClick={() => { setTag('全部'); setOpenMenu(null) }}>全部</button>
-              {tagList.map(t => (
-                <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`}
-                  onClick={() => { setTag(t); setOpenMenu(null) }}>
-                  {t}<small className="tm-n">{tagCounts[t]}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         </div>
 
         {/* ── 主欄：作品（這頁的主角，緊跟在篩選後面）── */}
         <div className="ex-main">
         <div className="railhd">
           <div className="t">
-            {chip === '全部' && tag === '全部' && !q ? '全部作品' : (
-              <>
-                {chip !== '全部' && <>〈<small>{chip}</small>〉</>}
-                {tag !== '全部' && <span className="rh-tag">{tag}</span>}
-                作品
-              </>
+            {chip === '全部' && !q ? '全部作品' : (
+              <>{chip !== '全部' && <>〈<small>{chip}</small>〉</>}作品</>
             )}
           </div>
           <span className="more">
             {list.length} 件
-            {(chip !== '全部' || tag !== '全部' || q) && (
-              <button className="rh-clear tap" onClick={() => { setChip('全部'); setTag('全部'); setQ('') }}>清除</button>
+            {(chip !== '全部' || q) && (
+              <button className="rh-clear tap" onClick={() => { setChip('全部'); setQ('') }}>清除</button>
             )}
           </span>
         </div>
         {list.length === 0 ? (
-          <div className="empty"><div className="big">🔍</div>找不到{[chip !== '全部' && chip, tag !== '全部' && tag, q].filter(Boolean).join('・') || '任何'}的作品</div>
+          <div className="empty"><div className="big">🔍</div>找不到{[chip !== '全部' && chip, q].filter(Boolean).join('・') || '任何'}的作品</div>
         ) : (
           <div className="album">
             {list.map(w => (

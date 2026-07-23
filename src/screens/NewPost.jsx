@@ -9,9 +9,9 @@ import { dayFor, todayOffset } from '../data/almanac.js'
 // ⚠️ 這裡原本叫 thumbs，5 個 emoji 排成一列「相簿縮圖」的樣子，
 // 看起來像使用者自己的照片，其實是假的。改名並改為明確的「封面色票」——
 // 沒有上傳照片時貼文用的佔位配色，不再假裝是相簿。
-// 常用題材。題材是「主題軸」，與節氣（時間軸）分開，探索頁可疊加篩選。
-// 原本題材只能靠在說明裡打 #標籤 產生——沒人知道要這樣做，等於這個維度不存在。
-const SUBJECTS = ['花卉', '海', '山', '田間', '天空', '慶典', '建築', '人物', 'food', '動物']
+// ⚠️ 曾有「標記題材」欄位，隨探索頁的題材篩選一併移除——
+// 篩選拿掉後還要使用者填標籤，就成了沒有任何回報的雜事。
+// 說明裡的 #標籤 仍會解析並存進資料庫，繼續供「搜尋」比對。
 
 const COVERS = [
   { e: '🌾', bg: '#cfe3d3' }, { e: '🌊', bg: '#dbeafe' }, { e: '🌸', bg: '#fce7f3' },
@@ -49,8 +49,6 @@ export default function NewPost({ photo: incomingPhoto = null }) {
   const [onSale, setOnSale] = useState(true)
   const [term, setTerm] = useState(() => dayFor(todayOffset()).term)   // 預設＝真實當前節氣
   const [pickTerm, setPickTerm] = useState(false)
-  const [subjects, setSubjects] = useState([])   // 題材（可複選，上限 5）
-  const [pickSub, setPickSub] = useState(false)
   const [place, setPlace] = useState('')
   const [locOpen, setLocOpen] = useState(false)
   const [priceI, setPriceI] = useState(1) // licenseTiers 索引，預設 $30
@@ -69,9 +67,8 @@ export default function NewPost({ photo: incomingPhoto = null }) {
     if (!requireAccount('發佈作品')) return
     if (busy) return
     setBusy(true)
-    // 手選的題材 ∪ 說明裡打的 #標籤（兩種都支援，去重後上限 8）
-    const hashTags = (cap.match(/#[^\s#]+/g) || []).map(t => t.slice(1))
-    const tags = [...new Set([...subjects, ...hashTags])].slice(0, 8)
+    // 說明裡的 #標籤 → 存進資料庫供搜尋比對（不再有題材篩選 UI）
+    const tags = [...new Set((cap.match(/#[^\s#]+/g) || []).map(t => t.slice(1)))].slice(0, 8)
     const title = (cap.trim().split('\n')[0] || '').replace(/#[^\s#]+/g, '').trim().slice(0, 60) || `${term}・新作`
     try {
       // 1) 有照片先上傳（拿 imageId）
@@ -145,24 +142,6 @@ export default function NewPost({ photo: incomingPhoto = null }) {
             {solarTermNames.map(t => (
               <button key={t} className={`chip tap ${term === t ? 'on' : ''}`}
                 onClick={() => { setTerm(t); setPickTerm(false) }}>{t}</button>
-            ))}
-          </div>
-        )}
-
-        {/* 標記題材 —— 探索頁的第二個篩選維度（與節氣可疊加） */}
-        <button className="opt tap" onClick={() => setPickSub(v => !v)}>
-          <div className="l">🏷️ 標記題材</div>
-          <div className="muted" style={{ color: subjects.length ? 'var(--cinnabar)' : undefined }}>
-            {subjects.length ? subjects.join('・') : '選填'} {pickSub ? '▾' : '›'}
-          </div>
-        </button>
-        {pickSub && (
-          <div className="ct-opts" style={{ padding: '10px 13px' }}>
-            {SUBJECTS.map(t => (
-              <button key={t} className={`ct-opt tap ${subjects.includes(t) ? 'on' : ''}`}
-                onClick={() => setSubjects(v => v.includes(t)
-                  ? v.filter(x => x !== t)
-                  : v.length >= 5 ? (setToast('題材最多 5 個'), v) : [...v, t])}>{t}</button>
             ))}
           </div>
         )}
