@@ -1999,3 +1999,53 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
     padding-left: 0; padding-right: 0; padding-top: 2px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   探索頁篩選選單（取代直接攤在頁面上的兩排選項）
+   平常只看到兩顆「顯示目前值」的選擇器，點開才出現選項；
+   同時只開一個選單，選定即收合。
+   ══════════════════════════════════════════════════════════════════════ */
+.fbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px; flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.fsel {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 13px; cursor: pointer;
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--line2); border-radius: 2px;
+  font-size: 13px; min-height: 0;
+}
+.fsel:hover, .fsel.open { border-color: var(--cinnabar); }
+.fsel .fs-l { color: var(--muted); font-size: 11.5px; font-family: var(--serif); letter-spacing: .08em; }
+.fsel b { font-weight: 600; }
+.fsel b.sel { color: var(--cinnabar); font-weight: 700; }   /* 套了條件時亮起 */
+.fsel .fs-c { color: var(--muted); font-size: 10px; }
+.fsel:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+
+.fmenu { flex: 0 0 auto; animation: fade .14s var(--ease); }
+.tp-quick { display: flex; gap: 8px; padding: 10px 13px 0; }
+.fmenu .term-panel { margin-top: 8px; }
+.tag-menu {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 10px 13px 4px; padding: 12px;
+  border: 1px solid var(--line2); border-radius: 2px; background: var(--card);
+}
+
+/* 桌機：選單列在左、搜尋在右同一行；展開面板跨全寬（覆蓋先前 termwheel 版 grid） */
+@media (min-width: 900px) {
+  .stage.signed-in .tab-1 .ex-top {
+    grid-template-areas:
+      "fbar search"
+      "menu menu";
+  }
+  .stage.signed-in .tab-1 .ex-top .fbar {
+    grid-area: fbar;
+    border-bottom: none; padding-left: 0; padding-right: 0;
+  }
+  .stage.signed-in .tab-1 .ex-top .fmenu { grid-area: menu; }
+  .stage.signed-in .tab-1 .ex-top .fmenu .term-panel,
+  .stage.signed-in .tab-1 .ex-top .tag-menu { margin-left: 0; margin-right: 0; }
+  .stage.signed-in .tab-1 .ex-top .tp-quick { padding-left: 0; padding-right: 0; }
+}

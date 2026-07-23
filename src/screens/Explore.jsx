@@ -9,8 +9,7 @@ export default function Explore() {
   const { push, setToast } = useNav()
   const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
-  const [openTerms, setOpenTerms] = useState(false)   // 廿四節氣面板
-  const [openTags, setOpenTags] = useState(false)     // 題材展開
+  const [openMenu, setOpenMenu] = useState(null)      // null | 'term' | 'tag'（同時只開一個選單）
   const [tag, setTag] = useState('全部')     // 題材（與節氣可同時生效）
   const [q, setQ] = useState('')
 
@@ -30,8 +29,7 @@ export default function Explore() {
     if (w.term) m[w.term] = (m[w.term] || 0) + 1
     return m
   }, {})
-  const rowChips = ['全部', nowTerm]
-  if (chip !== '全部' && chip !== nowTerm) rowChips.push(chip)
+
 
   // 題材：由作品實際帶的 #標籤 聚合。節氣是「時間軸」、題材是「主題軸」，
   // 兩者是不同維度，所以分成兩排並且可以疊加（原設計把兩者混在同一排，
@@ -44,10 +42,6 @@ export default function Explore() {
   // 不能攤平也沒有四季那種表可收。改「依件數取前幾名＋更多展開」，
   // 展開時換行鋪開而不是變成更長的水平捲軸。
   const tagList = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a])
-  const TAG_VISIBLE = 6
-  // 收合時也要保證「選中的題材」看得見，否則使用者會找不到自己套的條件
-  const shownTags = openTags ? tagList
-    : [...new Set([...(tag !== '全部' ? [tag] : []), ...tagList])].slice(0, TAG_VISIBLE)
   // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
   const creators = Object.values(works.reduce((m, w) => {
     const k = w.author
@@ -84,68 +78,73 @@ export default function Explore() {
           <input placeholder="搜尋節氣、植物、創作者" aria-label="搜尋節氣、植物、創作者" value={q} onChange={e => setQ(e.target.value)} />
         </div>
 
-        {/* 節氣選擇：主列固定幾項，其餘收進「廿四節氣」面板 */}
-        <div className="termwheel">
-          {rowChips.map(c => (
-            <button key={c} className={`tm tap ${chip === c ? 'on' : c === nowTerm ? 'now' : ''}`}
-              onClick={() => setChip(c)} title={c === nowTerm ? '今日節氣' : undefined}>
-              {c === nowTerm ? `● ${c}` : c}
-              {c !== '全部' && <small className="tm-n">{termCounts[c] || 0}</small>}
-            </button>
-          ))}
-          <button className={`tm tm-more tap ${openTerms ? 'open' : ''}`}
-            aria-expanded={openTerms} onClick={() => setOpenTerms(v => !v)}>
-            廿四節氣 {openTerms ? '▴' : '▾'}
+        {/* 篩選選單列：平常只顯示「目前選了什麼」，點開才出現選項。
+            原本兩排選項直接攤在頁面上（節氣一排＋題材一排），
+            使用者回饋應做成選單選取。兩顆選擇器＋展開面板，
+            同時只開一個選單。 */}
+        <div className="fbar">
+          <button className={`fsel tap ${openMenu === 'term' ? 'open' : ''}`}
+            aria-expanded={openMenu === 'term'} aria-haspopup="true"
+            onClick={() => setOpenMenu(m => m === 'term' ? null : 'term')}>
+            <span className="fs-l">節氣</span>
+            <b className={chip !== '全部' ? 'sel' : ''}>{chip === nowTerm ? `● ${chip}` : chip}</b>
+            <span className="fs-c">{openMenu === 'term' ? '▴' : '▾'}</span>
           </button>
+          {tagList.length > 0 && (
+            <button className={`fsel tap ${openMenu === 'tag' ? 'open' : ''}`}
+              aria-expanded={openMenu === 'tag'} aria-haspopup="true"
+              onClick={() => setOpenMenu(m => m === 'tag' ? null : 'tag')}>
+              <span className="fs-l">題材</span>
+              <b className={tag !== '全部' ? 'sel' : ''}>{tag}</b>
+              <span className="fs-c">{openMenu === 'tag' ? '▴' : '▾'}</span>
+            </button>
+          )}
         </div>
 
-        {/* 廿四節氣面板：依傳統四季分組（立春起春、立夏起夏……）。
-            有作品的標件數；沒作品的淡化但仍可點（點了看到空狀態＝誠實）。 */}
-        {openTerms && (
-          <div className="term-panel">
-            {[['春', ['立春', '雨水', '驚蟄', '春分', '清明', '穀雨']],
-              ['夏', ['立夏', '小滿', '芒種', '夏至', '小暑', '大暑']],
-              ['秋', ['立秋', '處暑', '白露', '秋分', '寒露', '霜降']],
-              ['冬', ['立冬', '小雪', '大雪', '冬至', '小寒', '大寒']]].map(([season, terms]) => (
-              <div key={season} className="tp-row">
-                <span className="tp-season">{season}</span>
-                {terms.map(t => (
-                  <button key={t}
-                    className={`tp-t tap ${chip === t ? 'on' : ''} ${!termCounts[t] ? 'dim' : ''} ${t === nowTerm ? 'now' : ''}`}
-                    onClick={() => { setChip(t); setOpenTerms(false) }}>
-                    {t}{termCounts[t] ? <small className="tm-n">{termCounts[t]}</small> : null}
-                  </button>
-                ))}
-              </div>
-            ))}
+        {/* 節氣選單：快速列（全部／今日）＋傳統四季節氣表 */}
+        {openMenu === 'term' && (
+          <div className="fmenu">
+            <div className="tp-quick">
+              <button className={`tw-t tap ${chip === '全部' ? 'on' : ''}`}
+                onClick={() => { setChip('全部'); setOpenMenu(null) }}>全部節氣</button>
+              <button className={`tw-t tap ${chip === nowTerm ? 'on' : ''}`}
+                onClick={() => { setChip(nowTerm); setOpenMenu(null) }}>● {nowTerm}（今日）</button>
+            </div>
+            <div className="term-panel">
+              {[['春', ['立春', '雨水', '驚蟄', '春分', '清明', '穀雨']],
+                ['夏', ['立夏', '小滿', '芒種', '夏至', '小暑', '大暑']],
+                ['秋', ['立秋', '處暑', '白露', '秋分', '寒露', '霜降']],
+                ['冬', ['立冬', '小雪', '大雪', '冬至', '小寒', '大寒']]].map(([season, terms]) => (
+                <div key={season} className="tp-row">
+                  <span className="tp-season">{season}</span>
+                  {terms.map(t => (
+                    <button key={t}
+                      className={`tp-t tap ${chip === t ? 'on' : ''} ${!termCounts[t] ? 'dim' : ''} ${t === nowTerm ? 'now' : ''}`}
+                      onClick={() => { setChip(t); setOpenMenu(null) }}>
+                      {t}{termCounts[t] ? <small className="tm-n">{termCounts[t]}</small> : null}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* 題材列：只有真的存在標籤時才出現，避免空排佔版面。
-            刻意與節氣列用「不同的視覺語彙」——節氣是底線頁籤（導覽），
-            題材是可開關的藥丸（篩選）。形狀不同，意義才不同；先前兩列
-            長得幾乎一樣，讀起來像一個混亂的雙層導覽。
-            也刻意不放「全部」：沒選＝全部，再點一次即取消，
-            避免畫面上出現兩個「全部」讓人分不清哪個管哪個。 */}
-        {tagList.length > 0 && (
-          <div className={`tagwheel ${openTags ? 'wrap' : ''}`}>
-            <span className="tw-lbl">題材</span>
-            {shownTags.map(t => (
-              <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`}
-                aria-pressed={tag === t}
-                onClick={() => setTag(v => v === t ? '全部' : t)}>
-                {t}<small className="tm-n">{tagCounts[t]}</small>
-              </button>
-            ))}
-            {tagList.length > TAG_VISIBLE && (
-              <button className="tw-t tw-toggle tap" aria-expanded={openTags}
-                onClick={() => setOpenTags(v => !v)}>
-                {openTags ? '收合 ▴' : `更多 +${tagList.length - TAG_VISIBLE}`}
-              </button>
-            )}
+        {/* 題材選單：全部＋依件數排序的標籤（換行鋪開） */}
+        {openMenu === 'tag' && (
+          <div className="fmenu">
+            <div className="tag-menu">
+              <button className={`tw-t tap ${tag === '全部' ? 'on' : ''}`}
+                onClick={() => { setTag('全部'); setOpenMenu(null) }}>全部</button>
+              {tagList.map(t => (
+                <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`}
+                  onClick={() => { setTag(t); setOpenMenu(null) }}>
+                  {t}<small className="tm-n">{tagCounts[t]}</small>
+                </button>
+              ))}
+            </div>
           </div>
         )}
-
         </div>
 
         {/* ── 主欄：作品（這頁的主角，緊跟在篩選後面）── */}
