@@ -1,3 +1,4 @@
+import { Seal } from '../components/ui.jsx'
 import { useState, useEffect } from 'react'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -101,7 +102,7 @@ export default function Auth() {
   return (
     <div className="auth body">
       <div className="auth-hero">
-        <div className="auth-seal">印</div>
+        <Seal className="auth-seal" />
         <div className="auth-title">{BRAND}</div>
         <div className="auth-sub">
           {mode === 'register' ? '建立你的節氣文化手帳帳號'

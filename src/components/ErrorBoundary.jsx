@@ -1,3 +1,4 @@
+import { Seal } from './ui.jsx'
 import { Component } from 'react'
 
 // 錯誤邊界：任一畫面元件在 render 中丟例外時，顯示友善備援畫面而非整頁白屏。
@@ -28,7 +29,7 @@ export default class ErrorBoundary extends Component {
     if (this.state.error) {
       return (
         <div className="err-boundary">
-          <div className="eb-seal">印</div>
+          <Seal className="eb-seal" />
           <h2 className="eb-title">畫面暫時出了點狀況</h2>
           <p className="eb-sub">已為你保留帳號與資料，重新載入即可繼續。</p>
           <button className="btn-primary tap" style={{ maxWidth: 220 }} onClick={this.reset}>重新載入</button>

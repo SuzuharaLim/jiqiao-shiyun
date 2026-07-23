@@ -164,3 +164,11 @@ export function Avatar({ imageId, emoji = '🌾' }) {
   return <img src={`/api/images/${imageId}`} alt=""
     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
 }
+
+// 品牌標誌。用 <img> 指向 public/logo.svg（同源，符合 CSP 的 img-src 'self'），
+// 不內嵌 SVG——那份路徑資料 24KB，內嵌四處會讓 bundle 白白多 100KB。
+// ⚠️ 標誌是金色（#C5A046）。實測疊在朱紅底上 32px 只剩 6.3% 可辨像素，
+// 疊在紙色/深色底則有 17-19%——所以容器不加朱紅底，讓金色直接對紙。
+export function Seal({ className = '', alt = '機巧時運' }) {
+  return <img className={`seal-mark ${className}`} src="/logo.svg" alt={alt} />
+}

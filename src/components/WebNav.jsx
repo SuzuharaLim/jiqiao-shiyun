@@ -1,4 +1,4 @@
-import { Avatar } from './ui.jsx'
+import { Avatar, Seal} from './ui.jsx'
 // 桌機版「網站式」頂部導覽列（≥900px；取代側邊欄與底部分頁列，讓電腦版像網頁而非 App）
 import Icon from './Icon.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -14,7 +14,7 @@ export default function WebNav() {
     <header className="webnav">
       <div className="wn-inner">
         <button className="wn-brand tap" onClick={() => setTab(0)} aria-label="回首頁">
-          <span className="wn-seal">印</span><span className="wn-word">機巧時運</span>
+          <Seal className="wn-seal" /><span className="wn-word">機巧時運</span>
         </button>
 
         <nav className="wn-links" aria-label="主導覽">

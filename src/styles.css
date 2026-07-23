@@ -1726,3 +1726,21 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 @media (min-width: 900px) {
   .stage.signed-in .screen-dms .body.ct-body { width: min(100%, 620px); margin: 0 auto; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   品牌標誌（承氣有限公司 logo，取代原本的「印」字方章）
+   標誌本身是金色 #C5A046。實測：32px 下疊在朱紅底只剩 6.3% 可辨像素，
+   疊在紙色 17.1%、深色 19% —— 故一律不加朱紅底，讓金色直接對紙。
+   ══════════════════════════════════════════════════════════════════════ */
+.seal-mark { display: block; object-fit: contain; flex: 0 0 auto; }
+
+/* 覆蓋各處原本的朱紅方章樣式 */
+.wn-seal.seal-mark, .wf-seal.seal-mark,
+.auth-seal.seal-mark, .eb-seal.seal-mark {
+  background: none; border-radius: 0; padding: 0;
+  font-size: 0; line-height: 0;
+}
+.wn-seal.seal-mark  { width: 34px; height: 34px; }
+.wf-seal.seal-mark  { width: 28px; height: 28px; }
+.auth-seal.seal-mark { width: 64px; height: 64px; margin: 0 auto; }
+.eb-seal.seal-mark  { width: 60px; height: 60px; margin: 0 auto; }
