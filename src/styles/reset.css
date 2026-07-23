@@ -150,7 +150,9 @@ button, a[href], [role="button"], input[type="checkbox"], input[type="radio"] {
   min-height: 44px;
 }
 /* 例外：行內文字連結與緊湊型 chip 不套用（否則會撐破行高與工具列） */
-a[href]:not([class]), .acc, .chip, .tm, .rvf, .cs-bg, .th, .iconbtn,
-.tabbar button, .webnav button, .lp-chip, .cm, p a, li a {
+a[href]:not([class]), .acc, .chip, .tm, .tw-t, .ct-opt, .rvf, .cs-bg, .th, .iconbtn,
+.tabbar button, .webnav button, .lp-chip, .cm, .rh-clear, p a, li a {
   min-height: 0;
 }
+/* 註：WCAG 2.5.8（AA）要求的是 24x24，44x44 是 2.5.5（AAA）。
+   這些緊湊型 chip 仍遠大於 24x24，所以豁免 44px 不會掉出 AA。 */

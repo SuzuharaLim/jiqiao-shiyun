@@ -1770,23 +1770,51 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   outline-offset: 4px;
 }
 
-/* 題材列：與節氣列同為欄目語彙，但降一階（較小、加標籤說明），
-   讓人一眼看出「節氣是主軸、題材是次篩」。兩者可同時生效。 */
+/* 題材列 —— 與節氣列刻意採用「不同的視覺語彙」：
+     節氣＝底線頁籤（導覽：我在看哪一區）
+     題材＝可開關的藥丸（篩選：我加了什麼條件）
+   先前兩列都是底線頁籤、字級只差 1px，讀起來像一個混亂的雙層導覽，
+   而且次要的題材列高度（61px）還超過主要的節氣列（43px），階層顛倒。
+   這裡把題材列壓到 ~40px 並降低視覺重量。 */
 .tagwheel {
-  display: flex; align-items: center; gap: 14px;
-  padding: 8px 13px; overflow-x: auto; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 13px; overflow-x: auto; flex: 0 0 auto;
   border-bottom: 1px solid var(--line);
 }
 .tagwheel::-webkit-scrollbar { height: 0; }
 .tw-lbl {
-  flex: 0 0 auto; font-size: 11px; color: var(--muted);
-  font-family: var(--serif); letter-spacing: .08em;
+  flex: 0 0 auto; font-size: 11px; color: var(--c-text-3);
+  font-family: var(--serif); letter-spacing: .1em; margin-right: 2px;
 }
 .tw-t {
-  flex: 0 0 auto; background: none; border: none; padding: 4px 1px;
-  font-size: 12.5px; color: var(--muted); white-space: nowrap;
-  border-bottom: 2px solid transparent; cursor: pointer;
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  padding: 4px 11px; font-size: 12px; line-height: 1.6;
+  background: none; color: var(--muted);
+  border: 1px solid var(--line2); border-radius: 2px;
+  /* 刻意不過渡 color：選中時底色變朱紅，若文字色還在漸變，中間會有一段
+     「朱紅底＋灰字」的低對比空窗。狀態切換要立刻可讀。 */
+  transition: border-color var(--dur-fast) var(--ease);
 }
-.tw-t:hover { color: var(--text); }
-.tw-t.on { color: var(--cinnabar); font-weight: 700; border-bottom-color: var(--cinnabar); }
-.tw-t:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 4px; }
+.tw-t:hover { color: var(--text); border-color: var(--cinnabar); }
+.tw-t.on {
+  color: var(--pfg); background: var(--cinnabar); border-color: var(--cinnabar);
+  font-weight: 600;
+}
+.tw-t.on .tm-n { color: var(--pfg); opacity: .75; }
+.tw-t:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 3px; }
+
+/* 節氣列是主軸：字級與字重都提一階，與題材藥丸拉開差距 */
+.termwheel .tm { font-size: 14.5px; }
+
+/* 結果列：顯示目前套用的條件，並提供一鍵清除
+   （原本只寫「全部作品 N 件」，套了篩選後看不出自己在看什麼） */
+.railhd .rh-tag {
+  display: inline-block; margin: 0 2px;
+  color: var(--cinnabar); font-family: var(--serif);
+}
+.railhd .rh-clear {
+  background: none; border: none; cursor: pointer;
+  margin-left: 10px; padding: 2px 0;
+  color: var(--cinnabar); font-size: 11.5px;
+  text-decoration: underline; text-underline-offset: 3px;
+}

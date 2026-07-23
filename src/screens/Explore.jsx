@@ -78,13 +78,20 @@ export default function Explore() {
           ))}
         </div>
 
-        {/* 題材列：只有真的存在標籤時才出現，避免空排佔版面 */}
+        {/* 題材列：只有真的存在標籤時才出現，避免空排佔版面。
+            刻意與節氣列用「不同的視覺語彙」——節氣是底線頁籤（導覽），
+            題材是可開關的藥丸（篩選）。形狀不同，意義才不同；先前兩列
+            長得幾乎一樣，讀起來像一個混亂的雙層導覽。
+            也刻意不放「全部」：沒選＝全部，再點一次即取消，
+            避免畫面上出現兩個「全部」讓人分不清哪個管哪個。 */}
         {tagList.length > 0 && (
           <div className="tagwheel">
             <span className="tw-lbl">題材</span>
-            {['全部', ...tagList].map(t => (
-              <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`} onClick={() => setTag(t)}>
-                {t}{t !== '全部' && <small className="tm-n">{tagCounts[t]}</small>}
+            {tagList.map(t => (
+              <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`}
+                aria-pressed={tag === t}
+                onClick={() => setTag(v => v === t ? '全部' : t)}>
+                {t}<small className="tm-n">{tagCounts[t]}</small>
               </button>
             ))}
           </div>
@@ -110,7 +117,23 @@ export default function Explore() {
         </div>
 
         {/* 作品冊頁（2 欄框卡，非 IG 無縫方格） */}
-        <div className="railhd"><div className="t">{chip === '全部' ? '全部作品' : <>〈<small>{chip}</small>〉作品</>}</div><span className="more">{list.length} 件</span></div>
+        <div className="railhd">
+          <div className="t">
+            {chip === '全部' && tag === '全部' && !q ? '全部作品' : (
+              <>
+                {chip !== '全部' && <>〈<small>{chip}</small>〉</>}
+                {tag !== '全部' && <span className="rh-tag">{tag}</span>}
+                作品
+              </>
+            )}
+          </div>
+          <span className="more">
+            {list.length} 件
+            {(chip !== '全部' || tag !== '全部' || q) && (
+              <button className="rh-clear tap" onClick={() => { setChip('全部'); setTag('全部'); setQ('') }}>清除</button>
+            )}
+          </span>
+        </div>
         {list.length === 0 ? (
           <div className="empty"><div className="big">🔍</div>找不到{[chip !== '全部' && chip, tag !== '全部' && tag, q].filter(Boolean).join('・') || '任何'}的作品</div>
         ) : (
