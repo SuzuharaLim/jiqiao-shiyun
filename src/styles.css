@@ -292,7 +292,11 @@ a { color:inherit; text-decoration:none; }
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 4px 14px rgba(0,0,0,.14); font-size:19px;
 }
-@media (max-width:519px){ .theme-fab{ top:auto; bottom:74px; right:12px; width:38px; height:38px; } }
+/* ⚠️ 手機不顯示浮動主題鈕：它固定在內容區右下角（bottom:74px right:12px），
+   會永久壓在右下方的內容上——實測蓋住首頁「更多作品 ›」與神明頁的提醒列。
+   主題切換在「設定」裡已有同功能開關（Settings.jsx 的 Switch），
+   為了一個重複的入口而永久佔用內容區並不划算。平板/桌機維持右上角（不壓內容）。 */
+@media (max-width:559px){ .theme-fab{ display:none; } }
 
 /* ---------- 通用結構 ---------- */
 .body {
@@ -481,6 +485,10 @@ a { color:inherit; text-decoration:none; }
 
 /* ---------- note strip ---------- */
 .note { margin:11px 13px; background:var(--note-bg); border:1px solid var(--line);
+  /* ⚠️ 有畫面會傳 inline style width:100%（Deities/VerifyBanner），與左右各 13px 的
+     margin 併用會讓右緣溢出 13px。box-sizing 擋不住這種情況（100% 是「父層寬」，
+     不扣自身 margin），故在此夾住最大寬度。 */
+  max-width:calc(100% - 26px);
   border-radius:2px; padding:11px 13px; font-size:12px; color:var(--muted);
   display:flex; justify-content:space-between; align-items:center; gap:8px; }
 

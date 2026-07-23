@@ -138,9 +138,12 @@ export function Bone() {
       <TopBar title="袁天罡秤骨神術" onBack />
       <div className="body">
         <div className="pad">
+          {/* ⚠️ .search 基礎樣式是 flex:0 0 auto，三個並排時不會收縮，
+              390px 手機上第三個會溢出 162px。必須 minWidth:0 + flex:'1 1 0'
+              ——flex 項目預設 min-width:auto，光給 flex:1 仍不會縮到內容寬以下。 */}
           <div style={{ display: 'flex', gap: 8 }}>
             {[['y', '年', 4], ['m', '月', 2], ['d', '日', 2]].map(([k, lbl, len]) => (
-              <input key={k} className="search" style={{ margin: 0, flex: 1, textAlign: 'center' }}
+              <input key={k} className="search" style={{ margin: 0, flex: '1 1 0', minWidth: 0, textAlign: 'center' }}
                 placeholder={lbl} aria-label={`出生${lbl}`} maxLength={len} value={b[k]}
                 onChange={e => setB(s => ({ ...s, [k]: e.target.value.replace(/\D/g, '') }))} />
             ))}
