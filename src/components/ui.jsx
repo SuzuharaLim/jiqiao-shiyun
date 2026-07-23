@@ -4,8 +4,18 @@ import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
 // 頂列（Top bar）
+// ★ 無障礙關鍵：title 渲染成 <h1>。稽核發現全站原本 0 個 h1（標題都畫在這裡
+//   但用 <div>），改這一處即補上 48 個畫面的標題語意。
+//   tabIndex={-1} 供頁面切換後移轉焦點用（SPA 無障礙必要，見 App.jsx）。
+//
+// ★ 每頁只能有一個 h1：開啟堆疊畫面（如貼文詳情）時，根分頁的 TopBar 仍在
+//   DOM 裡（只是 CSS 隱藏），若兩者都是 h1 就會重複。故底層的降級為 <p>，
+//   只有「最上層畫面」的標題才是 h1。
 export function TopBar({ title, brand, left, right, onBack, onClose }) {
-  const { pop } = useNav()
+  const { pop, stack } = useNav()
+  // 有堆疊時，沒有 onBack/onClose 的 TopBar 代表它是被蓋住的根畫面
+  const isTop = stack.length === 0 || onBack !== undefined || onClose !== undefined
+  const TitleTag = isTop ? 'h1' : 'p'
   // onBack / onClose 可為 bare flag（true）或函式；bare 時預設呼叫 pop
   const showBack = onBack !== undefined
   const showClose = onClose !== undefined
@@ -20,7 +30,9 @@ export function TopBar({ title, brand, left, right, onBack, onClose }) {
           <button className="iconbtn tap" onClick={closeFn} aria-label="關閉"><Icon name="x" /></button>
         ) : (left || null)}
       </div>
-      {brand ? <div className="brand">{brand}</div> : <div className="ttl">{title}</div>}
+      {brand
+        ? <TitleTag className="brand" {...(isTop && { 'data-screen-title': true, tabIndex: -1 })}>{brand}</TitleTag>
+        : <TitleTag className="ttl" {...(isTop && { 'data-screen-title': true, tabIndex: -1 })}>{title}</TitleTag>}
       <div className="row" style={{ minWidth: 30, justifyContent: 'flex-end' }}>{right}</div>
     </div>
   )

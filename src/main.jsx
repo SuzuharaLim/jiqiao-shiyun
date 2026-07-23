@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import './styles/tokens.css'
 import './styles/reset.css'
 import './styles.css'
+import './styles/components.css'   // 元件層＋既有 class 的代幣收斂，需在 styles.css 之後
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

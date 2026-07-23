@@ -268,3 +268,42 @@ CLAUDE.md 甚至明文記載：**「不要放回 IG 風格元素——刻意去 
 - **③ 改造範圍**（§6.3）：先做 5 大分頁確認方向，或一次全改 48 畫面？**我建議前者**。
 
 **下一步**（階段 2 第一件事）：建立 `src/styles/tokens.css` 與 `src/styles/reset.css`，於 `main.jsx` 匯入；接著建立 `primitives/`（Container / Stack / Prose / Text）與 `Link.jsx`，並把 `nav.jsx` 的 `pathForScreen` 公開供 Link 產生真實 href。**此階段不動任何既有畫面外觀。**
+
+
+---
+
+# 階段 3–6 執行結果（2026-07）
+
+## 已完成
+
+| 階段 | 內容 |
+| --- | --- |
+| 3 原子元件 | `Button`（primary/ghost/text）、`Field`（可見 label + aria-describedby + role=alert）、`Card`（邊框非陰影）、`Heading`（語意 level 與視覺 size 分離） |
+| 4 版面節奏 | `.rhythm-*` 三檔區塊間距、`.grid12` 12 欄格線（桌機靠左 7 欄 + 右側留白）、移除內容卡片陰影 |
+| 5 動效 | 頁面切換 `opacity 0→1 + translateY(6px)`、hover 只改顏色/底線、`.ui-skeleton` 載入態、全站尊重 reduced-motion |
+| 6 無障礙 | **h1 從 0 → 每頁恰好 1 個**、切頁焦點移轉、skip-to-content、全站 `:focus-visible` 預設 |
+
+## 關鍵決策：CSS 層收斂，不改 48 畫面的 JSX
+
+既有 8 種按鈕 class 遍布 48 個畫面，逐一改寫 JSX 風險極高（每處都可能破版）。
+改採 **`components.css` 讓舊 class 走新代幣**——視覺語言統一、hover 行為收斂，
+但 JSX 零改動。新程式碼用 `.ui-*` 元件，舊畫面可漸進遷移。
+
+## 踩到的坑：堆疊畫面出現兩個 h1
+
+`TopBar` 改渲染 h1 後，開啟詳情頁時「根畫面的 TopBar 仍在 DOM」（只是 CSS 隱藏），
+導致同時存在 2 個 h1。修法：`TopBar` 讀 `stack` 判斷自己是否為最上層，
+底層降級為 `<p>`。已驗證六個畫面（含堆疊）恆為 1。
+
+## 效能
+
+- **零外部字體請求**（系統字體堆疊）→ 無 FOUT/CLS 風險
+- 前端依賴僅 react + react-dom，無 >50KB 的第三方 UI 套件
+- bundle：JS 201KB + vendor 138KB + CSS 67KB
+
+## 未完成（刻意保留）
+
+- 358 處 inline style 未全部移除——多數是動態值（如 `background: item.bg`），
+  屬合理用途；靜態的可後續漸進遷移。
+- 35 種字級尚未全站收斂——新元件已走 7 檔音階，既有畫面維持原樣以避免破版。
+- Lighthouse 未實測（需 Chrome DevTools，非本工具可自動化）。

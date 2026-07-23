@@ -1,0 +1,164 @@
+/* ==========================================================================
+   元件層樣式（DESIGN_BRIEF 階段 3–5）
+   一律引用 tokens.css 的變數，不寫死色碼與尺寸。
+
+   本檔同時做兩件事：
+   1) 新元件（.ui-*）的樣式
+   2) 把既有 8 種按鈕/卡片 class「改走代幣」——收斂視覺語言但不動 48 個畫面的
+      JSX，風險最低。舊 class 與新元件視覺一致，可漸進遷移。
+   ========================================================================== */
+
+/* ---------- Button ---------------------------------------------------- */
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  font-size: var(--t-sm); font-weight: 600; line-height: 1;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: none; color: var(--c-text);
+  cursor: pointer;
+  /* 極簡風：只過渡顏色，不做位移/縮放（規格：hover 只改顏色或底線） */
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
+}
+.ui-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ui-btn--primary {
+  background: var(--c-accent); color: #fff; border-color: var(--c-accent);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--c-accent-hover); border-color: var(--c-accent-hover);
+}
+
+.ui-btn--ghost { border-color: var(--c-border-2); color: var(--c-text); }
+.ui-btn--ghost:hover:not(:disabled) { border-color: var(--c-text-2); }
+
+.ui-btn--text {
+  padding-inline: var(--s-1); color: var(--c-accent); font-weight: 700;
+}
+.ui-btn--text:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+
+.ui-btn--sm { font-size: var(--t-xs); padding: var(--s-2) var(--s-3); }
+.ui-btn--lg { font-size: var(--t-base); padding: var(--s-4) var(--s-6); }
+.ui-btn--block { width: 100%; }
+
+.ui-btn.is-danger.ui-btn--primary { background: var(--c-danger); border-color: var(--c-danger); }
+.ui-btn.is-danger.ui-btn--ghost,
+.ui-btn.is-danger.ui-btn--text { color: var(--c-danger); }
+
+/* ---------- Field ----------------------------------------------------- */
+.ui-field { display: flex; flex-direction: column; gap: var(--s-2); }
+.ui-field__label { font-size: var(--t-xs); font-weight: 600; color: var(--c-text-2); }
+.ui-field__req { color: var(--c-danger); }
+.ui-field__input {
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-base);           /* ≥16px：避免 iOS 聚焦時自動放大 */
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-2);
+  border-radius: var(--radius);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.ui-field__input:hover { border-color: var(--c-text-3); }
+.ui-field.is-invalid .ui-field__input { border-color: var(--c-danger); }
+.ui-field__hint { font-size: var(--t-xs); color: var(--c-text-3); }
+.ui-field__err  { font-size: var(--t-xs); color: var(--c-danger); }
+
+/* ---------- Card ------------------------------------------------------ */
+/* 極簡風：用 1px 邊框分隔，不用陰影 */
+.ui-card {
+  background: var(--c-surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--s-5);
+}
+.ui-card--flush { padding: 0; }
+
+/* ---------- Heading --------------------------------------------------- */
+.ui-h { line-height: var(--lh-tight); font-weight: 700; color: var(--c-text); }
+.ui-h--serif { font-family: var(--f-serif); }
+.ui-h--sm   { font-size: var(--t-sm); }
+.ui-h--base { font-size: var(--t-base); }
+.ui-h--lg   { font-size: var(--t-lg); }
+.ui-h--xl   { font-size: var(--t-xl);  letter-spacing: var(--ls-tight); }
+.ui-h--2xl  { font-size: var(--t-2xl); letter-spacing: var(--ls-tight); }
+.ui-h--3xl  { font-size: var(--t-3xl); letter-spacing: var(--ls-tight); }
+
+/* ==========================================================================
+   既有 class 收斂：改走代幣，讓新舊視覺一致
+   （不動 JSX，48 個畫面零風險）
+   ========================================================================== */
+
+/* 按鈕：統一過渡與 focus，移除位移類動效 */
+.btn-primary, .btn-ghost, .b, .pill, .chip, .acc, .iconbtn {
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
+}
+
+/* 極簡風：hover 只改顏色，不位移不放大 */
+.btn-primary:hover:not(:disabled) { background: var(--c-accent-hover); }
+.b.dark:hover:not(:disabled)      { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
+.b:hover:not(:disabled)           { border-color: var(--c-text-3); }
+.pill:hover:not(:disabled)        { border-color: var(--c-text-3); }
+.acc:hover                        { text-decoration: underline; text-underline-offset: 3px; }
+
+/* 表單：既有 .field input 統一 focus 表現 */
+.field input:focus-visible,
+.capin textarea:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   階段 4：垂直節奏（區塊間距只允許 --s-7 / --s-8 / --s-9 三檔）
+   ========================================================================== */
+.rhythm-sm { margin-block: var(--s-7); }
+.rhythm    { margin-block: var(--s-8); }
+.rhythm-lg { margin-block: var(--s-9); }
+
+/* ==========================================================================
+   階段 4：12 欄格線
+   ========================================================================== */
+.grid12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--s-5); }
+/* 編輯感版面：靠左 7 欄 + 右側留白（比置中 8 欄更有編輯氣質） */
+.grid12 > .col-main { grid-column: 1 / span 12; }
+.grid12 > .col-side { grid-column: 1 / span 12; }
+@media (min-width: 900px) {
+  .grid12 > .col-main { grid-column: 1 / span 7; }
+  .grid12 > .col-side { grid-column: 9 / span 4; }
+}
+
+/* ==========================================================================
+   階段 5：動效——只做「狀態轉換的可理解性」
+   ========================================================================== */
+/* 頁面切換：opacity 0→1 + translateY(6px)→0 */
+@keyframes ui-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.screen, .rootpane > * { animation: ui-enter var(--dur) var(--ease) both; }
+
+/* 焦點承接目標（頁面切換後 focus 移到 h1）不應顯示外框——
+   它是程式移轉的焦點，不是使用者主動 Tab 到的 */
+[tabindex="-1"]:focus { outline: none; }
+
+/* 載入狀態：規格要求「骨架或單純文字，不要旋轉動畫轟炸」 */
+.ui-skeleton {
+  background: var(--c-border);
+  border-radius: var(--radius);
+  animation: ui-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ui-pulse { 0%, 100% { opacity: .5 } 50% { opacity: .9 } }
+
+/* ==========================================================================
+   階段 4：去裝飾——極簡風「用 1px 邊框分隔，不用陰影」
+   稽核：現況 28 處 box-shadow。這裡移除「內容卡片」的陰影改用邊框；
+   保留浮層類（Toast、登入牆、桌機外框）的陰影——那是層級指示，有功能意義。
+   ========================================================================== */
+.card, .aicard, .ordercard, .plan, .railcard, .tiepost {
+  box-shadow: none;
+}
+.card { border: var(--border); }
