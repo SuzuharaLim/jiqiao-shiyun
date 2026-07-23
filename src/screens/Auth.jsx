@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { BRAND } from '../data/mock.js'
+import { pwError, pwChecks } from '../lib/password.js'
 
 const handleFmt = (h) => /^[a-z0-9_.]{3,20}$/.test(h)
 
@@ -61,7 +62,7 @@ export default function Auth() {
     if (!f.name.trim()) return setErr('請輸入暱稱')
     if (!handleFmt(f.handle)) return setErr('請設定帳號（3–20 字，英數・底線・句點）')
     if (hchk && hchk.available === false) return setErr('此帳號已被使用，請換一個')
-    if (f.pw.length < 8) return setErr('密碼至少 8 碼')
+    { const e = pwError(f.pw); if (e) return setErr(e) }
     if (f.pw !== f.pw2) return setErr('兩次密碼不一致')
     if (!agree) return setErr('請先同意服務條款與隱私權政策')
     // website = honeypot 隱藏欄位：真人看不到也不會填，機器人自動填表會被後端擋下
@@ -78,7 +79,7 @@ export default function Auth() {
     else setMode('login')
   })
   const doReset = () => run(async () => {
-    if (f.pw.length < 8) return setErr('新密碼至少 8 碼')
+    { const e = pwError(f.pw); if (e) return setErr(e) }
     if (f.pw !== f.pw2) return setErr('兩次密碼不一致')
     await api.reset({ token: resetToken, password: f.pw })
     setToast('密碼已更新，請用新密碼登入')
@@ -141,6 +142,13 @@ export default function Auth() {
         )}
         {mode === 'login' && pwField('密碼', 'pw', 'current-password')}
         {(mode === 'register' || mode === 'reset') && pwField(mode === 'reset' ? '新密碼' : '密碼', 'pw', 'new-password')}
+        {(mode === 'register' || mode === 'reset') && (
+          <div className="pw-rules" aria-live="polite">
+            {pwChecks(f.pw).map(c => (
+              <span key={c.label} className={c.ok ? 'ok' : ''}>{c.ok ? '✓' : '○'} {c.label}</span>
+            ))}
+          </div>
+        )}
         {(mode === 'register' || mode === 'reset') && pwField('確認密碼', 'pw2', 'new-password')}
 
         {mode === 'login' && (
@@ -181,7 +189,6 @@ export default function Auth() {
       <div className="auth-guest">
         <button className="btn-ghost tap" onClick={loginGuest}>訪客先逛逛（免註冊）</button>
         <p className="muted" style={{ fontSize: 11, lineHeight: 1.7, marginTop: 12 }}>
-          ＊帳號由後端建立、密碼經 bcrypt 雜湊，登入狀態存於 HttpOnly Cookie。
         </p>
       </div>
     </div>

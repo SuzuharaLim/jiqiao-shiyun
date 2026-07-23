@@ -142,7 +142,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ## 後端與認證（`server/`）
 
-真實認證：伺服器端 session 存 SQLite、HttpOnly+SameSite=Strict Cookie、CSRF header、bcrypt cost12、速率限制、帳號鎖定、防列舉、helmet CSP/HSTS、GDPR 刪帳/匯出、RBAC。端點表、schema、安全設計、限制見 [docs/後端-認證.md](docs/後端-認證.md)。
+真實認證：伺服器端 session 存 SQLite、HttpOnly+SameSite=Strict Cookie、CSRF header、bcrypt cost12、速率限制、帳號鎖定、防列舉、helmet CSP/HSTS、GDPR 刪帳/匯出、RBAC。
+**密碼規則**：至少 8 碼且需同時含大小寫英文（`server/index.js` 的 `passwordError()`，前端鏡像在 `src/lib/password.js`，兩邊文案必須一致）。**只在設定新密碼時檢查**（註冊／重設／變更）——登入僅比對雜湊，因此收緊規則不會把既有帳號鎖在門外；`seed.js` 的測試密碼不符新規則但仍可登入。端點表、schema、安全設計、限制見 [docs/後端-認證.md](docs/後端-認證.md)。
 
 ---
 

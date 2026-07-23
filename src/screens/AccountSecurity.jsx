@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { pwError, pwChecks } from '../lib/password.js'
 
 // 帳號安全：變更密碼 / 匯出資料（GDPR 可攜權）/ 刪除帳號（被遺忘權）
 // 後端 API 早已存在（/api/password/change、/api/account/export、DELETE /api/account），此頁補上 UI。
@@ -17,7 +18,7 @@ export default function AccountSecurity() {
   const [err, setErr] = useState('')
   const changePw = async () => {
     setErr('')
-    if (pw1.length < 8) { setErr('新密碼至少 8 碼'); return }
+    { const e = pwError(pw1); if (e) { setErr(e); return } }
     if (pw1 !== pw2) { setErr('兩次輸入的新密碼不一致'); return }
     setBusy(true)
     try {
@@ -96,7 +97,7 @@ export default function AccountSecurity() {
           <label className="f-label" htmlFor="as-cur">目前密碼</label>
           <div className="field"><input id="as-cur" type="password" autoComplete="current-password"
             value={cur} onChange={e => setCur(e.target.value)} /></div>
-          <label className="f-label" htmlFor="as-new">新密碼（至少 8 碼）</label>
+          <label className="f-label" htmlFor="as-new">新密碼（8 碼以上，含大小寫英文）</label>
           <div className="field"><input id="as-new" type="password" autoComplete="new-password"
             value={pw1} onChange={e => setPw1(e.target.value)} /></div>
           <label className="f-label" htmlFor="as-new2">再次輸入新密碼</label>

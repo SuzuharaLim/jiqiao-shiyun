@@ -16,6 +16,17 @@ import { sendMail, mailStatus } from './mailer.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
+// 密碼規則：至少 8 碼，且需同時含大寫與小寫英文字母。
+// 只在「設定新密碼」時檢查（註冊／重設／變更）——登入僅比對雜湊，
+// 因此規則收緊不會把既有帳號鎖在門外。
+const PASSWORD_RULE = '密碼至少 8 碼，且需同時包含大寫與小寫英文字母'
+function passwordError(pw) {
+  const v = String(pw || '')
+  if (v.length < 8) return PASSWORD_RULE
+  if (!/[a-z]/.test(v) || !/[A-Z]/.test(v)) return PASSWORD_RULE
+  return null
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isProd = process.env.NODE_ENV === 'production'
 const PORT = process.env.PORT || 8080
@@ -143,8 +154,9 @@ app.post('/api/register', authLimiter, ah(async (req, res) => {
   const { name, email, password, website } = req.body || {}
   const handle = String(req.body?.handle || '').toLowerCase().trim()
   if (website) { await audit('register_honeypot', req, null, email); return res.status(400).json({ error: '註冊失敗，請稍後再試' }) }
-  if (!name?.trim() || !emailOk(email || '') || (password || '').length < 8)
-    return res.status(400).json({ error: '請填寫暱稱、有效 Email，密碼至少 8 碼' })
+  if (!name?.trim() || !emailOk(email || ''))
+    return res.status(400).json({ error: '請填寫暱稱與有效 Email' })
+  { const e = passwordError(password); if (e) return res.status(400).json({ error: e }) }
   if (!handleOk(handle)) return res.status(400).json({ error: '帳號格式：3–20 字，僅限英數・底線・句點' })
   const exists = await db.get('SELECT id FROM users WHERE email=?', [email.toLowerCase()])
   if (exists) return res.status(409).json({ error: '此 Email 已被註冊或無法使用' })
@@ -235,7 +247,8 @@ app.post('/api/password/forgot', authLimiter, ah(async (req, res) => {
 
 app.post('/api/password/reset', authLimiter, ah(async (req, res) => {
   const { token, password } = req.body || {}
-  if (!token || (password || '').length < 8) return res.status(400).json({ error: '連結無效或密碼太短（至少 8 碼）' })
+  if (!token) return res.status(400).json({ error: '連結無效或已過期' })
+  { const e = passwordError(password); if (e) return res.status(400).json({ error: e }) }
   const row = await db.get("SELECT * FROM tokens WHERE kind='password_reset' AND token_hash=? AND used_at IS NULL", [sha256(token)])
   if (!row || row.expires_at < now()) return res.status(400).json({ error: '連結已失效，請重新申請' })
   const hash = await bcrypt.hash(password, BCRYPT_COST)
@@ -248,7 +261,7 @@ app.post('/api/password/reset', authLimiter, ah(async (req, res) => {
 
 app.post('/api/password/change', requireAuth, requireCsrf, ah(async (req, res) => {
   const { current, password } = req.body || {}
-  if ((password || '').length < 8) return res.status(400).json({ error: '新密碼至少 8 碼' })
+  { const e = passwordError(password); if (e) return res.status(400).json({ error: e }) }
   if (!(await bcrypt.compare(current || '', req.user.password_hash))) return res.status(400).json({ error: '目前密碼錯誤' })
   const hash = await bcrypt.hash(password, BCRYPT_COST)
   await db.run('UPDATE users SET password_hash=?, updated_at=? WHERE id=?', [hash, now(), req.user.id])
