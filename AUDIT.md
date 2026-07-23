@@ -419,3 +419,60 @@ CLAUDE.md 甚至明文記載：**「不要放回 IG 風格元素——刻意去 
 | 7 內容轉換 | ❌ 未做（og:image、sitemap、JSON-LD、CTA 檢視） |
 
 **真正還有價值的是 Phase 7（內容與轉換）與 Phase 6 的補強**——那是前一份規格沒涵蓋的。
+
+---
+
+## DESIGN_SPEC.md Phase 1 —— 色彩系統＋中文排版＋字體策略（2026-07-23）
+
+### §2 色彩：token 成為全站唯一真相來源
+- 重寫 `src/styles/tokens.css`：Primitives（`--paper-*`/`--ink-*`/`--seal-*`/`--jade-500`/`--gold-500`）
+  → Semantic（`--color-*`）→ **Legacy 別名**（既有 40 個變數全部指向 Semantic）。
+  這層別名是「不動 48 個畫面的 JSX 就換完色票」的關鍵。
+- **移除 `src/styles.css` 原有的 `:root` / `[data-theme=dark]` 色彩宣告**。
+  這是關鍵修正：styles.css 載入順序在 tokens.css 之後、同權重會勝出，
+  導致別名被舊值蓋掉（實測 `--bg` 仍是 `#F4EFE6`）。刪掉後才真正生效。
+- 相機／掃描介面 30 處寫死 HEX 收斂成 `--cam-*` token（該介面刻意恆為深色，不隨主題切換）。
+  styles.css 現在只剩 `#fff`/`#000`（純黑白疊層）與霓虹特效的桃紅／青（創作特效，非 UI 色）。
+
+### 規格本身的缺口（已補）
+規格 §2 未定義「品牌色當底、白字在上」的用色。若深色模式沿用提亮後的
+`--color-brand` (#D9584A)，白字對比只有 **3.86**，不符 §8 要求的 AA 4.5。
+→ 新增 `--color-brand-solid` / `--color-on-brand`，實心按鈕在兩種主題都用深紅底
+（白字對比 **5.94** ✓）。同理，宜／忌不用點綴用的柳綠（2.70）與金（2.12），改用加深版。
+
+| 對比實測（WCAG 2.2 AA） | 淺色 | 深色 |
+|---|---|---|
+| 主文 on 底 | 12.97 ✓ | 14.37 ✓ |
+| 次文 on 底 | 5.28 ✓ | 6.66 ✓ |
+| 品牌 on 底 | 5.36 ✓ | 4.59 ✓ |
+| 白字 on 實心品牌底 | 5.94 ✓ | 5.94 ✓ |
+
+### §4 中文排版（reset.css）
+`line-break: strict`（標點禁則）、`word-break: normal`（絕不 break-all）、
+`overflow-wrap: anywhere`（只讓長 URL 斷行）、`hanging-punctuation: allow-end`、
+內文 `line-height: 1.75` 且 `letter-spacing: 0`、標題襯線 + `text-wrap: balance`。
+另補 `:focus-visible` 3px（WCAG 2.4.11）與可點元素 `min-height: 44px`（WCAG 2.5.8，
+行內文字連結與 chip/tabbar 列例外，否則會撐破行高與工具列）。
+
+> **未採用規格的一項寫法**：§4 的「內文一律 ≥400」不可實作成
+> `body,p,button{font-weight:400}` —— 那是「等於 400」，會把既有 700/800 的
+> 粗體按鈕與標題全部壓平。專案本來就沒用到 <400 字重，此項自然滿足。
+
+### §5 字體：零下載
+專案原本就沒有任何 webfont／Google Fonts（0 檔 / 0KB，遠低於規格上限 4 檔 / 100KB，
+無 FOUT/CLS 風險）。本階段只重排堆疊順序：**先拉丁、後各 OS 中文系統字**——
+CSS 逐字元回退，如此農民曆大量出現的日期數字會用 Georgia，中文才落到
+Songti TC / PMingLiU / Noto Serif CJK，不會被拉丁字型的代用字接手。
+
+### 驗收
+| 項目 | 結果 |
+|---|---|
+| `npm run build` | ✓ 通過 |
+| 切換 `data-theme` 全站反轉 | ✓ 淺 `#F7F3EA`／深 `#1A1815`，40 個別名同步 |
+| 全專案無寫死 HEX | ✓（僅存純黑白與創作特效色） |
+| 手機 375 / 桌機 1280 橫向溢出 | ✓ 零溢出（6 分頁＋詳情頁逐頁量測） |
+| 每頁恰好一個 `<h1>` | ✓ |
+| Console 錯誤 | ✓ 零 |
+| 中文內文行高 1.75、無字距、禁則生效 | ✓ 實測 `line-break:strict`、`word-break:normal` |
+
+**已知待辦**：登入頁（未登入狀態）沒有 `<h1>` —— TopBar 只在登入後渲染。留待 Phase 3 無障礙階段處理。

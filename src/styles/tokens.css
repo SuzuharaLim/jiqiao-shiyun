@@ -1,116 +1,251 @@
 /* ==========================================================================
-   設計代幣（Design Tokens）—— 全站唯一的視覺真相來源
-   依 DESIGN_BRIEF.md 建立。所有元件只引用變數，不寫死色碼或 px。
+   Design Tokens — 機巧時運「節氣・墨韻」
+   依 DESIGN_SPEC.md §2 建立。本檔是全站唯一的視覺真相來源。
 
-   方案 B：結構極簡、保留品牌識別
-   ─ 採用規格的字級音階、間距系統、版面代幣、留白節奏、去裝飾原則
-   ─ 但強調色維持品牌朱紅（非規格的中性近黑），標題維持襯線
-     理由：極簡編輯感的核心是「層級、留白、字體」而非「必須用灰色」；
-           歐洲編輯設計也常見單一飽和強調色。
-     對比實測：朱紅 #C8352B on 白 5.25:1、on 宣紙 4.96:1，皆通過 WCAG AA。
+   架構（重要）：
+     1) Primitives  原始色階，元件不得直接引用
+     2) Semantic    元件只引用這層
+     3) Legacy 別名 既有 1,279 行 styles.css 用的舊變數，全部指向 Semantic
+                    → 改這裡的值，全站（含既有 48 畫面）自動套用，無需改 JSX
 
-   深色模式：本專案為「使用者手動切換」（[data-theme="dark"]，記憶偏好、
-   有 theme-init.js 防閃爍），非規格的純 prefers-color-scheme。故此處延用
-   [data-theme]，另在未設定偏好時以系統偏好為初始值（見 theme-init.js）。
+   對比實測（WCAG 2.2 AA，§8 要求）：
+     主文 12.97 ✓　次文 5.28 ✓　品牌 on 紙 5.36 ✓　白字 on 品牌底 5.94 ✓
+     深色：主文 14.37 ✓　次文 6.66 ✓　品牌 4.59 ✓
+     ⚠️ 柳綠 2.70 / 金 2.12 —— 僅可作「點綴」（規格 §1：面積 <10%），
+        絕不可用於文字，否則不符 AA。
    ========================================================================== */
 
 :root {
-  /* ---- 色彩：中性階（宣紙暖白系）---------------------------------------
-     語意對應規格：c-bg / c-surface / c-border / c-text / c-text-2 / c-text-3
-     並保留既有變數名以相容目前 1,279 行樣式（漸進遷移，不破壞現有畫面）。 */
-  --c-bg:       #F4EFE6;   /* 頁面底 */
-  --c-surface:  #FBF7EF;   /* 卡片/浮層 */
-  --c-border:   #E5DBC9;   /* 分隔線（極簡風主要靠它，不靠陰影） */
-  --c-border-2: #D6C9B2;   /* 較強的分隔 */
-  --c-text:     #2A2622;   /* 正文 */
-  --c-text-2:   #5A5148;   /* 次要文字 */
-  --c-text-3:   #6A5B49;   /* 說明、metadata */
+  /* ---- Primitives（原始值，元件不得直接引用）------------------------- */
+  --paper-50:  #FBF8F1;
+  --paper-100: #F7F3EA;   /* 宣紙米，主背景 */
+  --paper-200: #EFE8D8;
+  --ink-900:   #2B2A26;   /* 墨，主文 */
+  --ink-700:   #4A473F;
+  --ink-500:   #6B6459;   /* 次文 */
+  --ink-300:   #9A9284;
+  --seal-600:  #B23A2E;   /* 印泥紅，品牌 */
+  --seal-500:  #C4483B;
+  --jade-500:  #7BA05B;   /* 柳色綠，節氣點綴 */
+  --gold-500:  #C9A45C;   /* 金 */
+  --white:     #FFFFFF;
 
-  /* 強調色：品牌朱紅（規格的 --c-accent 位置） */
-  --c-accent:      #C8352B;
-  --c-accent-hover:#A82A22;
+  /* ---- Semantic（元件只引用這層）------------------------------------ */
+  --color-bg:          var(--paper-100);
+  --color-surface:     var(--white);
+  --color-surface-2:   var(--paper-50);
+  --color-text:        var(--ink-900);
+  --color-text-muted:  var(--ink-500);
+  --color-brand:       var(--seal-600);
+  --color-brand-hover: var(--seal-500);
+  --color-accent:      var(--jade-500);
+  --color-gold:        var(--gold-500);
+  --color-border:      rgba(43, 42, 38, 0.10);
+  --color-focus:       var(--seal-600);
 
-  --c-focus:  #2563EB;     /* focus ring 專用，需足夠對比 */
-  --c-danger: #A83232;
+  /* ★ 規格未定義但必要：「品牌色當底、白字在上」的實心按鈕用色。
+     深色模式若沿用提亮的 --color-brand(#D9584A)，白字對比只有 3.86 不合格；
+     故實心按鈕在兩種模式都用同一個深紅（白字對比 5.94 ✓）。 */
+  --color-brand-solid: var(--seal-600);
+  --color-on-brand:    var(--white);
 
-  /* ---- 內容色票 ------------------------------------------------------
-     稽核發現 JSX 內 66 個硬編碼色碼全是「內容縮圖/工具圖示的柔和底色」，
-     語意相同，故收斂為一組色票，取代逐一替換。 */
-  --tone-1: #F3E7C9;   /* 米 */
-  --tone-2: #DCFCE7;   /* 綠 */
-  --tone-3: #DBEAFE;   /* 藍 */
-  --tone-4: #FCE7F3;   /* 粉 */
-  --tone-5: #FFEDD5;   /* 橙 */
-  --tone-6: #E9E3FB;   /* 紫 */
+  /* ---- Typography（§2）---------------------------------------------- */
+  /* §5 字體策略：內文全用系統字體，零下載（0 檔 / 0KB，遠低於規格的 4 檔 /
+     100KB 上限），不使用 Google Fonts CDN，因此完全沒有 FOUT/CLS 風險。
+     排序關鍵：CSS 是「逐字元」回退，故先列拉丁字體、再列各 OS 的中文系統字
+     —— 數字與英文（農民曆大量出現的日期、年份）會用漂亮的拉丁字型，
+     中文則落到該 OS 原生的字，不會被拉丁字型的醜陋 CJK 代用字接手。 */
+  --font-sans:  system-ui, -apple-system, "Segoe UI",
+                "PingFang TC",            /* macOS / iOS */
+                "Microsoft JhengHei",     /* Windows 微軟正黑體 */
+                "Noto Sans CJK TC", "Noto Sans TC",  /* Android / Linux */
+                sans-serif;
+  --font-serif: Georgia, "Times New Roman",
+                "Songti TC",              /* macOS / iOS 宋體 */
+                "PMingLiU", "MingLiU",    /* Windows 新細明體 */
+                "Noto Serif CJK TC", "Noto Serif TC", "Source Han Serif TC",
+                serif;
+  --font-mono:  ui-monospace, "SF Mono", "Cascadia Mono", "Consolas",
+                "JetBrains Mono", Menlo, monospace;
 
-  /* ---- 字體 ----------------------------------------------------------
-     全用系統字體堆疊：無網路請求、無 FOIT/FOUT、中文不需 subset。
-     （規格建議的 Inter / Source Serif 4 需自行託管或連 CDN，
-       CSP 為 'self' 且中文字重檔案龐大，故採系統堆疊——效能更好。） */
-  --f-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-  --f-serif:"Noto Serif TC", "Songti TC", "Source Han Serif TC", "MingLiU", Georgia, serif;
-  --f-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* type scale — 1.25 major third */
+  --text-xs:   0.8rem;
+  --text-sm:   0.9rem;
+  --text-base: 1rem;
+  --text-lg:   1.25rem;
+  --text-xl:   1.563rem;
+  --text-2xl:  1.953rem;
+  --text-3xl:  2.441rem;
+  --text-4xl:  3.052rem;
 
-  /* ---- 字級：模組化音階，比例 1.25 ----------------------------------
-     稽核發現現況有 35 種字級（12/12.5/13/13.5px 肉眼難辨卻各自散布）。
-     收斂為 7 檔，新元件一律用這些。 */
-  --t-xs:   0.75rem;    /* 12px  metadata、標籤 */
-  --t-sm:   0.875rem;   /* 14px  輔助文字 */
-  --t-base: 1rem;       /* 16px  正文 */
-  --t-lg:   1.25rem;    /* 20px  副標 */
-  --t-xl:   1.5625rem;  /* 25px  區塊標題 */
-  --t-2xl:  1.953rem;   /* 31px  頁面標題 */
-  --t-3xl:  clamp(2.2rem, 1.4rem + 3.2vw, 3.8rem);  /* 主標，流體 */
+  --leading-tight:  1.35;   /* 標題 */
+  --leading-normal: 1.6;    /* UI */
+  --leading-body:   1.75;   /* 中文內文 */
 
-  --lh-tight: 1.15;
-  --lh-body:  1.65;     /* 中文正文偏鬆 */
-  --ls-tight: -0.02em;  /* 只用於大字級 */
+  /* ---- Spacing（4px base）------------------------------------------- */
+  --space-1:  0.25rem;  --space-2:  0.5rem;  --space-3:  0.75rem;
+  --space-4:  1rem;     --space-5:  1.5rem;  --space-6:  2rem;
+  --space-8:  3rem;     --space-10: 4rem;    --space-12: 6rem;
 
-  /* ---- 間距：8px 基準 ---- */
-  --s-1: 4px;   --s-2: 8px;   --s-3: 12px;  --s-4: 16px;
-  --s-5: 24px;  --s-6: 32px;  --s-7: 48px;  --s-8: 64px;
-  --s-9: 96px;  --s-10: 128px;
+  /* ---- Radius（§1：不超過 12px）------------------------------------- */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 999px;
 
-  /* ---- 版面 ---- */
-  --measure: 68ch;                        /* 正文最大行長 */
+  /* ---- Shadow（§1：不超過 2 層）------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(43, 42, 38, 0.06);
+  --shadow-md: 0 4px 16px rgba(43, 42, 38, 0.08);
+
+  /* ---- Motion（§7：不用 linear）------------------------------------- */
+  --duration-fast:   0.15s;
+  --duration-normal: 0.3s;
+  --duration-slow:   0.4s;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --measure: 68ch;   /* 內文最大行寬 */
+
+  /* ======================================================================
+     Legacy 別名 —— 既有 styles.css 的 40 個變數全部改指向上面的 Semantic 層。
+     這是「不改 48 個畫面的 JSX 就能換色票」的關鍵：改上面即全站生效。
+     ====================================================================== */
+  --bg:        var(--color-bg);
+  --stage:     var(--paper-200);
+  --card:      var(--color-surface);
+  --text:      var(--color-text);
+  --muted:     var(--color-text-muted);
+  --line:      var(--color-border);
+  --line2:     rgba(43, 42, 38, 0.18);
+  --chip:      var(--paper-200);
+  --field:     var(--paper-200);
+  --primary:   var(--color-brand-solid);
+  --pfg:       var(--color-on-brand);
+  --accent:    var(--color-brand);
+  --heart:     var(--color-brand);
+  --cinnabar:  var(--color-brand);
+  --cinnabar-d:#8E2C22;
+  --seal:      var(--seal-600);
+  --gold:      var(--color-gold);
+  --gold-hi:   #D8B96A;
+  --bronze:    #8C6239;
+  --go:        var(--color-gold);
+  --season:    var(--color-accent);
+  --serif:     var(--font-serif);
+
+  --acard-bg:  var(--paper-50);
+  --acard-bd:  var(--color-border);
+  --acard-t:   var(--ink-700);
+  --acard-d:   var(--color-text-muted);
+  --luck-bg:   var(--paper-50);
+  --note-bg:   var(--paper-50);
+
+  /* 宜（綠）／忌（紅）：文字用途，需達 AA——故用加深版而非點綴色 */
+  --yi:        #3E6B4A;
+  --ji:        #A83232;
+  --ok-bg:     #E7EEE4;  --ok-fg: #3E6B4A;
+  --no-bg:     #F3E1DD;  --no-fg: #A83232;
+
+  --oracle-bg: #1C2E4A;  --oracle-fg: #EAD9A6;  --oracle-ln: #33507A;
+  --st-full:   #3E6B4A;  --st-partial: #B8863B; --st-demo: #A0785A;
+
+  /* 上一階段 primitives 元件用的別名（Container/Stack/Text/Button…） */
+  --c-bg: var(--color-bg);            --c-surface: var(--color-surface);
+  --c-border: var(--color-border);    --c-border-2: rgba(43,42,38,.18);
+  --c-text: var(--color-text);        --c-text-2: var(--color-text-muted);
+  --c-text-3: var(--ink-300);
+  --c-accent: var(--color-brand);     --c-accent-hover: var(--color-brand-hover);
+  --c-focus: var(--color-focus);      --c-danger: var(--ji);
+  --f-sans: var(--font-sans);         --f-serif: var(--font-serif);
+  --f-mono: var(--font-mono);
+  --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
+  --t-lg: var(--text-lg);   --t-xl: var(--text-xl);   --t-2xl: var(--text-2xl);
+  --t-3xl: var(--text-4xl);
+  --lh-tight: var(--leading-tight);   --lh-body: var(--leading-body);
+  --ls-tight: -0.01em;
+  --s-1: var(--space-1);  --s-2: var(--space-2);  --s-3: var(--space-3);
+  --s-4: var(--space-4);  --s-5: var(--space-5);  --s-6: var(--space-6);
+  --s-7: var(--space-8);  --s-8: var(--space-10); --s-9: var(--space-12);
+  --s-10: 8rem;
   --container: 1180px;
   --gutter: clamp(20px, 5vw, 64px);
+  --radius: var(--radius-sm);
+  --border: 1px solid var(--color-border);
+  --ease: var(--ease-out);
+  --dur-fast: var(--duration-fast);   --dur: var(--duration-normal);
 
-  /* ---- 其他 ---- */
-  --radius: 3px;                          /* 極簡風：小圓角 */
-  --border: 1px solid var(--c-border);
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --dur-fast: 120ms;
-  --dur: 220ms;
+
+  /* ---- 相機／掃描介面（刻意恆為深色，像原生相機 App，不隨主題切換）------
+     這些原本寫死在 styles.css，收斂成 token 以符合 §2「單一真相來源」。 */
+  --cam-bg:      #0C0B0A;
+  --cam-bg-deep: #0C0A08;
+  --cam-bg-2:    #141210;
+  --cam-field:   #1A1712;
+  --cam-line:    #26221D;
+  --cam-line-2:  #3A352D;
+  --cam-fg:      #CFC7BA;
+  --cam-fg-2:    #B9B0A2;
+  --cam-muted:   #9A9186;
+  --cam-muted-2: #8A8175;
+  --cam-chip:    #F0EADF;
+  --cam-warn:    #FFCF8B;
+  --cinnabar-dd: #7A1F16;   /* 朱紅漸層深端 */
+  --oracle-bg-2: #26406B;   /* 靛青漸層另一端 */
+
+  /* 內容色票（縮圖/工具圖示底色，非文字）*/
+  --tone-1: #F3E7C9;  --tone-2: #DCFCE7;  --tone-3: #DBEAFE;
+  --tone-4: #FCE7F3;  --tone-5: #FFEDD5;  --tone-6: #E9E3FB;
 }
 
-[data-theme="dark"] {
-  --c-bg:       #141210;
-  --c-surface:  #201C18;
-  --c-border:   #322C24;
-  --c-border-2: #3E362B;
-  --c-text:     #EDE4D3;
-  --c-text-2:   #BFB3A0;
-  --c-text-3:   #A99C88;
+/* ==========================================================================
+   Dark mode（§2）——只覆寫 Semantic 層，Legacy 別名自動跟著變
+   ========================================================================== */
+:root[data-theme="dark"] {
+  --color-bg:          #1A1815;
+  --color-surface:     #242019;
+  --color-surface-2:   #2C271F;
+  --color-text:        #EDE7D9;
+  --color-text-muted:  #A69E8D;
+  --color-brand:       #D9584A;
+  --color-brand-hover: #E06556;
+  --color-accent:      #8FB56A;
+  --color-gold:        #D8B96A;
+  --color-border:      rgba(237, 231, 217, 0.12);
+  --color-focus:       #D9584A;
 
-  --c-accent:      #E0574B;   /* 深底上的朱紅需提亮才有足夠對比 */
-  --c-accent-hover:#C8352B;
+  /* 實心按鈕仍用深紅底＋白字（對比 5.94）；提亮版只用於文字/連結 */
+  --color-brand-solid: #A83A2E;
 
-  --c-focus:  #60A5FA;
-  --c-danger: #E08A80;
-
-  /* 內容色票：深色下降低明度，避免刺眼 */
-  --tone-1: #2A2419;
-  --tone-2: #1E2A21;
-  --tone-3: #1A2333;
-  --tone-4: #2B1E28;
-  --tone-5: #2E2418;
-  --tone-6: #241F33;
+  /* Legacy 別名中，深色需要不同值的少數項目 */
+  --stage:     #12100E;
+  --line2:     rgba(237, 231, 217, .22);
+  --chip:      #2C271F;
+  --field:     #2C271F;
+  --cinnabar-d:#B23A2E;
+  --acard-bg:  var(--color-surface-2);
+  --acard-t:   var(--color-gold);
+  --acard-d:   var(--color-text-muted);
+  --luck-bg:   var(--color-surface-2);
+  --note-bg:   #201C16;
+  --yi:        #8FB56A;  --ji: #E08A80;
+  --ok-bg:     #1E2A21;  --ok-fg: #8FB56A;
+  --no-bg:     #2E1D1B;  --no-fg: #E08A80;
+  --oracle-bg: #12203A;  --oracle-fg: #F0DDA6;  --oracle-ln: #2A426B;
+  --st-full:   #8FB56A;  --st-partial: #D8B96A; --st-demo: #C9A98A;
+  --c-text-3:  #8A8274;
+  --tone-1: #2A2419;  --tone-2: #1E2A21;  --tone-3: #1A2333;
+  --tone-4: #2B1E28;  --tone-5: #2E2418;  --tone-6: #241F33;
 }
 
-/* 尊重使用者的動效偏好（規格要求，全站生效） */
+/* §7：尊重使用者的動效偏好——token 歸零，全站自動生效 */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast:   0.01ms;
+    --duration-normal: 0.01ms;
+    --duration-slow:   0.01ms;
+    --dur-fast: 0.01ms;
+    --dur: 0.01ms;
+  }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

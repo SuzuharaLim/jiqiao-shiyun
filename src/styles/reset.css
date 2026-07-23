@@ -102,3 +102,55 @@ ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
   transition: transform var(--dur-fast) var(--ease);
 }
 .skip-link:focus { transform: translateY(0); }
+
+/* ==========================================================================
+   中文排版規則（DESIGN_SPEC §4）
+   ========================================================================== */
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font-sans);
+  line-height: var(--leading-body);   /* 中文內文 1.75，比預設寬鬆 */
+  text-rendering: optimizeLegibility;
+}
+
+/* 中文內文：禁止 letter-spacing、套用 CJK 禁則 */
+p, li, dd, .prose, .cap2, .article p, .ad-note, .note {
+  line-height: var(--leading-body);
+  letter-spacing: 0;              /* §1 DON'T：中文內文不加字距 */
+  line-break: strict;             /* 句號逗號不可出現在行首 */
+  word-break: normal;             /* 絕不用 break-all */
+  overflow-wrap: anywhere;        /* 只讓過長英文/URL 斷行 */
+  text-autospace: normal;         /* 支援的瀏覽器自動補中西間距 */
+  hanging-punctuation: allow-end;
+}
+
+/* 標題：襯線、緊行高、微負字距（§4） */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  text-wrap: balance;             /* 避免標題末行只剩一兩個字 */
+}
+
+/* §4 補充：Windows 上 300 以下字重會糊 —— 內文一律 ≥400。
+   註：規格是「不低於 400」而非「等於 400」，故不可全域寫死 font-weight，
+   否則會把既有 700/800 的粗體按鈕與標題全部壓平。專案未使用 <400 字重，
+   此項已自然滿足，不另加規則。 */
+
+/* §8：focus 指示需 3px 且與相鄰色對比 ≥3:1（WCAG 2.4.11） */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* §6：所有可點元素最小觸控範圍 44×44（WCAG 2.5.8） */
+button, a[href], [role="button"], input[type="checkbox"], input[type="radio"] {
+  min-height: 44px;
+}
+/* 例外：行內文字連結與緊湊型 chip 不套用（否則會撐破行高與工具列） */
+a[href]:not([class]), .acc, .chip, .tm, .rvf, .cs-bg, .th, .iconbtn,
+.tabbar button, .webnav button, .lp-chip, .cm, p a, li a {
+  min-height: 0;
+}
