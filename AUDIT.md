@@ -571,3 +571,64 @@ Demo 資料清除後，多數頁面會進入空狀態——這不是邊角案例
 | 選中底線 | ✓ 2px 朱紅，壓在列底線上 |
 | 隱形文字偵測（8 頁） | ✓ 0 處 |
 | 橫向破版（8 頁） | ✓ 無 |
+
+---
+
+## 全站假資料稽核（2026-07-23，使用者要求「檢查所有的假資料」）
+
+用程式掃過 `src/screens/*.jsx` 的所有硬編陣列／物件與 `mock.js` 匯入，逐項分類。
+
+### A. 已清除：憑空生成的使用者資產（最嚴重）
+| 位置 | 原本 | 現在 |
+|---|---|---|
+| `nav.jsx` 餘額 | `creatorStats.balance` = **NT$1,840** | `0` |
+| `Checkout` 購物車 | 空車時塞 3 筆示範商品（NT$630） | 只吃真實購物車；空車顯示空狀態且**不顯示付款列** |
+| `Subscription` | 點一下就 `setSubscribed(true)`，無付款 | 金流未串接前不授予付費權益 |
+
+### B. 已清除：不存在的子系統顯示編造內容
+`MyProjects`／`Create`（3 筆假專案）、`Wallet`／`CreatorConsole`（假收益 42／18／3 筆入帳）、
+`DMs`／`DMThread`（3 則假對話）、`Records`（5 筆假占卜紀錄，含「今天 09:12」）
+→ 全部改為誠實空狀態，並註明該功能仍在開發中。
+`CreatorConsole` 的粉絲與市集上架改抓真實 API（`/api/users/:handle`）。
+
+### C. 已清除：過期硬編內容
+- `aiOpen`／`aiQuickReplies` 寫死「芒種／丙午日」，但 App 開在真實今日
+  → 改為 `aiOpenFor(d)`／`aiQuickRepliesFor(d)` 依當日生成；`aiReply(text, day)`
+  也會把腳本裡的過期節氣／干支替換掉
+- `Challenges` 參加人數 328／156、剩餘天數、標題「芒種」全寫死
+  → **即時統計**：標記當前節氣的貼文與作品之不重複作者數；剩餘天數由節氣交節推算
+- `NewPost` 的 `thumbs`（5 個 emoji 排成相簿縮圖狀，像使用者自己的照片）
+  → 改名 `COVERS` 並標明是「沒有照片時的封面配色」
+- `Checkout` 的「信用卡 ·· 4242」（測試卡號，像已綁卡）與兩間不存在的門市
+  → 只列付款／取貨「方式」
+
+### D. 判定為合法內容，保留
+知識查表與選項常數**不是假資料**：`AppendixScreens`（食物相剋／度量衡／干支對照）、
+`Dream` 解夢辭典、`InfoScreens` 稱骨歌訣、`NameFortune` 評語模板（演算法輸出文案，
+性質同 `almanac.js` 的建除宜忌）、`CalendarPreview` 十二月節氣與詩、`Camera` 版面選項、
+`EditProfile` emoji 清單、`Admin` CMS 分類、`Feed` 星期字、`PrePlan` 節氣名。
+`Store` 商品清單雖是硬編，但屬商品目錄 → 移入 `ref_items('storeProducts')` 交由 CMS 管理。
+
+### E. mock.js 現存用途（僅此四項為合法）
+`BRAND` 品牌字串、`solarTermNames`／`licenseTiers` 設定型清單、
+`aiOpenFor`／`aiQuickRepliesFor`／`aiReply` 訪客離線 fallback、`seed.js` 種子來源。
+
+### 新增功能（因稽核衍生）
+- `GET /api/users/:handle/followers|following` + `FollowList` 畫面 → 個人檔案三個統計數字可點
+- `users.avatar_image_id` + `PATCH /api/me` 支援 → **個人檔案可上傳真實頭像照片**
+  （原本只能從 8 個 emoji 挑）；新增共用 `<Avatar>` 元件接上 Profile／CreatorPage／WebNav／FollowList
+- 相機與發貼文合併為單一入口（流程上是同一件事的前後兩段）
+
+### 驗收（實際載入頁面確認，非推測）
+| 頁面 | 顯示 |
+|---|---|
+| `/projects` | 還沒有專案 |
+| `/wallet` | NT$ 0・還沒有收益紀錄 |
+| `/records` | 還沒有占卜紀錄 |
+| `/messages` | 私訊功能尚未開放 |
+| `/creator-console` | 成交「—」、市集上架 1、粉絲 0（真實） |
+| `/challenges` | 大暑攝影挑戰・參加 0 人・剩餘 16 天（即時算出） |
+| `/checkout` | 購物車是空的 |
+| `/subscription` | 點升級 → 「訂閱功能尚未開放（金流尚未串接）」，**不會變成 Premium** |
+| `/me` | 統計改為可點按鈕（3 作品／0 粉絲／1 市集上架） |
+| 頭像上傳 | 上傳 → 儲存 → Profile 與導覽列顯示 → DB 確認 5,576 bytes、擁有者正確 |
