@@ -20,11 +20,24 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = '#c
   }, [user])
 
   const u = data?.user || { handle: user, name: user, avatar, avatarBg, bio: '' }
-  // 作品集＝貼文＋市集作品（點開對應詳情）
-  const gallery = [
-    ...(data?.works || []).map(w => ({ ...w, kind: 'work' })),
-    ...(data?.posts || []).map(p => ({ id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post' })),
-  ]
+  // 作品集＝貼文 ∪ 市集作品，但**以照片去重**。
+  // ⚠️ 上架市集時會同時建立 post 與 work（NewPost 先 createPost 再 createWork），
+  // 直接串接會讓同一張照片出現兩次。標題不是可靠的鍵（兩者標題可各自不同），
+  // 用圖片 URL 當鍵才對得準；沒有圖片的則各自保留，不會被誤併。
+  // 同一張照片配到 work 時只補上價格徽章，不多開一格。
+  const gallery = (() => {
+    const m = new Map()
+    ;(data?.posts || []).forEach(p =>
+      m.set(p.image || `post:${p.id}`,
+        { id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post' }))
+    ;(data?.works || []).forEach(w => {
+      const k = w.image || `work:${w.id}`
+      const hit = m.get(k)
+      if (hit) hit.price = w.price || 0
+      else m.set(k, { id: w.id, emoji: w.emoji, bg: w.bg, image: w.image, price: w.price || 0, kind: 'work' })
+    })
+    return [...m.values()]
+  })()
 
   const onFollow = async () => {
     if (!requireAccount(`追蹤 @${u.handle}`)) return
@@ -42,7 +55,11 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = '#c
             <Avatar imageId={u.avatarImageId} emoji={u.avatar || avatar} />
           </div>
           <div className="stats">
-            <div className="stat"><b>{data?.stats?.posts + data?.stats?.works || gallery.length}</b><span>作品</span></div>
+            {/* 用去重後的實際格數，數字才與底下相簿一致。
+                ⚠️ 原本是 `posts + works || gallery.length`，有兩個 bug：
+                (1) 相加會重複計算同一張照片；
+                (2) `a + b || c` 的優先序是 `(a+b) || c`，真的 0 件時會落到後備值。 */}
+            <div className="stat"><b>{gallery.length}</b><span>作品</span></div>
             <div className="stat"><b>{followers.toLocaleString()}</b><span>粉絲</span></div>
             <div className="stat"><b>{(data?.works || []).filter(w => w.price).length}</b><span>可授權</span></div>
           </div>

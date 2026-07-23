@@ -22,7 +22,10 @@ export default function Profile() {
     avatarBg: user?.avatarBg || '#f3e7c9', guest: user?.guest,
   }
   // 統計與作品嚴格來自資料庫；未登入/未載入 → 顯示 0 與空狀態
-  const stats = my ? { works: my.stats.posts + my.stats.works, followers: my.stats.followers, following: my.stats.following }
+  // ⚠️「作品」＝posts 而非 posts+works。上架市集的作品一定同時有一則貼文
+  // （NewPost.publish 先 createPost 再 createWork），相加會把同一張照片算兩次——
+  // 先前顯示「作品 3」但點進去只有 2 件。市集上架是其中的子集，另外計。
+  const stats = my ? { works: my.stats.posts, followers: my.stats.followers, following: my.stats.following }
     : { works: 0, followers: 0, following: followCount() }
   const minePosts = my ? my.posts : []
   const marketWorks = my ? my.works : []
