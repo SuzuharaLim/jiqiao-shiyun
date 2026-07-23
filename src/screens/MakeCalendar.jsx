@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -9,8 +9,17 @@ export default function MakeCalendar() {
   const works = useWorks(null)   // 選圖來源＝真實市集作品（嚴格來自資料庫）
   const pool = [...works, ...works.slice(0, 6)].map((w, i) => ({ ...w, key: w.id + '_' + i }))
   const [src, setSrc] = useState('我的照片')
-  const [sel, setSel] = useState(() => new Set(pool.slice(0, 8).map(p => p.key)))
+  const [sel, setSel] = useState(() => new Set())
   const N = 12
+  // works 是非同步載入的，首次 render 時 pool 還是空的。
+  // 原本用 useState 的惰性初始值預選 8 張，等於永遠選不到（初始化只跑一次）。
+  // 改成等作品真的到齊之後才預選，且只做一次（使用者清空選取後不會被硬塞回去）。
+  const [preselected, setPreselected] = useState(false)
+  useEffect(() => {
+    if (preselected || pool.length === 0) return
+    setSel(new Set(pool.slice(0, 8).map(p => p.key)))
+    setPreselected(true)
+  }, [pool.length, preselected])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (k) => setSel(s => {
     const n = new Set(s)
@@ -42,6 +51,19 @@ export default function MakeCalendar() {
           ))}
         </div>
 
+        {(() => {
+          const shown = pool.filter(p => src === '市集' ? p.price : src === '收藏' ? p.term === '芒種' : true)
+          if (shown.length === 0) return (
+            <div className="empty">
+              <div className="big">🖼️</div>
+              {pool.length === 0 ? '還沒有可用的照片' : `「${src}」裡沒有照片`}<br />
+              <span style={{ fontSize: 12 }}>
+                {pool.length === 0 ? '先到「建立」拍一張或上傳作品，就能做成月曆' : '換一個來源看看'}
+              </span>
+            </div>
+          )
+          return null
+        })()}
         <div className="grid">
           {pool.filter(p => src === '市集' ? p.price : src === '收藏' ? p.term === '芒種' : true).map(p => {
             const on = sel.has(p.key)

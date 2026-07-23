@@ -7,15 +7,17 @@ import { api } from '../api.js'
 export default function Notifications() {
   const { push, setNotifRead, user } = useNav()
   const [notifications, setNotifications] = useState([])   // 嚴格來自資料庫
+  const [loading, setLoading] = useState(true)             // 區分「載入中」與「真的沒通知」
+                                                           // ——兩者都是空陣列，不分會讓使用者以為壞了
   useEffect(() => { setNotifRead(true) }, [setNotifRead])
   useEffect(() => {
-    if (!user) return
+    if (!user) { setLoading(false); return }
     let alive = true
     api.notifications().then(r => {
       if (alive && r.notifications) setNotifications(r.notifications)
       // 開啟通知中心＝全部標為已讀（存 DB，跨重整/裝置一致）
       if (r.unread) api.notificationsRead().catch(() => {})
-    }).catch(() => {})
+    }).catch(() => {}).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [user])
   return (
@@ -30,6 +32,16 @@ export default function Notifications() {
             <Icon name="chev" style={{ width: 16, stroke: 'var(--muted)' }} />
           </button>
         ))}
+        {loading && notifications.length === 0 && (
+          <div className="empty">載入中…</div>
+        )}
+        {!loading && notifications.length === 0 && (
+          <div className="empty">
+            <div className="big">🔔</div>
+            還沒有通知<br />
+            <span style={{ fontSize: 12 }}>有人按讚、留言或追蹤你時，會出現在這裡</span>
+          </div>
+        )}
         <div style={{ height: 16 }} />
       </div>
     </>
