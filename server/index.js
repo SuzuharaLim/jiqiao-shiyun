@@ -718,6 +718,11 @@ app.get('/api/users/:handle/:rel(followers|following)', ah(async (req, res) => {
   res.json({ users: rows.map(r => ({ id: r.id, name: r.name, handle: r.handle, avatar: r.avatar, avatarBg: r.avatar_bg, avatarImageId: r.avatar_image_id || null, bio: r.bio })) })
 }))
 
+// 瀏覽器預設會請求 /favicon.ico；本站只提供 SVG 圖示，
+// 若不攔截會落到 SPA fallback 回傳 index.html（HTML 當圖示解析失敗）。
+// 回 204 讓瀏覽器直接改用 <link rel="icon"> 指定的 SVG。
+app.get('/favicon.ico', (req, res) => res.status(204).end())
+
 // ================= 客服／聯絡訊息 =================
 // 取代原本「假的私訊列表」與「企業詢價已送出（Demo）」——訊息真的存進 DB，
 // 並在有設定寄信服務時通知營運信箱。管理後台可在「檢舉/訊息」看到。
