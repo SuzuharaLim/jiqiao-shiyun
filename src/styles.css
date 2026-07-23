@@ -1891,3 +1891,67 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   /* 側欄整體像一頁冊眉：頂端對齊主欄的第一個標題 */
   .stage.signed-in .tab-1 .ex-side { border-left: 1px solid var(--line); padding-left: 26px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   廿四節氣面板（探索頁）
+   節氣攤平成一排在 24 個都有作品時會變成 25 項長捲軸。
+   主列固定：全部／●當前／(選中的其他節氣)／「廿四節氣」開關；
+   面板依傳統四季分組，像通書的節氣表。
+   ══════════════════════════════════════════════════════════════════════ */
+.tm-more { color: var(--muted); font-size: 12.5px !important; letter-spacing: .06em; }
+.tm-more.open, .tm-more:hover { color: var(--cinnabar); }
+
+.term-panel {
+  flex: 0 0 auto;
+  margin: 0 13px 4px;
+  border: 1px solid var(--line2);
+  border-radius: 2px;
+  background: var(--card);
+  padding: 4px 12px;
+}
+.tp-row {
+  display: flex; align-items: center; gap: 2px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.tp-row:last-child { border-bottom: none; }
+.tp-season {
+  flex: 0 0 30px;
+  font-family: var(--serif); font-size: 14px; font-weight: 800;
+  color: var(--gold);
+  border-right: 1px solid var(--line2);
+  margin-right: 8px;
+}
+.tp-t {
+  flex: 1; min-width: 0;
+  background: none; border: none; cursor: pointer;
+  padding: 5px 0; font-size: 12.5px; color: var(--text);
+  font-family: var(--serif); white-space: nowrap; text-align: center;
+}
+.tp-t.dim { color: var(--c-text-3); }         /* 沒作品：淡化但仍可點 */
+.tp-t.now { color: var(--cinnabar); }          /* 當前節氣 */
+.tp-t.on { color: var(--cinnabar); font-weight: 800; text-decoration: underline;
+  text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.tp-t:hover { color: var(--cinnabar); }
+.tp-t:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: -2px; }
+.tp-t .tm-n { margin-left: 2px; }
+
+/* ── 修復：焦點框被捲動容器裁切 ──
+   .termwheel/.tagwheel 有 overflow-x:auto（同時建立垂直裁切），
+   項目的 2px 焦點框 + 4px offset 會被上下切掉、只剩左右兩條紅豎線。
+   給容器足夠的垂直內距讓框畫得下，並把 offset 收到 2px。 */
+.termwheel { padding-top: 8px; padding-bottom: 8px; }
+.termwheel .tm { padding-top: 5px; padding-bottom: 6px; }
+.tagwheel { padding-top: 9px; padding-bottom: 9px; }
+.termwheel .tm:focus-visible, .tw-t:focus-visible {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: 2px;
+}
+/* 選中底線改貼著文字（容器底線因內距增加而遠離文字，改用文字底線） */
+.termwheel .tm.on::after { display: none; }
+.termwheel .tm.on {
+  text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
+  text-decoration-color: var(--cinnabar);
+}
+.chip.on::after { display: none; }
+.chip.on { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }

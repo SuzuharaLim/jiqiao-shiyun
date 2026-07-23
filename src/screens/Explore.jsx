@@ -3,12 +3,13 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useWorks } from '../hooks/useApi.js'
-import { dayFor, todayOffset, TERM_ORDER } from '../data/almanac.js'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 export default function Explore() {
   const { push, setToast } = useNav()
   const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
+  const [openTerms, setOpenTerms] = useState(false)   // 廿四節氣面板
   const [tag, setTag] = useState('全部')     // 題材（與節氣可同時生效）
   const [q, setQ] = useState('')
 
@@ -20,14 +21,16 @@ export default function Explore() {
   //  (2) 篩選比對的是 w.term（節氣欄位），所以花卉/海/慶典「不可能」匹配到任何東西；
   //  (3) 清單是靜態種子資料，不含當前節氣（大暑）也不含實際內容的節氣（小暑），
   //      連 Explore 自己標示當前節氣的 ● 分支都永遠不會執行。
-  // 改為由真實資料生成：只列「當前節氣」與「真的有作品的節氣」，並依節氣年序排列。
-  // 這樣每個選項都保證點得到東西，也會自動跟著節氣推進，不需要有人去維護清單。
+  // 主列固定三項：全部／●當前節氣／（從面板選了其他節氣時多一項）＋「廿四節氣」開關。
+  // 先前的做法是把「有作品的節氣」全部攤平成一排——24 個節氣都有內容時
+  // 會變成 25 項的長捲軸。節氣是固定集合且有公認的四季結構，
+  // 收進面板用「四季 × 六節氣」呈現，主列永遠不超過 4 項。
   const termCounts = works.reduce((m, w) => {
     if (w.term) m[w.term] = (m[w.term] || 0) + 1
     return m
   }, {})
-  const exploreChips = ['全部', ...[...new Set([nowTerm, ...Object.keys(termCounts)])]
-    .sort((a, b) => TERM_ORDER.indexOf(a) - TERM_ORDER.indexOf(b))]
+  const rowChips = ['全部', nowTerm]
+  if (chip !== '全部' && chip !== nowTerm) rowChips.push(chip)
 
   // 題材：由作品實際帶的 #標籤 聚合。節氣是「時間軸」、題材是「主題軸」，
   // 兩者是不同維度，所以分成兩排並且可以疊加（原設計把兩者混在同一排，
@@ -73,16 +76,42 @@ export default function Explore() {
           <input placeholder="搜尋節氣、植物、創作者" aria-label="搜尋節氣、植物、創作者" value={q} onChange={e => setQ(e.target.value)} />
         </div>
 
-        {/* 節氣選擇輪 */}
+        {/* 節氣選擇：主列固定幾項，其餘收進「廿四節氣」面板 */}
         <div className="termwheel">
-          {exploreChips.map(c => (
+          {rowChips.map(c => (
             <button key={c} className={`tm tap ${chip === c ? 'on' : c === nowTerm ? 'now' : ''}`}
               onClick={() => setChip(c)} title={c === nowTerm ? '今日節氣' : undefined}>
               {c === nowTerm ? `● ${c}` : c}
               {c !== '全部' && <small className="tm-n">{termCounts[c] || 0}</small>}
             </button>
           ))}
+          <button className={`tm tm-more tap ${openTerms ? 'open' : ''}`}
+            aria-expanded={openTerms} onClick={() => setOpenTerms(v => !v)}>
+            廿四節氣 {openTerms ? '▴' : '▾'}
+          </button>
         </div>
+
+        {/* 廿四節氣面板：依傳統四季分組（立春起春、立夏起夏……）。
+            有作品的標件數；沒作品的淡化但仍可點（點了看到空狀態＝誠實）。 */}
+        {openTerms && (
+          <div className="term-panel">
+            {[['春', ['立春', '雨水', '驚蟄', '春分', '清明', '穀雨']],
+              ['夏', ['立夏', '小滿', '芒種', '夏至', '小暑', '大暑']],
+              ['秋', ['立秋', '處暑', '白露', '秋分', '寒露', '霜降']],
+              ['冬', ['立冬', '小雪', '大雪', '冬至', '小寒', '大寒']]].map(([season, terms]) => (
+              <div key={season} className="tp-row">
+                <span className="tp-season">{season}</span>
+                {terms.map(t => (
+                  <button key={t}
+                    className={`tp-t tap ${chip === t ? 'on' : ''} ${!termCounts[t] ? 'dim' : ''} ${t === nowTerm ? 'now' : ''}`}
+                    onClick={() => { setChip(t); setOpenTerms(false) }}>
+                    {t}{termCounts[t] ? <small className="tm-n">{termCounts[t]}</small> : null}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 題材列：只有真的存在標籤時才出現，避免空排佔版面。
             刻意與節氣列用「不同的視覺語彙」——節氣是底線頁籤（導覽），
