@@ -1244,3 +1244,165 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 /* 倒數的天/時/分/秒標籤，對齊上方數字 */
 .cs-sticker.cd .cd-lbl { display:flex; justify-content:space-between; margin-top:2px;
   padding:0 6px; font-size:9.5px; letter-spacing:3px; opacity:.65; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   曆面 —— 「明確紙感」+ 桌機單頁式版面
+   設計決策（2026-07）：農民曆的核心價值是「攤開一張紙、一眼掃盡」。
+   原本的圓角卡片流把它拆成 1636px 高的直向捲軸，桌機還浪費 40% 橫向空間。
+   這一段把曆頁改回「一張紙」：墨線分區取代浮起卡片，朱紅作為第二套印色，
+   ≥900px 排成三欄一屏看完。手機維持單欄捲動不變。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 紙紋：純 CSS 生成的極細纖維感。刻意不用圖檔或 SVG data URI——
+   CSP 的 img-src 是 'self'，data: 背景圖會被擋，且能維持零下載。 */
+.ad-sheet {
+  background-image:
+    repeating-linear-gradient(0deg,  rgba(43,42,38,.020) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(43,42,38,.014) 0 1px, transparent 1px 4px);
+}
+[data-theme="dark"] .ad-sheet {
+  background-image:
+    repeating-linear-gradient(0deg,  rgba(237,231,217,.022) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(237,231,217,.015) 0 1px, transparent 1px 4px);
+}
+
+/* 墨線分區取代圓角卡片：紙上的框是刻出來的線，不是浮起來的物件 */
+.ad-sheet .card,
+.ad-sheet .ad-gz > div,
+.ad-sheet .ad-dir,
+.ad-sheet .ad-hour,
+.ad-sheet .ad-flag {
+  border-radius: 2px;
+  box-shadow: none;
+  border: 1px solid var(--line2);
+  background: transparent;
+}
+
+/* 段落標題：朱紅短線起頭，像曆書的分欄標記 */
+.ad-sheet .sech {
+  font-family: var(--serif);
+  border-bottom: 1px solid var(--line2);
+  padding-bottom: 6px;
+}
+.ad-sheet .sech::before {
+  content: ""; display: inline-block;
+  width: 3px; height: 0.9em; margin-right: 7px;
+  background: var(--cinnabar); vertical-align: -1px;
+}
+
+/* 節氣做成朱印：方章而非圓膠囊 */
+.ad-sheet .ad-term {
+  border-radius: 2px;
+  border: 1.5px solid var(--cinnabar);
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+/* 三柱干支：改為連續的表格式格線（相鄰共用一條線，像雕版） */
+.ad-sheet .ad-gz { gap: 0; }
+.ad-sheet .ad-gz > div { border-right-width: 0; }
+.ad-sheet .ad-gz > div:last-child { border-right-width: 1px; }
+
+/* 十二時辰同理 —— 這是全頁最像「表」的區塊 */
+.ad-sheet .ad-hours { gap: 0; }
+.ad-sheet .ad-hour { border-right-width: 0; border-bottom-width: 0; }
+.ad-sheet .ad-hour:nth-child(4n) { border-right-width: 1px; }
+.ad-sheet .ad-hour:nth-last-child(-n+4) { border-bottom-width: 1px; }
+/* 吉／凶時辰保留語意色，但改用左側朱／墨標記條，避免整格描邊破壞表格線 */
+.ad-sheet .ad-hour.good, .ad-sheet .ad-hour.bad { border-color: var(--line2); position: relative; }
+.ad-sheet .ad-hour.good::before, .ad-sheet .ad-hour.bad::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+}
+.ad-sheet .ad-hour.good::before { background: var(--yi); }
+.ad-sheet .ad-hour.bad::before  { background: var(--ji); }
+
+/* 宜忌：朱／墨對照。宜忌本身維持綠／紅語意色（現代使用者讀紅=禁止），
+   朱紅改當「結構用第二套印色」——分欄線、印章、標題標記。
+   若要走傳統的「宜=朱、忌=墨」需再確認，那會反轉已習得的顏色語意。 */
+.ad-sheet .ad-yj { gap: 0; }
+.ad-sheet .ad-yj .col:first-child { padding-right: 14px; border-right: 1px solid var(--line2); }
+.ad-sheet .ad-yj .col:last-child  { padding-left: 14px; }
+.ad-sheet .ad-yj .ty, .ad-sheet .ad-yj .tn {
+  border-radius: 2px; background: transparent; border: 1px solid var(--line2);
+}
+.ad-sheet .ad-yj .ty { border-color: color-mix(in srgb, var(--yi) 45%, transparent); }
+.ad-sheet .ad-yj .tn { border-color: color-mix(in srgb, var(--ji) 45%, transparent); }
+
+/* ── 桌機：單頁式曆面（一屏看盡）───────────────────────────────────
+   手機用 display:contents 讓包裝層完全透明，版面與改版前逐像素相同。 */
+.ad-blk { display: contents; }
+
+@media (min-width: 900px) {
+  .stage.signed-in .screen-almanacDay .body.ad-sheet {
+    width: min(100%, 1120px);          /* 覆寫上面 760px 的單欄收斂 */
+    display: grid;
+    align-items: start;
+    grid-template-columns: 1.15fr 1fr 1fr;
+    grid-template-areas:
+      "head head head"
+      "flag flag flag"
+      "gz   gz   gz"
+      "yj   ss   hr"
+      "dir  cs   hr"
+      "note note note";
+    column-gap: 26px;
+    padding: 0 20px 20px;
+    /* 整張紙的外框：三欄之間再壓兩條直的欄線，像報紙的欄 */
+    border: 1px solid var(--line2);
+    border-radius: 2px;
+    margin-top: 12px;
+  }
+  .stage.signed-in .screen-almanacDay .ad-head   { grid-area: head; }
+  .stage.signed-in .screen-almanacDay .ad-flags  { grid-area: flag; }
+  .stage.signed-in .screen-almanacDay .ad-blk    { display: block; }
+  .stage.signed-in .screen-almanacDay .b-gz      { grid-area: gz; }
+  .stage.signed-in .screen-almanacDay .b-yj      { grid-area: yj; }
+  .stage.signed-in .screen-almanacDay .b-ss      { grid-area: ss; }
+  .stage.signed-in .screen-almanacDay .b-cs      { grid-area: cs; }
+  .stage.signed-in .screen-almanacDay .b-dir     { grid-area: dir; }
+  .stage.signed-in .screen-almanacDay .b-hr      { grid-area: hr; }
+  /* Disclaimer 元件實際渲染的是 <p class="muted">（沒有專屬 class）。
+     不指名它就會被 grid 自動排版塞進上面那個空的 flag 列，撐出約 97px 的死空隙。 */
+  .stage.signed-in .screen-almanacDay .body.ad-sheet > .muted { grid-area: note; padding-left: 0; padding-right: 0; }
+  /* AlmanacDay 結尾的 16px 間隔 div 在 grid 版面下沒有作用，只會佔一列 */
+  .stage.signed-in .screen-almanacDay .body.ad-sheet > div:last-child:empty { display: none; }
+
+  /* 欄內元件本來有 16px 的外邊距（為手機滿版設計），在欄裡要收掉 */
+  .stage.signed-in .screen-almanacDay .ad-gz,
+  .stage.signed-in .screen-almanacDay .ad-dirs,
+  .stage.signed-in .screen-almanacDay .ad-hours,
+  .stage.signed-in .screen-almanacDay .ad-flags { padding-left: 0; padding-right: 0; }
+  .stage.signed-in .screen-almanacDay .sech     { margin-left: 0; margin-right: 0; }
+  .stage.signed-in .screen-almanacDay .card     { margin-left: 0; margin-right: 0; }
+
+  /* 三欄下每個欄位變窄：時辰改 3 欄、吉神方位維持 3 欄但字級縮 */
+  /* 十二時辰獨佔右欄整高，排 3 欄 × 4 列剛好填滿，不留死空間 */
+  .stage.signed-in .screen-almanacDay .ad-hours { grid-template-columns: repeat(3, 1fr); }
+  .stage.signed-in .screen-almanacDay .ad-hour:nth-child(4n) { border-right-width: 0; }
+  .stage.signed-in .screen-almanacDay .ad-hour:nth-child(3n) { border-right-width: 1px; }
+  .stage.signed-in .screen-almanacDay .ad-hour:nth-last-child(-n+3) { border-bottom-width: 1px; }
+  .stage.signed-in .screen-almanacDay .ad-dir b { font-size: 16px; }
+
+  /* 頭部橫貫全寬時置中、與下方拉開，像曆頁的報頭 */
+  .stage.signed-in .screen-almanacDay .ad-head {
+    border-bottom: 2px solid var(--cinnabar);
+    padding-bottom: 14px; margin-bottom: 4px;
+  }
+}
+
+/* 曆面桌機：垂直收緊，目標是 1 屏看完（原 1636px → 三欄後 1178px → 收緊後約 900px）。
+   這些元件的 padding 原本是為「手機滿版單欄」設計的，排進欄位後全部過鬆。 */
+@media (min-width: 900px) {
+  .stage.signed-in .screen-almanacDay .ad-head { padding: 16px 0 12px; }
+  .stage.signed-in .screen-almanacDay .ad-solar { font-size: 34px; }
+  .stage.signed-in .screen-almanacDay .ad-gz { padding-top: 0; padding-bottom: 0; }
+  .stage.signed-in .screen-almanacDay .sech { margin-top: 18px; margin-bottom: 8px; }
+  .stage.signed-in .screen-almanacDay .ad-blk > .sech:first-child { margin-top: 14px; }
+  .stage.signed-in .screen-almanacDay .card { padding: 12px 14px; margin-top: 0; margin-bottom: 0; }
+  .stage.signed-in .screen-almanacDay .ad-dirs,
+  .stage.signed-in .screen-almanacDay .ad-hours { padding-top: 0; padding-bottom: 0; }
+  .stage.signed-in .screen-almanacDay .ad-dir { padding: 10px 6px; }
+  .stage.signed-in .screen-almanacDay .ad-hour { padding: 7px 2px; }
+  .stage.signed-in .screen-almanacDay .ad-note { line-height: 1.6; padding-top: 6px; }
+  .stage.signed-in .screen-almanacDay .disc { margin-top: 14px; }
+}

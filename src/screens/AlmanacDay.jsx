@@ -8,7 +8,7 @@ export default function AlmanacDay({ off }) {
   return (
     <>
       <TopBar title="完整農民曆" onBack />
-      <div className="body">
+      <div className="body ad-sheet">
         {/* 頭部 */}
         <div className="ad-head">
           <div className="ad-solar">{d.solar}</div>
@@ -28,14 +28,17 @@ export default function AlmanacDay({ off }) {
         )}
 
         {/* 三柱干支 */}
+        <section className="ad-blk b-gz" aria-label="干支">
         <div className="ad-gz">
           <div><small>年柱</small><b>{d.yearGZ}</b></div>
           <div><small>月柱</small><b>{d.monthGZ}</b></div>
           <div><small>日柱</small><b>{d.ganzhi.replace('日', '')}</b></div>
           <div><small>納音</small><b>{d.wuxing}</b></div>
         </div>
+        </section>
 
         {/* 宜忌 */}
+        <section className="ad-blk b-yj" aria-label="今日宜忌">
         <SectionHead title="今日宜忌" />
         <div className="card">
           <div className="ad-yj">
@@ -45,8 +48,10 @@ export default function AlmanacDay({ off }) {
           <GlossPanel gl={gl} />
           <div className="ad-note">💡 點任一宜忌詞可看白話解釋</div>
         </div>
+        </section>
 
         {/* 值日神煞 */}
+        <section className="ad-blk b-ss" aria-label="值日神煞">
         <SectionHead title="值日・神煞" />
         <div className="card">
           <div className="kv"><span>建除十二神</span><b>{d.jianchu}日</b></div>
@@ -56,24 +61,30 @@ export default function AlmanacDay({ off }) {
           <div className="kv" style={{ borderBottom: 'none' }}><span>彭祖百忌</span></div>
           <div className="ad-note">{d.pengzu[0]}<br />{d.pengzu[1]}</div>
         </div>
+        </section>
 
         {/* 沖煞 */}
+        <section className="ad-blk b-cs" aria-label="沖煞">
         <SectionHead title="沖煞" />
         <div className="card">
           <div className="kv"><span>今日沖煞</span><b>沖{d.chong.zodiac}（{d.chong.gz}）煞{d.chong.dir}</b></div>
           <div className="kv" style={{ borderBottom: 'none' }}><span>沖煞歲數（虛歲）</span><b>{d.chong.ages.join('、')} 歲</b></div>
           <div className="ad-note">＊沖煞歲數為<b>虛歲</b>（出生即一歲），非實歲；所列為所沖生肖的近三個世代。</div>
         </div>
+        </section>
 
         {/* 吉神方位 */}
+        <section className="ad-blk b-dir" aria-label="今日吉神方位">
         <SectionHead title="今日吉神方位" />
         <div className="ad-dirs">
           <div className="ad-dir"><small>喜神</small><b>{d.xishen}</b></div>
           <div className="ad-dir"><small>財神</small><b>{d.caishen}</b></div>
           <div className="ad-dir"><small>貴神（天乙貴人）</small><b>{d.guiren}</b></div>
         </div>
+        </section>
 
         {/* 十二時辰 */}
+        <section className="ad-blk b-hr" aria-label="十二時辰吉凶">
         <SectionHead title="十二時辰吉凶" extra={`吉時 ${d.luckyHours}`} />
         <div className="ad-hours">
           {d.hours12.map(h => (
@@ -82,6 +93,7 @@ export default function AlmanacDay({ off }) {
             </div>
           ))}
         </div>
+        </section>
 
         <Disclaimer text="干支、建除、星宿、宜忌、沖煞、胎神等擇日神煞屬民俗文化範疇，各家流派判定可能相異；本頁為確定性示範演算（非權威曆算），節氣以太陽視黃經為準之天文層另計。重大事宜請以中央氣象署天文資料與專業擇日師為準。" />
         <div style={{ height: 16 }} />
