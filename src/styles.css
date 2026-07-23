@@ -1955,3 +1955,10 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 }
 .chip.on::after { display: none; }
 .chip.on { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+
+/* 題材列的「更多／收合」：展開時換行鋪開（不是變成更長的水平捲軸）。
+   題材與節氣不同——使用者自由產生、無上限、無固定結構，
+   所以用「前幾名＋展開」而不是節氣那種固定面板。 */
+.tagwheel.wrap { flex-wrap: wrap; overflow-x: visible; }
+.tw-toggle { border-style: dashed; color: var(--muted); }
+.tw-toggle:hover { color: var(--cinnabar); }

@@ -10,6 +10,7 @@ export default function Explore() {
   const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
   const [openTerms, setOpenTerms] = useState(false)   // 廿四節氣面板
+  const [openTags, setOpenTags] = useState(false)     // 題材展開
   const [tag, setTag] = useState('全部')     // 題材（與節氣可同時生效）
   const [q, setQ] = useState('')
 
@@ -39,7 +40,14 @@ export default function Explore() {
     (w.tags || []).forEach(t => { m[t] = (m[t] || 0) + 1 })
     return m
   }, {})
-  const tagList = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 12)
+  // 題材是使用者自由產生的（無上限、無固定結構），與節氣不同：
+  // 不能攤平也沒有四季那種表可收。改「依件數取前幾名＋更多展開」，
+  // 展開時換行鋪開而不是變成更長的水平捲軸。
+  const tagList = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a])
+  const TAG_VISIBLE = 6
+  // 收合時也要保證「選中的題材」看得見，否則使用者會找不到自己套的條件
+  const shownTags = openTags ? tagList
+    : [...new Set([...(tag !== '全部' ? [tag] : []), ...tagList])].slice(0, TAG_VISIBLE)
   // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
   const creators = Object.values(works.reduce((m, w) => {
     const k = w.author
@@ -120,15 +128,21 @@ export default function Explore() {
             也刻意不放「全部」：沒選＝全部，再點一次即取消，
             避免畫面上出現兩個「全部」讓人分不清哪個管哪個。 */}
         {tagList.length > 0 && (
-          <div className="tagwheel">
+          <div className={`tagwheel ${openTags ? 'wrap' : ''}`}>
             <span className="tw-lbl">題材</span>
-            {tagList.map(t => (
+            {shownTags.map(t => (
               <button key={t} className={`tw-t tap ${tag === t ? 'on' : ''}`}
                 aria-pressed={tag === t}
                 onClick={() => setTag(v => v === t ? '全部' : t)}>
                 {t}<small className="tm-n">{tagCounts[t]}</small>
               </button>
             ))}
+            {tagList.length > TAG_VISIBLE && (
+              <button className="tw-t tw-toggle tap" aria-expanded={openTags}
+                onClick={() => setOpenTags(v => !v)}>
+                {openTags ? '收合 ▴' : `更多 +${tagList.length - TAG_VISIBLE}`}
+              </button>
+            )}
           </div>
         )}
 
