@@ -8,7 +8,7 @@ import db from './db.js'
 import {
   posts, works, leaderboard, proverbs, deities, festivals, flowers, ingredients,
   zodiacs, solarTermArticles, challenges, fortuneTools, cultureTools, plans,
-  exploreChips, poemPool, almanacTerms, notifications as notiSeed, storeProducts,
+  poemPool, almanacTerms, notifications as notiSeed, storeProducts,
 } from '../src/data/mock.js'
 
 const now = () => new Date().toISOString()
@@ -197,7 +197,7 @@ async function run() {
   const refKinds = {
     proverbs, deities, festivals, flowers, ingredients, zodiacs,
     solarTerms: solarTermArticles, challenges, fortuneTools, cultureTools,
-    leaderboard, exploreChips: [{ chips: exploreChips }], poemPool: [{ poems: poemPool }],
+    leaderboard, poemPool: [{ poems: poemPool }],   // exploreChips 已移除：探索篩選改由真實資料生成
     almanacTerms,   // 宜/忌 詞彙白話解釋（id 取 item.term）
     plans: [{ id: 'free', ...plans.free }, { id: 'premium', ...plans.premium }],
     feedFilters, storyFilters, effects, gradients, textFx,

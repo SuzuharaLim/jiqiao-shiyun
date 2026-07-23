@@ -2,18 +2,31 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { useWorks, useContent } from '../hooks/useApi.js'
-import { dayFor, todayOffset } from '../data/almanac.js'
+import { useWorks } from '../hooks/useApi.js'
+import { dayFor, todayOffset, TERM_ORDER } from '../data/almanac.js'
 
 export default function Explore() {
   const { push, setToast } = useNav()
-  const nowTerm = dayFor(todayOffset()).term   // 真實當前節氣（與 Feed 同源）
+  const nowTerm = dayFor(todayOffset()).term.replace('（交節）', '')   // 真實當前節氣（與 Feed 同源）
   const [chip, setChip] = useState('全部')
   const [q, setQ] = useState('')
 
   const works = useWorks(null)   // 全部作品嚴格來自資料庫（前端再依 chip/搜尋篩選）
-  const chipsFromDb = useContent('exploreChips')   // 節氣篩選嚴格來自資料庫（後端已攤平為字串陣列）
-  const exploreChips = chipsFromDb.length ? chipsFromDb : ['全部']
+
+  // ⚠️ 這排篩選原本讀 ref_items 的 exploreChips＝['全部','芒種','夏至','花卉','海','慶典']，
+  // 有三個結構性錯誤：
+  //  (1) 混了兩種分類軸——芒種/夏至是「節氣」，花卉/海/慶典是「題材」；
+  //  (2) 篩選比對的是 w.term（節氣欄位），所以花卉/海/慶典「不可能」匹配到任何東西；
+  //  (3) 清單是靜態種子資料，不含當前節氣（大暑）也不含實際內容的節氣（小暑），
+  //      連 Explore 自己標示當前節氣的 ● 分支都永遠不會執行。
+  // 改為由真實資料生成：只列「當前節氣」與「真的有作品的節氣」，並依節氣年序排列。
+  // 這樣每個選項都保證點得到東西，也會自動跟著節氣推進，不需要有人去維護清單。
+  const termCounts = works.reduce((m, w) => {
+    if (w.term) m[w.term] = (m[w.term] || 0) + 1
+    return m
+  }, {})
+  const exploreChips = ['全部', ...[...new Set([nowTerm, ...Object.keys(termCounts)])]
+    .sort((a, b) => TERM_ORDER.indexOf(a) - TERM_ORDER.indexOf(b))]
   // 人氣創作者由真實作品聚合（依上架作品數），不再用示範假名
   const creators = Object.values(works.reduce((m, w) => {
     const k = w.author
@@ -46,7 +59,10 @@ export default function Explore() {
         <div className="termwheel">
           {exploreChips.map(c => (
             <button key={c} className={`tm tap ${chip === c ? 'on' : c === nowTerm ? 'now' : ''}`}
-              onClick={() => setChip(c)}>{c === nowTerm ? `● ${c}` : c}</button>
+              onClick={() => setChip(c)} title={c === nowTerm ? '今日節氣' : undefined}>
+              {c === nowTerm ? `● ${c}` : c}
+              {c !== '全部' && <small className="tm-n">{termCounts[c] || 0}</small>}
+            </button>
           ))}
         </div>
 

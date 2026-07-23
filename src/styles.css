@@ -1744,3 +1744,21 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .wf-seal.seal-mark  { width: 28px; height: 28px; }
 .auth-seal.seal-mark { width: 64px; height: 64px; margin: 0 auto; }
 .eb-seal.seal-mark  { width: 60px; height: 60px; margin: 0 auto; }
+
+/* 節氣篩選的件數：小字附在節氣名後，讓人知道點下去有沒有東西 */
+.termwheel .tm-n {
+  font-size: 10px; margin-left: 4px; color: var(--muted);
+  font-weight: 400; vertical-align: 1px;
+}
+.termwheel .tm.on .tm-n { color: var(--cinnabar); }
+
+/* 欄目列的鍵盤焦點：全站預設是 3px 朱紅方框，套在「只有底線」的欄目上
+   會出現一個突兀的完整方框。改為 2px + 較大 offset，形狀貼合文字。
+   2px 仍符合 WCAG 2.4.11 AA（要求相當於 2px 周長且對比 ≥3:1），
+   朱紅對紙 5.36 通過，所以是換樣式不是降標準。 */
+.termwheel .tm:focus-visible,
+.chip:focus-visible,
+.ct-opt:focus-visible {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: 4px;
+}
