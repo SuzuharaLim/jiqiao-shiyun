@@ -707,3 +707,24 @@ indicator 會蓋住最後一列）、所有覆蓋層加 `overscroll-behavior: co
 
 判準：不塌陷（高 ≥8px）、不超出視窗上下緣、不橫向溢出、
 內容高於容器時必須 `overflow-y:auto`、可捲者捲到底後最後一個按鈕須在視窗內。
+
+### 補完剩餘六類（同日）
+初版只驗了三類就收尾，其餘六類僅以「共用樣式故理論受益」帶過——
+理論不等於實測，補驗後又抓到兩個 inline 覆寫的問題：
+
+| 元件 | 問題 | 修法 |
+|---|---|---|
+| `Scan.jsx` 辨識結果 sheet | inline `maxHeight:'92%'` + `paddingBottom:22` 蓋掉樣式表的 dvh 上限與 safe-area；橫向 390px 時 92% 貼底會超出 | 移除 inline，交給 `.sheet` |
+| `AuthWall.jsx` | inline `maxHeight:'unset'` **直接取消所有高度上限**，內容一多就溢出視窗 | 移除 inline |
+| `LocationPicker` 地圖 | `.lp-map` 固定 184px，橫向時搜尋結果捲動區只剩 **72px**——地圖看得到但選不到地點 | `clamp(120px, 24dvh, 184px)`，矮視窗壓到 100px 並給清單 `min-height:120px` |
+
+驗證方式：相機／掃描的 sheet 需真實裝置才觸發，改以**注入 30 段長內容的
+`.sheet` 與 `.sheet.lp`** 驗證樣式對任意內容量都成立（兩者是全站所有
+sheet 的唯一兩種變體，且 inline 覆寫已全數清除）。
+
+| 視窗 | 一般 sheet | `.sheet.lp` | AuthWall | 條款覆蓋層 | LocationPicker |
+|---|---|---|---|---|---|
+| 844×390 橫向 | 366px 貼底可捲 | 343px 貼底可捲 | 341px 貼底 | 390px 可捲 | 清單 72→120px |
+| 360×640 | 525px 可捲 | 563px 可捲 | — | — | — |
+
+全部「捲到底後末項可見」。九類覆蓋層至此全數實測完成。

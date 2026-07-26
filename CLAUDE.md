@@ -151,6 +151,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 - **`.body` 是 flex column**：內含 `overflow:hidden` 的區塊要加 `flex:0 0 auto`，否則被壓成 0 高。
 - **按鈕點開的覆蓋層／面板必須自己限高並可捲**：`.sheet`(max-height `min(82dvh, 100dvh-48px)`)、`.fmenu`(45dvh)、`.glosspanel`(40dvh) 皆已設定。**上限不可用「視窗高減固定值」**——面板起點取決於頂列/搜尋/選單列的實際高度，會隨字級與斷點變化（實測橫向 390px 時固定扣 140px 仍超出 61px），要用 dvh 比例。**也不可用 `flex:1 1 auto` 讓它自動填滿**——`.body` 是 flex column，空間不足時 `flex-shrink` 預設 1 會把面板壓成 0 高（實測高度 0、內容溢出 78px），必須 `flex:0 0 auto`。
+- **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
+- **`.lp-map` 地圖預覽不可用固定高**：原本 184px，手機橫向時搜尋結果的捲動區只剩 72px（地圖看得到但選不到地點）。改 `clamp(120px, 24dvh, 184px)`，矮視窗另壓到 100px 並給清單 `min-height`。
 - **入場動畫的終態要與靜態樣式一致並加 `forwards`**：`slideup` 原本 `to{transform:none}` 且無 fill-mode，動畫被中斷或未推進時元素會停在 `from` 的 `translateY(24px)`，底部彈出的 sheet 露出視窗外。
 - **`ToolRow` 本身是 `<button>`**：放進去的互動子元件不能是 `<button>`（button 巢 button＝DOM 穿模）；`Switch` 用 `<span role="switch">`。
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。

@@ -6,7 +6,10 @@ export default function AuthWall() {
   if (!authWall) return null
   return (
     <div className="sheet-mask" onClick={() => setAuthWall(null)}>
-      <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: 'unset', paddingBottom: 24 }}>
+      {/* ⚠️ 曾用 inline maxHeight:'unset' 取消高度上限——內容一多就會超出視窗，
+          且蓋掉 .sheet 的 env(safe-area-inset-bottom)。高度交給 .sheet 樣式，
+          這裡只補「內容不多時不要被 min-height 拉長」的視覺調整。 */}
+      <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-grip" />
         <div style={{ textAlign: 'center', padding: '6px 24px' }}>
           <div className="auth-seal" style={{ margin: '6px auto 14px' }}>印</div>

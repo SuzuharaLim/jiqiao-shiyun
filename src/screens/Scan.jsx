@@ -278,11 +278,14 @@ export default function Scan() {
       </div>
 
       {/* 辨識成功 */}
+      {/* ⚠️ .sheet 不可用 inline maxHeight/paddingBottom 覆寫——會蓋掉樣式表的
+          min(82dvh, 100dvh-48px) 與 env(safe-area-inset-bottom)：手機橫向
+          （390px 視窗）時貼底會超出，iOS home indicator 也會壓住最後一列。 */}
       {found && (
         <div className="sheet-mask" onClick={resume}>
           <div className="sheet" role="dialog" aria-modal="true" aria-label={`已辨識 ${found.name}`}
             tabIndex={-1} ref={sheetRef}
-            onClick={e => e.stopPropagation()} style={{ maxHeight: '92%', paddingBottom: 22 }}>
+            onClick={e => e.stopPropagation()}>
             <div className="sheet-grip" />
             <div className="scanres">
               <div className="okmark">✓</div>
