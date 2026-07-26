@@ -667,3 +667,43 @@ Demo 資料清除後，多數頁面會進入空狀態——這不是邊角案例
 | 430×932 抽驗 16 頁 | ✓ 乾淨 |
 | 深色模式 8 頁 | ✓ 乾淨 |
 | 橫向 844×390 | ✓ 手機外框 420×334 完整落於視窗內，tabbar 未被裁切 |
+
+---
+
+## 覆蓋層／展開面板的尺寸自適應稽核（2026-07-26）
+
+需求：「所有頁面所有功能鍵點下去都可以自動適配所有格式」。
+先前的稽核只驗「靜態頁面版面」，**按鈕點開後的東西從未系統性驗過**——
+這是完全不同的測試面。盤點出九類覆蓋層（sheet-mask / legal-overlay /
+fmenu / term-panel / glosspanel / LocationPicker / AuthWall / Camera 的
+兩個 sheet），逐一點擊並在展開狀態下量測。
+
+### 修掉的四個問題
+| 問題 | 根因 | 修法 |
+|---|---|---|
+| `.term-panel` 無高度上限（約 243px） | `flex:0 0 auto` 且未限高，手機橫向（390px 視窗）會把作品區整個擠出畫面 | 交由 `.fmenu` 父層限高並捲動 |
+| `.fmenu` 底部超出 61px | 上限寫 `calc(100dvh - 140px)`——**固定扣除值不可靠**，面板起點取決於頂列/搜尋/選單列實際高度 | 改 dvh 比例（45dvh） |
+| `.fmenu` 高度塌成 0、內容溢出 78px | 試圖用 `flex:1 1 auto` 自動填滿，但 `.body` 是 flex column，空間不足時 `flex-shrink:1` 把它壓成 0 | `flex:0 0 auto`（CLAUDE.md 早已記載此雷區，我建新元件時沒照做） |
+| 底部彈出 sheet 露出視窗外 24px | `slideup` 的 `to{transform:none}` 無 `fill-mode`，動畫被中斷／未推進時停在 `from` 的 `translateY(24px)` | 終態改 `translateY(0)` + `animation-fill-mode: forwards` |
+
+另補：`.sheet` 下內距改 `max(20px, env(safe-area-inset-bottom))`（iOS home
+indicator 會蓋住最後一列）、所有覆蓋層加 `overscroll-behavior: contain`
+（捲到底不連帶捲動背後頁面）。
+
+### 診斷過程中的兩次錯判（記錄以免重犯）
+1. 誤判為 reduced-motion 造成動畫停在起始狀態，加了 `!important` 補丁；
+   實測 `matchMedia('(prefers-reduced-motion)').matches === false`，補丁已撤。
+2. 瀏覽器面板隱藏時 **CSS 動畫時鐘完全不走**（`playState:'running'` 但
+   `currentTime:0`），量測到的 transform 是起始值。正確做法是先
+   `document.getAnimations().forEach(a => a.finish())` 再量測。
+
+### 驗收
+| 視窗 | 跳日期 sheet | 節氣選單 | 宜忌詞彙 |
+|---|---|---|---|
+| 390×844 直向 | OK | OK | OK |
+| 844×390 橫向 | OK | OK（176px 可捲，捲到底可達「冬」列） | — |
+| 360×640 最窄 | OK | OK | — |
+| 1459×905 桌機 | — | OK（295px，四季表完整無需捲動） | — |
+
+判準：不塌陷（高 ≥8px）、不超出視窗上下緣、不橫向溢出、
+內容高於容器時必須 `overflow-y:auto`、可捲者捲到底後最後一個按鈕須在視窗內。

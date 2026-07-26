@@ -174,7 +174,6 @@
   --ease: var(--ease-out);
   --dur-fast: var(--duration-fast);   --dur: var(--duration-normal);
 
-
   /* ---- 相機／掃描介面（刻意恆為深色，像原生相機 App，不隨主題切換）------
      這些原本寫死在 styles.css，收斂成 token 以符合 §2「單一真相來源」。 */
   --cam-bg:      #0C0B0A;
@@ -252,4 +251,5 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
 }

@@ -655,8 +655,13 @@ a { color:inherit; text-decoration:none; }
 @keyframes fade { from{opacity:0} to{opacity:1} }
 .sheet { width:100%; max-width:430px; max-height:82%; overflow-y:auto;
   background:var(--bg); border-radius:2px 2px 0 0; border:1px solid var(--line2);
-  padding:6px 0 20px; animation:slideup .26s ease; }
-@keyframes slideup { from{ transform:translateY(24px); opacity:.5 } to{ transform:none; opacity:1 } }
+  padding:6px 0 20px; animation:slideup .26s ease forwards; }
+/* ⚠️ 入場動畫的終態必須與「無動畫時的靜態樣式」一致，且加 forwards。
+   原本 to{transform:none} 依賴動畫實際跑完；若動畫被中斷、被 reduced-motion
+   壓成 0.01ms、或在不合成畫面的環境下未推進，元素就會停在 from 的
+   translateY(24px)——底部彈出的 sheet 會露出視窗外 24px。
+   fill-mode:forwards 確保任何情況下都落在終態。 */
+@keyframes slideup { from{ transform:translateY(24px); opacity:.5 } to{ transform:translateY(0); opacity:1 } }
 .sheet::-webkit-scrollbar{ width:0; }
 .sheet-grip { width:40px; height:4px; border-radius:2px; background:var(--line2); margin:8px auto 4px; }
 
@@ -2008,4 +2013,70 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   .stage.signed-in .tab-1 .ex-top .fmenu { grid-area: menu; }
   .stage.signed-in .tab-1 .ex-top .fmenu .term-panel { margin-left: 0; margin-right: 0; }
   .stage.signed-in .tab-1 .ex-top .tp-quick { padding-left: 0; padding-right: 0; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   覆蓋層與展開面板的尺寸自適應（2026-07）
+   目標：任何按鈕點開的東西，在任何視窗尺寸都要能完整使用——
+   內容超過視窗就自己捲，不可把主內容擠掉或被切斷。
+   最容易出事的是「手機橫向」：視窗只剩約 390px 高。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 1) 底部彈出 sheet：原本 max-height:82%（相對視窗高），橫向時只有 ~320px。
+      改用 dvh 並保留安全下限，且與 .sheet.lp 的 88vh 統一。 */
+.sheet {
+  max-height: min(82dvh, calc(100dvh - 48px));
+  overscroll-behavior: contain;   /* 捲到底不要連帶捲動背後頁面 */
+  /* 底部安全區：iOS 的 home indicator 會蓋住最後一列選項。
+     另外 .sheet-mask 是 align-items:flex-end 貼底，故 sheet 自身的
+     下內距要含 safe-area，不能只給固定 20px。 */
+  padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  box-sizing: border-box;
+}
+.sheet.lp { max-height: min(88dvh, calc(100dvh - 32px)); }
+
+/* 2) 節氣四季面板：在 .fmenu 內時交由父層分配高度（父層已可捲），
+      自己不再設上限以免雙層捲動；獨立使用時才給上限。 */
+.term-panel { overscroll-behavior: contain; }
+.fmenu .term-panel { max-height: none; overflow: visible; }
+.term-panel::-webkit-scrollbar { width: 0; }
+
+/* 3) 選單容器：⚠️ 不可用「視窗高減固定值」設上限——面板起始位置取決於
+      頂列＋搜尋＋選單列的實際高度，這些會隨字級/斷點變化。實測橫向 390px 時
+      固定扣 140px 仍超出 61px。
+      正解：讓 .body（flex column）分配剩餘空間給它——面板改為 flex 項目
+      並允許收縮（flex:1 1 auto + min-height:0），高度自然等於「可用空間」。 */
+.fmenu {
+  /* ⚠️ 必須 flex:0 0 auto。.body 是 flex column，容器空間不足時
+     flex-shrink 預設為 1，會把這個面板壓成 0 高（實測高度 0、內容溢出到
+     視窗外 78px）。設 0 表示「不准收縮」，高度由 max-height 決定。 */
+  flex: 0 0 auto;
+  /* 上限用 dvh 比例（不用「視窗高減固定值」——面板起點取決於頂列/搜尋/
+     選單列的實際高度，會隨字級與斷點變化，固定扣除值在橫向會失準）。
+     45dvh 是實測安全值：橫向 390px → 175px，仍可見兩列四季表且可捲；
+     直向 844px → 380px，四季表完整顯示。
+     不可用 flex:1 1 auto——.body 是 flex column，會讓面板塌成 0 高。 */
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.fmenu::-webkit-scrollbar { width: 0; }
+
+/* 4) 詞彙解釋面板：長解釋在窄螢幕會很高，同樣給上限 */
+.glosspanel { max-height: min(40dvh, 260px); overflow-y: auto; }
+
+/* 5) 登入頁的條款覆蓋層：.body 已可捲，補 overscroll 與安全區 */
+.legal-overlay .body {
+  overscroll-behavior: contain;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+/* 6) 橫向（矮視窗）通則：所有覆蓋層再收緊，並讓內部表格式面板縮排 */
+@media (max-height: 480px) {
+  .sheet { max-height: calc(100dvh - 24px); }
+  /* fmenu 與 term-panel 的高度由 flex 分配（見上），此處只壓縮內距 */
+  .glosspanel { max-height: 30dvh; }
+  /* 四季表在矮視窗壓縮行高，讓 4 列仍能一次看到 */
+  .tp-row { padding-top: 4px; padding-bottom: 4px; }
+  .tp-t { padding-top: 3px; padding-bottom: 3px; }
 }
