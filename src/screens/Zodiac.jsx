@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
 
@@ -49,7 +50,7 @@ export default function Zodiac() {
             </div>
           )
         })()}
-        {!pick && <div className="empty"><div className="big">🐲</div>點一個生肖，看 {range}運勢</div>}
+        {!pick && <div className="empty"><div className="empty-ic"><Icon name="dragon" /></div>點一個生肖，看 {range}運勢</div>}
         <Disclaimer />
         <div style={{ height: 16 }} />
       </div>

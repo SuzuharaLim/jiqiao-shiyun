@@ -55,7 +55,7 @@ export default function Checkout() {
         {items.length === 0 && (
           <>
             <div className="empty">
-              <div className="big">🧺</div>
+              <div className="empty-ic"><Icon name="basket" /></div>
               購物車是空的<br />
               <span style={{ fontSize: 12 }}>到市集挑一張作品授權，或做一本自己的月曆</span>
             </div>

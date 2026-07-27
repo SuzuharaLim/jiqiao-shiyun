@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -89,7 +90,7 @@ export default function Admin() {
         <TopBar title="管理後台" onBack />
         <div className="body">
           <div className="empty">
-            <div className="big">🔒</div>
+            <div className="empty-ic"><Icon name="lock" /></div>
             此頁僅限版主與管理者<br />
             <span className="muted" style={{ fontSize: 12 }}>
               {user?.guest ? '你目前是訪客，請先註冊登入' : '你的帳號沒有管理權限'}
@@ -152,7 +153,7 @@ export default function Admin() {
           <>
             <SectionHead title="客服／聯絡訊息" extra={support ? `${support.length} 則` : '載入中'} />
             {support === null && <div className="empty">載入中…</div>}
-            {support?.length === 0 && <div className="empty"><div className="big">📮</div>目前沒有訊息</div>}
+            {support?.length === 0 && <div className="empty"><div className="empty-ic"><Icon name="mail" /></div>目前沒有訊息</div>}
             {support?.map(m => (
               <div key={m.id} className="card" style={{ margin: '6px 13px' }}>
                 <div className="kv"><span>主題</span><b>{m.topic}</b></div>
@@ -172,7 +173,7 @@ export default function Admin() {
           <>
             <SectionHead title="稽核日誌" extra={audit ? `最近 ${audit.length} 筆` : '載入中'} />
             {audit === null && <div className="empty">載入中…</div>}
-            {audit?.length === 0 && <div className="empty"><div className="big">📋</div>沒有稽核記錄</div>}
+            {audit?.length === 0 && <div className="empty"><div className="empty-ic"><Icon name="clipboard" /></div>沒有稽核記錄</div>}
             {audit?.map((a, i) => (
               <div key={a.id || i} className="kv" style={{ padding: '10px 16px' }}>
                 <span style={{ fontSize: 12 }}>{a.event}{a.detail ? ` · ${a.detail}` : ''}</span>

@@ -43,18 +43,18 @@ export const almanacDays = [
 export const posts = [
   {
     id: 'p1', user: 'wang_photo', avatar: '🌾', avatarBg: '#cfe8d6',
-    emoji: '🌾', bg: '#cfe3d3', term: '芒種', title: '芒種・田間',
+    emoji: '🌾', bg: '#DDE5D4', term: '芒種', title: '芒種・田間',
     caption: '芒種的稻浪，風一吹就是一整片金黃。', tags: ['芒種', '田間'],
     likes: 128, comments: 12, time: '2 小時前', place: '台中・外埔',
   },
   {
-    id: 'p2', user: 'lin_ocean', avatar: '🌊', avatarBg: '#dbeafe',
+    id: 'p2', user: 'lin_ocean', avatar: '🌊', avatarBg: '#D6DEE6',
     emoji: '🌊', bg: '#cfe3f7', term: '夏至', title: '夏至・海線',
     caption: '夏至前的海，天亮得特別早。', tags: ['夏至', '海'],
     likes: 96, comments: 8, time: '5 小時前', place: '台南・七股',
   },
   {
-    id: 'p3', user: 'flora.tw', avatar: '🌸', avatarBg: '#fce7f3',
+    id: 'p3', user: 'flora.tw', avatar: '🌸', avatarBg: '#E8DCE0',
     emoji: '🪷', bg: '#f6d6e4', term: '芒種', title: '荷風初起',
     caption: '植物園的荷花開了第一朵，記錄給明年的月曆。', tags: ['芒種', '荷花', '植物曆'],
     likes: 214, comments: 21, time: '昨天', place: '台北・植物園',
@@ -63,17 +63,17 @@ export const posts = [
 
 // 探索市集網格
 export const works = [
-  { id: 'w1', emoji: '🌾', bg: '#dcfce7', term: '芒種', author: 'wang_photo', title: '芒種稻浪' },
-  { id: 'w2', emoji: '🌊', bg: '#dbeafe', term: '夏至', author: 'lin_ocean', title: '七股晨海', price: 30 },
-  { id: 'w3', emoji: '🌸', bg: '#fce7f3', term: '芒種', author: 'flora.tw', title: '初荷' },
-  { id: 'w4', emoji: '🌅', bg: '#ffedd5', term: '夏至', author: 'sky_diary', title: '夏至日出', price: 45 },
-  { id: 'w5', emoji: '🪷', bg: '#e9e3fb', term: '芒種', author: 'flora.tw', title: '池上蓮' },
-  { id: 'w6', emoji: '🍃', bg: '#d3f0ec', term: '花卉', author: 'green_life', title: '蕨之呼吸' },
+  { id: 'w1', emoji: '🌾', bg: '#DDE5D4', term: '芒種', author: 'wang_photo', title: '芒種稻浪' },
+  { id: 'w2', emoji: '🌊', bg: '#D6DEE6', term: '夏至', author: 'lin_ocean', title: '七股晨海', price: 30 },
+  { id: 'w3', emoji: '🌸', bg: '#E8DCE0', term: '芒種', author: 'flora.tw', title: '初荷' },
+  { id: 'w4', emoji: '🌅', bg: '#EDE0CB', term: '夏至', author: 'sky_diary', title: '夏至日出', price: 45 },
+  { id: 'w5', emoji: '🪷', bg: '#E0DDE6', term: '芒種', author: 'flora.tw', title: '池上蓮' },
+  { id: 'w6', emoji: '🍃', bg: '#D8E2DF', term: '花卉', author: 'green_life', title: '蕨之呼吸' },
   { id: 'w7', emoji: '🏯', bg: '#fde9d0', term: '慶典', author: 'temple_walk', title: '廟埕', price: 30 },
-  { id: 'w8', emoji: '🌾', bg: '#d7e9c9', term: '芒種', author: 'farm_note', title: '割稻' },
+  { id: 'w8', emoji: '🌾', bg: '#DFE5D2', term: '芒種', author: 'farm_note', title: '割稻' },
   { id: 'w9', emoji: '🌺', bg: '#f6d6e4', term: '花卉', author: 'flora.tw', title: '扶桑' },
   { id: 'w10', emoji: '⛰️', bg: '#cfe3f7', term: '海', author: 'hike_tw', title: '合歡' },
-  { id: 'w11', emoji: '🌻', bg: '#f3e7c9', term: '花卉', author: 'sun_field', title: '向日葵田', price: 60 },
+  { id: 'w11', emoji: '🌻', bg: '#EDE4CE', term: '花卉', author: 'sun_field', title: '向日葵田', price: 60 },
   { id: 'w12', emoji: '🌿', bg: '#dceae0', term: '芒種', author: 'green_life', title: '青草' },
 ]
 
@@ -81,37 +81,37 @@ export const exploreChips = ['全部', '芒種', '夏至', '花卉', '海', '慶
 
 // 占卜工具
 export const fortuneTools = [
-  { id: 'name', icon: '✍️', bg: '#ede9fe', title: '姓名・商店 命名吉凶', sub: '姓名筆畫 · 店名/品牌 吉凶', screen: 'nameFortune' },
-  { id: 'match', icon: '💞', bg: '#fce7f3', title: '生肖・星座 婚配', sub: '兩人配對分數與建議', screen: 'matchmaking' },
-  { id: 'deity', icon: '⛩️', bg: '#fee2c7', title: '臺灣神佛的生日', sub: '誕辰一覽 · 可設定提醒', screen: 'deities' },
-  { id: 'zodiac', icon: '🐉', bg: '#dcfce7', title: '生肖運勢', sub: '今日 / 本週 / 本月', screen: 'zodiac' },
-  { id: 'bone', icon: '⚖️', bg: '#dbeafe', title: '袁天罡秤骨神術', sub: '生辰秤骨 · 命格解析', screen: 'bone' },
-  { id: 'dream', icon: '💤', bg: '#e9e3fb', title: '周公解夢', sub: '關鍵字查夢 · AI 延伸解析', screen: 'dream' },
+  { id: 'name', iconName: 'clipboard', title: '姓名・商店 命名吉凶', sub: '姓名筆畫 · 店名/品牌 吉凶', screen: 'nameFortune' },
+  { id: 'match', iconName: 'heartPair', title: '生肖・星座 婚配', sub: '兩人配對分數與建議', screen: 'matchmaking' },
+  { id: 'deity', iconName: 'dragon', title: '臺灣神佛的生日', sub: '誕辰一覽 · 可設定提醒', screen: 'deities' },
+  { id: 'zodiac', iconName: 'dragon', title: '生肖運勢', sub: '今日 / 本週 / 本月', screen: 'zodiac' },
+  { id: 'bone', iconName: 'ruler', title: '袁天罡秤骨神術', sub: '生辰秤骨 · 命格解析', screen: 'bone' },
+  { id: 'dream', iconName: 'fortune', title: '周公解夢', sub: '關鍵字查夢 · AI 延伸解析', screen: 'dream' },
 ]
 
 // 文化 24 節氣
 export const cultureTools = [
-  { id: 'proverb', icon: '💬', bg: '#fef3c7', title: '台灣諺語', sub: '「食緊弄破碗」每日一句', screen: 'proverbs' },
-  { id: 'festival', icon: '🎏', bg: '#ffe4e6', title: '臺灣特色慶典活動', sub: '時節慶典 · 地點與簡介', screen: 'festivals' },
-  { id: 'flower', icon: '🌸', bg: '#fce7f3', title: '臺灣賞花景點', sub: '花期 · 地圖 · 打卡作品', screen: 'flowers' },
-  { id: 'food', icon: '🍱', bg: '#dcfce7', title: '當季食材 陸・海・空', sub: '時令食材與食譜', screen: 'ingredients' },
-  { id: 'column', icon: '🗓️', bg: '#dbeafe', title: '24 節氣專欄', sub: '由來 · 物候 · 文章卡', screen: 'solarterms' },
+  { id: 'proverb', iconName: 'chat', title: '台灣諺語', sub: '「食緊弄破碗」每日一句', screen: 'proverbs' },
+  { id: 'festival', iconName: 'trophy', title: '臺灣特色慶典活動', sub: '時節慶典 · 地點與簡介', screen: 'festivals' },
+  { id: 'flower', iconName: 'branch', title: '臺灣賞花景點', sub: '花期 · 地圖 · 打卡作品', screen: 'flowers' },
+  { id: 'food', iconName: 'basket', title: '當季食材 陸・海・空', sub: '時令食材與食譜', screen: 'ingredients' },
+  { id: 'column', iconName: 'scroll', title: '24 節氣專欄', sub: '由來 · 物候 · 文章卡', screen: 'solarterms' },
 ]
 
 // 神佛生日
 export const deities = [
-  { id: 'mazu', icon: '⛩️', bg: '#fee2c7', name: '媽祖 天上聖母', date: '農曆 3/23', note: '還有 5 天' },
-  { id: 'tudi', icon: '🛕', bg: '#fef3c7', name: '土地公 福德正神', date: '農曆 8/15' },
-  { id: 'guan', icon: '⚔️', bg: '#ffe4e6', name: '關聖帝君', date: '農曆 6/24' },
-  { id: 'xuan', icon: '🌙', bg: '#e9e3fb', name: '玄天上帝', date: '農曆 3/3' },
-  { id: 'guanyin', icon: '🪷', bg: '#dcfce7', name: '觀世音菩薩', date: '農曆 2/19' },
-  { id: 'cheng', icon: '🏮', bg: '#dbeafe', name: '城隍爺', date: '農曆 5/11' },
-  { id: 'baosheng', icon: '💊', bg: '#d3f0ec', name: '保生大帝', date: '農曆 3/15' },
+  { id: 'mazu', icon: '⛩️', bg: '#EDE0CB', name: '媽祖 天上聖母', date: '農曆 3/23', note: '還有 5 天' },
+  { id: 'tudi', icon: '🛕', bg: '#EFE7CF', name: '土地公 福德正神', date: '農曆 8/15' },
+  { id: 'guan', icon: '⚔️', bg: '#EADCD8', name: '關聖帝君', date: '農曆 6/24' },
+  { id: 'xuan', icon: '🌙', bg: '#E0DDE6', name: '玄天上帝', date: '農曆 3/3' },
+  { id: 'guanyin', icon: '🪷', bg: '#DDE5D4', name: '觀世音菩薩', date: '農曆 2/19' },
+  { id: 'cheng', icon: '🏮', bg: '#D6DEE6', name: '城隍爺', date: '農曆 5/11' },
+  { id: 'baosheng', icon: '💊', bg: '#D8E2DF', name: '保生大帝', date: '農曆 3/15' },
   { id: 'wangye', icon: '⚜️', bg: '#fde9d0', name: '五府千歲', date: '農曆 4/26' },
   { id: 'zhusheng', icon: '🌸', bg: '#f6d6e4', name: '註生娘娘', date: '農曆 3/20' },
-  { id: 'yuelao', icon: '❤️', bg: '#ffe4e6', name: '月下老人', date: '農曆 8/15' },
-  { id: 'wenchang', icon: '📖', bg: '#dbeafe', name: '文昌帝君', date: '農曆 2/3' },
-  { id: 'shennong', icon: '🌾', bg: '#dcfce7', name: '神農大帝', date: '農曆 4/26' },
+  { id: 'yuelao', icon: '❤️', bg: '#EADCD8', name: '月下老人', date: '農曆 8/15' },
+  { id: 'wenchang', icon: '📖', bg: '#D6DEE6', name: '文昌帝君', date: '農曆 2/3' },
+  { id: 'shennong', icon: '🌾', bg: '#DDE5D4', name: '神農大帝', date: '農曆 4/26' },
 ]
 
 // 生肖運勢
@@ -289,10 +289,10 @@ export const licenseTiers = [0, 30, 45, 60]
 // 挑戰排行榜（依讚數排序）
 export const leaderboard = [
   { rank: 1, user: 'flora.tw', emoji: '🪷', bg: '#f6d6e4', title: '初荷', likes: 214, workId: 'w3' },
-  { rank: 2, user: 'wang_photo', emoji: '🌾', bg: '#cfe3d3', title: '芒種稻浪', likes: 128, workId: 'w1' },
-  { rank: 3, user: 'sky_diary', emoji: '🌅', bg: '#ffedd5', title: '夏至日出', likes: 96, workId: 'w4' },
-  { rank: 4, user: 'farm_note', emoji: '🌾', bg: '#d7e9c9', title: '割稻', likes: 74, workId: 'w8' },
-  { rank: 5, user: 'green_life', emoji: '🍃', bg: '#d3f0ec', title: '蕨之呼吸', likes: 61, workId: 'w6' },
+  { rank: 2, user: 'wang_photo', emoji: '🌾', bg: '#DDE5D4', title: '芒種稻浪', likes: 128, workId: 'w1' },
+  { rank: 3, user: 'sky_diary', emoji: '🌅', bg: '#EDE0CB', title: '夏至日出', likes: 96, workId: 'w4' },
+  { rank: 4, user: 'farm_note', emoji: '🌾', bg: '#DFE5D2', title: '割稻', likes: 74, workId: 'w8' },
+  { rank: 5, user: 'green_life', emoji: '🍃', bg: '#D8E2DF', title: '蕨之呼吸', likes: 61, workId: 'w6' },
 ]
 
 // 私訊對話（示範腳本）
@@ -307,18 +307,18 @@ export const poemPool = [
 
 // 我的專案
 export const projects = [
-  { id: 'pr1', emoji: '🗓️', name: '2026 植物月曆', status: '草稿 · 已選 8/12', color: '#dcfce7' },
-  { id: 'pr2', emoji: '📔', name: '芒種手帳內頁', status: '已完成 · 待下單', color: '#ffedd5' },
-  { id: 'pr3', emoji: '🎁', name: '企業客製 · 大葉大學', status: '報價中', color: '#e9e3fb' },
+  { id: 'pr1', emoji: '🗓️', name: '2026 植物月曆', status: '草稿 · 已選 8/12', color: '#DDE5D4' },
+  { id: 'pr2', emoji: '📔', name: '芒種手帳內頁', status: '已完成 · 待下單', color: '#EDE0CB' },
+  { id: 'pr3', emoji: '🎁', name: '企業客製 · 大葉大學', status: '報價中', color: '#E0DDE6' },
 ]
 
 // 商店品項 —— 灌入 ref_items('storeProducts')，可由管理後台 CMS 編輯。
 // （原本硬編在 Store.jsx 檔案裡，是最後一個寫死在畫面檔的內容清單。）
 export const storeProducts = [
-  { id: 's1', e: '📔', bg: '#f3e7c9', name: '植物萬年曆手帳（無時效）', desc: '鋼筆防透墨紙材 · 24 節氣植物插畫', price: 800 },
-  { id: 's2', e: '🖊️', bg: '#dbeafe', name: '時光訊息典藏套組', desc: '手帳 ＋ 自立式鋼筆 ＋ 皮革收納', price: 1280 },
-  { id: 's3', e: '🎁', bg: '#e9e3fb', name: '企業客製版', desc: '封面壓印 LOGO · 專屬 AI 歡迎語', price: null },
-  { id: 's4', e: '✨', bg: '#fce7f3', name: '數位手帳素材包', desc: '節慶貼紙 · 電子模板（邊際成本近零）', price: 120 },
+  { id: 's1', e: '📔', bg: '#EDE4CE', name: '植物萬年曆手帳（無時效）', desc: '鋼筆防透墨紙材 · 24 節氣植物插畫', price: 800 },
+  { id: 's2', e: '🖊️', bg: '#D6DEE6', name: '時光訊息典藏套組', desc: '手帳 ＋ 自立式鋼筆 ＋ 皮革收納', price: 1280 },
+  { id: 's3', e: '🎁', bg: '#E0DDE6', name: '企業客製版', desc: '封面壓印 LOGO · 專屬 AI 歡迎語', price: null },
+  { id: 's4', e: '✨', bg: '#E8DCE0', name: '數位手帳素材包', desc: '節慶貼紙 · 電子模板（邊際成本近零）', price: 120 },
 ]
 
 // 結帳明細
@@ -357,7 +357,7 @@ export const profile = {
   handle: 'lim_suzuhara',
   name: '蕭・節氣攝影',
   bio: '記錄二十四節氣 🌿　台中',
-  avatar: '🌾', avatarBg: '#dcfce7',
+  avatar: '🌾', avatarBg: '#DDE5D4',
   works: 24, followers: 310, chosen: 18,
   grid: works.slice(0, 6),
 }

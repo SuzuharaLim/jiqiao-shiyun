@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
 
@@ -42,7 +43,7 @@ export default function Matchmaking() {
               建議在吉時（未時）約會或談重要話題。
             </p>
           </div>
-        ) : <div className="empty"><div className="big">💞</div>各選一個生肖，看配對分數</div>}
+        ) : <div className="empty"><div className="empty-ic"><Icon name="heartPair" /></div>各選一個生肖，看配對分數</div>}
         <Disclaimer text="配對指數為示範演算，僅供參考娛樂，感情仍需真心經營。" />
         <div style={{ height: 16 }} />
       </div>

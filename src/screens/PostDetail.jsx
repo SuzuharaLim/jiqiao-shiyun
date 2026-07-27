@@ -33,7 +33,7 @@ export default function PostDetail({ id }) {
     return (
       <>
         <TopBar title="貼文" onBack />
-        <div className="body"><div className="empty"><div className="big">🌾</div>載入中…</div></div>
+        <div className="body"><div className="empty"><div className="empty-ic"><Icon name="branch" /></div>載入中…</div></div>
       </>
     )
   }
@@ -165,7 +165,7 @@ export default function PostDetail({ id }) {
           const cliked = clikes[c.id]
           return (
             <div key={c.id} className="post-hd" style={{ paddingTop: 6, paddingBottom: 6, alignItems: 'flex-start' }}>
-              <div className="av" style={{ background: c.avatarBg || '#dcfce7', width: 30, height: 30, fontSize: 15 }}>{c.avatar || '🌾'}</div>
+              <div className="av" style={{ background: c.avatarBg || '#DDE5D4', width: 30, height: 30, fontSize: 15 }}>{c.avatar || '🌾'}</div>
               <div className="cap2" style={{ padding: 0, flex: 1 }}>
                 <b>{c.user}</b> {c.body}
                 {c.time && <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>{c.time}</div>}

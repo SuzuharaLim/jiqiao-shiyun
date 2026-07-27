@@ -35,23 +35,23 @@ export default function Almanac() {
         </div>
 
         <SectionHead title="農民曆 · 曆頁" />
-        <ToolRow icon="📜" bg="#ffedd5" title="今日完整曆頁" sub="建除・星宿・彭祖百忌・胎神・沖煞・十二時辰" onClick={() => push('almanacDay', { off: T0 })} />
-        <ToolRow icon="🐎" bg="#fef3c7" title={`${yearOverview.ganzhi} 年度總覽`} sub="值年太歲・地母經・犯太歲・年度凶方" onClick={() => push('yearAlmanac')} />
+        <ToolRow iconName="scroll" title="今日完整曆頁" sub="建除・星宿・彭祖百忌・胎神・沖煞・十二時辰" onClick={() => push('almanacDay', { off: T0 })} />
+        <ToolRow iconName="dragon" title={`${yearOverview.ganzhi} 年度總覽`} sub="值年太歲・地母經・犯太歲・年度凶方" onClick={() => push('yearAlmanac')} />
 
         <SectionHead title="算命 · 命理" extra="全部" />
         {fortuneTools.map(t => (
-          <ToolRow key={t.id} icon={t.icon} bg={t.bg} title={t.title} sub={t.sub} onClick={() => push(t.screen)} />
+          <ToolRow key={t.id} iconName={t.iconName} icon={t.icon} bg={t.bg} title={t.title} sub={t.sub} onClick={() => push(t.screen)} />
         ))}
 
         <SectionHead title="文化 · 24 節氣" extra="全部" />
         {cultureTools.map(t => (
-          <ToolRow key={t.id} icon={t.icon} bg={t.bg} title={t.title} sub={t.sub} onClick={() => push(t.screen)} />
+          <ToolRow key={t.id} iconName={t.iconName} icon={t.icon} bg={t.bg} title={t.title} sub={t.sub} onClick={() => push(t.screen)} />
         ))}
 
         <SectionHead title="附錄 · 查詢表" />
-        <ToolRow icon="🍽️" bg="#fee2e2" title="食物相剋" sub="常見飲食相剋組合與迷思釐清" onClick={() => push('foodTaboo')} />
-        <ToolRow icon="📏" bg="#dbeafe" title="度量衡換算" sub="台斤・台尺・坪・甲・斗石對照" onClick={() => push('units')} />
-        <ToolRow icon="☯️" bg="#e9e3fb" title="干支・三合六合" sub="天干地支・合沖刑害・生肖配對" onClick={() => push('ganzhiTable')} />
+        <ToolRow iconName="basket" title="食物相剋" sub="常見飲食相剋組合與迷思釐清" onClick={() => push('foodTaboo')} />
+        <ToolRow iconName="ruler" title="度量衡換算" sub="台斤・台尺・坪・甲・斗石對照" onClick={() => push('units')} />
+        <ToolRow iconName="seal2" title="干支・三合六合" sub="天干地支・合沖刑害・生肖配對" onClick={() => push('ganzhiTable')} />
         <div style={{ height: 16 }} />
       </div>
     </>

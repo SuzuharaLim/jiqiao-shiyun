@@ -1,4 +1,5 @@
 import { TopBar } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
@@ -14,7 +15,7 @@ export default function Subscription() {
     return (
       <>
         <TopBar title="訂閱與帳號" onBack />
-        <div className="body"><div className="empty"><div className="big">✦</div>方案載入中…</div></div>
+        <div className="body"><div className="empty"><div className="empty-ic"><Icon name="sparkle" /></div>方案載入中…</div></div>
       </>
     )
   }

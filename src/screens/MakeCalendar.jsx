@@ -43,7 +43,7 @@ export default function MakeCalendar() {
         <TopBar title="做月曆" onClose={pop} />
         <div className="body">
           <div className="empty">
-            <div className="big">🗓️</div>
+            <div className="empty-ic"><Icon name="scroll" /></div>
             做月曆需要註冊帳號<br />
             <span style={{ fontSize: 12 }}>月曆專案要綁在帳號上才留得住，也才能下單印製</span>
           </div>
@@ -77,7 +77,7 @@ export default function MakeCalendar() {
           const shown = pool.filter(p => src === '市集' ? p.price : src === '收藏' ? p.term === '芒種' : true)
           if (shown.length === 0) return (
             <div className="empty">
-              <div className="big">🖼️</div>
+              <div className="empty-ic"><Icon name="photo2" /></div>
               {pool.length === 0 ? '還沒有可用的照片' : `「${src}」裡沒有照片`}<br />
               <span style={{ fontSize: 12 }}>
                 {pool.length === 0 ? '先到「建立」拍一張或上傳作品，就能做成月曆' : '換一個來源看看'}

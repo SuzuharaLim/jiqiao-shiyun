@@ -18,7 +18,7 @@ export default function WorkDetail({ id }) {
     return (
       <>
         <TopBar title="作品" onBack />
-        <div className="body"><div className="empty"><div className="big">🖼️</div>載入中…</div></div>
+        <div className="body"><div className="empty"><div className="empty-ic"><Icon name="photo2" /></div>載入中…</div></div>
       </>
     )
   }

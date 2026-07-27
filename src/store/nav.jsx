@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { dayFor, todayOffset } from '../data/almanac.js'
 import { api, setCsrf } from '../api.js'
 
 // ─────────────────────────────────────────────────────────────
@@ -237,6 +238,21 @@ export function NavProvider({ children }) {
   })
   // 文字大小 / 減少動態：套到 <html> 資料屬性 → 由 CSS 生效
   useEffect(() => { document.documentElement.dataset.textsize = prefs.textSize || 'md' }, [prefs.textSize])
+
+  // 節氣換裝：依真實當前節氣掛 data-season，全站的 --season-hue 隨季節輪替。
+  // ⚠️ 只換「第二點綴色」——朱紅主色（品牌識別）全年不動。
+  // 節氣的季別以「立春／立夏／立秋／立冬」為分界（傳統四立），不是西曆月份。
+  useEffect(() => {
+    const SEASON = {
+      spring: ['立春', '雨水', '驚蟄', '春分', '清明', '穀雨'],
+      summer: ['立夏', '小滿', '芒種', '夏至', '小暑', '大暑'],
+      autumn: ['立秋', '處暑', '白露', '秋分', '寒露', '霜降'],
+      winter: ['立冬', '小雪', '大雪', '冬至', '小寒', '大寒'],
+    }
+    const term = dayFor(todayOffset()).term.replace('（交節）', '')
+    const season = Object.keys(SEASON).find(k => SEASON[k].includes(term)) || 'summer'
+    document.documentElement.dataset.season = season
+  }, [])
   useEffect(() => { document.documentElement.dataset.reduceMotion = prefs.reduceMotion ? 'on' : 'off' }, [prefs.reduceMotion])
   // ---- 通知已讀（清紅點）：以伺服器未讀數為準，跨重整一致 ----
   const [notifRead, setNotifRead] = useState(true)

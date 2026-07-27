@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -80,7 +81,7 @@ export default function AccountSecurity() {
       <>
         <TopBar title="帳號安全" onBack />
         <div className="body">
-          <div className="empty"><div className="big">🔐</div>訪客模式沒有帳號資料<br />註冊後即可管理密碼與個人資料</div>
+          <div className="empty"><div className="empty-ic"><Icon name="lock" /></div>訪客模式沒有帳號資料<br />註冊後即可管理密碼與個人資料</div>
         </div>
       </>
     )

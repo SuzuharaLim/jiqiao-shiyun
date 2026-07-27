@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, ToolRow, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -31,7 +32,7 @@ export default function CreatorConsole() {
         <TopBar title="創作者後台" onBack />
         <div className="body">
           <div className="empty">
-            <div className="big">🎨</div>
+            <div className="empty-ic"><Icon name="palette" /></div>
             創作者後台需要註冊帳號<br />
             <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
           </div>
@@ -54,14 +55,14 @@ export default function CreatorConsole() {
         </div>
 
         <SectionHead title="經營工具" />
-        <ToolRow icon="⬆️" bg="#dcfce7" title="上架新作品" sub="設定授權價 · 標記節氣" onClick={() => push('newPost')} />
-        <ToolRow icon="🏷️" bg="#ffedd5" title="定價與授權" sub="市集分潤 70%" onClick={() => setToast('定價設定仍在開發中')} />
-        <ToolRow icon="💸" bg="#dbeafe" title="分潤提領" sub={`可提領 NT$${balance.toLocaleString()}`} onClick={() => push('wallet')} />
-        <ToolRow icon="🎁" bg="#e9e3fb" title="企業客製接單" sub="B2B2C 客製月曆／手帳" onClick={() => setToast('企業客製詢價仍在開發中')} />
+        <ToolRow iconName="plus" title="上架新作品" sub="設定授權價 · 標記節氣" onClick={() => push('newPost')} />
+        <ToolRow iconName="coin" title="定價與授權" sub="市集分潤 70%" onClick={() => setToast('定價設定仍在開發中')} />
+        <ToolRow iconName="coin" title="分潤提領" sub={`可提領 NT$${balance.toLocaleString()}`} onClick={() => push('wallet')} />
+        <ToolRow iconName="gift" title="企業客製接單" sub="B2B2C 客製月曆／手帳" onClick={() => setToast('企業客製詢價仍在開發中')} />
 
         <SectionHead title="近期入帳" />
         <div className="empty">
-          <div className="big">📈</div>
+          <div className="empty-ic"><Icon name="chart" /></div>
           還沒有入帳紀錄<br />
           <span style={{ fontSize: 12 }}>作品被授權或選入月曆後會顯示在這裡</span>
         </div>

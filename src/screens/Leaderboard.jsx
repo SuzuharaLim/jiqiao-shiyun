@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -22,7 +23,7 @@ export default function Leaderboard() {
           <div className="t">🏆 即時排行（前 3 名收錄官方月曆）</div>
           <div className="d">依市集作品的社群讚數即時排名，投稿你的節氣作品一起競逐！</div>
         </div>
-        {leaderboard.length === 0 && <div className="empty"><div className="big">🏆</div>還沒有上榜作品<br />發佈作品並獲得按讚即可上榜</div>}
+        {leaderboard.length === 0 && <div className="empty"><div className="empty-ic"><Icon name="trophy" /></div>還沒有上榜作品<br />發佈作品並獲得按讚即可上榜</div>}
         {leaderboard.map(r => (
           <button key={r.rank} className="tool tap" onClick={() => push('workDetail', { id: r.workId })}>
             <div style={{ width: 30, textAlign: 'center', fontSize: r.rank <= 3 ? 22 : 15, fontWeight: 800, flex: '0 0 auto', color: 'var(--muted)' }}>

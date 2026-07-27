@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg, Avatar} from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -74,11 +75,11 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = '#c
           <button className="b tap" onClick={() => push('dms')}>訊息</button>
         </div>
         {data?.notfound ? (
-          <div className="empty"><div className="big">🔍</div>找不到這位創作者</div>
+          <div className="empty"><div className="empty-ic"><Icon name="search" /></div>找不到這位創作者</div>
         ) : data?.isPrivate && gallery.length === 0 ? (
-          <div className="empty"><div className="big">🔒</div>私密帳號<br />對方未公開貼文與作品</div>
+          <div className="empty"><div className="empty-ic"><Icon name="lock" /></div>私密帳號<br />對方未公開貼文與作品</div>
         ) : gallery.length === 0 ? (
-          <div className="empty"><div className="big">📷</div>還沒有作品</div>
+          <div className="empty"><div className="empty-ic"><Icon name="photo2" /></div>還沒有作品</div>
         ) : (
           <div className="grid">
             {gallery.map(it => (

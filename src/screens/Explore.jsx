@@ -131,7 +131,7 @@ export default function Explore() {
           </span>
         </div>
         {list.length === 0 ? (
-          <div className="empty"><div className="big">🔍</div>找不到{[chip !== '全部' && chip, q].filter(Boolean).join('・') || '任何'}的作品</div>
+          <div className="empty"><div className="empty-ic"><Icon name="search" /></div>找不到{[chip !== '全部' && chip, q].filter(Boolean).join('・') || '任何'}的作品</div>
         ) : (
           <div className="album">
             {list.map(w => (

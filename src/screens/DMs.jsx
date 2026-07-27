@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -39,7 +40,7 @@ export default function DMs() {
         <TopBar title="聯絡我們" onBack />
         <div className="body">
           <div className="empty">
-            <div className="big">📮</div>
+            <div className="empty-ic"><Icon name="mail" /></div>
             訊息已送出<br />
             <span style={{ fontSize: 12 }}>我們會回覆到 {email || user?.email}</span>
           </div>

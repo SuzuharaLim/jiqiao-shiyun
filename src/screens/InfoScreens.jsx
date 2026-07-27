@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
@@ -105,7 +106,7 @@ export function SolarTerms() {
           ))}
         </div>
         {a && <>
-          <div className="img" style={{ height: 150, background: '#f3e7c9', fontSize: 56 }}>{a.emoji}</div>
+          <div className="img" style={{ height: 150, background: '#EDE4CE', fontSize: 56 }}>{a.emoji}</div>
           <div className="article">
             <h3>{a.term}</h3>
             <p className="muted" style={{ fontSize: 12 }}>{a.sub}</p>
@@ -157,7 +158,7 @@ export function Bone() {
             <p style={{ marginTop: 8, lineHeight: 1.9 }}>{res.v}</p>
             <p className="muted" style={{ marginTop: 8, fontSize: 11.5 }}>＊秤骨神術為傳統民俗趣味，僅供參考娛樂。</p>
           </div>
-        ) : <div className="empty"><div className="big">⚖️</div>輸入生辰，為你秤一秤命格</div>}
+        ) : <div className="empty"><div className="empty-ic"><Icon name="ruler" /></div>輸入生辰，為你秤一秤命格</div>}
         <div style={{ height: 16 }} />
       </div>
     </>

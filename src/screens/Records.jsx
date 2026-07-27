@@ -1,4 +1,5 @@
 import { TopBar } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 
 // ⚠️ 占卜紀錄尚未儲存到後端——沒有資料表也沒有 API。
@@ -10,7 +11,7 @@ export default function Records() {
       <TopBar title="我的占卜紀錄" onBack />
       <div className="body">
         <div className="empty">
-          <div className="big">🎋</div>
+          <div className="empty-ic"><Icon name="clipboard" /></div>
           還沒有占卜紀錄<br />
           <span style={{ fontSize: 12 }}>抽過的籤、解過的夢、問過的運勢會留在這裡</span>
         </div>

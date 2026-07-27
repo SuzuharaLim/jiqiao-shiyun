@@ -49,6 +49,15 @@
   --color-brand-solid: var(--seal-600);
   --color-on-brand:    var(--white);
 
+  /* ── 節氣主題色（第二點綴色，隨季節輪替）──
+     ⚠️ 先前朱紅一色打天下（實測首頁 11 個朱紅元素互相搶戲，占卜頁只有 1 個
+     整頁灰撲撲），而 token 裡的金與柳綠幾乎沒被使用。
+     朱紅的力量來自稀少——它是「印章色」，每屏至多 3 個焦點。
+     節氣本身就是現成的用色理由：春柳綠／夏朱／秋金／冬黛，
+     由 App.jsx 依當前節氣在 <html> 掛 data-season，全站自動換裝。 */
+  --season-hue: var(--seal-600);        /* 預設＝朱（夏） */
+  --season-tint: rgba(178, 58, 46, .10);
+
   /* ---- Typography（§2）---------------------------------------------- */
   /* §5 字體策略：內文全用系統字體，零下載（0 檔 / 0KB，遠低於規格的 4 檔 /
      100KB 上限），不使用 Google Fonts CDN，因此完全沒有 FOUT/CLS 風險。
@@ -68,15 +77,22 @@
   --font-mono:  ui-monospace, "SF Mono", "Cascadia Mono", "Consolas",
                 "JetBrains Mono", Menlo, monospace;
 
-  /* type scale — 1.25 major third */
-  --text-xs:   0.8rem;
-  --text-sm:   0.9rem;
-  --text-base: 1rem;
-  --text-lg:   1.25rem;
-  --text-xl:   1.563rem;
-  --text-2xl:  1.953rem;
-  --text-3xl:  2.441rem;
-  --text-4xl:  3.052rem;
+  /* type scale
+     ⚠️ 全站 273 處寫死的 px（34 種不同數值、同屏可達 20 種字號）已於 2026-07
+     收斂到這 9 階。差 0.5px 的字號肉眼分不出層級，只會讓畫面「說不出哪裡怪
+     但就是亂」。新增元件請一律用 token，不要再寫 px。
+
+     比例刻意不用純 1.25 等比：中文字面率高，正文與輔助文字的差距要比西文小，
+     否則 sm 會顯得過小；標題端則放大級差以建立層級。 */
+  --text-2xs:  0.72rem;   /* 11.5px 徽章／角標——僅限非必讀資訊 */
+  --text-xs:   0.8125rem; /* 13px   次要說明 */
+  --text-sm:   0.875rem;  /* 14px   輔助文字 */
+  --text-base: 1rem;      /* 16px   內文 */
+  --text-lg:   1.25rem;   /* 20px   小標 */
+  --text-xl:   1.5rem;    /* 24px   標題 */
+  --text-2xl:  1.9375rem; /* 31px   大標 */
+  --text-3xl:  2.75rem;   /* 44px   特大：干支／日期 */
+  --text-4xl:  4.5rem;    /* 72px   裝飾字 */
 
   --leading-tight:  1.35;   /* 標題 */
   --leading-normal: 1.6;    /* UI */
@@ -158,7 +174,7 @@
   --c-focus: var(--color-focus);      --c-danger: var(--ji);
   --f-sans: var(--font-sans);         --f-serif: var(--font-serif);
   --f-mono: var(--font-mono);
-  --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
+  --t-2xs: var(--text-2xs); --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
   --t-lg: var(--text-lg);   --t-xl: var(--text-xl);   --t-2xl: var(--text-2xl);
   --t-3xl: var(--text-4xl);
   --lh-tight: var(--leading-tight);   --lh-body: var(--leading-body);
@@ -192,9 +208,29 @@
   --oracle-bg-2: #26406B;   /* 靛青漸層另一端 */
 
   /* 內容色票（縮圖/工具圖示底色，非文字）*/
-  --tone-1: #F3E7C9;  --tone-2: #DCFCE7;  --tone-3: #DBEAFE;
-  --tone-4: #FCE7F3;  --tone-5: #FFEDD5;  --tone-6: #E9E3FB;
+  /* 內容色票（縮圖／工具圖示底色，非文字）
+     ⚠️ 原本是 IG 時代的螢光粉彩（#DCFCE7 薄荷綠、#DBEAFE 嬰兒藍…），
+     與宣紙米調完全不搭——紙上不會出現螢光薄荷綠。
+     改為傳統顏色的「淡染」版本：宣紙／竹青／黛藍／藕紫／蜜柑／赭石。 */
+  --tone-1: #EDE4CE;  /* 宣紙深一階 */
+  --tone-2: #DDE5D4;  /* 竹青 */
+  --tone-3: #D6DEE6;  /* 黛藍 */
+  --tone-4: #E8DCE0;  /* 藕紫 */
+  --tone-5: #EDE0CB;  /* 蜜柑 */
+  --tone-6: #EADCD8;  /* 赭石 */
 }
+
+/* ── 四季換裝：由 App.jsx 依真實節氣掛 data-season 到 <html> ──
+   只換「第二點綴色」，主色（朱紅印章）不動——品牌識別必須全年一致。 */
+:root[data-season="spring"] { --season-hue: #6E8F4E; --season-tint: rgba(110, 143, 78, .10); }  /* 柳綠 */
+:root[data-season="summer"] { --season-hue: #B23A2E; --season-tint: rgba(178, 58, 46, .10); }   /* 朱 */
+:root[data-season="autumn"] { --season-hue: #B08A3C; --season-tint: rgba(176, 138, 60, .12); }  /* 金 */
+:root[data-season="winter"] { --season-hue: #4A6178; --season-tint: rgba(74, 97, 120, .12); }   /* 黛 */
+/* 深色模式的節氣色需提亮才有足夠對比 */
+:root[data-theme="dark"][data-season="spring"] { --season-hue: #8FB56A; }
+:root[data-theme="dark"][data-season="summer"] { --season-hue: #D9584A; }
+:root[data-theme="dark"][data-season="autumn"] { --season-hue: #D8B96A; }
+:root[data-theme="dark"][data-season="winter"] { --season-hue: #7E9CBB; }
 
 /* ==========================================================================
    Dark mode（§2）——只覆寫 Semantic 層，Legacy 別名自動跟著變
@@ -232,8 +268,8 @@
   --oracle-bg: #12203A;  --oracle-fg: #F0DDA6;  --oracle-ln: #2A426B;
   --st-full:   #8FB56A;  --st-partial: #D8B96A; --st-demo: #C9A98A;
   --c-text-3:  #8A8274;
-  --tone-1: #2A2419;  --tone-2: #1E2A21;  --tone-3: #1A2333;
-  --tone-4: #2B1E28;  --tone-5: #2E2418;  --tone-6: #241F33;
+  --tone-1: #2A2419;  --tone-2: #212A22;  --tone-3: #1E2530;
+  --tone-4: #2A2226;  --tone-5: #2C2519;  --tone-6: #2A2220;
 }
 
 /* §7：尊重使用者的動效偏好——token 歸零，全站自動生效 */

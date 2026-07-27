@@ -65,10 +65,15 @@ export function TabBar() {
 }
 
 // 清單列（工具 / 選項）
-export function ToolRow({ icon, bg, title, sub, onClick, right }) {
+// icon 可傳 emoji 字串（舊）或 Icon 名稱（新，優先）。
+// ⚠️ 彩色 emoji 與紙感氣質斷層（Windows 上是 Segoe UI 彩色卡通圖），
+// 新程式碼一律傳 iconName；bg 也不再需要（線條圖示用墨色描邊即可）。
+export function ToolRow({ icon, iconName, bg, title, sub, onClick, right }) {
   return (
     <button className="tool tap" onClick={onClick}>
-      {icon && <div className="ti" style={{ background: bg }}>{icon}</div>}
+      {iconName
+        ? <div className="ti ti-line"><Icon name={iconName} /></div>
+        : icon && <div className="ti" style={{ background: bg }}>{icon}</div>}
       <div className="tn2">
         <b>{title}</b>
         {sub && <span>{sub}</span>}
@@ -171,4 +176,16 @@ export function Avatar({ imageId, emoji = '🌾' }) {
 // 疊在紙色/深色底則有 17-19%——所以容器不加朱紅底，讓金色直接對紙。
 export function Seal({ className = '', alt = '機巧時運' }) {
   return <img className={`seal-mark ${className}`} src="/logo.svg" alt={alt} />
+}
+
+// 空狀態：統一版型。iconName 用線條圖示（取代先前各處寫死的 <div className="big">emoji</div>）
+export function Empty({ iconName = 'search', title, hint, children }) {
+  return (
+    <div className="empty">
+      {iconName && <div className="empty-ic"><Icon name={iconName} /></div>}
+      {title && <div className="empty-t">{title}</div>}
+      {hint && <div className="empty-h">{hint}</div>}
+      {children}
+    </div>
+  )
 }

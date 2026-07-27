@@ -1,4 +1,5 @@
 import { TopBar, SectionHead } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
@@ -18,7 +19,7 @@ export default function Store() {
         <SectionHead title="全部商品" />
         {products.length === 0 && (
           <div className="empty">
-            <div className="big">🛍️</div>
+            <div className="empty-ic"><Icon name="basket" /></div>
             目前沒有商品
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -31,7 +32,7 @@ export default function Wallet() {
         <TopBar title="錢包 / 收益" onBack />
         <div className="body">
           <div className="empty">
-            <div className="big">💸</div>
+            <div className="empty-ic"><Icon name="coin" /></div>
             錢包與收益需要註冊帳號<br />
             <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
           </div>
@@ -89,7 +90,7 @@ export default function Wallet() {
         {data?.error && <div className="empty"><div className="big">⚠️</div>載入失敗，請稍後再試</div>}
         {data && !data.error && entries.length === 0 && (
           <div className="empty">
-            <div className="big">💸</div>
+            <div className="empty-ic"><Icon name="coin" /></div>
             還沒有收益紀錄<br />
             <span style={{ fontSize: 12 }}>作品被授權或選入月曆後，分潤會出現在這裡</span>
           </div>

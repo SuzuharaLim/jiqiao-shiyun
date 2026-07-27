@@ -1,4 +1,5 @@
 import { TopBar } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 
 // 手帳／月曆專案。
@@ -12,7 +13,7 @@ export default function MyProjects() {
       <TopBar title="我的專案" onBack />
       <div className="body">
         <div className="empty">
-          <div className="big">📔</div>
+          <div className="empty-ic"><Icon name="book2" /></div>
           還沒有專案<br />
           <span style={{ fontSize: 12 }}>做好的月曆會存成專案，方便之後繼續編輯或下單</span>
         </div>

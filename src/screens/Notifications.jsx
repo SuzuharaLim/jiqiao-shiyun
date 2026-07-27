@@ -37,7 +37,7 @@ export default function Notifications() {
         )}
         {!loading && notifications.length === 0 && (
           <div className="empty">
-            <div className="big">🔔</div>
+            <div className="empty-ic"><Icon name="bell2" /></div>
             還沒有通知<br />
             <span style={{ fontSize: 12 }}>有人按讚、留言或追蹤你時，會出現在這裡</span>
           </div>

@@ -19,7 +19,7 @@ export default function Profile() {
   const me = {
     name: user?.name || user?.handle || '訪客', handle: user?.handle || 'guest',
     bio: user?.bio || '尚未填寫簡介', avatar: user?.avatar || '🌾', avatarImageId: user?.avatarImageId || null,
-    avatarBg: user?.avatarBg || '#f3e7c9', guest: user?.guest,
+    avatarBg: user?.avatarBg || '#EDE4CE', guest: user?.guest,
   }
   // 統計與作品嚴格來自資料庫；未登入/未載入 → 顯示 0 與空狀態
   // ⚠️「作品」＝posts 而非 posts+works。上架市集的作品一定同時有一則貼文
@@ -79,12 +79,12 @@ export default function Profile() {
           <button className="b dark tap" onClick={() => push('creatorConsole')}>創作者後台</button>
         </div>
 
-        <ToolRow icon="🧾" bg="#e0ecff" title="我的訂單" sub={`購買紀錄 · 授權下載${orders.length ? ` · ${orders.length} 筆` : ''}`} onClick={() => push('orders')} />
-        <ToolRow icon="📔" bg="#f3e7c9" title="我的手帳專案" sub="草稿 · 歷年月曆 · 重訂" onClick={() => push('myProjects')} />
-        <ToolRow icon="🔮" bg="#e9e3fb" title="我的占卜紀錄" sub="運勢 · 籤詩 · 解夢" onClick={() => push('records')} />
-        <ToolRow icon="✦" bg="#f3e7c9" title="訂閱與帳號" sub={subscribed ? 'Premium 會員 · 管理' : 'Free · 升級 Premium'} onClick={() => push('subscription')} />
-        <ToolRow icon="💰" bg="#dcfce7" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
-        <ToolRow icon="🛍️" bg="#ffedd5" title="商店" sub="手帳 · 方案 · 企業版" onClick={() => push('store')} />
+        <ToolRow iconName="receipt" title="我的訂單" sub={`購買紀錄 · 授權下載${orders.length ? ` · ${orders.length} 筆` : ''}`} onClick={() => push('orders')} />
+        <ToolRow iconName="book2" title="我的手帳專案" sub="草稿 · 歷年月曆 · 重訂" onClick={() => push('myProjects')} />
+        <ToolRow iconName="fortune" title="我的占卜紀錄" sub="運勢 · 籤詩 · 解夢" onClick={() => push('records')} />
+        <ToolRow iconName="sparkle" title="訂閱與帳號" sub={subscribed ? 'Premium 會員 · 管理' : 'Free · 升級 Premium'} onClick={() => push('subscription')} />
+        <ToolRow iconName="coin" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
+        <ToolRow iconName="basket" title="商店" sub="手帳 · 方案 · 企業版" onClick={() => push('store')} />
 
         <SectionHead title="我的作品冊" />
         <div className="termwheel" style={{ borderBottom: 'none', paddingBottom: 4 }}>
@@ -93,11 +93,11 @@ export default function Profile() {
           ))}
         </div>
         {view === 'books' ? (
-          <div className="empty"><div className="big">📔</div>你製作的月曆與手帳會收藏在這裡<br />
+          <div className="empty"><div className="empty-ic"><Icon name="book2" /></div>你製作的月曆與手帳會收藏在這裡<br />
             <button className="pill dark tap" style={{ marginTop: 12 }} onClick={() => push('makeCalendar')}>＋ 做一本月曆</button>
           </div>
         ) : shown.length === 0 ? (
-          <div className="empty"><div className="big">📷</div>{view === 'market' ? '還沒有上架市集的作品' : '還沒有作品，去發一則吧'}
+          <div className="empty"><div className="empty-ic"><Icon name="photo2" /></div>{view === 'market' ? '還沒有上架市集的作品' : '還沒有作品，去發一則吧'}
             <br /><button className="pill dark tap" style={{ marginTop: 12 }} onClick={() => push('camera')}>＋ 開相機創作</button>
           </div>
         ) : (

@@ -64,17 +64,18 @@ export default function Feed() {
 
         {/* 今日曆頁（精簡） */}
         <div className="calpage">
-          <div className="hd">機 巧 時 運 · 今 日 曆 頁</div>
+          <div className="hd">機巧時運 · 今日曆頁</div>
           <div className="gz"><div className="zi">{gzZi}<small>日</small></div></div>
           <div className="meta"><span className="term">{d.term}</span></div>
 
           <div className="yjcols">
             <div className="yi-col">
-              <div className="hh"><i>宜</i>宜</div>
+              {/* 印章方塊裡已有「宜」字，外面不可再重複——先前渲染成「宜宜」，螢幕閱讀器也會唸兩次 */}
+              <div className="hh"><i aria-hidden="true">宜</i><span className="visually-hidden">今日宜</span></div>
               <div className="it">{d.yi.map(t => <GlossTerm key={t} term={t} gl={gl} />)}</div>
             </div>
             <div className="ji-col">
-              <div className="hh"><i>忌</i>忌</div>
+              <div className="hh"><i aria-hidden="true">忌</i><span className="visually-hidden">今日忌</span></div>
               <div className="it">{d.ji.map(t => <GlossTerm key={t} term={t} gl={gl} />)}</div>
             </div>
           </div>
@@ -100,15 +101,16 @@ export default function Feed() {
         </div>
 
         <button className="ad-more tap" onClick={() => push('almanacDay', { off })}>
-          <span className="ad-more-tx">
-            <b>📜 看完整農民曆</b>
+          <span className="ad-more-ic"><Icon name="scroll" /></span>
+            <span className="ad-more-tx">
+            <b>看完整農民曆</b>
             <small>建除・星宿・彭祖百忌・胎神・沖煞歲數・財喜貴方位・十二時辰</small>
           </span>
           <span className="go">›</span>
         </button>
 
         <div className="calacts">
-          <button className="b dark tap" onClick={() => push('aiChat')}>✦ 問 AI 時光顧問</button>
+          <button className="b dark tap" onClick={() => push('aiChat')}><Icon name="sparkle" style={{ width: 15, height: 15, marginRight: 5, verticalAlign: -2 }} />問 AI 時光顧問</button>
           <button className="b tap" onClick={() => push('makeCalendar')}>＋ 做月曆</button>
         </div>
 
@@ -125,7 +127,9 @@ export default function Feed() {
             <button key={`${p.id}-${i}`} className="railcard tap" onClick={() => push('postDetail', { id: p.id })}>
               <div className="ph" style={{ background: p.bg, fontSize: 56, position: 'relative', overflow: 'hidden' }}>
                 {p.image ? <PhotoImg src={p.image} /> : p.emoji}
-                <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>♥ {p.likes + (liked[p.id] ? 1 : 0)}</span>
+                <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>
+                  <Icon name="heart" fill style={{ width: 11, height: 11, verticalAlign: -1 }} /> {p.likes + (liked[p.id] ? 1 : 0)}
+                </span>
               </div>
               <div className="cap">{p.title}</div>
               <div className="by">@{p.user}</div>
@@ -135,7 +139,7 @@ export default function Feed() {
 
         {/* 節氣攝影挑戰入口（原本掛在「更多」，移到這裡成為獨立卡片） */}
         <button className="feedchal tap" onClick={() => push('challenges')}>
-          <span className="fc-ic">🎯</span>
+          <span className="fc-ic"><Icon name="trophy" /></span>
           <span className="fc-t"><b>{d.term}攝影挑戰</b><small>拍下你的{d.term}，前 3 名收錄官方植物月曆</small></span>
           <span className="fc-go">›</span>
         </button>

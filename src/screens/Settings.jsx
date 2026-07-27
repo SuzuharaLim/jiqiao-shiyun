@@ -48,15 +48,15 @@ export default function Settings() {
         <div className="strip">目前登入：<b>{user?.name}</b>{user?.guest && '（訪客）'}　{user?.email && `· ${user.email}`}</div>
 
         <SectionHead title="帳號" />
-        <ToolRow icon="👤" bg="#dcfce7" title="個人檔案・作品集" sub="編輯名稱、簡介、頭像" onClick={() => push('editProfile')} />
-        <ToolRow icon="🔐" bg="#dbeafe" title="帳號安全" sub="變更密碼 · 匯出資料 · 刪除帳號" onClick={() => push('accountSecurity')} />
-        <ToolRow icon="✦" bg="#ede9fe" title="訂閱與帳號" sub="Free / Premium" onClick={() => push('subscription')} />
-        <ToolRow icon="💰" bg="#dcfce7" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
+        <ToolRow iconName="user" title="個人檔案・作品集" sub="編輯名稱、簡介、頭像" onClick={() => push('editProfile')} />
+        <ToolRow iconName="lock" title="帳號安全" sub="變更密碼 · 匯出資料 · 刪除帳號" onClick={() => push('accountSecurity')} />
+        <ToolRow iconName="sparkle" title="訂閱與帳號" sub="Free / Premium" onClick={() => push('subscription')} />
+        <ToolRow iconName="coin" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
 
         {['admin', 'moderator'].includes(user?.role) && (
           <>
             <SectionHead title="站務" />
-            <ToolRow icon="🛡️" bg="#e9e3fb" title="管理後台"
+            <ToolRow icon="🛡️" bg="#E0DDE6" title="管理後台"
               sub={user.role === 'admin' ? '使用者角色 · 內容 CMS' : '內容 CMS（版主）'} onClick={() => push('admin')} />
           </>
         )}
@@ -138,12 +138,12 @@ export default function Settings() {
             setToast(v ? '已設為私密帳號（公開頁將隱藏你的貼文/作品）' : '已設為公開帳號')
           }} />
         </div>
-        <ToolRow icon="📜" bg="#ffedd5" title="服務條款" sub="使用規範 · 市集分潤 70% · 非商用授權" onClick={() => push('terms')} />
-        <ToolRow icon="🛡️" bg="#fce7f3" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
+        <ToolRow iconName="scroll" title="服務條款" sub="使用規範 · 市集分潤 70% · 非商用授權" onClick={() => push('terms')} />
+        <ToolRow icon="🛡️" bg="#E8DCE0" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
 
         <SectionHead title="關於" />
-        <ToolRow icon="📖" bg="#e9e3fb" title="品牌故事" sub="五位資工生的文化實驗" onClick={() => push('about')} />
-        <ToolRow icon="❓" bg="#dcfce7" title="聯絡我們" sub="客服信箱 · 服務時間" onClick={() => push('contact')} />
+        <ToolRow iconName="book2" title="品牌故事" sub="五位資工生的文化實驗" onClick={() => push('about')} />
+        <ToolRow iconName="dots" title="聯絡我們" sub="客服信箱 · 服務時間" onClick={() => push('contact')} />
 
         <div className="pad">
           <button className="btn-ghost tap" onClick={() => { setToast('已登出'); logout() }}>登出</button>
