@@ -11,7 +11,7 @@ const PICK = ['🚚 宅配到府', '🏪 超商取貨', '🏬 門市自取']
 const INV = ['🧾 手機載具', '🧾 自然人憑證', '🏢 公司統編', '❤️ 捐贈發票']
 
 export default function Checkout() {
-  const { pop, popAll, setToast, cart, clearCart, subscribed, addOrder, requireAccount } = useNav()
+  const { pop, popAll, setToast, cart, clearCart, removeFromCart, subscribed, addOrder, requireAccount } = useNav()
   // ⚠️ 原本是 `cart.length ? cart : checkoutItems`——購物車空的時候會塞三筆
   // 示範商品（合計 NT$630），使用者會看到自己從沒加入的東西。只吃真實購物車。
   const items = cart
@@ -66,8 +66,16 @@ export default function Checkout() {
         )}
         {items.length > 0 && <>
         <div className="sumcard">
+          {/* 品項可移除——先前只能清空整車，誤加一項無法單獨移除 */}
           {items.map((it, i) => (
-            <div key={i} className="sumrow"><span>{it.name}</span><b>${it.price}</b></div>
+            <div key={it.id || i} className="sumrow">
+              <span>{it.name}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <b>${it.price}</b>
+                <button className="ck-del tap" aria-label={`移除 ${it.name}`}
+                  onClick={() => { removeFromCart(it.id); setToast(`已移除：${it.name}`) }}>✕</button>
+              </span>
+            </div>
           ))}
           {subscribed && <div className="sumrow"><span className="muted">Premium 9 折折抵</span><span className="muted">−${discount}</span></div>}
           <div className="sumrow tot"><span>總計</span><span>NT${total}</span></div>

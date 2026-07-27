@@ -2089,3 +2089,12 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   .lp-map { height: 100px; }
   .lp-scroll { min-height: 120px; }
 }
+
+/* 結帳品項的移除鈕 */
+.ck-del {
+  background: none; border: 1px solid var(--line2); border-radius: 2px;
+  color: var(--muted); cursor: pointer;
+  width: 24px; height: 24px; min-height: 0; line-height: 1;
+  font-size: 12px; flex: 0 0 auto;
+}
+.ck-del:hover { color: var(--ji); border-color: var(--ji); }

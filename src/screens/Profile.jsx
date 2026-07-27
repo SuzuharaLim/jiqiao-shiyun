@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
 export default function Profile() {
-  const { push, subscribed, followCount, user, logout, orders } = useNav()
+  const { push, subscribed, user, logout, orders } = useNav()
   const [view, setView] = useState('works') // works | market | books
   const [my, setMy] = useState(null)         // { stats, posts, works } —— 登入者真實內容
 
@@ -26,7 +26,9 @@ export default function Profile() {
   // （NewPost.publish 先 createPost 再 createWork），相加會把同一張照片算兩次——
   // 先前顯示「作品 3」但點進去只有 2 件。市集上架是其中的子集，另外計。
   const stats = my ? { works: my.stats.posts, followers: my.stats.followers, following: my.stats.following }
-    : { works: 0, followers: 0, following: followCount() }
+    // ⚠️ 不可用 nav.jsx 的 followCount()——toggleFollow 已無人呼叫（追蹤走後端），
+    // 那個 state 恆為空物件，會讓「追蹤中」永遠顯示 0（即使實際已追蹤成功）。
+    : { works: 0, followers: 0, following: 0 }
   const minePosts = my ? my.posts : []
   const marketWorks = my ? my.works : []
   const shown = view === 'market' ? marketWorks : minePosts
@@ -50,7 +52,7 @@ export default function Profile() {
             </div>
           </div>
           <div className="bio">{me.bio}　<button className="acc tap" style={{ fontSize: 12, fontWeight: 400 }}
-            onClick={() => push('followList', { handle: me.handle, rel: 'following' })}>· 追蹤中 {stats.following ?? followCount()} 位</button></div>
+            onClick={() => push('followList', { handle: me.handle, rel: 'following' })}>· 追蹤中 {stats.following ?? 0} 位</button></div>
           {/* 三個統計都可點：作品／市集上架切換下方清單，粉絲開真實名單 */}
           <div className="nums">
             <button className="tap" onClick={() => setView('works')}>

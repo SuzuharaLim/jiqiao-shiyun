@@ -19,9 +19,11 @@ export function usePosts(term, fallback = []) {
   const [posts, setPosts] = useState(fallback)
   useEffect(() => {
     let alive = true
-    api.posts().then(r => { if (alive) setPosts(r.posts) }).catch(() => {})
+    // ⚠️ 先前呼叫 api.posts() 完全不傳 term，等於節氣篩選在伺服器端從未生效
+    // （只能對回傳的前 60 筆做前端過濾，第 61 筆之後的該節氣內容永遠看不到）。
+    api.posts(term || undefined).then(r => { if (alive) setPosts(r.posts) }).catch(() => {})
     return () => { alive = false }
-  }, [])
+  }, [term])
   return posts
 }
 

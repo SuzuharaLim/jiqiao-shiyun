@@ -101,14 +101,25 @@ export function NavProvider({ children }) {
     try { if (!user?.guest) await api.logout() } catch { /* 忽略：仍在前端登出 */ }
     setCsrf(null); setUser(null); setStack([]); setTabRaw(0)
   }
-  const updateProfile = (patch) => {
+  // ⚠️ 回傳 Promise：呼叫端必須 await 後才顯示「已更新」。
+  // 先前是 fire-and-forget + .catch(() => {})，伺服器 400/401/離線時
+  // 使用者仍看到成功提示，重整後改動消失（EditProfile 與 Settings 都中）。
+  const updateProfile = async (patch) => {
     setUser(u => ({ ...u, ...patch }))
-    // 暱稱/簡介/頭像持久化到後端（真帳號）；emailVerified 等純狀態不觸發 PATCH
-    if (user && !user.guest && (patch.name || patch.bio !== undefined || patch.avatar || patch.avatarImageId !== undefined)) {
-      api.updateProfile({
+    const needsSync = user && !user.guest &&
+      (patch.name || patch.bio !== undefined || patch.avatar
+        || patch.avatarImageId !== undefined || patch.priv !== undefined)
+    if (!needsSync) return { ok: true, local: true }
+    try {
+      const r = await api.updateProfile({
         name: patch.name ?? user.name, bio: patch.bio, avatar: patch.avatar,
         avatarImageId: patch.avatarImageId,   // 使用者上傳的頭像；null＝改回 emoji
-      }).catch(() => { /* 離線時僅本機生效 */ })
+        priv: patch.priv,
+      })
+      if (r?.user) setUser(u => ({ ...u, ...r.user }))   // 以伺服器回傳為準
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e?.message || '儲存失敗，請稍後再試' }
     }
   }
   // ---- 登入牆：下單/上傳/發佈等需要「真帳號」（非訪客）----
@@ -241,6 +252,8 @@ export function NavProvider({ children }) {
   const toggleReminder = (id) => setReminders(m => ({ ...m, [id]: !m[id] }))
   const togglePhoto = (id) => setProjectPhotos(m => ({ ...m, [id]: !m[id] }))
   const addToCart = (item) => setCart(c => (c.find(x => x.id === item.id) ? c : [...c, item]))
+  // ⚠️ 先前只有 addToCart / clearCart，誤加一項的唯一救法是清空整車。
+  const removeFromCart = (id) => setCart(c => c.filter(x => x.id !== id))
   const clearCart = () => setCart([])
   const toggleFollow = (user) => setFollowing(m => ({ ...m, [user]: !m[user] }))
   const followCount = () => Object.values(following).filter(Boolean).length
@@ -265,7 +278,7 @@ export function NavProvider({ children }) {
     liked, toggleLike, saved, toggleSave,
     reminders, toggleReminder,
     subscribed, setSubscribed,
-    cart, addToCart, clearCart,
+    cart, addToCart, removeFromCart, clearCart,
     orders, addOrder,
     projectPhotos, togglePhoto,
     following, toggleFollow, followCount,

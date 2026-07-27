@@ -51,10 +51,19 @@ export default function Settings() {
         <SectionHead title="隱私與授權" />
         <div className="opt">
           <div className="l">🔒 私密帳號</div>
-          <Switch on={prefs.priv} onChange={(v) => {
+          <Switch on={prefs.priv} onChange={async (v) => {
             setPref('priv', v)
-            // 同步到伺服器：私密帳號時公開頁隱藏貼文/作品（訪客無帳號則僅本機偏好）
-            if (user && !user.guest) api.updateProfile({ priv: v }).catch(() => {})
+            // ⚠️ 隱私設定不可靜默失敗：先前用 .catch(() => {}) 吞錯，
+            // 開關看起來打開了但後端沒存，使用者以為自己是私密帳號。
+            if (user && !user.guest) {
+              try {
+                await api.updateProfile({ priv: v })
+              } catch (e) {
+                setPref('priv', !v)   // 回退成原狀，不要留下假象
+                setToast(e?.message || '隱私設定儲存失敗，請稍後再試')
+                return
+              }
+            }
             setToast(v ? '已設為私密帳號（公開頁將隱藏你的貼文/作品）' : '已設為公開帳號')
           }} />
         </div>

@@ -50,18 +50,25 @@ export default function EditProfile() {
     } finally { setUploading(false) }
   }
 
-  const save = () => {
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
     // 訪客沒有後端帳號，存了也不會保留 → 直接引導註冊，不給假的成功訊息
     if (!requireAccount('編輯個人檔案')) return
     if (!name.trim()) { setToast('暱稱不可空白'); return }
-    updateProfile({ name: name.trim(), bio: bio.trim(), avatar, avatarImageId })
+    if (saving) return
+    setSaving(true)
+    // ⚠️ 必須等後端結果再顯示成功。先前是 fire-and-forget 後無條件 toast
+    // 「已更新 ✓」，伺服器 400/401/離線時使用者仍看到成功、重整後改動消失。
+    const r = await updateProfile({ name: name.trim(), bio: bio.trim(), avatar, avatarImageId })
+    setSaving(false)
+    if (!r?.ok) { setToast(r?.error || '儲存失敗，請稍後再試'); return }
     setToast('個人檔案已更新 ✓')
     pop()
   }
 
   return (
     <>
-      <TopBar title="編輯個人檔案" onBack right={<button className="acc tap" onClick={save}>儲存</button>} />
+      <TopBar title="編輯個人檔案" onBack right={<button className="acc tap" onClick={save} disabled={saving}>{saving ? '儲存中…' : '儲存'}</button>} />
       <div className="body">
         <div className="center" style={{ padding: '18px 0 6px' }}>
           <div className="pf-av" style={{ background: user?.avatarBg || '#f3e7c9', margin: '0 auto', fontSize: 36, overflow: 'hidden' }}>
