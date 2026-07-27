@@ -127,7 +127,11 @@ a { color:inherit; text-decoration:none; }
 @media (min-width:900px) {
   /* 內容畫布加寬 */
   .stage.signed-in .device { width:min(100%, 1000px); max-width:1000px; }
-  .wn-inner, .wf-inner { max-width:1040px; }
+  /* 導覽列/頁尾的版心對齊內容卡：原本 1040＋28 內距，內容卡是 1000＋26，
+     於 1920px 實測出現三個相差 8–52px 的左緣（卡片 452／導覽列印章 460／
+     內文 504）。這種「差一點沒對齊」的堆疊就是整體比例看起來歪的主因，
+     故三者統一成 1000 版心＋26 內距。 */
+  .wn-inner, .wf-inner { max-width:1000px; padding-left:26px; padding-right:26px; }
 
   /* 根分頁版心內距 */
   .stage.signed-in .rootpane .body { padding:22px 26px 12px; }
@@ -194,7 +198,9 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .tab-0 .feed-side .feedchal { margin-left:0; margin-right:0; max-width:520px; }
 
   /* 作品詳情：桌機雙欄（左圖、右資訊＋購買），像商品頁 */
-  .stage.signed-in .screen .wd-body { max-width:920px; display:grid;
+  /* ⚠️ 同樣要寫 width：原本只寫 max-width:920，被通則的
+     width:min(100%,720px) 蓋掉，商品頁實測只有 720（左右欄各 322px）。 */
+  .stage.signed-in .screen .wd-body { width:min(100%, 920px); display:grid;
     grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:6px 32px; align-items:start; }
   .stage.signed-in .wd-media { position:sticky; top:78px; }
   .stage.signed-in .wd-media .img { height:auto !important; aspect-ratio:1 / 1; border-radius:2px; }
@@ -219,7 +225,10 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .tab-0 .feed-main .daystrip .mid { flex:0 0 auto; }
 
   /* 訂閱：方案並排比較（定價頁樣式） */
-  .stage.signed-in .screen-subscription .body { max-width:840px; display:grid;
+  /* ⚠️ 必須寫 width 不能只寫 max-width：通則 `.screen .body` 已設
+     `width:min(100%,720px)`，width 較小者勝，max-width:840 完全沒生效
+     ——方案卡被壓在 720 裡（實測每張只有 298px）。 */
+  .stage.signed-in .screen-subscription .body { width:min(100%, 840px); display:grid;
     grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
   .stage.signed-in .screen-subscription .body > p { grid-column:1 / -1; }
 
@@ -232,6 +241,114 @@ a { color:inherit; text-decoration:none; }
      （原本這裡還有 .screen-dmThread——該畫面與死路由已移除） */
   .stage.signed-in .screen-aiChat > :not(.topbar) {
     width:min(100%, 720px); margin-left:auto; margin-right:auto; }
+
+  /* ── 桌機：堆疊畫面的版面比例 ──────────────────────────────────
+     原本所有堆疊畫面一律 `width:min(100%,720px)` 單欄，塞在 1000px 的
+     .device 卡裡：卡片內左右各留 140px 死白帶，內容只佔 1440px 視窗的
+     一半——看起來像把手機截圖貼在網頁中間。實測 40 頁有 30 頁如此。
+
+     依內容性質分三類（不是全部拉寬——行長過寬的長文更難讀）：
+       1. 讀字型（條款/關於/專欄/貼文/表單）維持窄欄 → 不動，仍是 720
+       2. 清單型（設定/諺語/慶典/附錄/工具列）改雙欄 940
+       3. 時序型（通知/訂單/收益/挑戰/今日）維持單欄但放寬到內容卡滿寬
+
+     ⚠️ 沿用 .rootpane.grid2 的既有約定：只有「列項/卡片」進欄位，
+     其他直接子元素（SectionHead/說明文字/按鈕列/chips/相簿）一律
+     grid-column:1/-1，否則會被塞進半欄、與列項互搶欄位而錯行。 */
+
+  /* 2. 清單型 → 雙欄 */
+  .stage.signed-in .screen-settings .body,
+  .stage.signed-in .screen-accountSecurity .body,
+  .stage.signed-in .screen-deities .body,
+  .stage.signed-in .screen-proverbs .body,
+  .stage.signed-in .screen-festivals .body,
+  .stage.signed-in .screen-flowers .body,
+  .stage.signed-in .screen-ingredients .body,
+  .stage.signed-in .screen-foodTaboo .body,
+  .stage.signed-in .screen-ganzhiTable .body,
+  .stage.signed-in .screen-store .body,
+  .stage.signed-in .screen-challengesBoard .body,
+  .stage.signed-in .screen-creatorConsole .body {
+    /* 用滿內容卡寬度（1000）並沿用根分頁的 26px 版心內距 →
+       與導覽列印章、頁尾同一條左緣。不再 940 置中（那會多出 30px 內縮，
+       又是一條對不齊的邊）。
+       ⚠️ 必須同時把通則的 margin-left/right:auto 歸零——flex column 裡
+       `width:auto` 配 `margin:auto` 會關閉 stretch、讓 .body 縮成內容寬
+       （實測 body 左緣隨內容在 580~833 之間跳動，比原本更歪）。 */
+    width:auto; margin-left:0; margin-right:0;
+    padding-left:26px; padding-right:26px;
+    display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:0 26px; align-items:start; align-content:start;
+  }
+  /* 預設跨欄；只有下面列出的列項類別才進單一欄位 */
+  .stage.signed-in .screen-settings .body > *,
+  .stage.signed-in .screen-accountSecurity .body > *,
+  .stage.signed-in .screen-deities .body > *,
+  .stage.signed-in .screen-proverbs .body > *,
+  .stage.signed-in .screen-festivals .body > *,
+  .stage.signed-in .screen-flowers .body > *,
+  .stage.signed-in .screen-ingredients .body > *,
+  .stage.signed-in .screen-foodTaboo .body > *,
+  .stage.signed-in .screen-ganzhiTable .body > *,
+  .stage.signed-in .screen-store .body > *,
+  .stage.signed-in .screen-challengesBoard .body > *,
+  .stage.signed-in .screen-creatorConsole .body > * { grid-column:1 / -1; }
+
+  .stage.signed-in .screen-settings .body > .tool,
+  .stage.signed-in .screen-settings .body > .opt,
+  .stage.signed-in .screen-accountSecurity .body > .acc-form,
+  .stage.signed-in .screen-deities .body > .tool,
+  .stage.signed-in .screen-proverbs .body > .list-item,
+  .stage.signed-in .screen-proverbs .body > .kv,
+  .stage.signed-in .screen-festivals .body > .kv,
+  .stage.signed-in .screen-festivals .body > .card,
+  .stage.signed-in .screen-flowers .body > .list-item,
+  .stage.signed-in .screen-flowers .body > .kv,
+  .stage.signed-in .screen-ingredients .body > .card,
+  .stage.signed-in .screen-foodTaboo .body > .kv,
+  .stage.signed-in .screen-ganzhiTable .body > .card,
+  .stage.signed-in .screen-store .body > .tool,
+  .stage.signed-in .screen-challengesBoard .body > .tool,
+  .stage.signed-in .screen-creatorConsole .body > .tool { grid-column:auto; }
+
+  /* 可點的工具列在雙欄下改成方框（沿用 .rootpane.grid2 的桌機語彙）——
+     只留 border-bottom 的「列」並排時會像沒有直線的表格，左右兩欄互相黏住。
+     ⚠️ 只處理 .tool/.opt（可點列）；.kv/.list-item 是對照表與名錄，
+     底線橫排才是對的，不可一併方框化（24 個框會糊成一片）。 */
+  .stage.signed-in .screen-settings .body > .tool,
+  .stage.signed-in .screen-settings .body > .opt,
+  .stage.signed-in .screen-deities .body > .tool,
+  .stage.signed-in .screen-store .body > .tool,
+  .stage.signed-in .screen-challengesBoard .body > .tool,
+  .stage.signed-in .screen-creatorConsole .body > .tool {
+    border:1px solid var(--line); border-radius:2px; background:var(--card);
+    padding:14px 16px; margin-bottom:12px;
+    transition:border-color .13s ease;
+  }
+  .stage.signed-in .screen-settings .body > .tool:hover,
+  .stage.signed-in .screen-settings .body > .opt:hover,
+  .stage.signed-in .screen-deities .body > .tool:hover,
+  .stage.signed-in .screen-store .body > .tool:hover,
+  .stage.signed-in .screen-challengesBoard .body > .tool:hover,
+  .stage.signed-in .screen-creatorConsole .body > .tool:hover { border-color:var(--cinnabar); }
+
+  /* 3. 時序型 → 單欄但放寬（通知/訂單這類要維持一條時間軸，不可分欄） */
+  .stage.signed-in .screen-notifications .body,
+  .stage.signed-in .screen-wallet .body,
+  .stage.signed-in .screen-orders .body,
+  .stage.signed-in .screen-records .body,
+  .stage.signed-in .screen-myProjects .body,
+  .stage.signed-in .screen-challenges .body,
+  .stage.signed-in .screen-zodiac .body,
+  .stage.signed-in .screen-todayShots .body {
+    width:auto; margin-left:0; margin-right:0; padding-left:26px; padding-right:26px; }
+
+  /* 創作者個人頁：與探索/我的的相簿同寬同格（原本 720 窄欄裡塞手機用的
+     3 欄 .grid，縮圖只有 224px，同一站的相簿卻寬窄不一）。 */
+  .stage.signed-in .screen-creatorPage .body {
+    width:auto; margin-left:0; margin-right:0; padding-left:26px; padding-right:26px; }
+  .stage.signed-in .screen-creatorPage .grid {
+    grid-template-columns:repeat(auto-fill, minmax(195px, 1fr)); gap:16px; }
 }
 
 /* 首頁節氣挑戰入口卡 */

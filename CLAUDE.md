@@ -168,12 +168,16 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
 - **`.lp-map` 地圖預覽不可用固定高**：原本 184px，手機橫向時搜尋結果的捲動區只剩 72px（地圖看得到但選不到地點）。改 `clamp(120px, 24dvh, 184px)`，矮視窗另壓到 100px 並給清單 `min-height`。
 - **入場動畫的終態要與靜態樣式一致並加 `forwards`**：`slideup` 原本 `to{transform:none}` 且無 fill-mode，動畫被中斷或未推進時元素會停在 `from` 的 `translateY(24px)`，底部彈出的 sheet 露出視窗外。
+- **hook 一律寫在提早 return 之前**：`PostDetail` 的編輯狀態（`editing/eTitle/eCap/saving`）原本寫在 `if (!post) return 載入中` 之後——第一次渲染只跑 11 個 hook、資料回來後 15 個，React 丟「Rendered more hooks than during the previous render」，**整個貼文詳情頁被 ErrorBoundary 接走**（點進貼文只看到錯誤畫面，build 不會報錯）。新增狀態時務必放在所有 `return` 之前。
 - **`ToolRow` 本身是 `<button>`**：放進去的互動子元件不能是 `<button>`（button 巢 button＝DOM 穿模）；`Switch` 用 `<span role="switch">`。
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
 - **桌機內容卡 `.device` 用 `overflow:clip` 不能 `overflow:hidden`**：`hidden` 會讓它變 sticky 的捲動容器，害 sticky 頂列偏移出空白帶。
 - **`.webnav,.webfoot` 的基礎 `display:none` 要放在 `@media(min-width:900px)` 之前**：同 specificity 時後者勝，放後面會永遠隱藏。
 - **grid2 雙欄**：`.rootpane.grid2 .body` 由 flex 改 grid，非 `.tool` 子元素要 `grid-column:1/-1` 才不會被塞進雙欄。
 - **flex column 內用 `margin:auto` 置中會關閉 stretch**：`.screen` 是 flex column，其子項 `.body` 若用 `max-width + margin:auto` 置中，auto 邊界會取消 stretch → `.body` 收縮成內容寬（詳情頁看起來太窄/稀疏）。要用 **`width:min(100%, Npx)`**（確定寬度）才會真的填滿到 N 再置中。
+- **桌機堆疊畫面的版心（2026-07 修）**：通則 `.screen .body` 是 `width:min(100%,720px)` ＋ `margin:auto`，40 頁實測有 30 頁因此變成「1440px 視窗中間一條 720px 手機欄」、1000px 內容卡裡左右各 140px 死白。已按內容性質分三類：**讀字型**（條款/關於/專欄/貼文/表單）維持窄欄；**清單型**（設定/安全/神佛/諺語/慶典/賞花/食材/相剋/干支/商店/排行/創作者後台）改**雙欄**；**時序型**（通知/收益/訂單/紀錄/專案/挑戰/生肖/今日）維持單欄但放寬到內容卡滿寬。雙欄沿用 `.rootpane.grid2` 約定：直接子元素預設 `grid-column:1/-1`，只有列出的 `.tool/.opt/.kv/.list-item/.card/.acc-form` 才 `grid-column:auto`。
+- **要放寬 `.body` 必須寫 `width` 且把 `margin-left/right` 歸零**：(1) 只寫 `max-width` 會被通則的 `width:min(100%,720px)` 蓋掉——`.wd-body`(920) 與 `.screen-subscription`(840) 兩處都因此長年被壓在 720，方案卡只有 298px；(2) 改成 `width:auto` 卻留著通則的 `margin:auto`，flex column 下會關閉 stretch、`.body` 縮成內容寬（實測左緣隨內容在 580~833 間跳動）。
+- **導覽列/頁尾/內容卡要共用同一條左緣**：三者原本是 1040+28、1000+26、720 置中，1920px 下產生 452／460／504 三條差 8~52px 的邊——「差一點沒對齊」正是整體比例看起來歪的主因。已統一為 1000 版心 ＋ 26px 內距。
 - **桌機各詳情畫面微調**：`App.jsx` 給堆疊 `.screen` 加 `screen-<key>` class（如 `screen-postDetail`、`screen-subscription`），可在 CSS 針對單一畫面調版面（訂閱雙欄、貼文窄欄等）。
 - **桌機 `.device` 一定要覆寫 base 的 `max-height:100dvh`**：手機 base 是 `height:100dvh; max-height:100dvh`（滿版手機框內捲）。桌機是整頁捲動，device 要 `height:auto; max-height:none`。**只覆寫 height 忘了 max-height** → device 被鎖在一個視窗高，較長內容溢出、頁尾（device 之後的手足）疊到內容上（「頁尾殘影」）。
 - **`.coverbig` 有 inline `width:calc(100%-26px)`**：桌機要 `width:auto !important` 才蓋得掉。

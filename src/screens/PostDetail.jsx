@@ -18,6 +18,15 @@ export default function PostDetail({ id }) {
   const [clikes, setClikes] = useState({})   // 留言按讚（前端個人化）
   const [text, setText] = useState('')
   const inputRef = useRef(null)
+  // ⚠️ 編輯狀態的 useState 必須放在下面 `if (!post) return` 之前。
+  // 原本寫在 return 之後（第 70 行附近）＝條件式 hook：第一次渲染 post 還是 null，
+  // 提早 return 只跑了 11 個 hook；資料載回來後跑 15 個 →
+  // React 丟「Rendered more hooks than during the previous render」，
+  // 整個貼文詳情頁被 ErrorBoundary 接走（點進貼文只看到錯誤畫面）。
+  const [editing, setEditing] = useState(false)
+  const [eTitle, setETitle] = useState('')
+  const [eCap, setECap] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -67,10 +76,6 @@ export default function PostDetail({ id }) {
   const mine = !!user && !user.guest && post.user === user.handle
   // ⚠️ 先前只能刪除——打錯字只能刪掉重發，連帶失去所有按讚與留言。
   // 就地編輯：標題與說明可改，標籤從說明的 #標籤 重新解析（與發文時一致）。
-  const [editing, setEditing] = useState(false)
-  const [eTitle, setETitle] = useState('')
-  const [eCap, setECap] = useState('')
-  const [saving, setSaving] = useState(false)
   const startEdit = () => { setETitle(post.title || ''); setECap(post.caption || ''); setEditing(true) }
   const saveEdit = async () => {
     if (saving) return
