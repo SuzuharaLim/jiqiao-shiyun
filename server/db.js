@@ -96,6 +96,12 @@ for (const sql of [
   "ALTER TABLE works ADD COLUMN image_id TEXT",
   "ALTER TABLE users ADD COLUMN avatar_image_id TEXT",
   "ALTER TABLE works ADD COLUMN tags_json TEXT",
+  // 編輯功能：記錄最後編輯時間，UI 顯示「已編輯」
+  "ALTER TABLE posts ADD COLUMN updated_at TEXT",
+  "ALTER TABLE works ADD COLUMN updated_at TEXT",
+  // 訂單取消：記錄取消時間與原因
+  "ALTER TABLE orders ADD COLUMN cancelled_at TEXT",
+  "ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
 ]) {
   try { await db.exec(sql) } catch { /* 欄位已存在 */ }
 }

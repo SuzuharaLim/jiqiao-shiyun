@@ -14,7 +14,8 @@
     "seed": "node server/seed.js",
     "mail:test": "node server/mail-test.js",
     "purge:demo": "node server/purge-demo.js",
-    "make:admin": "node server/make-admin.js"
+    "make:admin": "node server/make-admin.js",
+    "push:keys": "node server/push-keys.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

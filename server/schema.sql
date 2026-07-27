@@ -222,3 +222,63 @@ CREATE TABLE IF NOT EXISTS support_messages (
   status      TEXT NOT NULL DEFAULT 'open',   -- open | closed
   created_at  TEXT NOT NULL
 );
+
+-- ══════════════════════════════════════════════════════════════════
+-- 推播訂閱（Web Push）——使用者的推播端點與金鑰
+-- 「節氣提醒／神佛誕辰／互動通知」需要真的能送出，先前只有前端開關。
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS push_subs (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  endpoint    TEXT NOT NULL,                    -- 瀏覽器給的推播端點 URL
+  p256dh      TEXT NOT NULL,                    -- 加密公鑰
+  auth        TEXT NOT NULL,                    -- 加密驗證密鑰
+  ua          TEXT,
+  created_at  TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint ON push_subs(endpoint);
+
+-- 推播偏好：哪些類型要收（與 push_subs 分開，因為偏好是「人」的層級）
+CREATE TABLE IF NOT EXISTS push_prefs (
+  user_id     TEXT PRIMARY KEY,
+  solar_term  INTEGER NOT NULL DEFAULT 1,       -- 節氣提醒
+  deity       INTEGER NOT NULL DEFAULT 0,       -- 神佛誕辰
+  social      INTEGER NOT NULL DEFAULT 1,       -- 按讚/留言/追蹤
+  updated_at  TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ══════════════════════════════════════════════════════════════════
+-- 分潤結算（骨架）——⚠️ 尚未簽約金流，不會真的動錢
+-- 設計為「先記帳、後付款」：ledger 記錄每一筆應付分潤，
+-- payouts 記錄提領申請。兩者都不碰真實金流，等簽約後接上即可。
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS ledger (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,                    -- 收款人（創作者）
+  order_id    TEXT,                             -- 來源訂單
+  work_id     TEXT,                             -- 來源作品
+  kind        TEXT NOT NULL,                    -- license / calendar / bonus / adjust
+  gross       INTEGER NOT NULL,                 -- 成交總額（分）
+  rate        INTEGER NOT NULL DEFAULT 70,      -- 分潤比例（%）
+  amount      INTEGER NOT NULL,                 -- 應付創作者（分）
+  status      TEXT NOT NULL DEFAULT 'pending',  -- pending / available / paid / void
+  note        TEXT,
+  created_at  TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger(user_id, status);
+
+CREATE TABLE IF NOT EXISTS payouts (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  amount      INTEGER NOT NULL,                 -- 提領金額（分）
+  status      TEXT NOT NULL DEFAULT 'requested',-- requested / processing / paid / rejected
+  method      TEXT,                             -- 匯款方式（簽約後填）
+  note        TEXT,
+  created_at  TEXT NOT NULL,
+  settled_at  TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_payouts_user ON payouts(user_id, created_at);

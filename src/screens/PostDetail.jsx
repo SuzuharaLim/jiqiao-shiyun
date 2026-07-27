@@ -65,6 +65,26 @@ export default function PostDetail({ id }) {
   }
 
   const mine = !!user && !user.guest && post.user === user.handle
+  // ⚠️ 先前只能刪除——打錯字只能刪掉重發，連帶失去所有按讚與留言。
+  // 就地編輯：標題與說明可改，標籤從說明的 #標籤 重新解析（與發文時一致）。
+  const [editing, setEditing] = useState(false)
+  const [eTitle, setETitle] = useState('')
+  const [eCap, setECap] = useState('')
+  const [saving, setSaving] = useState(false)
+  const startEdit = () => { setETitle(post.title || ''); setECap(post.caption || ''); setEditing(true) }
+  const saveEdit = async () => {
+    if (saving) return
+    if (!eTitle.trim()) { setToast('標題不可空白'); return }
+    setSaving(true)
+    try {
+      const tags = [...new Set((eCap.match(/#[^\s#]+/g) || []).map(t => t.slice(1)))].slice(0, 8)
+      const r = await api.editPost(post.id, { title: eTitle.trim(), caption: eCap, tags })
+      setPost(p => ({ ...p, ...r.post }))
+      setEditing(false)
+      setToast('貼文已更新 ✓')
+    } catch (e) { setToast(e?.message || '更新失敗，請稍後再試') }
+    finally { setSaving(false) }
+  }
   const onDelete = async () => {
     if (!window.confirm('確定刪除這則貼文？（留言與按讚會一併刪除，無法復原）')) return
     try { await api.deletePost(post.id); setToast('貼文已刪除'); pop() }
@@ -82,9 +102,11 @@ export default function PostDetail({ id }) {
 
   return (
     <>
-      <TopBar title="貼文" onBack right={
+      <TopBar title={editing ? '編輯貼文' : '貼文'} onBack right={
         mine
-          ? <button className="acc tap" onClick={onDelete}>刪除</button>
+          ? (editing
+            ? <button className="acc tap" onClick={saveEdit} disabled={saving}>{saving ? '儲存中…' : '儲存'}</button>
+            : <button className="acc tap" onClick={startEdit}>編輯</button>)
           : <button className="acc tap" onClick={onReport}>檢舉</button>
       } />
       <div className="body">
@@ -116,7 +138,26 @@ export default function PostDetail({ id }) {
         </div>
 
         <div className="cap2"><b>{likeCount}</b> 個讚</div>
-        <div className="cap2" style={{ whiteSpace: 'pre-wrap' }}><b>{post.user}</b> {post.caption} {(post.tags || []).map(t => <span key={t} className="tag">#{t} </span>)}</div>
+        {editing ? (
+          /* 就地編輯：標題與說明。節氣與地點的修改留在發文頁（那裡有專屬選擇器） */
+          <div className="ct-field" style={{ paddingTop: 8 }}>
+            <label className="ct-label" htmlFor="pd-title">標題</label>
+            <input id="pd-title" className="ct-input" value={eTitle} maxLength={60}
+              onChange={e => setETitle(e.target.value)} />
+            <label className="ct-label" htmlFor="pd-cap" style={{ marginTop: 12 }}>說明</label>
+            <textarea id="pd-cap" className="ct-input ct-area" rows={4} maxLength={400}
+              value={eCap} onChange={e => setECap(e.target.value)}
+              placeholder="撰寫說明…　#節氣 #題材" />
+            <div className="ct-count">{eCap.length} / 400</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button className="b tap" onClick={() => setEditing(false)}>取消編輯</button>
+              <button className="b danger-solid tap" onClick={onDelete}>刪除貼文</button>
+            </div>
+            <div className="ct-hint">說明裡的 #標籤 會重新解析，供搜尋使用</div>
+          </div>
+        ) : (
+          <div className="cap2" style={{ whiteSpace: 'pre-wrap' }}><b>{post.user}</b> {post.caption} {(post.tags || []).map(t => <span key={t} className="tag">#{t} </span>)}</div>
+        )}
         <div className="cap2 muted">{post.time}</div>
 
         <div className="sech">留言 {comments.length}</div>

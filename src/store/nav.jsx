@@ -13,7 +13,7 @@ const SCREEN_PATH = {
   nameFortune: '/name', matchmaking: '/match', bone: '/bone', proverbs: '/proverbs',
   festivals: '/festivals', flowers: '/flowers', ingredients: '/ingredients', solarterms: '/solarterms',
   subscription: '/subscription', wallet: '/wallet', notifications: '/notifications',
-  dms: '/messages', dmThread: '/messages/:user', settings: '/settings', records: '/records',
+  dms: '/messages', settings: '/settings', records: '/records',
   creatorConsole: '/creator-console', store: '/store', orders: '/orders',
   scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day',
   yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
@@ -183,7 +183,12 @@ export function NavProvider({ children }) {
   })
   const [reminders, setReminders] = useState({ mazu: true, tudi: true }) // 神佛提醒
   const [subscribed, setSubscribed] = useState(false) // Premium
-  const [cart, setCart] = useState([])             // 購物車 / 授權
+  // 購物車：持久化到 localStorage——先前重整就全空，
+  // 使用者在商店加了幾件、切到作品詳情再回來就得重加。
+  const [cart, setCart] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('jq-cart') || '[]'); return Array.isArray(v) ? v : [] }
+    catch { return [] }
+  })
   const [projectPhotos, setProjectPhotos] = useState({}) // 做月曆選圖 id->bool
   // ---- 購買紀錄（訂單）----
   // 真帳號 → 後端為準（/api/orders，伺服器產生單號並寄確認信）；訪客瀏覽 → 本機示範資料
@@ -215,10 +220,11 @@ export function NavProvider({ children }) {
     return Promise.resolve(full)
   }
   // ---- 錢包餘額（Wallet / CreatorConsole 共用同一來源）----
-  // ⚠️ 曾經初始化成 creatorStats.balance（NT$1,840），等於每個新使用者一開帳
-  // 就看到自己從沒賺過的錢。分潤結算系統尚未建置，餘額一律從 0 開始。
-  const [balance, setBalance] = useState(0)
-  const withdraw = () => { if (balance <= 0) return false; setBalance(0); return true }
+  // ⚠️ 餘額已改由後端 ledger 表提供（Wallet 直接呼叫 api.ledger()）。
+  // 這裡保留 0 只為相容仍讀 balance 的畫面（CreatorConsole 的提領入口文案），
+  // 不再有 withdraw()——那個函式只做 setBalance(0) 卻 toast「1–3 個工作天入帳」，
+  // 是假的成功。真正的提領走 POST /api/payouts。
+  const balance = 0
   // ---- 設定偏好（持久化）----
   const [prefs, setPrefsRaw] = useState(() => {
     try { return { notif: true, priv: false, textSize: 'md', ...JSON.parse(localStorage.getItem('jq-prefs') || '{}') } }
@@ -254,6 +260,11 @@ export function NavProvider({ children }) {
   const addToCart = (item) => setCart(c => (c.find(x => x.id === item.id) ? c : [...c, item]))
   // ⚠️ 先前只有 addToCart / clearCart，誤加一項的唯一救法是清空整車。
   const removeFromCart = (id) => setCart(c => c.filter(x => x.id !== id))
+  // ⚠️ 這個 effect 必須放在 cart 的 useState 之後——放在檔案上方會 ReferenceError
+  //（const 有 TDZ，不像 function 宣告會提升）。
+  useEffect(() => {
+    try { localStorage.setItem('jq-cart', JSON.stringify(cart)) } catch { /* 隱私模式忽略 */ }
+  }, [cart])
   const clearCart = () => setCart([])
   const toggleFollow = (user) => setFollowing(m => ({ ...m, [user]: !m[user] }))
   const followCount = () => Object.values(following).filter(Boolean).length
@@ -279,12 +290,12 @@ export function NavProvider({ children }) {
     reminders, toggleReminder,
     subscribed, setSubscribed,
     cart, addToCart, removeFromCart, clearCart,
-    orders, addOrder,
+    orders, addOrder, refreshOrders: () => api.orders().then(r => setOrders(r.orders)).catch(() => {}),
     projectPhotos, togglePhoto,
     following, toggleFollow, followCount,
     comments, addComment,
     likedComments, toggleCommentLike,
-    balance, withdraw,
+    balance,
     prefs, setPref,
     notifRead, setNotifRead,
     toast, setToast,

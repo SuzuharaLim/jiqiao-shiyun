@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
+import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -72,6 +73,10 @@ const publicUser = (u) => ({
 async function notify(userId, emoji, body, toScreen = null, props = null) {
   await db.run('INSERT INTO notifications (id,user_id,emoji,body,to_screen,props_json,created_at) VALUES (?,?,?,?,?,?,?)',
     [uuid(), userId, emoji, body, toScreen, props ? JSON.stringify(props) : null, now()])
+  // 站內通知的單一入口 → 在此掛推播，所有互動（讚/留言/追蹤）自動都有推播，
+  // 不需逐處修改。推播失敗不可影響通知寫入，故 fire-and-forget + 捕捉。
+  pushToUser(userId, 'social', { title: '機巧時運', body: `${emoji} ${body}`, to: toScreen || '/notifications' })
+    .catch(e => console.warn('[push] social 推播失敗:', e.message))
 }
 // 角色階層（低→高）：一般使用者 < 創作者 < 版主 < 管理者
 const ROLES = ['user', 'creator', 'moderator', 'admin']
@@ -481,7 +486,9 @@ app.post('/api/orders', requireAuth, requireCsrf, ah(async (req, res) => {
     const name = String(it?.name || '').trim().slice(0, 80)
     const price = Number(it?.price)
     if (!name || !Number.isFinite(price) || price < 0 || price > 1000000) return res.status(400).json({ error: '訂單品項無效' })
-    clean.push({ name, price: Math.round(price) })
+    // workId 保留下來供分潤記帳對應創作者（沒有就是平台自營商品，不分潤）
+    const workId = it?.workId ? String(it.workId).slice(0, 60) : null
+    clean.push({ name, price: Math.round(price), ...(workId ? { workId } : {}) })
   }
   const total = clean.reduce((s, i) => s + i.price, 0)
   const d = new Date()
@@ -493,13 +500,23 @@ app.post('/api/orders', requireAuth, requireCsrf, ah(async (req, res) => {
   await db.run('INSERT INTO orders (id,user_id,items_json,total,status,pay,created_at) VALUES (?,?,?,?,?,?,?)',
     [id, req.user.id, JSON.stringify(clean), total, order.status, order.pay, now()])
   await audit('order_create', req, req.user.id, id)
+  // 分潤記帳（先記帳、後付款）——記帳失敗不可讓訂單失敗，故捕捉錯誤
+  recordLedger(id, clean).catch(e => console.error('[ledger] 記帳失敗:', e.message))
   sendMail({ to: req.user.email, subject: `訂單確認 ${id}（NT$${total}）`, link: `${APP_URL}/orders`, kind: 'order' })
   res.json({ order })
 }))
 
 app.get('/api/orders', requireAuth, ah(async (req, res) => {
-  const rows = await db.all('SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 100', [req.user.id])
-  res.json({ orders: rows.map(r => ({ id: r.id, date: r.created_at.slice(0, 10).replaceAll('-', '/'), items: JSON.parse(r.items_json), total: r.total, status: r.status, pay: r.pay })) })
+  const { before, limit } = pageArgs(req, 30)
+  const v = [req.user.id]
+  let where = 'WHERE user_id=?'
+  if (before) { where += ' AND created_at<?'; v.push(before) }
+  v.push(limit + 1)
+  const rows = await db.all(`SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT ?`, v)
+  const { items, hasMore } = paged(rows, limit)
+  res.json({ hasMore,
+    nextBefore: items.length ? items[items.length - 1].created_at : null,
+    orders: items.map(r => ({ id: r.id, date: r.created_at.slice(0, 10).replaceAll('-', '/'), items: JSON.parse(r.items_json), total: r.total, status: r.status, pay: r.pay, cancelledAt: r.cancelled_at })) })
 }))
 
 // ================= 使用者圖片（上傳 / 供圖）=================
@@ -541,13 +558,32 @@ const workShape = (w) => ({
 const POST_SELECT = `SELECT p.*, u.handle, u.name AS uname, u.avatar, u.avatar_bg
   FROM posts p JOIN users u ON u.id=p.user_id`
 
+// ── cursor 分頁 ──
+// ⚠️ 先前全部硬編 LIMIT（貼文 60／作品 120／通知 50／訂單 100），
+// 超過上限的內容永久看不到，且前端沒有任何翻頁機制。
+// 用 created_at 當 cursor：ISO 字串的字典序＝時間序（pg/sqlite 一致），
+// 不需要額外索引欄位，也不會有 OFFSET 在資料變動時跳筆的問題。
+const pageArgs = (req, def = 30, max = 100) => ({
+  before: req.query.before ? String(req.query.before) : null,
+  limit: Math.max(1, Math.min(max, parseInt(req.query.limit, 10) || def)),
+})
+// 多取一筆判斷還有沒有下一頁，回傳時再切掉
+const paged = (rows, limit) => ({ items: rows.slice(0, limit), hasMore: rows.length > limit })
+
 // 貼文列表（可 ?term= 篩選節氣）
 app.get('/api/posts', ah(async (req, res) => {
   const term = req.query.term ? String(req.query.term) : null
-  const rows = term
-    ? await db.all(`${POST_SELECT} WHERE p.term=? ORDER BY p.created_at DESC LIMIT 60`, [term])
-    : await db.all(`${POST_SELECT} ORDER BY p.created_at DESC LIMIT 60`)
-  res.json({ posts: rows.map(postShape) })
+  const { before, limit } = pageArgs(req)
+  const w = [], v = []
+  if (term) { w.push('p.term=?'); v.push(term) }
+  if (before) { w.push('p.created_at<?'); v.push(before) }
+  const where = w.length ? `WHERE ${w.join(' AND ')}` : ''
+  v.push(limit + 1)
+  const rows = await db.all(`${POST_SELECT} ${where} ORDER BY p.created_at DESC LIMIT ?`, v)
+  const { items, hasMore } = paged(rows, limit)
+  // nextBefore 必須取自「原始 row」的 created_at——postShape 輸出的是相對時間字串
+  const nextBefore = items.length ? items[items.length - 1].created_at : null
+  res.json({ posts: items.map(postShape), hasMore, nextBefore })
 }))
 
 // 單一貼文（含留言、是否已讚）
@@ -627,13 +663,28 @@ app.post('/api/posts/:id/comments', requireAuth, requireCsrf, ah(async (req, res
 }))
 
 // 市集作品列表（可 ?term=）
+// 各節氣的作品件數 —— 給探索頁的節氣面板用。
+// ⚠️ 不可從「已篩選的作品清單」統計：選了某個節氣後其他節氣會全變 0。
+app.get('/api/works/term-counts', ah(async (req, res) => {
+  const rows = await db.all(`SELECT term, COUNT(*) AS c FROM works WHERE term IS NOT NULL AND term<>'' GROUP BY term`)
+  const counts = {}
+  for (const r of rows) counts[r.term] = Number(r.c)
+  res.json({ counts })
+}))
+
 app.get('/api/works', ah(async (req, res) => {
   const term = req.query.term && req.query.term !== '全部' ? String(req.query.term) : null
+  const { before, limit } = pageArgs(req, 40)
   const base = `SELECT w.*, u.handle, u.name AS uname FROM works w JOIN users u ON u.id=w.user_id`
-  const rows = term
-    ? await db.all(`${base} WHERE w.term=? ORDER BY w.created_at DESC LIMIT 120`, [term])
-    : await db.all(`${base} ORDER BY w.created_at DESC LIMIT 120`)
-  res.json({ works: rows.map(workShape) })
+  const w = [], v = []
+  if (term) { w.push('w.term=?'); v.push(term) }
+  if (before) { w.push('w.created_at<?'); v.push(before) }
+  const where = w.length ? `WHERE ${w.join(' AND ')}` : ''
+  v.push(limit + 1)
+  const rows = await db.all(`${base} ${where} ORDER BY w.created_at DESC LIMIT ?`, v)
+  const { items, hasMore } = paged(rows, limit)
+  const nextBefore = items.length ? items[items.length - 1].created_at : null
+  res.json({ works: items.map(workShape), hasMore, nextBefore })
 }))
 
 // 上架市集作品（發文時勾「同時上架」或單獨上架）
@@ -723,6 +774,170 @@ app.get('/api/users/:handle/:rel(followers|following)', ah(async (req, res) => {
 // 回 204 讓瀏覽器直接改用 <link rel="icon"> 指定的 SVG。
 app.get('/favicon.ico', (req, res) => res.status(204).end())
 
+// ================= 分潤結算（骨架）=================
+// ⚠️ 尚未簽約金流。設計為「先記帳、後付款」：
+//   ledger  記錄每一筆應付分潤（訂單成立時寫入）
+//   payouts 記錄提領申請（只到 requested，不會真的匯款）
+// 這樣簽約後只要在 payout 的處理流程接上金流 API 即可，帳目歷史完整保留。
+// 金額一律以「分」為單位存整數，避免浮點誤差。
+
+const PLATFORM_RATE = Number(process.env.PLATFORM_RATE || 30)   // 平台抽成 %
+const CREATOR_RATE = 100 - PLATFORM_RATE
+
+// 訂單成立時記帳（由 POST /api/orders 呼叫）
+async function recordLedger(orderId, items) {
+  for (const it of items) {
+    if (!it.workId || !it.price) continue
+    const w = await db.get('SELECT id,user_id FROM works WHERE id=?', [it.workId])
+    if (!w) continue
+    const gross = Math.round(Number(it.price) * 100)          // 元 → 分
+    const amount = Math.round(gross * CREATOR_RATE / 100)
+    await db.run(`INSERT INTO ledger (id,user_id,order_id,work_id,kind,gross,rate,amount,status,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuid(), w.user_id, orderId, w.id, 'license', gross, CREATOR_RATE, amount, 'pending', now()])
+  }
+}
+
+// 我的帳目與餘額
+app.get('/api/ledger', requireAuth, ah(async (req, res) => {
+  const { before, limit } = pageArgs(req, 30)
+  const v = [req.user.id]
+  let where = 'WHERE user_id=?'
+  if (before) { where += ' AND created_at<?'; v.push(before) }
+  v.push(limit + 1)
+  const rows = await db.all(`SELECT * FROM ledger ${where} ORDER BY created_at DESC LIMIT ?`, v)
+  const { items, hasMore } = paged(rows, limit)
+  // 餘額＝available 的總和（pending 是尚未確認的，不可提領）
+  const sum = (st) => db.get('SELECT COALESCE(SUM(amount),0) AS s FROM ledger WHERE user_id=? AND status=?', [req.user.id, st])
+  const [avail, pend, paid] = await Promise.all([sum('available'), sum('pending'), sum('paid')])
+  const payouts = await db.all('SELECT * FROM payouts WHERE user_id=? ORDER BY created_at DESC LIMIT 20', [req.user.id])
+  res.json({
+    hasMore, nextBefore: items.length ? items[items.length - 1].created_at : null,
+    balance: { available: Number(avail.s), pending: Number(pend.s), paid: Number(paid.s) },
+    rate: CREATOR_RATE,
+    settlementReady: false,   // ⚠️ 尚未簽約金流；前端據此顯示說明而非可提領
+    entries: items.map(r => ({
+      id: r.id, kind: r.kind, gross: r.gross, amount: r.amount, rate: r.rate,
+      status: r.status, note: r.note, time: relTime(r.created_at),
+    })),
+    payouts: payouts.map(p => ({
+      id: p.id, amount: p.amount, status: p.status, time: relTime(p.created_at),
+      settledAt: p.settled_at,
+    })),
+  })
+}))
+
+// 申請提領 —— ⚠️ 只建立申請紀錄，不會動任何金流
+app.post('/api/payouts', requireAuth, requireCsrf, ah(async (req, res) => {
+  const avail = Number((await db.get(
+    'SELECT COALESCE(SUM(amount),0) AS s FROM ledger WHERE user_id=? AND status=?',
+    [req.user.id, 'available'])).s)
+  const MIN = 100000   // 最低提領門檻 NT$1,000（分）
+  if (avail < MIN)
+    return res.status(400).json({ error: `可提領餘額未達門檻（需 NT$${MIN / 100}，目前 NT$${avail / 100}）` })
+  const pending = await db.get(
+    "SELECT id FROM payouts WHERE user_id=? AND status IN ('requested','processing')", [req.user.id])
+  if (pending) return res.status(400).json({ error: '已有一筆提領申請正在處理中' })
+  const id = uuid()
+  await db.run('INSERT INTO payouts (id,user_id,amount,status,note,created_at) VALUES (?,?,?,?,?,?)',
+    [id, req.user.id, avail, 'requested', '待金流簽約後撥款', now()])
+  await audit('payout_request', req, req.user.id, id)
+  res.json({ ok: true, id, amount: avail,
+    message: '提領申請已建立。金流服務尚未簽約完成，實際撥款將於系統上線後處理。' })
+}))
+
+// 管理端：檢視所有提領申請
+app.get('/api/admin/payouts', requireAuth, requireRole('admin'), ah(async (req, res) => {
+  const rows = await db.all(`SELECT p.*, u.handle, u.email FROM payouts p
+    JOIN users u ON u.id=p.user_id ORDER BY p.created_at DESC LIMIT 200`)
+  res.json({ payouts: rows })
+}))
+
+// ================= 推播（Web Push）=================
+// ⚠️ 先前「節氣提醒／神佛誕辰／互動通知」只有前端開關，開了永遠不會提醒。
+// 這裡把它做成真的：訂閱存 DB、依偏好過濾、用 VAPID 送出。
+
+// 前端需要公鑰才能建立訂閱
+app.get('/api/push/key', (req, res) =>
+  res.json({ publicKey: pushEnabled() ? vapidPublicKey() : null, enabled: pushEnabled() }))
+
+// 建立／更新訂閱（同一 endpoint 視為同一裝置）
+app.post('/api/push/subscribe', requireAuth, requireCsrf, ah(async (req, res) => {
+  const b = req.body || {}
+  const endpoint = String(b.endpoint || '').slice(0, 500)
+  const p256dh = String(b.keys?.p256dh || '').slice(0, 200)
+  const auth = String(b.keys?.auth || '').slice(0, 100)
+  if (!/^https:\/\//.test(endpoint) || !p256dh || !auth)
+    return res.status(400).json({ error: '訂閱資料不完整' })
+  const existing = await db.get('SELECT id FROM push_subs WHERE endpoint=?', [endpoint])
+  if (existing) {
+    await db.run('UPDATE push_subs SET user_id=?, p256dh=?, auth=?, ua=? WHERE id=?',
+      [req.user.id, p256dh, auth, String(req.headers['user-agent'] || '').slice(0, 200), existing.id])
+  } else {
+    await db.run('INSERT INTO push_subs (id,user_id,endpoint,p256dh,auth,ua,created_at) VALUES (?,?,?,?,?,?,?)',
+      [uuid(), req.user.id, endpoint, p256dh, auth, String(req.headers['user-agent'] || '').slice(0, 200), now()])
+  }
+  // 首次訂閱時建立預設偏好
+  const pref = await db.get('SELECT user_id FROM push_prefs WHERE user_id=?', [req.user.id])
+  if (!pref) await db.run('INSERT INTO push_prefs (user_id,solar_term,deity,social,updated_at) VALUES (?,1,0,1,?)',
+    [req.user.id, now()])
+  await audit('push_subscribe', req, req.user.id)
+  res.json({ ok: true })
+}))
+
+app.post('/api/push/unsubscribe', requireAuth, requireCsrf, ah(async (req, res) => {
+  const endpoint = String(req.body?.endpoint || '')
+  await db.run('DELETE FROM push_subs WHERE endpoint=? AND user_id=?', [endpoint, req.user.id])
+  await audit('push_unsubscribe', req, req.user.id)
+  res.json({ ok: true })
+}))
+
+// 推播偏好（哪些類型要收）
+app.get('/api/push/prefs', requireAuth, ah(async (req, res) => {
+  const p = await db.get('SELECT * FROM push_prefs WHERE user_id=?', [req.user.id])
+  const subs = Number((await db.get('SELECT COUNT(*) AS c FROM push_subs WHERE user_id=?', [req.user.id])).c)
+  res.json({
+    enabled: pushEnabled(),
+    devices: subs,
+    prefs: { solarTerm: p ? !!p.solar_term : true, deity: p ? !!p.deity : false, social: p ? !!p.social : true },
+  })
+}))
+
+app.patch('/api/push/prefs', requireAuth, requireCsrf, ah(async (req, res) => {
+  const b = req.body || {}
+  const cur = await db.get('SELECT * FROM push_prefs WHERE user_id=?', [req.user.id])
+  const v = (nv, old, def) => (nv != null ? (nv ? 1 : 0) : (cur ? old : def))
+  const solar = v(b.solarTerm, cur?.solar_term, 1)
+  const deity = v(b.deity, cur?.deity, 0)
+  const social = v(b.social, cur?.social, 1)
+  if (cur) await db.run('UPDATE push_prefs SET solar_term=?,deity=?,social=?,updated_at=? WHERE user_id=?',
+    [solar, deity, social, now(), req.user.id])
+  else await db.run('INSERT INTO push_prefs (user_id,solar_term,deity,social,updated_at) VALUES (?,?,?,?,?)',
+    [req.user.id, solar, deity, social, now()])
+  res.json({ prefs: { solarTerm: !!solar, deity: !!deity, social: !!social } })
+}))
+
+// 送測試推播（確認裝置真的收得到）
+app.post('/api/push/test', requireAuth, requireCsrf, ah(async (req, res) => {
+  const subs = await db.all('SELECT * FROM push_subs WHERE user_id=?', [req.user.id])
+  if (!subs.length) return res.status(400).json({ error: '這個帳號還沒有任何裝置訂閱推播' })
+  const r = await sendPushToAll(subs, { title: '機巧時運', body: '推播測試成功 🌾 你會收到節氣與互動提醒', to: '/' })
+  if (r.goneIds.length) for (const id of r.goneIds) await db.run('DELETE FROM push_subs WHERE id=?', [id])
+  res.json({ ...r, enabled: pushEnabled() })
+}))
+
+// 內部：依偏好推播給某人（社群互動用）
+async function pushToUser(userId, kind, data) {
+  if (!pushEnabled()) return
+  const p = await db.get('SELECT * FROM push_prefs WHERE user_id=?', [userId])
+  const on = kind === 'social' ? (p ? p.social : 1) : kind === 'deity' ? (p ? p.deity : 0) : (p ? p.solar_term : 1)
+  if (!on) return
+  const subs = await db.all('SELECT * FROM push_subs WHERE user_id=?', [userId])
+  if (!subs.length) return
+  const r = await sendPushToAll(subs, data)
+  for (const id of r.goneIds) await db.run('DELETE FROM push_subs WHERE id=?', [id])
+}
+
 // ================= 客服／聯絡訊息 =================
 // 取代原本「假的私訊列表」與「企業詢價已送出（Demo）」——訊息真的存進 DB，
 // 並在有設定寄信服務時通知營運信箱。管理後台可在「檢舉/訊息」看到。
@@ -770,9 +985,17 @@ app.post('/api/follow', requireAuth, requireCsrf, ah(async (req, res) => {
 
 // 我的通知（unread＝未讀數，供鈴鐺徽章跨重整一致）
 app.get('/api/notifications', requireAuth, ah(async (req, res) => {
-  const rows = await db.all('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50', [req.user.id])
+  const { before, limit } = pageArgs(req, 30)
+  const v = [req.user.id]
+  let where = 'WHERE user_id=?'
+  if (before) { where += ' AND created_at<?'; v.push(before) }
+  v.push(limit + 1)
+  const rows = await db.all(`SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT ?`, v)
+  const { items, hasMore } = paged(rows, limit)
   const unread = Number((await db.get('SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND read_at IS NULL', [req.user.id])).c)
-  res.json({ unread, notifications: rows.map(n => ({ id: n.id, emoji: n.emoji, text: n.body, time: relTime(n.created_at), to: n.to_screen, props: n.props_json ? JSON.parse(n.props_json) : undefined, read: !!n.read_at })) })
+  res.json({ unread, hasMore,
+    nextBefore: items.length ? items[items.length - 1].created_at : null,
+    notifications: items.map(n => ({ id: n.id, emoji: n.emoji, text: n.body, time: relTime(n.created_at), to: n.to_screen, props: n.props_json ? JSON.parse(n.props_json) : undefined, read: !!n.read_at })) })
 }))
 
 // 全部標為已讀（開啟通知中心時呼叫；已讀狀態存 DB 跨裝置/重整一致）
@@ -783,6 +1006,97 @@ app.post('/api/notifications/read', requireAuth, requireCsrf, ah(async (req, res
 
 // ── 內容管理：刪除自己的貼文/留言/作品（版主以上可代刪，作內容治理用）──
 const canModerate = (req, ownerId) => req.user.id === ownerId || roleRank(req.user.role) >= roleRank('moderator')
+
+// ── 編輯貼文 ──
+// ⚠️ 先前只有 DELETE，打錯字只能刪掉重發，連帶失去所有按讚與留言。
+// 只允許改「內容」欄位；作者、時間、按讚數不可由客戶端變更。
+app.patch('/api/posts/:id', requireAuth, requireCsrf, ah(async (req, res) => {
+  const post = await db.get('SELECT id,user_id FROM posts WHERE id=?', [req.params.id])
+  if (!post) return res.status(404).json({ error: '找不到貼文' })
+  if (!canModerate(req, post.user_id)) return res.status(403).json({ error: '只能編輯自己的貼文' })
+  const b = req.body || {}
+  const sets = [], vals = []
+  if (b.title !== undefined) {
+    const t = String(b.title).trim().slice(0, 60)
+    if (!t) return res.status(400).json({ error: '標題不可空白' })
+    sets.push('title=?'); vals.push(t)
+  }
+  if (b.caption !== undefined) { sets.push('caption=?'); vals.push(String(b.caption).slice(0, 400)) }
+  if (b.term !== undefined) { sets.push('term=?'); vals.push(String(b.term).slice(0, 8)) }
+  if (b.tags !== undefined) {
+    const tags = Array.isArray(b.tags)
+      ? b.tags.map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 8) : []
+    sets.push('tags_json=?'); vals.push(JSON.stringify(tags))
+  }
+  if (b.place !== undefined) { sets.push('place=?'); vals.push(String(b.place).slice(0, 80) || null) }
+  if (!sets.length) return res.status(400).json({ error: '沒有要更新的欄位' })
+  sets.push('updated_at=?'); vals.push(now())
+  vals.push(req.params.id)
+  await db.run(`UPDATE posts SET ${sets.join(',')} WHERE id=?`, vals)
+  await audit('post_edit', req, req.user.id, req.params.id)
+  const row = await db.get(`${POST_SELECT} WHERE p.id=?`, [req.params.id])
+  res.json({ post: postShape(row) })
+}))
+
+// ── 編輯作品（價格／上下架／標題／節氣／標籤）──
+app.patch('/api/works/:id', requireAuth, requireCsrf, ah(async (req, res) => {
+  const w = await db.get('SELECT id,user_id FROM works WHERE id=?', [req.params.id])
+  if (!w) return res.status(404).json({ error: '找不到作品' })
+  if (!canModerate(req, w.user_id)) return res.status(403).json({ error: '只能編輯自己的作品' })
+  const b = req.body || {}
+  const sets = [], vals = []
+  if (b.title !== undefined) {
+    const t = String(b.title).trim().slice(0, 60)
+    if (!t) return res.status(400).json({ error: '標題不可空白' })
+    sets.push('title=?'); vals.push(t)
+  }
+  // price 0 ＝下架（僅展示不販售）
+  if (b.price !== undefined) {
+    const p = Math.max(0, Math.min(1000000, Math.round(Number(b.price) || 0)))
+    sets.push('price=?'); vals.push(p)
+  }
+  if (b.term !== undefined) { sets.push('term=?'); vals.push(String(b.term).slice(0, 8)) }
+  if (b.tags !== undefined) {
+    const tags = Array.isArray(b.tags)
+      ? b.tags.map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 8) : []
+    sets.push('tags_json=?'); vals.push(JSON.stringify(tags))
+  }
+  if (!sets.length) return res.status(400).json({ error: '沒有要更新的欄位' })
+  sets.push('updated_at=?'); vals.push(now())
+  vals.push(req.params.id)
+  await db.run(`UPDATE works SET ${sets.join(',')} WHERE id=?`, vals)
+  await audit('work_edit', req, req.user.id, req.params.id)
+  const row = await db.get('SELECT w.*, u.handle, u.name AS uname FROM works w JOIN users u ON u.id=w.user_id WHERE w.id=?', [req.params.id])
+  res.json({ work: workShape(row) })
+}))
+
+// ── 取消訂單 ──
+// ⚠️ 先前只有建立與列表，誤下單無自救路徑。只有「處理中／待付款」可取消；
+// 已付款或已出貨需走客服（避免使用者自行取消已在處理的實體訂單）。
+app.post('/api/orders/:id/cancel', requireAuth, requireCsrf, ah(async (req, res) => {
+  const o = await db.get('SELECT id,user_id,status FROM orders WHERE id=?', [req.params.id])
+  if (!o) return res.status(404).json({ error: '找不到訂單' })
+  if (!canModerate(req, o.user_id)) return res.status(403).json({ error: '只能取消自己的訂單' })
+  const CANCELLABLE = ['處理中', '待付款']
+  if (!CANCELLABLE.includes(o.status))
+    return res.status(400).json({ error: `此訂單狀態（${o.status}）無法自行取消，請透過「聯絡我們」處理` })
+  const reason = String(req.body?.reason || '').trim().slice(0, 200) || null
+  await db.run('UPDATE orders SET status=?, cancelled_at=?, cancel_reason=? WHERE id=?',
+    ['已取消', now(), reason, req.params.id])
+  await audit('order_cancel', req, req.user.id, req.params.id)
+  res.json({ ok: true, status: '已取消' })
+}))
+
+// ── 撤回檢舉 ──
+app.delete('/api/reports/:id', requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await db.get('SELECT id,reporter_id,status FROM reports WHERE id=?', [req.params.id])
+  if (!r) return res.status(404).json({ error: '找不到檢舉' })
+  if (!canModerate(req, r.reporter_id)) return res.status(403).json({ error: '只能撤回自己的檢舉' })
+  if (r.status !== 'open') return res.status(400).json({ error: '此檢舉已處理完畢，無法撤回' })
+  await db.run('DELETE FROM reports WHERE id=?', [req.params.id])
+  await audit('report_withdraw', req, req.user.id, req.params.id)
+  res.json({ ok: true })
+}))
 
 app.delete('/api/posts/:id', requireAuth, requireCsrf, ah(async (req, res) => {
   const post = await db.get('SELECT id,user_id FROM posts WHERE id=?', [req.params.id])
@@ -987,7 +1301,7 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
 // 健康檢查（含 DB 驅動別、金流、AI、寄信是否已接）
 app.get('/api/health', ah(async (req, res) => {
   await db.get('SELECT 1 AS ok')
-  res.json({ ok: true, db: db.kind, pay: PAY_PROVIDER, ai: OPENAI_KEY ? 'on' : 'off', mail: mailStatus().provider })
+  res.json({ ok: true, db: db.kind, pay: PAY_PROVIDER, ai: OPENAI_KEY ? 'on' : 'off', mail: mailStatus().provider, push: pushEnabled() ? 'on' : 'off' })
 }))
 
 // 寄測試信（僅管理者）：正式站設完金鑰後，用這支確認真的收得到

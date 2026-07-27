@@ -227,10 +227,10 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .screen-postDetail .body,
   .stage.signed-in .screen-postDetail .cinput { width:min(100%, 600px); margin-left:auto; margin-right:auto; }
 
-  /* AI 對話 / 私訊：聊天內容置中（用 .chat/.cinput 而非 .body，故單獨限寬），
-     不要撐滿 1000 讓對話框拉太寬；頂列保持滿版 */
-  .stage.signed-in .screen-aiChat > :not(.topbar),
-  .stage.signed-in .screen-dmThread > :not(.topbar) {
+  /* AI 對話：聊天內容置中（用 .chat/.cinput 而非 .body，故單獨限寬），
+     不要撐滿 1000 讓對話框拉太寬；頂列保持滿版
+     （原本這裡還有 .screen-dmThread——該畫面與死路由已移除） */
+  .stage.signed-in .screen-aiChat > :not(.topbar) {
     width:min(100%, 720px); margin-left:auto; margin-right:auto; }
 }
 

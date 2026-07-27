@@ -296,19 +296,7 @@ export const leaderboard = [
 ]
 
 // 私訊對話（示範腳本）
-export const dmThreads = {
-  'flora.tw': { emoji: '🌸', bg: '#fce7f3', msgs: [
-    { who: 'them', text: '嗨～你的〈初荷〉可以授權給我做月曆嗎？' },
-    { who: 'them', text: '想放在六月芒種那頁 🌾' },
-  ], reply: '沒問題！市集就能直接授權，單張 NT$30，分潤 70% 給我，你放心用 😊' },
-  'lin_ocean': { emoji: '🌊', bg: '#dbeafe', msgs: [
-    { who: 'them', text: '芒種攝影挑戰一起衝！' },
-  ], reply: '好啊！我今天剛拍了一組稻浪，等等就投稿 🌾' },
-  '機巧時運 小編': { emoji: '🤖', bg: '#ede9fe', msgs: [
-    { who: 'them', text: '恭喜你的作品入選官方植物月曆 🎉' },
-    { who: 'them', text: '分潤已入帳，可到錢包查看。' },
-  ], reply: '太開心了，謝謝小編！' },
-}
+// dmThreads 已移除：私訊子系統未建置，DMThread 畫面與 /messages/:user 死路由已一併刪除。
 
 // 節氣詩詞池（月曆換詩詞用）
 export const poemPool = [

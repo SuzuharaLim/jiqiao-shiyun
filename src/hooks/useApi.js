@@ -14,26 +14,53 @@ export function useContent(kind, fallback = []) {
   return data
 }
 
-// 貼文（可依節氣）；fallback 作為載入中的佔位（與資料庫初值相同）
-export function usePosts(term, fallback = []) {
-  const [posts, setPosts] = useState(fallback)
+// 可分頁的列表 hook（貼文／作品共用）
+// ⚠️ 後端原本硬編 LIMIT，超過的內容永久看不到且前端沒有翻頁機制。
+// 這裡回傳 loadMore() 與 hasMore，呼叫端在列表底部放「載入更多」即可。
+function usePagedList(fetcher, key, pick, fallback) {
+  const [items, setItems] = useState(fallback)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [cursor, setCursor] = useState(null)
+
+  // key 變動（換節氣）＝重新開始，不可沿用舊 cursor
   useEffect(() => {
     let alive = true
-    // ⚠️ 先前呼叫 api.posts() 完全不傳 term，等於節氣篩選在伺服器端從未生效
-    // （只能對回傳的前 60 筆做前端過濾，第 61 筆之後的該節氣內容永遠看不到）。
-    api.posts(term || undefined).then(r => { if (alive) setPosts(r.posts) }).catch(() => {})
+    setLoading(true)
+    fetcher(key, null).then(r => {
+      if (!alive) return
+      setItems(pick(r)); setHasMore(!!r.hasMore); setCursor(r.nextBefore || null)
+    }).catch(() => {}).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [term])
-  return posts
+  }, [key])
+
+  const loadMore = async () => {
+    if (loading || !hasMore || !cursor) return
+    setLoading(true)
+    try {
+      const r = await fetcher(key, cursor)
+      setItems(prev => [...prev, ...pick(r)])
+      setHasMore(!!r.hasMore); setCursor(r.nextBefore || null)
+    } catch { /* 保持現有清單，不清空 */ }
+    finally { setLoading(false) }
+  }
+  return { items, hasMore, loading, loadMore }
+}
+
+// 貼文（可依節氣）——回傳陣列以相容既有呼叫端；需要分頁時用 usePostsPaged
+export function usePosts(term, fallback = []) {
+  const { items } = usePagedList((t, before) => api.posts(t || undefined, before), term || '', r => r.posts, fallback)
+  return items
+}
+export function usePostsPaged(term, fallback = []) {
+  return usePagedList((t, before) => api.posts(t || undefined, before), term || '', r => r.posts, fallback)
 }
 
 // 市集作品（可依節氣篩）
 export function useWorks(term, fallback = []) {
-  const [works, setWorks] = useState(fallback)
-  useEffect(() => {
-    let alive = true
-    api.works(term).then(r => { if (alive) setWorks(r.works) }).catch(() => {})
-    return () => { alive = false }
-  }, [term])
-  return works
+  const { items } = usePagedList((t, before) => api.works(t || undefined, before), term || '', r => r.works, fallback)
+  return items
+}
+export function useWorksPaged(term, fallback = []) {
+  return usePagedList((t, before) => api.works(t || undefined, before), term || '', r => r.works, fallback)
 }

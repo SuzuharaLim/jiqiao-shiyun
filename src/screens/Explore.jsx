@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { useWorks } from '../hooks/useApi.js'
+import { useWorksPaged } from '../hooks/useApi.js'
+import { api } from '../api.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
 export default function Explore() {
@@ -12,7 +13,8 @@ export default function Explore() {
   const [openTerm, setOpenTerm] = useState(false)     // 節氣選單
   const [q, setQ] = useState('')
 
-  const works = useWorks(null)   // 全部作品嚴格來自資料庫（前端再依 chip/搜尋篩選）
+  // 節氣交給後端篩（伺服器端分頁才正確）；搜尋仍在前端做（即時回饋）
+  const { items: works, hasMore, loading, loadMore } = useWorksPaged(chip === '全部' ? null : chip)
 
   // ⚠️ 這排篩選原本讀 ref_items 的 exploreChips＝['全部','芒種','夏至','花卉','海','慶典']，
   // 有三個結構性錯誤：
@@ -24,10 +26,14 @@ export default function Explore() {
   // 先前的做法是把「有作品的節氣」全部攤平成一排——24 個節氣都有內容時
   // 會變成 25 項的長捲軸。節氣是固定集合且有公認的四季結構，
   // 收進面板用「四季 × 六節氣」呈現，主列永遠不超過 4 項。
-  const termCounts = works.reduce((m, w) => {
-    if (w.term) m[w.term] = (m[w.term] || 0) + 1
-    return m
-  }, {})
+  // ⚠️ 件數必須用獨立統計端點——從「已篩選的清單」算會讓選了某節氣後其他全變 0，
+  // 而且分頁後清單只含當前頁，件數也會不對。
+  const [termCounts, setTermCounts] = useState({})
+  useEffect(() => {
+    let alive = true
+    api.termCounts().then(r => { if (alive) setTermCounts(r.counts || {}) }).catch(() => {})
+    return () => { alive = false }
+  }, [works.length])   // 有新作品進來時重新統計
 
 
   // ⚠️ 曾經有「題材」作為第二個篩選維度，已移除。
@@ -41,12 +47,9 @@ export default function Explore() {
     m[k].works++
     return m
   }, {})).sort((a, b) => b.works - a.works).slice(0, 8)
-  const list = works.filter(w => {
-    const okChip = chip === '全部' || w.term === chip
-    const okQ = !q || w.title.includes(q) || w.author.includes(q) || w.term.includes(q)
-      || (w.tags || []).some(t => t.includes(q))
-    return okChip && okQ
-  })
+  // chip 已由後端篩選（見 useWorksPaged 的參數），這裡只做搜尋
+  const list = works.filter(w => !q || w.title.includes(q) || w.author.includes(q)
+    || w.term.includes(q) || (w.tags || []).some(t => t.includes(q)))
 
   return (
     <>
@@ -140,6 +143,13 @@ export default function Explore() {
                 <div className="cap">{w.title}<small>@{w.author} · {w.term}</small></div>
               </button>
             ))}
+          </div>
+        )}
+        {hasMore && (
+          <div className="pad">
+            <button className="b tap" onClick={loadMore} disabled={loading}>
+              {loading ? '載入中…' : '載入更多作品'}
+            </button>
           </div>
         )}
         </div>

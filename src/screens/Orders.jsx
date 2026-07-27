@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
+import { api } from '../api.js'
 
 // 訂單狀態 → 標籤配色
 const statusStyle = (s) => {
@@ -9,7 +11,24 @@ const statusStyle = (s) => {
 }
 
 export default function Orders() {
-  const { orders, setTab, popAll } = useNav()
+  const { orders, setTab, popAll, setToast, refreshOrders } = useNav()
+  // 兩段式取消：第一次點顯示確認，避免誤觸取消掉真的要買的訂單
+  const [arm, setArm] = useState(null)
+  const [busy, setBusy] = useState(false)
+  // ⚠️ 只有「處理中／待付款」可自行取消（與後端規則一致）；
+  // 已付款或已出貨要走客服，否則使用者可能取消掉已在處理的實體訂單。
+  const cancellable = (st) => ['處理中', '待付款'].includes(st)
+  const doCancel = async (id) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.cancelOrder(id, { reason: '使用者自行取消' })
+      setToast('訂單已取消')
+      setArm(null)
+      await refreshOrders()
+    } catch (e) { setToast(e?.message || '取消失敗') }
+    finally { setBusy(false) }
+  }
 
   return (
     <>
@@ -50,6 +69,23 @@ export default function Orders() {
                     <span className="muted" style={{ fontSize: 12 }}>共 {o.items.length} 項</span>
                     <span style={{ fontWeight: 800 }}>合計 NT${o.total}</span>
                   </div>
+                  {cancellable(o.status) && (
+                    <div style={{ padding: '8px 0 0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      {arm === o.id ? (
+                        <>
+                          <button className="b tap" style={{ flex: '0 0 auto', padding: '7px 14px' }}
+                            onClick={() => setArm(null)}>不取消</button>
+                          <button className="b danger-solid tap" style={{ flex: '0 0 auto', padding: '7px 14px' }}
+                            disabled={busy} onClick={() => doCancel(o.id)}>
+                            {busy ? '處理中…' : '確認取消訂單'}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="b tap" style={{ flex: '0 0 auto', padding: '7px 14px' }}
+                          onClick={() => setArm(o.id)}>取消訂單</button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

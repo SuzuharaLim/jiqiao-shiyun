@@ -46,12 +46,23 @@ export const api = {
   createOrder: (b) => req('/orders', { method: 'POST', body: b }),
   updateProfile: (b) => req('/me', { method: 'PATCH', body: b }),
   // 社群內容（真實資料庫）
-  posts: (term) => req('/posts' + (term ? `?term=${encodeURIComponent(term)}` : '')),
+  posts: (term, before) => {
+    const q = new URLSearchParams()
+    if (term) q.set('term', term)
+    if (before) q.set('before', before)
+    return req('/posts' + (q.toString() ? `?${q}` : ''))
+  },
   post: (id) => req('/posts/' + encodeURIComponent(id)),
   createPost: (b) => req('/posts', { method: 'POST', body: b }),
   likePost: (id) => req(`/posts/${encodeURIComponent(id)}/like`, { method: 'POST' }),
   addComment: (id, body) => req(`/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
-  works: (term) => req('/works' + (term && term !== '全部' ? `?term=${encodeURIComponent(term)}` : '')),
+  termCounts: () => req('/works/term-counts'),
+  works: (term, before) => {
+    const q = new URLSearchParams()
+    if (term && term !== '全部') q.set('term', term)
+    if (before) q.set('before', before)
+    return req('/works' + (q.toString() ? `?${q}` : ''))
+  },
   work: (id) => req('/works/' + encodeURIComponent(id)),
   createWork: (b) => req('/works', { method: 'POST', body: b }),
   leaderboard: () => req('/leaderboard'),
@@ -94,6 +105,21 @@ export const api = {
   payIntent: (b) => req('/payments/intent', { method: 'POST', body: b }),
   support: (b) => req('/support', { method: 'POST', body: b }),   // 客服／聯絡訊息（真的會送出）
   adminSupport: () => req('/admin/support'),   // 營運端讀客服訊息（moderator+）
+  // ── 推播 ──
+  pushKey: () => req('/push/key'),
+  pushSubscribe: (b) => req('/push/subscribe', { method: 'POST', body: b }),
+  pushUnsubscribe: (b) => req('/push/unsubscribe', { method: 'POST', body: b }),
+  pushPrefs: () => req('/push/prefs'),
+  setPushPrefs: (b) => req('/push/prefs', { method: 'PATCH', body: b }),
+  pushTest: () => req('/push/test', { method: 'POST' }),
+  // ── 分潤結算 ──
+  ledger: (before) => req('/ledger' + (before ? `?before=${encodeURIComponent(before)}` : '')),
+  requestPayout: () => req('/payouts', { method: 'POST' }),
+  // ── 編輯／取消／撤回 ──
+  editPost: (id, b) => req('/posts/' + id, { method: 'PATCH', body: b }),
+  editWork: (id, b) => req('/works/' + id, { method: 'PATCH', body: b }),
+  cancelOrder: (id, b) => req('/orders/' + id + '/cancel', { method: 'POST', body: b }),
+  withdrawReport: (id) => req('/reports/' + id, { method: 'DELETE' }),
   adminAudit: () => req('/admin/audit'),       // 稽核日誌（admin）
   // AI 時光顧問（後端代呼叫 OpenAI；未設金鑰時回 {fallback:true}）
   aiChat: (messages, context) => req('/ai/chat', { method: 'POST', body: { messages, context } }),

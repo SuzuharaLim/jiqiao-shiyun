@@ -1,9 +1,46 @@
+import { useEffect, useState } from 'react'
 import { TopBar, ToolRow, Switch, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { pushSupported, pushPermission, enablePush, disablePush, isSubscribed } from '../lib/push.js'
 
 export default function Settings() {
+  // ⚠️ 先前「🔔 通知」只是寫進 localStorage 的偏好，整個專案沒有任何推播實作，
+  // 開了永遠不會收到提醒。這裡接上真正的 Web Push（訂閱存 DB、依偏好過濾）。
+  const [pushOn, setPushOn] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushInfo, setPushInfo] = useState(null)   // { enabled, devices, prefs }
   const { theme, toggleTheme, setToast, push, logout, user, prefs, setPref } = useNav()
+  useEffect(() => {
+    let alive = true
+    if (!user || user.guest) return
+    isSubscribed().then(v => { if (alive) setPushOn(v) })
+    api.pushPrefs().then(r => { if (alive) setPushInfo(r) }).catch(() => {})
+    return () => { alive = false }
+  }, [user?.handle, user?.guest])
+
+  const togglePush = async (v) => {
+    if (pushBusy) return
+    if (!user || user.guest) { setToast('註冊帳號後才能開啟推播通知'); return }
+    if (!pushSupported()) { setToast('這個瀏覽器不支援推播通知'); return }
+    setPushBusy(true)
+    const r = v ? await enablePush() : await disablePush()
+    setPushBusy(false)
+    if (!r.ok) { setToast(r.reason || '設定失敗'); return }
+    setPushOn(v)
+    setToast(v ? '已開啟推播通知 🔔' : '已關閉推播通知')
+    if (v) api.pushPrefs().then(setPushInfo).catch(() => {})
+  }
+
+  const setPushKind = async (key, v) => {
+    setPushInfo(p => ({ ...p, prefs: { ...p?.prefs, [key]: v } }))
+    try { await api.setPushPrefs({ [key]: v }) }
+    catch (e) {
+      setPushInfo(p => ({ ...p, prefs: { ...p?.prefs, [key]: !v } }))   // 回退
+      setToast(e?.message || '偏好儲存失敗')
+    }
+  }
+
   return (
     <>
       <TopBar title="設定" onBack />
@@ -30,9 +67,43 @@ export default function Settings() {
           <Switch on={theme === 'dark'} onChange={toggleTheme} />
         </div>
         <div className="opt">
-          <div className="l">🔔 通知（節氣 · 神佛誕辰 · 互動）</div>
-          <Switch on={prefs.notif} onChange={(v) => { setPref('notif', v); setToast(v ? '已開啟通知 🔔' : '已關閉通知') }} />
+          <div className="l">🔔 推播通知{pushBusy ? '（處理中…）' : ''}</div>
+          <Switch on={pushOn} onChange={togglePush} />
         </div>
+        {/* 只有真的訂閱成功才顯示分類開關——沒訂閱時這些設定沒有意義 */}
+        {pushOn && pushInfo?.prefs && (
+          <>
+            <div className="opt" style={{ paddingLeft: 28 }}>
+              <div className="l" style={{ fontSize: 13 }}>　節氣提醒</div>
+              <Switch on={pushInfo.prefs.solarTerm} onChange={(v) => setPushKind('solarTerm', v)} />
+            </div>
+            <div className="opt" style={{ paddingLeft: 28 }}>
+              <div className="l" style={{ fontSize: 13 }}>　神佛誕辰</div>
+              <Switch on={pushInfo.prefs.deity} onChange={(v) => setPushKind('deity', v)} />
+            </div>
+            <div className="opt" style={{ paddingLeft: 28 }}>
+              <div className="l" style={{ fontSize: 13 }}>　按讚・留言・追蹤</div>
+              <Switch on={pushInfo.prefs.social} onChange={(v) => setPushKind('social', v)} />
+            </div>
+            <button className="note tap" onClick={async () => {
+              try { const r = await api.pushTest(); setToast(r.sent ? '測試推播已送出，請看系統通知' : '沒有可用的裝置訂閱') }
+              catch (e) { setToast(e?.message || '測試推播失敗') }
+            }}>
+              <span>送一則測試推播（已訂閱 {pushInfo.devices} 台裝置）</span>
+              <span className="acc">測試 ›</span>
+            </button>
+          </>
+        )}
+        {!pushOn && pushSupported() && pushPermission() === 'denied' && (
+          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 11, lineHeight: 1.7 }}>
+            ＊你已封鎖此網站的通知權限，需到瀏覽器的網站設定裡重新允許才能開啟。
+          </p>
+        )}
+        {!pushSupported() && (
+          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 11, lineHeight: 1.7 }}>
+            ＊這個瀏覽器不支援推播通知（iOS 需先「加入主畫面」才可使用）。
+          </p>
+        )}
         <div className="opt">
           <div className="l">🔤 文字大小</div>
           <div className="segbtns" role="radiogroup" aria-label="文字大小">

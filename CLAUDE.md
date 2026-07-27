@@ -187,6 +187,26 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ---
 
+## 推播（Web Push）
+
+`server/push.js` 自寫 RFC 8291／8292，**零第三方相依**（node crypto 即可：ES256 簽章＋ECDH＋AES-128-GCM）。
+- 產生金鑰：`npm run push:keys` → 設 `VAPID_PUBLIC_KEY`／`VAPID_PRIVATE_KEY`（私鑰放 Secret Manager）
+- **未設金鑰＝只 log 不送**（與 mailer.js 同樣的降級行為，本機開發不需金鑰）
+- 訂閱存 `push_subs`、偏好存 `push_prefs`（節氣／神佛／互動三類可分別開關）
+- **社群推播掛在 `notify()` 這個單一入口**——所有互動自動都有推播，不需逐處修改
+- `public/sw.js` 只做推播不做離線快取（避免與 Vite 資產雜湊衝突）；不可用 ESM
+- 推播權限只能在使用者明確操作時要求（設定頁開關），不可自動彈出
+- 404/410 ＝訂閱失效，`sendPushToAll` 回傳 `goneIds` 供呼叫端刪除
+
+## 分潤結算（骨架，尚未簽約金流）
+
+`ledger`（應付分潤）＋`payouts`（提領申請）兩張表，**先記帳、後付款**：
+- 訂單成立時 `recordLedger()` 寫入 ledger（`status='pending'`）
+- 金額一律以**分**為單位存整數（避免浮點誤差），顯示才除 100
+- `GET /api/ledger` 回傳 `settlementReady: false`——前端據此顯示「待簽約後撥款」
+- `POST /api/payouts` 只建立 `requested` 紀錄，**不呼叫任何金流 API**
+- 簽約後只要在 payout 處理流程接上金流即可，帳目歷史完整保留
+
 ## 已知限制（上線前需處理）
 
 - 干支/農曆/節氣/命理/建除/星宿/沖煞/胎神等**擇日神煞層為確定性示範演算**（`almanac.js`＋各頁 Disclaimer 已標明；規則正確但非權威曆算），正式版應接 lunar-javascript 等函式庫或通書資料核對。年神方位（三煞/五黃/歲破/大將軍）逐年變動，切勿沿用。

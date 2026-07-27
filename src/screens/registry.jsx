@@ -37,7 +37,6 @@ import Challenges from './Challenges.jsx'
 import CreatorPage from './CreatorPage.jsx'
 import FollowList from './FollowList.jsx'
 import Leaderboard from './Leaderboard.jsx'
-import DMThread from './DMThread.jsx'
 import PrePlan from './PrePlan.jsx'
 import EditProfile from './EditProfile.jsx'
 import About from './About.jsx'
@@ -89,7 +88,6 @@ export const SCREENS = {
   challengesBoard: Leaderboard,
   creatorPage: CreatorPage,
   followList: FollowList,
-  dmThread: DMThread,
   prePlan: PrePlan,
   editProfile: EditProfile,
   about: About,
