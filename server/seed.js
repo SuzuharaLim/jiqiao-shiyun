@@ -6,10 +6,11 @@ import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import db from './db.js'
 import {
-  posts, works, leaderboard, proverbs, deities, festivals, flowers, ingredients,
+  posts, works, leaderboard, proverbs, deities, festivals, flowers,
   zodiacs, solarTermArticles, challenges, fortuneTools, cultureTools, plans,
   poemPool, almanacTerms, notifications as notiSeed, storeProducts,
 } from '../src/data/mock.js'
+import { termGuide } from '../src/data/termGuide.js'
 
 const now = () => new Date().toISOString()
 const isoAgo = (h) => new Date(Date.now() - h * 3600_000).toISOString()
@@ -195,8 +196,9 @@ async function run() {
 
   // 7) 參考／編輯內容 → ref_items（清單；社群/曆法/相機設定皆可經 CMS 改）
   const refKinds = {
-    proverbs, deities, festivals, flowers, ingredients, zodiacs,
+    proverbs, deities, festivals, flowers, zodiacs,
     solarTerms: solarTermArticles, challenges, fortuneTools, cultureTools,
+    termGuide,      // 24 節氣生活資料庫（當令食材/產地/俗語/節慶/養生/開運色；id 取 item.term）
     leaderboard, poemPool: [{ poems: poemPool }],   // exploreChips 已移除：探索篩選改由真實資料生成
     almanacTerms,   // 宜/忌 詞彙白話解釋（id 取 item.term）
     plans: [{ id: 'free', ...plans.free }, { id: 'premium', ...plans.premium }],

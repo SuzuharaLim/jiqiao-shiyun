@@ -7,7 +7,7 @@ import { api } from '../api.js'
 // 管理後台 —— 使用者角色（admin）＋ 內容 CMS（moderator 以上）。
 // 內容存 ref_items（JSON），可直接編輯 → 「資料方便修改」。
 const KINDS = ['feedFilters', 'storyFilters', 'effects', 'gradients', 'textFx',
-  'proverbs', 'deities', 'festivals', 'flowers', 'ingredients', 'zodiacs', 'challenges']
+  'proverbs', 'deities', 'festivals', 'flowers', 'termGuide', 'zodiacs', 'challenges']
 const ROLE_LABEL = { user: '一般使用者', creator: '創作者', moderator: '版主', admin: '管理者' }
 
 export default function Admin() {

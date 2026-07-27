@@ -64,6 +64,7 @@ chengqi-main/
 │  ├─ store/nav.jsx        ★全域 Context：主題/使用者/路由/所有互動狀態 → 見 docs/狀態與資料.md
 │  ├─ data/
 │  │  ├─ mock.js           ★種子來源＋離線 fallback（原「所有示範資料」；DB 內容由此灌入）→ 見 docs/狀態與資料.md
+│  │  ├─ termGuide.js      ★24 節氣生活資料庫（當令農產/漁獲+產地、俗語、應景食物、慶典、花期、養生、開運色）
 │  │  └─ almanac.js        任意日期生農民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
 │  │                        ★todayOffset() 讓 App 開在真實今日；dayFor 回傳完整傳統項目（三柱干支動態年份/建除/星宿/彭祖/胎神/沖煞歲數/財喜貴方位/十二時辰/特殊日）；另 export yearOverview
 │  ├─ lib/
@@ -179,6 +180,10 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **主題切換不重整**：`nav.jsx` 讀寫 `localStorage('jq-theme')`；勿把主題 script inline 進 HTML（違反 CSP，已外移 `public/theme-init.js`）。
 - **真 Chrome 截圖**：點擊/導航後常 CDP timeout（renderer freeze），重試單獨 screenshot 即可；量測用 `javascript_tool` 較穩。
 - **不要**放回 IG 風格元素（彩虹 story 環、IG 藍、IG Shop 黑底 $ 徽章、純圖示底部列）——刻意去 IG 化，走宣紙/墨/朱紅/金/靛青 + 襯線明體。
+- **節氣資料分兩層，別搞混**：`almanac.js`＝**曆算層**（干支/建除/宜忌，純演算無資料表）；`termGuide.js`＝**生活層**（當令農產漁獲+產地、俗語、應景食物、慶典、花期、養生臟器、開運色，人工編纂 24 筆）。生活層走 `ref_items` 的 `termGuide` 類（`GET /api/content/termGuide`），改內容用管理後台 CMS；改 `termGuide.js` 要重跑 `npm run seed` 才生效。**`term` 用字必須與 `almanac.js` 的 `TERMS` 表一致**（「驚蟄」非「驚蜇」），否則對不到當前節氣、整頁空白。
+- **節氣清單排序不可直接用 `TERM_ORDER`**：那是 `almanac.js` 依國曆月日排的**查表序**，以「大寒」開頭；UI 的節氣年表要從**立春**排起（`InfoScreens.jsx` 的 `useTermGuide` 已做旋轉）。
+- **24 個節氣 chip 橫向捲動時，預設選中的「今日節氣」多半在中段**，不主動捲進視野會讓人以為選的是立春。用 `scrollIntoView({inline:'center', block:'nearest'})`——**不可用預設參數**，預設會連垂直方向一起捲、整頁跳位。
+- **當令食材已改為逐節氣**（`Ingredients` 讀 termGuide）。原本 `mock.js` 的 `ingredients`（陸/海/空三組）只有芒種一份、不論今天什麼節氣都顯示同一份，已於 2026-07 移除；`ref_items` 的 `ingredients` 類同時停用（正式站殘留資料請在管理後台刪該類）。**沒有當令品項的節氣要誠實顯示「沒有收錄」，不可補假資料**（例：小滿、夏至、大暑無當令漁獲）。慶典/花期同理——原始資料只有名稱沒有地點簡介，不得替它編造。
 - **`almanac.js` 曆算公式（改前先懂）**：月柱用**五虎遁**（`monthGan = mod(2*年干+2 + mod(月支-2,12), 10)`，丙年正月起庚寅）；沖煞歲數是**虛歲**（`mod(當生肖-沖生肖,12)+1`，出生即 1 歲，**不是 `||12`**）。改錯會得丙午/6 歲而非正解甲午/7 歲。全部確定性、可 `node --input-type=module` 直接驗。
 - **`.ad-*`/`.ya-*` 樣式在 styles.css 末段**（reduced-motion 之後）；`AlmanacDay`/`YearAlmanac` 桌機用 `screen-almanacDay`/`screen-yearAlmanac` 收斂 `width:min(100%,760px)`、時辰格改 6 欄。`yearOverview.ganzhi` 已含「年」字（"丙午年"），串接標題勿再加「年」。
 - **App 開在真實今日**：`almanac.js` 的 `todayOffset()=offsetFromDate(new Date())`；UI 的 `off` 以此為基準（Feed 用 `T0`）。「回今日」「today 高亮」都比 `T0` 而非 0（0＝錨點 6/6）。改動翻日邏輯勿退回硬編 0。

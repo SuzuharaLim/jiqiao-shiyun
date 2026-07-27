@@ -94,7 +94,7 @@ export const cultureTools = [
   { id: 'proverb', iconName: 'chat', title: '台灣諺語', sub: '「食緊弄破碗」每日一句', screen: 'proverbs' },
   { id: 'festival', iconName: 'trophy', title: '臺灣特色慶典活動', sub: '時節慶典 · 地點與簡介', screen: 'festivals' },
   { id: 'flower', iconName: 'branch', title: '臺灣賞花景點', sub: '花期 · 地圖 · 打卡作品', screen: 'flowers' },
-  { id: 'food', iconName: 'basket', title: '當季食材 陸・海・空', sub: '時令食材與食譜', screen: 'ingredients' },
+  { id: 'food', iconName: 'basket', title: '當令食材 陸・海', sub: '24 節氣當令農產漁獲 · 附產地', screen: 'ingredients' },
   { id: 'column', iconName: 'scroll', title: '24 節氣專欄', sub: '由來 · 物候 · 文章卡', screen: 'solarterms' },
 ]
 
@@ -206,12 +206,9 @@ export const flowers = [
   { emoji: '🌲', name: '落羽松秘境', period: '12–1 月', place: '南投・魚池' },
 ]
 
-// 當季食材
-export const ingredients = [
-  { type: '陸', emoji: '🌽', items: ['竹筍', '玉米', '空心菜', '莧菜'], tip: '芒種濕熱，宜清熱利濕的瓜果青蔬。' },
-  { type: '海', emoji: '🐟', items: ['午仔魚', '小卷', '白帶魚', '文蛤'], tip: '端午前後小卷肥美，產季鮮甜。' },
-  { type: '空', emoji: '🍑', items: ['芒果', '荔枝', '鳳梨', '西瓜'], tip: '當令水果盛產，消暑但勿貪涼過量。' },
-]
+// 當令食材已改由 termGuide 提供（24 節氣逐節 × 農產/漁獲 × 產地，見 src/data/termGuide.js）。
+// 原本這裡只有「芒種」一組陸/海/空，不論今天是什麼節氣都顯示同一份，已於 2026-07 移除。
+// ⚠️ ref_items 的 ingredients 類別同時停用；正式站要清掉殘留資料請在管理後台刪除該類。
 
 // 24 節氣專欄（完整）
 export const solarTermArticles = [
