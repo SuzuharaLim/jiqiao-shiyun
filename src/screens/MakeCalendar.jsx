@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { useWorks } from '../hooks/useApi.js'
 
 export default function MakeCalendar() {
-  const { pop, push, setToast, user } = useNav()
+  const { pop, push, setToast, user , requireAccount } = useNav()
   const works = useWorks(null)   // 選圖來源＝真實市集作品（嚴格來自資料庫）
   const pool = [...works, ...works.slice(0, 6)].map((w, i) => ({ ...w, key: w.id + '_' + i }))
   const [src, setSrc] = useState('我的照片')
@@ -32,7 +32,7 @@ export default function MakeCalendar() {
     const n = new Set(sel)
     for (const p of pool) { if (n.size >= N) break; n.add(p.key) }
     setSel(n)
-    setToast('AI 已為你補齊 12 張 ✨')
+    setToast('已自動補滿 12 張')
   }
 
   // 做月曆會產生要下單的商品，且專案需要綁在帳號上才留得住 → 訪客先擋下。
@@ -48,7 +48,9 @@ export default function MakeCalendar() {
             <span style={{ fontSize: 12 }}>月曆專案要綁在帳號上才留得住，也才能下單印製</span>
           </div>
           <div className="pad">
-            <button className="btn-primary tap" onClick={() => setToast('請先從「我的」註冊或登入')}>註冊 / 登入</button>
+            {/* 原本只跳提示要使用者自己去別的分頁找——按鈕文字承諾了動作就該做到。
+                requireAccount 會彈出 AuthWall（內含真正的註冊/登入入口）。 */}
+            <button className="btn-primary tap" onClick={() => requireAccount('做月曆')}>註冊 / 登入</button>
           </div>
         </div>
       </>
@@ -97,7 +99,7 @@ export default function MakeCalendar() {
         </div>
 
         <button className="ai-hint tap" onClick={aiPick}>
-          ✨ 讓 AI 幫我自動選 {N} 張
+          ✨ 自動補滿 {N} 張
           <Icon name="chev" style={{ width: 16, height: 16, stroke: 'var(--accent)' }} />
         </button>
         <div style={{ height: 12 }} />

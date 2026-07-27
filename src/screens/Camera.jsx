@@ -120,7 +120,22 @@ export default function Camera({ onDone }) {
     <div className="cam">
       <TopBar title="影片" onClose={() => setVideoUrl(null)} />
       <div className="cam-stage"><video src={videoUrl} controls autoPlay loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
-      <div className="cam-bottom"><button className="btn-primary tap" onClick={() => { setToast('影片已保存（示範）'); setVideoUrl(null) }}>使用影片</button></div>
+      {/* ⚠️ 原本 onClick 只 toast「影片已保存（示範）」然後 setVideoUrl(null)——
+          使用者拍的影片直接被丟棄，卻以為存好了。
+          影片發布需要後端影片上傳（images 表只存 base64，影片體積不適用），
+          在那之前至少讓使用者真的把檔案存下來，不要弄丟他的東西。 */}
+      <div className="cam-bottom" style={{ gap: 8 }}>
+        <button className="btn-primary tap" onClick={() => {
+          const a = document.createElement('a')
+          a.href = videoUrl
+          a.download = `機巧時運_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.webm`
+          document.body.appendChild(a); a.click(); a.remove()
+          setToast('影片已下載到你的裝置')
+        }}>下載影片</button>
+        <p className="cam-hint" style={{ textAlign: 'center', marginTop: 6 }}>
+          影片發布功能尚未開放，目前可先下載保存
+        </p>
+      </div>
     </div>
   )
 
@@ -550,7 +565,17 @@ function CreateStory({ onExit, onUse, setToast }) {
           </div>
         )}
       </div>
-      <div className="cam-bottom"><button className="btn-primary tap" onClick={() => { setToast('限動已發佈（示範）'); onExit() }}>發佈限時動態</button></div>
+      {/* ⚠️ 原本 onClick 只 toast「限動已發佈（示範）」然後 onExit()——
+          使用者編好的貼圖、票選、問答、倒數全部蒸發，卻以為發布成功。
+          限動需要 stories 資料表 + 24h 過期邏輯（尚未建置），
+          在那之前不可謊報成功；改為誠實說明並提供「存成貼文」的替代路徑。 */}
+      <div className="cam-bottom" style={{ gap: 8 }}>
+        <button className="b tap" onClick={onExit}>返回</button>
+        <p className="cam-hint" style={{ textAlign: 'center', marginTop: 6 }}>
+          限時動態功能尚未開放（需要 24 小時過期機制）<br />
+          想分享的話，可以改用「拍照發布」發成貼文
+        </p>
+      </div>
     </div>
   )
 }

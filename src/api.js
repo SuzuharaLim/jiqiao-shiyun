@@ -93,6 +93,8 @@ export const api = {
   // 金流（scaffold）
   payIntent: (b) => req('/payments/intent', { method: 'POST', body: b }),
   support: (b) => req('/support', { method: 'POST', body: b }),   // 客服／聯絡訊息（真的會送出）
+  adminSupport: () => req('/admin/support'),   // 營運端讀客服訊息（moderator+）
+  adminAudit: () => req('/admin/audit'),       // 稽核日誌（admin）
   // AI 時光顧問（後端代呼叫 OpenAI；未設金鑰時回 {fallback:true}）
   aiChat: (messages, context) => req('/ai/chat', { method: 'POST', body: { messages, context } }),
 }

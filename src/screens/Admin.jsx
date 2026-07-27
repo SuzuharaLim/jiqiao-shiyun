@@ -16,6 +16,10 @@ export default function Admin() {
   const canManage = ['moderator', 'admin'].includes(user?.role)
   const isAdmin = user?.role === 'admin'
   const [tab, setTab] = useState(isAdmin ? 'users' : 'content')
+  // ⚠️ 客服訊息先前完全沒有營運端入口——使用者送出的訊息進了 support_messages
+  // 卻沒有任何畫面能讀（若未設寄信服務等於進黑洞）。稽核日誌同理。
+  const [support, setSupport] = useState(null)   // null=未載入（區分載入中與真的沒有）
+  const [audit, setAudit] = useState(null)
   const [users, setUsers] = useState([]); const [roles, setRoles] = useState(['user', 'creator', 'moderator', 'admin'])
   const [kind, setKind] = useState('feedFilters')
   const [items, setItems] = useState([])
@@ -28,6 +32,8 @@ export default function Admin() {
   const [mailBusy, setMailBusy] = useState(false)
 
   useEffect(() => { if (tab === 'reports') api.adminReports().then(r => setReports(r.reports || [])).catch(() => {}) }, [tab])
+  useEffect(() => { if (tab === 'support') api.adminSupport().then(r => setSupport(r.messages || [])).catch(() => setSupport([])) }, [tab])
+  useEffect(() => { if (tab === 'audit' && isAdmin) api.adminAudit().then(r => setAudit(r.audit || [])).catch(() => setAudit([])) }, [tab, isAdmin])
   useEffect(() => { if (tab === 'system' && isAdmin) api.health().then(setHealth).catch(() => {}) }, [tab, isAdmin])
   const doMailTest = async () => {
     setMailBusy(true)
@@ -102,6 +108,8 @@ export default function Admin() {
           {isAdmin && <button className={`chip tap ${tab === 'users' ? 'on' : ''}`} onClick={() => setTab('users')}>使用者・角色</button>}
           <button className={`chip tap ${tab === 'content' ? 'on' : ''}`} onClick={() => setTab('content')}>內容 CMS</button>
           <button className={`chip tap ${tab === 'reports' ? 'on' : ''}`} onClick={() => setTab('reports')}>檢舉佇列</button>
+          <button className={`chip tap ${tab === 'support' ? 'on' : ''}`} onClick={() => setTab('support')}>客服訊息</button>
+          {isAdmin && <button className={`chip tap ${tab === 'audit' ? 'on' : ''}`} onClick={() => setTab('audit')}>稽核日誌</button>}
           {isAdmin && <button className={`chip tap ${tab === 'system' ? 'on' : ''}`} onClick={() => setTab('system')}>系統狀態</button>}
           {isAdmin && <button className={`chip tap ${tab === 'seed' ? 'on' : ''}`} onClick={() => setTab('seed')}>上線清理</button>}
         </div>
@@ -137,6 +145,42 @@ export default function Admin() {
               </p>
             </div>
             <div style={{ height: 12 }} />
+          </>
+        )}
+
+        {tab === 'support' && (
+          <>
+            <SectionHead title="客服／聯絡訊息" extra={support ? `${support.length} 則` : '載入中'} />
+            {support === null && <div className="empty">載入中…</div>}
+            {support?.length === 0 && <div className="empty"><div className="big">📮</div>目前沒有訊息</div>}
+            {support?.map(m => (
+              <div key={m.id} className="card" style={{ margin: '6px 13px' }}>
+                <div className="kv"><span>主題</span><b>{m.topic}</b></div>
+                <div className="kv"><span>寄件者</span><span className="muted">{m.email}</span></div>
+                <div className="kv"><span>時間</span><span className="muted">{String(m.created_at).slice(0, 16).replace('T', ' ')}</span></div>
+                <div className="ad-note" style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                <div className="kv" style={{ borderBottom: 'none' }}>
+                  <span>回覆</span>
+                  <a className="acc" href={`mailto:${m.email}?subject=${encodeURIComponent('Re: ' + m.topic + '｜機巧時運')}`}>用 Email 回覆 ›</a>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {tab === 'audit' && isAdmin && (
+          <>
+            <SectionHead title="稽核日誌" extra={audit ? `最近 ${audit.length} 筆` : '載入中'} />
+            {audit === null && <div className="empty">載入中…</div>}
+            {audit?.length === 0 && <div className="empty"><div className="big">📋</div>沒有稽核記錄</div>}
+            {audit?.map((a, i) => (
+              <div key={a.id || i} className="kv" style={{ padding: '10px 16px' }}>
+                <span style={{ fontSize: 12 }}>{a.event}{a.detail ? ` · ${a.detail}` : ''}</span>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  {a.user_id || '—'} · {a.ip} · {String(a.created_at || '').slice(0, 16).replace('T', ' ')}
+                </span>
+              </div>
+            ))}
           </>
         )}
 
