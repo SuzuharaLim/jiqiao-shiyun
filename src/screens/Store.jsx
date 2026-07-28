@@ -25,7 +25,7 @@ export default function Store() {
         )}
         {products.map(p => (
           <div key={p.id} className="tool st-item" style={{ alignItems: 'flex-start' }}>
-            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 26 }}>{p.e}</div>
+            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 'var(--text-xl)' }}>{p.e}</div>
             <div className="tn2">
               <b>{p.name}</b>
               <span>{p.desc}</span>

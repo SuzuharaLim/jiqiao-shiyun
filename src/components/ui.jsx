@@ -105,7 +105,7 @@ export function SectionHead({ title, extra }) {
 // 命理／占卜 免責聲明（上線合規）
 export function Disclaimer({ text }) {
   return (
-    <p className="muted" style={{ padding: '6px 16px 16px', fontSize: 11, lineHeight: 1.7 }}>
+    <p className="muted" style={{ padding: '6px 16px 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
       ＊{text || '本結果結合傳統民俗文化與 AI 生成內容，僅供參考娛樂，不構成醫療、法律、財務、婚姻或投資等專業建議。'}
     </p>
   )

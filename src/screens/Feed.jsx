@@ -96,7 +96,7 @@ export default function Feed() {
             <div className="glosspanel inrow"><span>{d.proverbMean}</span></div>
           )}
         </div>
-        <div className="center muted" style={{ fontSize: 10, padding: '6px 16px 0' }}>
+        <div className="center muted" style={{ fontSize: 'var(--text-2xs)', padding: '6px 16px 0' }}>
           ＊農曆・節氣・干支依天文演算（太陽視黃經與朔望月）；宜忌神煞屬傳統民俗，各流派或有差異
         </div>
 

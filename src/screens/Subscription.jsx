@@ -25,16 +25,16 @@ export default function Subscription() {
       <div className="body">
         <div className="plan">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <b style={{ fontSize: 16 }}>{plans.free.name}</b>
+            <b style={{ fontSize: 'var(--text-base)' }}>{plans.free.name}</b>
             {!subscribed && <span className="ty">目前方案</span>}
           </div>
-          <div className="price" style={{ fontSize: 20, margin: '6px 0' }}>NT$0</div>
+          <div className="price" style={{ fontSize: 'var(--text-lg)', margin: '6px 0' }}>NT$0</div>
           {plans.free.feats.map(f => <div key={f} className="feat"><span className="dot">✓</span>{f}</div>)}
         </div>
 
         <div className="plan pro">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <b style={{ fontSize: 16, color: 'var(--acard-t)' }}>{plans.premium.name} ✦</b>
+            <b style={{ fontSize: 'var(--text-base)', color: 'var(--acard-t)' }}>{plans.premium.name} ✦</b>
             {subscribed && <span className="ty">使用中</span>}
           </div>
           <div className="price" style={{ color: 'var(--acard-t)' }}>NT${plans.premium.price}<small> / 月</small></div>
@@ -50,7 +50,7 @@ export default function Subscription() {
           )}
         </div>
 
-        <p className="muted" style={{ padding: '4px 16px 16px', fontSize: 11.5, lineHeight: 1.7 }}>
+        <p className="muted" style={{ padding: '4px 16px 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
           免費方案提供基礎 AI 模型並每日限額，付費可切換高階 AI 模型與無限對話。
           訂閱付款功能仍在開發中（金流尚未串接），目前無法升級。
         </p>

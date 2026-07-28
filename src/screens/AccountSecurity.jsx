@@ -107,21 +107,21 @@ export default function AccountSecurity() {
           {err && <div className="form-err" role="alert">{err}</div>}
           <button className="btn-primary tap" onClick={changePw} disabled={busy}
             style={busy ? { opacity: .6 } : null}>{busy ? '更新中…' : '更新密碼'}</button>
-          <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>更新後其他裝置會自動登出，本裝置維持登入。</p>
+          <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>更新後其他裝置會自動登出，本裝置維持登入。</p>
         </div>
 
         <SectionHead title="登入裝置" />
         <div className="acc-form">
           {sess.map(s => (
             <div key={s.id} className="kv" style={{ padding: '5px 0' }}>
-              <span style={{ fontSize: 13 }}>{s.current ? '🟢 本裝置' : '💻 其他裝置'}
-                <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>{s.ip || ''}</span></span>
-              <span className="muted" style={{ fontSize: 11 }}>{(s.created_at || '').slice(0, 10)}</span>
+              <span style={{ fontSize: 'var(--text-xs)' }}>{s.current ? '🟢 本裝置' : '💻 其他裝置'}
+                <span className="muted" style={{ fontSize: 'var(--text-2xs)', marginLeft: 6 }}>{s.ip || ''}</span></span>
+              <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{(s.created_at || '').slice(0, 10)}</span>
             </div>
           ))}
-          {sess.length === 0 && <p className="muted" style={{ fontSize: 12 }}>載入中…</p>}
+          {sess.length === 0 && <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>載入中…</p>}
           <button className="b tap" style={{ width: '100%', marginTop: 6 }} onClick={killAll}>登出所有裝置（含本機）</button>
-          <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>發現可疑登入時，先登出所有裝置再變更密碼。</p>
+          <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>發現可疑登入時，先登出所有裝置再變更密碼。</p>
         </div>
 
         <SectionHead title="我的資料（GDPR）" />
@@ -129,7 +129,7 @@ export default function AccountSecurity() {
           <button className="b tap" style={{ width: '100%' }} onClick={exportData} disabled={exporting}>
             {exporting ? '打包中…' : '⬇️ 匯出我的資料（JSON）'}
           </button>
-          <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>包含帳號基本資料與近期登入紀錄（資料可攜權）。</p>
+          <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>包含帳號基本資料與近期登入紀錄（資料可攜權）。</p>
         </div>
 
         <SectionHead title="刪除帳號" />
@@ -138,7 +138,7 @@ export default function AccountSecurity() {
             <button className="btn-ghost tap danger" onClick={() => setDelArm(true)}>刪除我的帳號…</button>
           ) : (
             <>
-              <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.7, marginBottom: 10 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-xs)', lineHeight: 1.7, marginBottom: 10 }}>
                 ⚠️ 刪除後帳號與登入 Session 立即銷毀、<b>無法復原</b>。請輸入密碼確認（被遺忘權）。
               </p>
               <label className="f-label" htmlFor="as-delpw">密碼</label>

@@ -290,7 +290,7 @@ export default function Scan() {
             <div className="scanres">
               <div className="okmark">✓</div>
               <h3>已辨識：{found.name}</h3>
-              <div className="muted" style={{ fontSize: 12 }}>匹配度 {found.score}%（自研辨識）</div>
+              <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>匹配度 {found.score}%（自研辨識）</div>
               {found.thumb && <img src={found.thumb} alt={found.name} />}
               <div className="scanres-day">
                 <b>{d.solar}・{d.term}・{d.ganzhi}</b>
@@ -299,7 +299,7 @@ export default function Scan() {
                   <span className="jj">忌</span>{d.ji.slice(0, 2).map(t => <i key={t} className="tn">{t}</i>)}
                 </div>
               </div>
-              <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7 }}>🔮 AR 節氣動畫與語音祝福即將推出——屆時掃描這張明信片就會在畫面上播放。</p>
+              <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>🔮 AR 節氣動畫與語音祝福即將推出——屆時掃描這張明信片就會在畫面上播放。</p>
               <button className="btn-primary tap" onClick={resume}>再掃一次</button>
               <button className="btn-ghost tap" style={{ marginTop: 8 }} onClick={pop}>完成</button>
             </div>

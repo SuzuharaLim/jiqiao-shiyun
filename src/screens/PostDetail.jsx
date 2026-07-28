@@ -118,7 +118,7 @@ export default function PostDetail({ id }) {
         <div className="post-hd">
           <button className="av tap" style={{ background: post.avatarBg }}
             onClick={() => push('creatorPage', { user: post.user, avatar: post.avatar, avatarBg: post.avatarBg })}>{post.avatar}</button>
-          <div className="uname">{post.user}<div className="muted" style={{ fontWeight: 400, fontSize: 11 }}>{post.place}</div></div>
+          <div className="uname">{post.user}<div className="muted" style={{ fontWeight: 400, fontSize: 'var(--text-2xs)' }}>{post.place}</div></div>
           <button className={`pill sm tap ${following ? '' : 'dark'}`} onClick={onFollow}>
             {following ? '追蹤中' : '＋ 追蹤'}
           </button>
@@ -170,17 +170,17 @@ export default function PostDetail({ id }) {
           const cliked = clikes[c.id]
           return (
             <div key={c.id} className="post-hd" style={{ paddingTop: 6, paddingBottom: 6, alignItems: 'flex-start' }}>
-              <div className="av" style={{ background: c.avatarBg || 'var(--tone-2)', width: 30, height: 30, fontSize: 15 }}>{c.avatar || '🌾'}</div>
+              <div className="av" style={{ background: c.avatarBg || 'var(--tone-2)', width: 30, height: 30, fontSize: 'var(--text-sm)' }}>{c.avatar || '🌾'}</div>
               <div className="cap2" style={{ padding: 0, flex: 1 }}>
                 <b>{c.user}</b> {c.body}
-                {c.time && <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>{c.time}</div>}
+                {c.time && <div className="muted" style={{ fontSize: 'var(--text-2xs)', marginTop: 2 }}>{c.time}</div>}
               </div>
               <button className="iconbtn tap" aria-label={cliked ? '取消讚' : '讚'} aria-pressed={cliked}
                 onClick={() => setClikes(m => ({ ...m, [c.id]: !m[c.id] }))}>
                 <Icon name="heart" fill={cliked} className={cliked ? 'heart-on' : ''} style={{ width: 15, height: 15 }} />
               </button>
               {!!user && !user.guest && c.user === user.handle && (
-                <button className="iconbtn tap" aria-label="刪除留言" style={{ fontSize: 13, color: 'var(--muted)' }}
+                <button className="iconbtn tap" aria-label="刪除留言" style={{ fontSize: 'var(--text-xs)', color: 'var(--muted)' }}
                   onClick={() => delComment(c.id)}>✕</button>
               )}
             </div>

@@ -13,12 +13,12 @@ export default function Records() {
         <div className="empty">
           <div className="empty-ic"><Icon name="clipboard" /></div>
           還沒有占卜紀錄<br />
-          <span style={{ fontSize: 12 }}>抽過的籤、解過的夢、問過的運勢會留在這裡</span>
+          <span style={{ fontSize: 'var(--text-xs)' }}>抽過的籤、解過的夢、問過的運勢會留在這裡</span>
         </div>
         <div className="pad">
           <button className="btn-primary tap" onClick={() => push('aiChat')}>問 AI 時光顧問</button>
         </div>
-        <p className="muted" style={{ padding: '0 16px', fontSize: 11, lineHeight: 1.7 }}>
+        <p className="muted" style={{ padding: '0 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
           ＊紀錄保存功能仍在開發中，目前的占卜結果離開頁面後不會保留。
         </p>
         <div style={{ height: 16 }} />

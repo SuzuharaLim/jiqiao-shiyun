@@ -34,7 +34,7 @@ export default function Wallet() {
           <div className="empty">
             <div className="empty-ic"><Icon name="coin" /></div>
             錢包與收益需要註冊帳號<br />
-            <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
           </div>
         </div>
       </>
@@ -62,12 +62,12 @@ export default function Wallet() {
       <TopBar title="錢包 / 收益" onBack />
       <div className="body">
         <div className="aicard">
-          <div className="t" style={{ fontSize: 13 }}>可提領餘額</div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--acard-t)', margin: '4px 0 4px' }}>
+          <div className="t" style={{ fontSize: 'var(--text-xs)' }}>可提領餘額</div>
+          <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--acard-t)', margin: '4px 0 4px' }}>
             {data === null ? '—' : nt(bal?.available || 0)}
           </div>
           {bal?.pending > 0 && (
-            <div className="muted" style={{ fontSize: 11.5, marginBottom: 10 }}>
+            <div className="muted" style={{ fontSize: 'var(--text-2xs)', marginBottom: 10 }}>
               另有 {nt(bal.pending)} 待確認（訂單完成後轉為可提領）
             </div>
           )}
@@ -79,7 +79,7 @@ export default function Wallet() {
 
         {/* 分潤比例與撥款狀態說明——使用者有權知道錢怎麼算、什麼時候拿到 */}
         <div className="note" style={{ borderLeft: '3px solid var(--cinnabar)' }}>
-          <span style={{ fontSize: 12, lineHeight: 1.7 }}>
+          <span style={{ fontSize: 'var(--text-xs)', lineHeight: 1.7 }}>
             作品售出的分潤比例為 <b>{data?.rate ?? 70}%</b>。
             {data?.settlementReady === false && '　金流服務尚未簽約完成，提領申請會先建立紀錄，實際撥款於上線後處理。'}
           </span>
@@ -92,14 +92,14 @@ export default function Wallet() {
           <div className="empty">
             <div className="empty-ic"><Icon name="coin" /></div>
             還沒有收益紀錄<br />
-            <span style={{ fontSize: 12 }}>作品被授權或選入月曆後，分潤會出現在這裡</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>作品被授權或選入月曆後，分潤會出現在這裡</span>
           </div>
         )}
         {entries.map(e => (
           <div key={e.id} className="kv" style={{ padding: '12px 16px' }}>
             <span>
               {KIND_LABEL[e.kind] || e.kind}
-              <small className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>
+              <small className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2 }}>
                 成交 {nt(e.gross)} · 分潤 {e.rate}% · {STATUS_LABEL[e.status] || e.status} · {e.time}
               </small>
             </span>
@@ -115,9 +115,9 @@ export default function Wallet() {
             {payouts.map(p => (
               <div key={p.id} className="kv" style={{ padding: '12px 16px' }}>
                 <span>{nt(p.amount)}
-                  <small className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>{p.time}</small>
+                  <small className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2 }}>{p.time}</small>
                 </span>
-                <span className={p.status === 'paid' ? 'ad-good' : 'muted'} style={{ fontSize: 12 }}>
+                <span className={p.status === 'paid' ? 'ad-good' : 'muted'} style={{ fontSize: 'var(--text-xs)' }}>
                   {PAYOUT_LABEL[p.status] || p.status}
                 </span>
               </div>

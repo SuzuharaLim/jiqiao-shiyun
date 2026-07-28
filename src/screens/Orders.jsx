@@ -36,14 +36,14 @@ export default function Orders() {
       <div className="body">
         {orders.length === 0 ? (
           <div className="empty" style={{ padding: '48px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 40 }}>🧾</div>
+            <div style={{ fontSize: 'var(--text-3xl)' }}>🧾</div>
             <div className="muted" style={{ margin: '10px 0 16px' }}>還沒有任何訂單</div>
             <button className="btn-primary tap" style={{ maxWidth: 220, margin: '0 auto' }}
               onClick={() => { popAll(); setTab(1) }}>逛逛市集 / 做一本月曆</button>
           </div>
         ) : (
           <>
-            <div className="muted" style={{ fontSize: 12, padding: '12px 16px 4px' }}>
+            <div className="muted" style={{ fontSize: 'var(--text-xs)', padding: '12px 16px 4px' }}>
               共 {orders.length} 筆訂單 · 授權下載與物流狀態同步於此
             </div>
             {orders.map(o => {
@@ -53,20 +53,20 @@ export default function Orders() {
                   <div className="orderhd">
                     <div>
                       <div className="ordid">{o.id}</div>
-                      <div className="muted" style={{ fontSize: 11.5 }}>{o.date} · {o.pay}</div>
+                      <div className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{o.date} · {o.pay}</div>
                     </div>
                     <span className="ordtag" style={{ color: st.color, background: st.bg }}>{o.status}</span>
                   </div>
                   <div className="ordlines">
                     {o.items.map((it, i) => (
                       <div key={i} className="kv" style={{ padding: '6px 0', borderBottom: 'none' }}>
-                        <span style={{ fontSize: 13.5 }}>{it.name}</span>
-                        <b style={{ fontSize: 13.5 }}>NT${it.price}</b>
+                        <span style={{ fontSize: 'var(--text-xs)' }}>{it.name}</span>
+                        <b style={{ fontSize: 'var(--text-xs)' }}>NT${it.price}</b>
                       </div>
                     ))}
                   </div>
                   <div className="ordfoot">
-                    <span className="muted" style={{ fontSize: 12 }}>共 {o.items.length} 項</span>
+                    <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>共 {o.items.length} 項</span>
                     <span style={{ fontWeight: 800 }}>合計 NT${o.total}</span>
                   </div>
                   {cancellable(o.status) && (

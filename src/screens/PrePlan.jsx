@@ -46,9 +46,9 @@ export default function PrePlan() {
               padding: '12px 4px', textAlign: 'center',
               background: shots[i] ? 'var(--ok-bg)' : 'var(--bg)',
             }} onClick={() => toggleShot(i)}>
-              <div style={{ fontSize: 26, opacity: shots[i] ? 1 : .5 }}>{t.e}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 3 }}>{t.t}</div>
-              <div style={{ fontSize: 10, color: shots[i] ? 'var(--yi)' : 'var(--muted)', fontWeight: 700 }}>
+              <div style={{ fontSize: 'var(--text-xl)', opacity: shots[i] ? 1 : .5 }}>{t.e}</div>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, marginTop: 3 }}>{t.t}</div>
+              <div style={{ fontSize: 'var(--text-2xs)', color: shots[i] ? 'var(--yi)' : 'var(--muted)', fontWeight: 700 }}>
                 {shots[i] ? '✓ 已拍' : t.m}
               </div>
             </button>

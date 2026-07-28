@@ -74,15 +74,15 @@ export default function Settings() {
         {pushOn && pushInfo?.prefs && (
           <>
             <div className="opt" style={{ paddingLeft: 28 }}>
-              <div className="l" style={{ fontSize: 13 }}>　節氣提醒</div>
+              <div className="l" style={{ fontSize: 'var(--text-xs)' }}>　節氣提醒</div>
               <Switch on={pushInfo.prefs.solarTerm} onChange={(v) => setPushKind('solarTerm', v)} />
             </div>
             <div className="opt" style={{ paddingLeft: 28 }}>
-              <div className="l" style={{ fontSize: 13 }}>　神佛誕辰</div>
+              <div className="l" style={{ fontSize: 'var(--text-xs)' }}>　神佛誕辰</div>
               <Switch on={pushInfo.prefs.deity} onChange={(v) => setPushKind('deity', v)} />
             </div>
             <div className="opt" style={{ paddingLeft: 28 }}>
-              <div className="l" style={{ fontSize: 13 }}>　按讚・留言・追蹤</div>
+              <div className="l" style={{ fontSize: 'var(--text-xs)' }}>　按讚・留言・追蹤</div>
               <Switch on={pushInfo.prefs.social} onChange={(v) => setPushKind('social', v)} />
             </div>
             <button className="note tap" onClick={async () => {
@@ -95,12 +95,12 @@ export default function Settings() {
           </>
         )}
         {!pushOn && pushSupported() && pushPermission() === 'denied' && (
-          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 11, lineHeight: 1.7 }}>
+          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
             ＊你已封鎖此網站的通知權限，需到瀏覽器的網站設定裡重新允許才能開啟。
           </p>
         )}
         {!pushSupported() && (
-          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 11, lineHeight: 1.7 }}>
+          <p className="muted" style={{ padding: '0 16px 8px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
             ＊這個瀏覽器不支援推播通知（iOS 需先「加入主畫面」才可使用）。
           </p>
         )}
@@ -148,7 +148,7 @@ export default function Settings() {
         <div className="pad">
           <button className="btn-ghost tap" onClick={() => { setToast('已登出'); logout() }}>登出</button>
         </div>
-        <div className="center muted" style={{ fontSize: 11, paddingBottom: 16 }}>機巧時運 · 互動原型 v0.1</div>
+        <div className="center muted" style={{ fontSize: 'var(--text-2xs)', paddingBottom: 16 }}>機巧時運 · 互動原型 v0.1</div>
       </div>
     </>
   )

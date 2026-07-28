@@ -34,7 +34,7 @@ export default function CreatorConsole() {
           <div className="empty">
             <div className="empty-ic"><Icon name="palette" /></div>
             創作者後台需要註冊帳號<br />
-            <span style={{ fontSize: 12 }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>訪客模式沒有帳號資料，註冊後才能上架作品與結算分潤</span>
           </div>
         </div>
       </>
@@ -48,8 +48,8 @@ export default function CreatorConsole() {
         <div className="pad" style={{ display: 'flex', gap: 8 }}>
           {stats.map(([l, v]) => (
             <div key={l} className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: 12 }}>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
-              <div className="muted" style={{ fontSize: 11 }}>{l}</div>
+              <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800 }}>{v}</div>
+              <div className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{l}</div>
             </div>
           ))}
         </div>
@@ -64,9 +64,9 @@ export default function CreatorConsole() {
         <div className="empty">
           <div className="empty-ic"><Icon name="chart" /></div>
           還沒有入帳紀錄<br />
-          <span style={{ fontSize: 12 }}>作品被授權或選入月曆後會顯示在這裡</span>
+          <span style={{ fontSize: 'var(--text-xs)' }}>作品被授權或選入月曆後會顯示在這裡</span>
         </div>
-        <p className="muted" style={{ padding: '0 16px', fontSize: 11, lineHeight: 1.7 }}>
+        <p className="muted" style={{ padding: '0 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
           ＊成交與分潤結算功能仍在開發中（尚未串接金流）。
         </p>
         <div style={{ height: 16 }} />

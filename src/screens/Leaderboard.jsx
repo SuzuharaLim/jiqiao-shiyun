@@ -29,14 +29,14 @@ export default function Leaderboard() {
             <div style={{ width: 30, textAlign: 'center', fontSize: r.rank <= 3 ? 22 : 15, fontWeight: 800, flex: '0 0 auto', color: 'var(--muted)' }}>
               {medal[r.rank - 1] || r.rank}
             </div>
-            <div className="ti" style={{ background: r.bg, width: 44, height: 44, fontSize: 22, position: 'relative', overflow: 'hidden' }}>
+            <div className="ti" style={{ background: r.bg, width: 44, height: 44, fontSize: 'var(--text-xl)', position: 'relative', overflow: 'hidden' }}>
               {r.image ? <PhotoImg src={r.image} /> : r.emoji}
             </div>
             <div className="tn2">
               <b>{r.title}</b>
               <span>{r.user}</span>
             </div>
-            <span style={{ color: 'var(--cinnabar)', fontWeight: 700, fontSize: 13 }}>♥ {r.likes}</span>
+            <span style={{ color: 'var(--cinnabar)', fontWeight: 700, fontSize: 'var(--text-xs)' }}>♥ {r.likes}</span>
           </button>
         ))}
         <div className="note">投稿作品、累積讚數就會進榜<span className="acc" onClick={() => push('newPost')}>去投稿</span></div>

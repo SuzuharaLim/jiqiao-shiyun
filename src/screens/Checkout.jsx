@@ -57,7 +57,7 @@ export default function Checkout() {
             <div className="empty">
               <div className="empty-ic"><Icon name="basket" /></div>
               購物車是空的<br />
-              <span style={{ fontSize: 12 }}>到市集挑一張作品授權，或做一本自己的月曆</span>
+              <span style={{ fontSize: 'var(--text-xs)' }}>到市集挑一張作品授權，或做一本自己的月曆</span>
             </div>
             <div className="pad">
               <button className="btn-primary tap" onClick={() => { popAll(); }}>去逛逛</button>
@@ -88,7 +88,7 @@ export default function Checkout() {
         {detail && (
           <div className="sumcard" style={{ marginTop: 0 }}>
             {items.map((it, i) => (
-              <div key={i} className="sumrow" style={{ fontSize: 12 }}>
+              <div key={i} className="sumrow" style={{ fontSize: 'var(--text-xs)' }}>
                 <span className="muted">{it.name}</span>
                 <span style={{ color: 'var(--yi)' }}>分潤 NT${Math.round(it.price * 0.7)}</span>
               </div>
@@ -106,7 +106,7 @@ export default function Checkout() {
         <button className="opt tap" onClick={() => cycle(setInv, INV)}>
           <div className="l">{INV[inv]}</div><Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />
         </button>
-        <div className="muted" style={{ fontSize: 11, padding: '10px 16px' }}>＊點各列可切換選項。金流與物流串接為正式版功能（此處為模擬）。</div>
+        <div className="muted" style={{ fontSize: 'var(--text-2xs)', padding: '10px 16px' }}>＊點各列可切換選項。金流與物流串接為正式版功能（此處為模擬）。</div>
         </>}
       </div>
 

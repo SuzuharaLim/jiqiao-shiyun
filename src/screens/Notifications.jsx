@@ -39,7 +39,7 @@ export default function Notifications() {
           <div className="empty">
             <div className="empty-ic"><Icon name="bell2" /></div>
             還沒有通知<br />
-            <span style={{ fontSize: 12 }}>有人按讚、留言或追蹤你時，會出現在這裡</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>有人按讚、留言或追蹤你時，會出現在這裡</span>
           </div>
         )}
         <div style={{ height: 16 }} />

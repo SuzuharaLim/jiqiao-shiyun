@@ -170,7 +170,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 | 項目 | 規則 |
 | --- | --- |
-| **字級** | **一律用 token**（`--text-2xs` ~ `--text-4xl` 共 9 階），不可再寫 px。整修前 273 處寫死 px、34 種數值、同屏達 20 種字號——差 0.5px 分不出層級只會顯得雜亂。`--text-2xs`(11.5px) 僅限徽章／角標等非必讀資訊。 |
+| **字級** | **一律用 token**（`--text-2xs` ~ `--text-4xl` 共 9 階），**JSX 的 inline `fontSize` 也要用 `'var(--text-*)'` 不可寫數字**——寫死 px 的地方不會隨 token 縮放，放大字級時會被留在原地（2026-07-28 一次改掉 110 處）。整修前 273 處寫死 px、34 種數值、同屏達 20 種字號。2026-07-28 全階放大一級：**內文 18px、輔助 15px、最小 13px**（`--text-2xs` 僅限徽章／角標）。`--text-4xl`(72px) 刻意不放大——那級是 emoji 佔位與裝飾字，再放會撐破固定高容器。 |
 | **圖示** | **不可用彩色 emoji 當 UI 圖示**（Windows 上是 Segoe UI 卡通圖，與紙感氣質斷層）。用 `Icon.jsx` 的 45 個線條圖示，`<ToolRow iconName="…">`／`Empty` 元件皆支援。DB 的 `ref_items` 工具列也改存 `iconName`。使用者內容的 emoji（作品縮圖佔位、頭像選項）不在此限。 |
 | **間距** | 用 `--space-*`（4px 基準）。整修前散落 36 處 `13px` 這種奇數值。 |
 | **色票** | `--tone-1~6` 是紙感淡染（宣紙／竹青／黛藍／藕紫／蜜柑／赭石），**不可放回 IG 粉彩**（`#DCFCE7` 薄荷綠、`#DBEAFE` 嬰兒藍等——紙上不會出現螢光色）。 |
@@ -188,6 +188,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **入場動畫的終態要與靜態樣式一致並加 `forwards`**：`slideup` 原本 `to{transform:none}` 且無 fill-mode，動畫被中斷或未推進時元素會停在 `from` 的 `translateY(24px)`，底部彈出的 sheet 露出視窗外。
 - **hook 一律寫在提早 return 之前**：`PostDetail` 的編輯狀態（`editing/eTitle/eCap/saving`）原本寫在 `if (!post) return 載入中` 之後——第一次渲染只跑 11 個 hook、資料回來後 15 個，React 丟「Rendered more hooks than during the previous render」，**整個貼文詳情頁被 ErrorBoundary 接走**（點進貼文只看到錯誤畫面，build 不會報錯）。新增狀態時務必放在所有 `return` 之前。
 - **`ToolRow` 本身是 `<button>`**：放進去的互動子元件不能是 `<button>`（button 巢 button＝DOM 穿模）；`Switch` 用 `<span role="switch">`。
+- **`.calcell.empty` 的 `empty` 會撞到全站空狀態元件 `.empty`**（那個有 `padding:50px 24px`）：月曆前導空白格是 `<span class="calcell empty">`，被撐成 100px 把首週那列從 46px 拉高（就是舊註解說的「首週大空隙」，但原因不是 aspect-ratio）。`visibility:hidden` **不會讓它不占位**，必須顯式 `padding:0; min-height:0`。**新元件取 class 名前先確認沒有同名的全站元件。**
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
 - **桌機內容卡 `.device` 用 `overflow:clip` 不能 `overflow:hidden`**：`hidden` 會讓它變 sticky 的捲動容器，害 sticky 頂列偏移出空白帶。
 - **`.webnav,.webfoot` 的基礎 `display:none` 要放在 `@media(min-width:900px)` 之前**：同 specificity 時後者勝，放後面會永遠隱藏。

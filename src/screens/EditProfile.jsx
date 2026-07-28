@@ -71,7 +71,7 @@ export default function EditProfile() {
       <TopBar title="編輯個人檔案" onBack right={<button className="acc tap" onClick={save} disabled={saving}>{saving ? '儲存中…' : '儲存'}</button>} />
       <div className="body">
         <div className="center" style={{ padding: '18px 0 6px' }}>
-          <div className="pf-av" style={{ background: user?.avatarBg || 'var(--tone-1)', margin: '0 auto', fontSize: 36, overflow: 'hidden' }}>
+          <div className="pf-av" style={{ background: user?.avatarBg || 'var(--tone-1)', margin: '0 auto', fontSize: 'var(--text-2xl)', overflow: 'hidden' }}>
             {avatarImageId
               ? <img src={`/api/images/${avatarImageId}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : avatar}
@@ -91,12 +91,12 @@ export default function EditProfile() {
           )}
         </div>
 
-        <div className="muted" style={{ fontSize: 11, textAlign: 'center', padding: '2px 16px 6px' }}>
+        <div className="muted" style={{ fontSize: 'var(--text-2xs)', textAlign: 'center', padding: '2px 16px 6px' }}>
           {avatarImageId ? '目前使用上傳的照片；下方圖示需先移除照片才會生效' : '或從下列圖示挑一個'}
         </div>
         <div className="chips" style={{ justifyContent: 'center', paddingBottom: 14 }}>
           {AVATARS.map(a => (
-            <button key={a} className={`th tap ${avatar === a ? 'on' : ''}`} style={{ width: 40, height: 40, fontSize: 20, background: 'var(--field)' }} onClick={() => setAvatar(a)}>{a}</button>
+            <button key={a} className={`th tap ${avatar === a ? 'on' : ''}`} style={{ width: 40, height: 40, fontSize: 'var(--text-lg)', background: 'var(--field)' }} onClick={() => setAvatar(a)}>{a}</button>
           ))}
         </div>
 
@@ -105,7 +105,7 @@ export default function EditProfile() {
             <input value={name} onChange={e => setName(e.target.value)} aria-label="暱稱" /></div>
           <div className="field"><label>帳號 (handle)</label>
             <input value={'@' + handle} readOnly disabled aria-label="帳號（註冊後不可更改）" style={{ opacity: .6 }} /></div>
-          <p className="muted" style={{ fontSize: 11, margin: '-6px 2px 10px' }}>帳號註冊後不可更改（避免他人連結失效）</p>
+          <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '-6px 2px 10px' }}>帳號註冊後不可更改（避免他人連結失效）</p>
           <div className="field"><label>個人簡介</label>
             <input value={bio} onChange={e => setBio(e.target.value)} placeholder="介紹一下自己…" aria-label="個人簡介" /></div>
         </div>

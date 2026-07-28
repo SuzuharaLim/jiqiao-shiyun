@@ -42,7 +42,7 @@ export default function DMs() {
           <div className="empty">
             <div className="empty-ic"><Icon name="mail" /></div>
             訊息已送出<br />
-            <span style={{ fontSize: 12 }}>我們會回覆到 {email || user?.email}</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>我們會回覆到 {email || user?.email}</span>
           </div>
           <div className="pad">
             <button className="b tap" onClick={() => setSentId(null)}>再傳一則</button>

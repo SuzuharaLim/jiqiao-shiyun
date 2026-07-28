@@ -57,7 +57,7 @@ export default function AIChat() {
         <div className="s">{'★'.repeat(today.stars)}{'☆'.repeat(5 - today.stars)}</div>
         <div className="l">今日運勢 · {today.ganzhi} · 宜{today.yi.slice(0, 2).join('')}</div>
       </div>
-      <div className="center muted" style={{ fontSize: 10.5, padding: '4px 16px 0', flex: '0 0 auto' }}>
+      <div className="center muted" style={{ fontSize: 'var(--text-2xs)', padding: '4px 16px 0', flex: '0 0 auto' }}>
         ＊AI 回覆為示範內容，僅供參考娛樂，不構成專業建議
       </div>
 

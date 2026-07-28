@@ -92,7 +92,7 @@ export default function Admin() {
           <div className="empty">
             <div className="empty-ic"><Icon name="lock" /></div>
             此頁僅限版主與管理者<br />
-            <span className="muted" style={{ fontSize: 12 }}>
+            <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
               {user?.guest ? '你目前是訪客，請先註冊登入' : '你的帳號沒有管理權限'}
             </span>
           </div>
@@ -127,7 +127,7 @@ export default function Admin() {
                   <div className="kv"><span>AI 顧問</span><b style={{ color: health.ai === 'on' ? 'var(--yi)' : 'var(--muted)' }}>{health.ai === 'on' ? '已接' : '未接（用示範回覆）'}</b></div>
                   <div className="kv" style={{ borderBottom: 'none' }}><span>金流</span><b style={{ color: health.pay === 'demo' ? 'var(--muted)' : 'var(--yi)' }}>{health.pay === 'demo' ? '示範模式' : health.pay}</b></div>
                 </>
-              ) : <div className="muted" style={{ fontSize: 12 }}>讀取中…</div>}
+              ) : <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>讀取中…</div>}
             </div>
 
             <SectionHead title="寄信測試" />
@@ -140,7 +140,7 @@ export default function Admin() {
                 disabled={mailBusy || (health && health.mail === 'log')}>
                 {mailBusy ? '寄送中…' : '📬 寄一封測試信'}
               </button>
-              <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginTop: 8 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>
                 留空則寄給自己（{user?.email}）。若顯示「未接」，請先在部署環境設定寄信金鑰——設定教學見
                 <b> docs/寄信-Email設定.md</b>。收不到信時記得看垃圾信匣。
               </p>
@@ -176,8 +176,8 @@ export default function Admin() {
             {audit?.length === 0 && <div className="empty"><div className="empty-ic"><Icon name="clipboard" /></div>沒有稽核記錄</div>}
             {audit?.map((a, i) => (
               <div key={a.id || i} className="kv" style={{ padding: '10px 16px' }}>
-                <span style={{ fontSize: 12 }}>{a.event}{a.detail ? ` · ${a.detail}` : ''}</span>
-                <span className="muted" style={{ fontSize: 11 }}>
+                <span style={{ fontSize: 'var(--text-xs)' }}>{a.event}{a.detail ? ` · ${a.detail}` : ''}</span>
+                <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                   {a.user_id || '—'} · {a.ip} · {String(a.created_at || '').slice(0, 16).replace('T', ' ')}
                 </span>
               </div>
@@ -224,7 +224,7 @@ export default function Admin() {
                   <div className="kv"><span>示範貼文</span><b>{seed.posts} 則</b></div>
                   <div className="kv" style={{ borderBottom: 'none' }}><span>示範作品</span><b>{seed.works} 件</b></div>
                 </>
-              ) : <div className="muted" style={{ fontSize: 12 }}>讀取中…</div>}
+              ) : <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>讀取中…</div>}
             </div>
             <div style={{ padding: '4px 13px' }}>
               {!armPurge ? (
@@ -251,12 +251,12 @@ export default function Admin() {
             {users.map(u => (
               <div key={u.id} className="kv" style={{ padding: '11px 16px', alignItems: 'center' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 13.5 }}>{u.name}</b>{u.handle && <span className="muted"> @{u.handle}</span>}
-                  <div className="muted" style={{ fontSize: 11 }}>{u.email}{u.is_seed ? ' · 種子' : ''}</div>
+                  <b style={{ fontSize: 'var(--text-xs)' }}>{u.name}</b>{u.handle && <span className="muted"> @{u.handle}</span>}
+                  <div className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{u.email}{u.is_seed ? ' · 種子' : ''}</div>
                 </div>
                 <select value={u.role} disabled={u.id === user.id}
                   onChange={e => changeRole(u.id, e.target.value)}
-                  style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line2)', background: 'var(--card)', color: 'var(--text)', fontSize: 12.5 }}>
+                  style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line2)', background: 'var(--card)', color: 'var(--text)', fontSize: 'var(--text-xs)' }}>
                   {roles.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}
                 </select>
               </div>
@@ -277,10 +277,10 @@ export default function Admin() {
             </div>
             {items.map((it, i) => (
               <div key={it.id} className="card" style={{ margin: '8px 13px' }}>
-                <div className="kv" style={{ padding: '2px 2px 8px' }}><b>{it.id}</b><span className="muted" style={{ fontSize: 11 }}>{kind} · sort {it.sort ?? i}</span></div>
+                <div className="kv" style={{ padding: '2px 2px 8px' }}><b>{it.id}</b><span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{kind} · sort {it.sort ?? i}</span></div>
                 <textarea value={it._json} spellCheck={false}
                   onChange={e => setItems(list => list.map(x => x.id === it.id ? { ...x, _json: e.target.value } : x))}
-                  style={{ width: '100%', minHeight: 96, fontFamily: 'monospace', fontSize: 12, padding: 10, borderRadius: 8, border: '1px solid var(--line2)', background: 'var(--field)', color: 'var(--text)', resize: 'vertical' }} />
+                  style={{ width: '100%', minHeight: 96, fontFamily: 'monospace', fontSize: 'var(--text-xs)', padding: 10, borderRadius: 8, border: '1px solid var(--line2)', background: 'var(--field)', color: 'var(--text)', resize: 'vertical' }} />
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button className="b dark tap" onClick={() => saveItem(it)}>儲存</button>
                   <button className="b tap" onClick={() => delItem(it.id)} style={{ color: 'var(--ji)' }}>刪除</button>

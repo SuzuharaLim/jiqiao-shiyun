@@ -31,11 +31,11 @@ export default function Zodiac() {
                 border: `1.5px solid ${pick === z.sign ? 'var(--go)' : 'var(--line2)'}`, borderRadius: 12,
                 padding: '12px 6px', background: pick === z.sign ? 'var(--acard-bg)' : 'var(--bg)', textAlign: 'center',
               }} onClick={() => setPick(z.sign)}>
-                <div style={{ fontSize: 30 }}>{z.emoji}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{z.sign}</div>
+                <div style={{ fontSize: 'var(--text-2xl)' }}>{z.emoji}</div>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, marginTop: 2 }}>{z.sign}</div>
                 {/* 分數是文字，要用文字安全的 --gold（加深橙 5.28）；
                     --go 是填色/邊框用的原色橙，當文字只有 3.18 不合 AA */}
-                <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 800 }}>{s}</div>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--gold)', fontWeight: 800 }}>{s}</div>
               </button>
             )
           })}

@@ -51,7 +51,7 @@ export function Proverbs() {
       <div className="body">
         {cur && <div className="aicard">
           <div className="t">💬 每日一句</div>
-          <div className="d" style={{ fontSize: 15, fontWeight: 700, color: 'var(--acard-t)' }}>「{cur.tw}」</div>
+          <div className="d" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--acard-t)' }}>「{cur.tw}」</div>
           <div className="d" style={{ margin: '0 0 10px' }}>{cur.mean}</div>
           <button className="go tap" onClick={() => { setI(n => (n + 1) % proverbs.length); setToast('換一句 🗣️') }}>換一句</button>
         </div>}
@@ -188,7 +188,7 @@ export function Ingredients() {
         </div>
 
         {!g ? <div className="empty">載入中…</div> : <>
-          <p className="muted" style={{ padding: '4px 16px 0', fontSize: 12 }}>{g.date}</p>
+          <p className="muted" style={{ padding: '4px 16px 0', fontSize: 'var(--text-xs)' }}>{g.date}</p>
 
           <ProduceCard icon="branch" title="陸・農產" rows={g.land} />
           <ProduceCard icon="wave" title="海・漁獲" rows={g.sea} />
@@ -203,7 +203,7 @@ export function Ingredients() {
             </div>
           )}
 
-          <p className="muted" style={{ padding: '0 16px', fontSize: 11, lineHeight: 1.7 }}>
+          <p className="muted" style={{ padding: '0 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
             ＊產地為主要產區，實際上市時間受當年氣候影響。
           </p>
         </>}
@@ -219,11 +219,11 @@ function ProduceCard({ icon, title, rows }) {
     <div className="card">
       <h4><Icon name={icon} /> {title}</h4>
       {!rows?.length ? (
-        <p className="muted" style={{ fontSize: 12 }}>這個節氣沒有收錄當令品項</p>
+        <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>這個節氣沒有收錄當令品項</p>
       ) : rows.map((r, i) => (
         <div key={i} className="kv" style={{ padding: '8px 0', alignItems: 'flex-start' }}>
           <b style={{ flex: '0 0 5.5em' }}>{r.name}</b>
-          <span className="muted" style={{ textAlign: 'right', fontSize: 12, lineHeight: 1.6 }}>{r.origin || '—'}</span>
+          <span className="muted" style={{ textAlign: 'right', fontSize: 'var(--text-xs)', lineHeight: 1.6 }}>{r.origin || '—'}</span>
         </div>
       ))}
     </div>
@@ -255,7 +255,7 @@ export function SolarTerms() {
           <div className="img" style={{ height: 150, background: 'var(--tone-1)', fontSize: 56 }}>{a.emoji}</div>
           <div className="article">
             <h3>{a.term}{a.term === today && <span className="ty" style={{ marginLeft: 8, verticalAlign: 'middle' }}>今日節氣</span>}</h3>
-            <p className="muted" style={{ fontSize: 12 }}>{g?.date || a.sub}</p>
+            <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>{g?.date || a.sub}</p>
             {a.body.split('\n\n').map((para, k) => <p key={k}>{para}</p>)}
           </div>
 
@@ -286,7 +286,7 @@ export function SolarTerms() {
               {g.colors?.map((c, k) => (
                 <div key={k} className="kv" style={{ padding: '8px 0' }}><span>{c.color}</span><b>{c.effect}</b></div>
               ))}
-              <p className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.7 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-2xs)', marginTop: 6, lineHeight: 1.7 }}>
                 ＊開運色屬傳統民俗說法，各流派或有差異，僅供參考。
               </p>
             </div>

@@ -67,7 +67,7 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'va
         </div>
         <div className="pf-name">{u.name || u.handle}
           {['creator', 'moderator', 'admin'].includes(u.role) &&
-            <span title="認證創作者" style={{ color: 'var(--gold)', marginLeft: 4, fontSize: 13 }}>✦ 創作者</span>}
+            <span title="認證創作者" style={{ color: 'var(--gold)', marginLeft: 4, fontSize: 'var(--text-xs)' }}>✦ 創作者</span>}
         </div>
         <div className="pf-bio">{u.bio || '節氣風景攝影 📷'}</div>
         <div className="pf-btns">

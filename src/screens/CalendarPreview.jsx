@@ -51,12 +51,12 @@ export default function CalendarPreview({ count = 12 }) {
         <div className="grid" style={{ gap: 6, padding: '0 10px' }}>
           {months.map((mo, i) => (
             <button key={mo.m} className="tap" style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line)', background: 'var(--card)', textAlign: 'left', padding: 0 }} onClick={() => editMonth(i)}>
-              <div className="gimg" style={{ background: mo.bg, aspectRatio: '3/2', fontSize: 24, position: 'relative' }}>
+              <div className="gimg" style={{ background: mo.bg, aspectRatio: '3/2', fontSize: 'var(--text-xl)', position: 'relative' }}>
                 {mo.e}{i < count && <span className="ph-like" style={{ background: 'var(--yi)' }}>你的</span>}
               </div>
               <div style={{ padding: '6px 7px' }}>
-                <div style={{ fontSize: 11, fontWeight: 800 }}>{mo.m} · {mo.term}</div>
-                <div style={{ fontSize: 9.5, color: 'var(--muted)', lineHeight: 1.4, marginTop: 2 }}>{poems[i]}</div>
+                <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800 }}>{mo.m} · {mo.term}</div>
+                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--muted)', lineHeight: 1.4, marginTop: 2 }}>{poems[i]}</div>
               </div>
             </button>
           ))}

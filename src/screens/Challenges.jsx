@@ -61,7 +61,7 @@ export default function Challenges() {
             每個節氣一檔，發布作品時標記當前節氣即自動參賽。依社群按讚與官方評審加權排名，
             前段名次作品將收錄進官方植物月曆，並可獲得 Premium 訂閱等獎勵。
           </p>
-          <p className="muted" style={{ fontSize: 12 }}>
+          <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
             ＊參加人數與投稿件數為即時統計（標記「{term}」的貼文與市集作品）；
             剩餘天數依節氣交節日推算。
           </p>

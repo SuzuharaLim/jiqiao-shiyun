@@ -26,7 +26,7 @@ export default function FollowList({ handle, rel = 'followers' }) {
       <div className="body">
         {users.map(u => (
           <button key={u.id} className="tool tap" onClick={() => push('creatorPage', { user: u.handle })}>
-            <div className="ti" style={{ background: u.avatarBg || 'var(--chip)', borderRadius: '50%', width: 44, height: 44, fontSize: 20, overflow: 'hidden' }}>
+            <div className="ti" style={{ background: u.avatarBg || 'var(--chip)', borderRadius: '50%', width: 44, height: 44, fontSize: 'var(--text-lg)', overflow: 'hidden' }}>
               <Avatar imageId={u.avatarImageId} emoji={u.avatar || '🌾'} />
             </div>
             <div className="tn2">
@@ -42,7 +42,7 @@ export default function FollowList({ handle, rel = 'followers' }) {
           <div className="empty">
             <div className="big">{isFollowers ? '👥' : '🔭'}</div>
             {isFollowers ? '還沒有粉絲' : '還沒有追蹤任何人'}<br />
-            <span style={{ fontSize: 12 }}>
+            <span style={{ fontSize: 'var(--text-xs)' }}>
               {isFollowers ? '發布作品讓更多人看見你' : '到探索頁看看其他創作者'}
             </span>
           </div>

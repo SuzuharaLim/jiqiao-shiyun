@@ -127,7 +127,7 @@ export default function Auth() {
                 aria-label="帳號 handle" style={{ paddingLeft: 26 }} />
             </div>
             {hchk && (
-              <div style={{ fontSize: 11.5, marginTop: 5, color: hchk.loading ? 'var(--muted)' : hchk.available ? 'var(--yi)' : 'var(--ji)' }}>
+              <div style={{ fontSize: 'var(--text-2xs)', marginTop: 5, color: hchk.loading ? 'var(--muted)' : hchk.available ? 'var(--yi)' : 'var(--ji)' }}>
                 {hchk.loading ? '檢查中…' : `${hchk.available ? '✓ ' : '✕ '}${hchk.reason || (hchk.available ? '可以使用' : '無法使用')}`}
               </div>
             )}

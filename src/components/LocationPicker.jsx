@@ -86,7 +86,7 @@ export default function LocationPicker({ onClose, onPick }) {
             </div>
           )}
 
-          {loading && <div className="muted center" style={{ padding: 12, fontSize: 12 }}>搜尋中…</div>}
+          {loading && <div className="muted center" style={{ padding: 12, fontSize: 'var(--text-xs)' }}>搜尋中…</div>}
           {results.length > 0 && (
             <div className="lp-list">
               {results.map((p, i) => (

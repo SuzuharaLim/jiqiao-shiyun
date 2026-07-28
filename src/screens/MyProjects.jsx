@@ -15,12 +15,12 @@ export default function MyProjects() {
         <div className="empty">
           <div className="empty-ic"><Icon name="book2" /></div>
           還沒有專案<br />
-          <span style={{ fontSize: 12 }}>做好的月曆會存成專案，方便之後繼續編輯或下單</span>
+          <span style={{ fontSize: 'var(--text-xs)' }}>做好的月曆會存成專案，方便之後繼續編輯或下單</span>
         </div>
         <div className="pad">
           <button className="btn-primary tap" onClick={() => push('makeCalendar')}>＋ 建立新月曆</button>
         </div>
-        <p className="muted" style={{ padding: '0 16px', fontSize: 11, lineHeight: 1.7 }}>
+        <p className="muted" style={{ padding: '0 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
           ＊專案儲存功能仍在開發中，目前做好的月曆離開頁面後不會保留。
         </p>
         <div style={{ height: 16 }} />

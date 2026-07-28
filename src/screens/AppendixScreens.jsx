@@ -39,7 +39,7 @@ export function FoodTaboo() {
         {FOODS.map(f => (
           <div key={f.a + f.b} className="kv" style={{ padding: '12px 16px', alignItems: 'flex-start' }}>
             <span style={{ flex: '0 0 auto', fontWeight: 700 }}>{f.a} × {f.b}</span>
-            <span className="muted" style={{ textAlign: 'right', fontSize: 12.5 }}>{f.why}</span>
+            <span className="muted" style={{ textAlign: 'right', fontSize: 'var(--text-xs)' }}>{f.why}</span>
           </div>
         ))}
         <Disclaimer text="食物相剋多為民間傳統說法，現代營養學多認為在日常份量下影響有限或屬迷思。腸胃敏感、過敏或特殊疾病者，飲食請諮詢醫師或營養師。" />
@@ -90,7 +90,7 @@ export function GanzhiTable() {
         <div className="card">
           <div className="kv" style={{ alignItems: 'flex-start' }}><span>相沖</span><b style={{ textAlign: 'right' }}>{CHONG.join('、')}</b></div>
           <div className="kv" style={{ alignItems: 'flex-start' }}><span>相害</span><b style={{ textAlign: 'right' }}>{HAI.join('、')}</b></div>
-          <div className="kv" style={{ borderBottom: 'none', alignItems: 'flex-start' }}><span>相刑</span><b style={{ textAlign: 'right', fontSize: 12.5 }}>{XING.join('　')}</b></div>
+          <div className="kv" style={{ borderBottom: 'none', alignItems: 'flex-start' }}><span>相刑</span><b style={{ textAlign: 'right', fontSize: 'var(--text-xs)' }}>{XING.join('　')}</b></div>
         </div>
 
         <SectionHead title="生肖合沖（實用配對）" />

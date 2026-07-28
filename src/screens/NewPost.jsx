@@ -115,7 +115,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
               {photo && <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>}
             </div>
             {!photo && <>
-            <div className="muted" style={{ fontSize: 11, padding: '2px 16px 6px' }}>
+            <div className="muted" style={{ fontSize: 'var(--text-2xs)', padding: '2px 16px 6px' }}>
               沒有照片也可以發文，先挑一個封面配色：
             </div>
             <div className="thumbs">
@@ -129,7 +129,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         <div className="capin">
           <textarea placeholder="撰寫說明…　#芒種 #田間" aria-label="貼文說明" maxLength={400}
             value={cap} onChange={e => setCap(e.target.value)} />
-          <div className="muted" style={{ textAlign: 'right', fontSize: 11, padding: '0 4px 4px' }}>{cap.length} / 400</div>
+          <div className="muted" style={{ textAlign: 'right', fontSize: 'var(--text-2xs)', padding: '0 4px 4px' }}>{cap.length} / 400</div>
         </div>
 
         {/* 標記節氣 —— 真的可選 */}
@@ -160,14 +160,14 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         {/* 授權價 —— 真的可選分級 */}
         {onSale && (
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
-            <div className="muted" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>單張授權價</div>
+            <div className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: 8 }}>單張授權價</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {licenseTiers.map((p, i) => (
                 <button key={p} className={`chip tap ${priceI === i ? 'on' : ''}`} style={{ flex: 1, textAlign: 'center' }}
                   onClick={() => setPriceI(i)}>{p ? `$${p}` : '免費'}</button>
               ))}
             </div>
-            <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            <div className="muted" style={{ fontSize: 'var(--text-2xs)', marginTop: 8 }}>
               {price ? `售出可分潤 70%（約 NT$${Math.round(price * 0.7)}／張）` : '開放免費授權，累積曝光與人氣'}
             </div>
           </div>

@@ -45,7 +45,7 @@ export default function MakeCalendar() {
           <div className="empty">
             <div className="empty-ic"><Icon name="scroll" /></div>
             做月曆需要註冊帳號<br />
-            <span style={{ fontSize: 12 }}>月曆專案要綁在帳號上才留得住，也才能下單印製</span>
+            <span style={{ fontSize: 'var(--text-xs)' }}>月曆專案要綁在帳號上才留得住，也才能下單印製</span>
           </div>
           <div className="pad">
             {/* 原本只跳提示要使用者自己去別的分頁找——按鈕文字承諾了動作就該做到。
@@ -79,7 +79,7 @@ export default function MakeCalendar() {
             <div className="empty">
               <div className="empty-ic"><Icon name="photo2" /></div>
               {pool.length === 0 ? '還沒有可用的照片' : `「${src}」裡沒有照片`}<br />
-              <span style={{ fontSize: 12 }}>
+              <span style={{ fontSize: 'var(--text-xs)' }}>
                 {pool.length === 0 ? '先到「建立」拍一張或上傳作品，就能做成月曆' : '換一個來源看看'}
               </span>
             </div>

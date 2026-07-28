@@ -14,7 +14,7 @@ export default function About() {
           <p>機巧時運由五位資訊工程背景的學生組成，孕育自大葉大學高教深耕計畫。我們把冷硬的黃曆數據，透過 AI 對話與植物美學，轉化為有溫度的現代生活指引。</p>
           <h3>會說話的智慧文化手帳</h3>
           <p>實體植物萬年曆負責觸感與記憶，App 的「AI 時光顧問」負責對話與陪伴——虛實整合（Phygital），開創一個全新的品類。</p>
-          <p className="muted" style={{ fontSize: 12 }}>對應 SDG 4 優質教育、SDG 11 永續城鄉、SDG 12 責任消費與生產。</p>
+          <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>對應 SDG 4 優質教育、SDG 11 永續城鄉、SDG 12 責任消費與生產。</p>
         </div>
         <div style={{ height: 16 }} />
       </div>

@@ -47,11 +47,11 @@ export default function Profile() {
               <Avatar imageId={me.avatarImageId} emoji={me.avatar} />
             </div>
             <div className="nm">
-              <div className="n">{me.name} {subscribed && <span style={{ color: 'var(--gold)', fontSize: 13 }}>· Premium ✦</span>}</div>
+              <div className="n">{me.name} {subscribed && <span style={{ color: 'var(--gold)', fontSize: 'var(--text-xs)' }}>· Premium ✦</span>}</div>
               <div className="h">@{me.handle}</div>
             </div>
           </div>
-          <div className="bio">{me.bio}　<button className="acc tap" style={{ fontSize: 12, fontWeight: 400 }}
+          <div className="bio">{me.bio}　<button className="acc tap" style={{ fontSize: 'var(--text-xs)', fontWeight: 400 }}
             onClick={() => push('followList', { handle: me.handle, rel: 'following' })}>· 追蹤中 {stats.following ?? 0} 位</button></div>
           {/* 三個統計都可點：作品／市集上架切換下方清單，粉絲開真實名單 */}
           <div className="nums">

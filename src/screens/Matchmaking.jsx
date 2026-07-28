@@ -26,7 +26,7 @@ export default function Matchmaking() {
             style={{
               border: `1.5px solid ${val?.sign === z.sign ? 'var(--cinnabar)' : 'var(--line2)'}`, borderRadius: 2,
               padding: '6px 0', background: val?.sign === z.sign ? 'var(--acard-bg)' : 'var(--bg)',
-            }} onClick={() => set(z)}><div style={{ fontSize: 18 }}>{z.emoji}</div></button>
+            }} onClick={() => set(z)}><div style={{ fontSize: 'var(--text-lg)' }}>{z.emoji}</div></button>
         ))}
       </div>
     </div>
