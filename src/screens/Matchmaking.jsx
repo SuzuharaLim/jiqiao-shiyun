@@ -1,25 +1,48 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { TopBar, Disclaimer, SectionHead } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
+import { combinedMatch, STARS } from '../data/match.js'
 
+// 生肖・星座婚配。
+// ⚠️ 使用者回報「缺少星座匹配的選項」——標題寫生肖・星座，畫面卻只有生肖。已補上。
+// 分數改為依傳統地支關係（三合/六合/六沖/六害/相刑）與星座元素關係推算，
+// 每項附理由；原本是拿「兩人今日運勢分數相減」，換一天就變，且無傳統依據。
 export default function Matchmaking() {
   const zodiacs = useContent('zodiacs')   // 生肖清單嚴格來自資料庫
-  const [a, setA] = useState(null)
-  const [b, setB] = useState(null)
-  const done = a && b
-  // 兩人運勢分差越小越契合（示範演算）
-  const score = done ? Math.max(55, 100 - Math.abs(a.score - b.score)) : 0
+  const [za, setZa] = useState(null)
+  const [zb, setZb] = useState(null)
+  const [sa, setSa] = useState(null)
+  const [sb, setSb] = useState(null)
 
-  const Picker = ({ label, val, set }) => (
-    <div style={{ flex: 1 }}>
-      <div className="center muted" style={{ fontSize: 12, marginBottom: 6 }}>{label}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5 }}>
+  const res = combinedMatch({ zodiacA: za?.sign, zodiacB: zb?.sign, starA: sa, starB: sb })
+
+  const ZodiacPicker = ({ label, val, set }) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="center muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 5 }}>
         {zodiacs.map(z => (
-          <button key={z.sign} className="tap" style={{
-            border: `1.5px solid ${val?.sign === z.sign ? 'var(--go)' : 'var(--line2)'}`, borderRadius: 9,
-            padding: '6px 0', background: val?.sign === z.sign ? 'var(--acard-bg)' : 'var(--bg)',
-          }} onClick={() => set(z)}><div style={{ fontSize: 18 }}>{z.emoji}</div></button>
+          <button key={z.sign} className="tap" aria-pressed={val?.sign === z.sign} aria-label={`屬${z.sign}`}
+            style={{
+              border: `1.5px solid ${val?.sign === z.sign ? 'var(--cinnabar)' : 'var(--line2)'}`, borderRadius: 2,
+              padding: '6px 0', background: val?.sign === z.sign ? 'var(--acard-bg)' : 'var(--bg)',
+            }} onClick={() => set(z)}><div style={{ fontSize: 18 }}>{z.emoji}</div></button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const StarPicker = ({ label, val, set }) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="center muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 5 }}>
+        {STARS.map(s => (
+          <button key={s.name} className="tap" aria-pressed={val === s.name} title={s.range}
+            style={{
+              border: `1.5px solid ${val === s.name ? 'var(--cinnabar)' : 'var(--line2)'}`, borderRadius: 2,
+              padding: '7px 0', fontSize: 'var(--text-2xs)', fontWeight: 700,
+              background: val === s.name ? 'var(--acard-bg)' : 'var(--bg)',
+            }} onClick={() => set(s.name)}>{s.name}</button>
         ))}
       </div>
     </div>
@@ -29,22 +52,50 @@ export default function Matchmaking() {
     <>
       <TopBar title="生肖・星座 婚配" onBack />
       <div className="body">
+        <SectionHead title="生肖" extra="必選" />
         <div className="pad" style={{ display: 'flex', gap: 12 }}>
-          <Picker label="你" val={a} set={setA} />
-          <Picker label="對方" val={b} set={setB} />
+          <ZodiacPicker label="你" val={za} set={setZa} />
+          <ZodiacPicker label="對方" val={zb} set={setZb} />
         </div>
 
-        {done ? (
+        <SectionHead title="星座" extra="可選，選了一起計分" />
+        <div className="pad" style={{ display: 'flex', gap: 12 }}>
+          <StarPicker label="你" val={sa} set={setSa} />
+          <StarPicker label="對方" val={sb} set={setSb} />
+        </div>
+
+        {res ? (
           <div className="card">
-            <h4>{a.emoji} × {b.emoji} 配對指數 {score} 分</h4>
-            <div className="meter"><div style={{ width: `${score}%` }} /></div>
-            <p style={{ marginTop: 10 }}>
-              屬{a.sign}與屬{b.sign}的組合{score >= 80 ? '相當契合，是能彼此扶持的良緣。' : score >= 65 ? '互補性佳，多溝通能長久。' : '需要更多耐心經營，先做朋友再談進一步。'}
-              建議在吉時（未時）約會或談重要話題。
-            </p>
+            <h4>配對指數 {res.score} 分</h4>
+            <div className="meter"><div style={{ width: `${res.score}%` }} /></div>
+            {res.zodiac && (
+              <>
+                <div className="kv" style={{ padding: '10px 0 4px' }}>
+                  <span>生肖　{za.emoji} × {zb.emoji}</span><b>{res.zodiac.level}　{res.zodiac.score} 分</b>
+                </div>
+                <p style={{ lineHeight: 1.9 }}>{res.zodiac.reason}</p>
+              </>
+            )}
+            {res.star && (
+              <>
+                <div className="kv" style={{ padding: '10px 0 4px', borderTop: '1px solid var(--line2)' }}>
+                  <span>星座　{sa} × {sb}</span><b>{res.star.level}　{res.star.score} 分</b>
+                </div>
+                <p style={{ lineHeight: 1.9 }}>{res.star.reason}</p>
+              </>
+            )}
+            {!res.star && (
+              <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 8 }}>
+                再選兩邊的星座，會把星座元素關係一起算進來。
+              </p>
+            )}
           </div>
-        ) : <div className="empty"><div className="empty-ic"><Icon name="heartPair" /></div>各選一個生肖，看配對分數</div>}
-        <Disclaimer text="配對指數為示範演算，僅供參考娛樂，感情仍需真心經營。" />
+        ) : (
+          <div className="empty"><div className="empty-ic"><Icon name="heartPair" /></div>
+            兩邊各選一個生肖（星座可選），看配對分數
+          </div>
+        )}
+        <Disclaimer text="配對依傳統地支三合六合與星座元素關係推算，屬民俗參考，僅供娛樂；感情仍需真心經營。" />
         <div style={{ height: 16 }} />
       </div>
     </>

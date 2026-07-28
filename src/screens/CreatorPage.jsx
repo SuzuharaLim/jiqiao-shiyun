@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
 // 創作者頁 —— 來自資料庫（GET /api/users/:handle）：真實貼文/作品/粉絲數，追蹤走後端。
-export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = '#cfe8d6' }) {
+export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'var(--tone-2)' }) {
   const { push, setToast, requireAccount } = useNav()
   const [data, setData] = useState(null)
   const [following, setFollowing] = useState(false)

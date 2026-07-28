@@ -1,15 +1,33 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { TopBar, ToolRow, Switch, SectionHead } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
+import { nextLunarOccurrence } from '../data/lunisolar.js'
 
 const TIMES = ['誕辰前 1 天 09:00', '誕辰當天 08:00', '誕辰前 3 天 09:00', '誕辰前一晚 21:00']
+
+// 「農曆 3/23」→ { m:3, d:23 }
+const parseLunar = (s) => {
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(s || '')
+  return m ? { m: Number(m[1]), d: Number(m[2]) } : null
+}
 
 export default function Deities() {
   const { reminders, toggleReminder, setToast } = useNav()
   const deities = useContent('deities')   // 神佛誕辰嚴格來自資料庫
   const [timeI, setTimeI] = useState(0)
+
+  // 距今天數用真實農曆換算得出，並依「最近的誕辰」排序。
+  // ⚠️ 原本 mock 資料裡的「還有 5 天」是寫死的假倒數（不論今天是哪天都顯示 5 天）。
+  const list = useMemo(() => {
+    const withDays = deities.map(d => {
+      const p = parseLunar(d.date)
+      const occ = p ? nextLunarOccurrence(p.m, p.d) : null
+      return { ...d, days: occ?.daysAway ?? null, solar: occ?.date || null }
+    })
+    return withDays.sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999))
+  }, [deities])
 
   const flip = (d) => {
     const willOn = !reminders[d.id]
@@ -28,9 +46,14 @@ export default function Deities() {
         right={<button className="iconbtn tap" aria-label={allOn ? '全部關閉' : '全部開啟'} onClick={toggleAll}><Icon name="bell" /></button>} />
       <div className="body">
         <SectionHead title="近期誕辰 · 開啟提醒" extra={allOn ? '全部已開' : '點鈴鐺全開'} />
-        {deities.map(d => (
+        {list.map(d => (
           <ToolRow key={d.id} icon={d.icon} bg={d.bg} title={d.name}
-            sub={d.date + (d.note ? `　· ${d.note}` : '')}
+            sub={[
+              d.date,
+              d.solar ? `國曆 ${d.solar.getMonth() + 1}/${d.solar.getDate()}` : null,
+              d.days === 0 ? '就是今天' : d.days != null ? `還有 ${d.days} 天` : null,
+              d.note,
+            ].filter(Boolean).join('　· ')}
             right={<Switch on={!!reminders[d.id]} onChange={() => flip(d)} />}
             onClick={() => flip(d)}
           />

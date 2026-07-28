@@ -79,7 +79,7 @@ export function NavProvider({ children }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#141210' : '#F4EFE6')
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#141210' : '#FFFFFF')
     try { localStorage.setItem('jq-theme', theme) } catch { /* 隱私模式忽略 */ }
   }, [theme])
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))

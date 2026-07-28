@@ -71,7 +71,7 @@ export default function EditProfile() {
       <TopBar title="編輯個人檔案" onBack right={<button className="acc tap" onClick={save} disabled={saving}>{saving ? '儲存中…' : '儲存'}</button>} />
       <div className="body">
         <div className="center" style={{ padding: '18px 0 6px' }}>
-          <div className="pf-av" style={{ background: user?.avatarBg || '#EDE4CE', margin: '0 auto', fontSize: 36, overflow: 'hidden' }}>
+          <div className="pf-av" style={{ background: user?.avatarBg || 'var(--tone-1)', margin: '0 auto', fontSize: 36, overflow: 'hidden' }}>
             {avatarImageId
               ? <img src={`/api/images/${avatarImageId}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : avatar}

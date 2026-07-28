@@ -5,7 +5,7 @@ export default function About() {
     <>
       <TopBar title="品牌故事" onBack />
       <div className="body">
-        <div className="img" style={{ height: 140, background: '#f3e8ff', fontSize: 54 }}>🌾✦</div>
+        <div className="img" style={{ height: 140, background: 'var(--tone-3)', fontSize: 54 }}>🌾✦</div>
         <div className="article">
           <h3>承先啟後，不忘本</h3>
           <p>「你有認真看過家中農民曆的樣貌嗎？」多數人的第一反應是：「那不是用來看日子的嗎？」</p>

@@ -16,18 +16,30 @@
    ========================================================================== */
 
 :root {
-  /* ---- Primitives（原始值，元件不得直接引用）------------------------- */
-  --paper-50:  #FBF8F1;
-  --paper-100: #F7F3EA;   /* 宣紙米，主背景 */
-  --paper-200: #EFE8D8;
+  /* ---- Primitives（原始值，元件不得直接引用）-------------------------
+     ⚠️ 2026-07-28 換色：品牌三色由使用者指定＝#39C5BB 青綠／#E07227 橙／
+     #123962 深藍。淺色底也一併從宣紙米改為純白。
+     每一色都標了 WCAG 對比，指派角色時不可違背：
+       teal    #39C5BB 白底文字 2.13 ✗ ／ 墨字在其上 6.76 ✓ → 只能當「底」
+       orange  #E07227 白底文字 3.18 ✗ ／ 墨字在其上 4.52 ✓ → 只能當「底」
+       navy    #123962 白底文字 11.75 ✓ ／ 白字在其上 11.75 ✓ → 唯一能兩用
+     所以：**深藍是主色（按鈕/連結/焦點），青綠與橙是填色點綴**，
+     需要青綠或橙「當文字」時一律改用下面加深的 -ink 版本。 */
+  --paper-50:  #FAFAFA;   /* 極淺灰，卡片次層 */
+  --paper-100: #FFFFFF;   /* 主背景＝白 */
+  --paper-200: #F1F3F5;   /* 欄位／chip 底 */
   --ink-900:   #2B2A26;   /* 墨，主文 */
   --ink-700:   #4A473F;
   --ink-500:   #6B6459;   /* 次文 */
   --ink-300:   #9A9284;
-  --seal-600:  #B23A2E;   /* 印泥紅，品牌 */
-  --seal-500:  #C4483B;
-  --jade-500:  #7BA05B;   /* 柳色綠，節氣點綴 */
-  --gold-500:  #C9A45C;   /* 金 */
+
+  --teal-500:  #39C5BB;   /* 指定色①：青綠——填色／點綴 */
+  --teal-ink:  #17756F;   /* 同色系加深，供文字用（白底 5.51 ✓） */
+  --orange-500:#E07227;   /* 指定色②：橙——填色／強調 */
+  --orange-ink:#A85513;   /* 加深，供文字用（白底 5.28 ✓） */
+  --navy-500:  #123962;   /* 指定色③：深藍——主色，可當底也可當字 */
+  --navy-400:  #1B5088;   /* hover／深色模式實心底（白字 8.24 ✓） */
+  --navy-700:  #0C2846;   /* pressed／漸層深端 */
   --white:     #FFFFFF;
 
   /* ---- Semantic（元件只引用這層）------------------------------------ */
@@ -36,17 +48,16 @@
   --color-surface-2:   var(--paper-50);
   --color-text:        var(--ink-900);
   --color-text-muted:  var(--ink-500);
-  --color-brand:       var(--seal-600);
-  --color-brand-hover: var(--seal-500);
-  --color-accent:      var(--jade-500);
-  --color-gold:        var(--gold-500);
-  --color-border:      rgba(43, 42, 38, 0.10);
-  --color-focus:       var(--seal-600);
+  --color-brand:       var(--navy-500);
+  --color-brand-hover: var(--navy-400);
+  --color-accent:      var(--teal-500);
+  --color-gold:        var(--orange-500);   /* 原「金」的位置改用指定的橙 */
+  --color-border:      rgba(18, 57, 98, 0.14);
+  --color-focus:       var(--navy-500);
 
-  /* ★ 規格未定義但必要：「品牌色當底、白字在上」的實心按鈕用色。
-     深色模式若沿用提亮的 --color-brand(#D9584A)，白字對比只有 3.86 不合格；
-     故實心按鈕在兩種模式都用同一個深紅（白字對比 5.94 ✓）。 */
-  --color-brand-solid: var(--seal-600);
+  /* 「品牌色當底、白字在上」的實心按鈕用色。深藍白字對比 11.75 ✓，
+     淺色與深色模式可用同一組（深色改用 --navy-400，白字 8.24 ✓）。 */
+  --color-brand-solid: var(--navy-500);
   --color-on-brand:    var(--white);
 
   /* ── 節氣主題色（第二點綴色，隨季節輪替）──
@@ -132,19 +143,25 @@
   --text:      var(--color-text);
   --muted:     var(--color-text-muted);
   --line:      var(--color-border);
-  --line2:     rgba(43, 42, 38, 0.18);
+  --line2:     rgba(18, 57, 98, 0.22);
   --chip:      var(--paper-200);
   --field:     var(--paper-200);
   --primary:   var(--color-brand-solid);
   --pfg:       var(--color-on-brand);
   --accent:    var(--color-brand);
-  --heart:     var(--color-brand);
+  --heart:     var(--orange-500);        /* 讚＝橙（原朱紅） */
+  /* ⚠️ --cinnabar 這個名字留著（styles.css 有上百處引用），但值已是深藍。
+     它的角色沒變：全站的「主強調色」。要改主色只改這裡。 */
   --cinnabar:  var(--color-brand);
-  --cinnabar-d:#8E2C22;
-  --seal:      var(--seal-600);
-  --gold:      var(--color-gold);
-  --gold-hi:   #D8B96A;
-  --bronze:    #8C6239;
+  --cinnabar-d:var(--navy-700);
+  --seal:      var(--navy-500);
+  /* ⚠️ --gold 大量被當「文字色」用（星等 ★、生肖分數、慶典標記、方案勾勾），
+     指定的橙 #E07227 在白底只有 3.18 不合格 → 這個別名一律指向加深版。
+     需要橙「當填色/邊框」的地方用 --gold-hi（非文字 3:1 標準下 3.18 ✓），
+     深色介面（相機／掃描）也用 --gold-hi（深底 5.57 ✓）。 */
+  --gold:      var(--orange-ink);
+  --gold-hi:   var(--orange-500);
+  --bronze:    var(--orange-ink);
   --go:        var(--color-gold);
   --season:    var(--color-accent);
   --serif:     var(--font-serif);
@@ -156,14 +173,19 @@
   --luck-bg:   var(--paper-50);
   --note-bg:   var(--paper-50);
 
-  /* 宜（綠）／忌（紅）：文字用途，需達 AA——故用加深版而非點綴色 */
-  --yi:        #3E6B4A;
-  --ji:        #A83232;
-  --ok-bg:     #E7EEE4;  --ok-fg: #3E6B4A;
-  --no-bg:     #F3E1DD;  --no-fg: #A83232;
+  /* 宜／忌：文字用途，需達 AA —— 用三色的加深版（青綠 5.51／橙 5.28） */
+  --yi:        var(--teal-ink);
+  --ji:        var(--orange-ink);
+  /* 宜/忌 當「底」時上面那層字的顏色。淺色模式的 --yi/--ji 是加深版（深底→白字），
+     深色模式是提亮版（亮底→墨字）——兩者相反，所以必須各自定義，
+     不能寫死 #fff（實測深色模式白字在青綠上只有 2.13）。 */
+  --on-yi:     var(--white);
+  --on-ji:     var(--white);
+  --ok-bg:     #E4F5F3;  --ok-fg: var(--teal-ink);
+  --no-bg:     #FBEDE1;  --no-fg: var(--orange-ink);
 
-  --oracle-bg: #1C2E4A;  --oracle-fg: #EAD9A6;  --oracle-ln: #33507A;
-  --st-full:   #3E6B4A;  --st-partial: #B8863B; --st-demo: #A0785A;
+  --oracle-bg: var(--navy-500);  --oracle-fg: #A9E4DF;  --oracle-ln: var(--navy-400);
+  --st-full:   var(--teal-ink);  --st-partial: var(--orange-ink); --st-demo: var(--ink-500);
 
   /* 上一階段 primitives 元件用的別名（Container/Stack/Text/Button…） */
   --c-bg: var(--color-bg);            --c-surface: var(--color-surface);
@@ -204,33 +226,37 @@
   --cam-muted-2: #8A8175;
   --cam-chip:    #F0EADF;
   --cam-warn:    #FFCF8B;
-  --cinnabar-dd: #7A1F16;   /* 朱紅漸層深端 */
-  --oracle-bg-2: #26406B;   /* 靛青漸層另一端 */
+  --cinnabar-dd: #081C31;   /* 主色漸層深端 */
+  --oracle-bg-2: var(--navy-400);   /* 占卜卡漸層另一端 */
 
   /* 內容色票（縮圖/工具圖示底色，非文字）*/
   /* 內容色票（縮圖／工具圖示底色，非文字）
      ⚠️ 原本是 IG 時代的螢光粉彩（#DCFCE7 薄荷綠、#DBEAFE 嬰兒藍…），
      與宣紙米調完全不搭——紙上不會出現螢光薄荷綠。
      改為傳統顏色的「淡染」版本：宣紙／竹青／黛藍／藕紫／蜜柑／赭石。 */
-  --tone-1: #EDE4CE;  /* 宣紙深一階 */
-  --tone-2: #DDE5D4;  /* 竹青 */
-  --tone-3: #D6DEE6;  /* 黛藍 */
-  --tone-4: #E8DCE0;  /* 藕紫 */
-  --tone-5: #EDE0CB;  /* 蜜柑 */
-  --tone-6: #EADCD8;  /* 赭石 */
+  /* 白底版：三色的淡染（青綠／橙／深藍各兩階），不再有米黃紙色 */
+  --tone-1: #F1F3F5;  /* 中性淺灰 */
+  --tone-2: #E2F6F4;  /* 青綠淡 */
+  --tone-3: #E4EAF2;  /* 深藍淡 */
+  --tone-4: #FBEEE3;  /* 橙淡 */
+  --tone-5: #CFEEEB;  /* 青綠中 */
+  --tone-6: #F6DFCA;  /* 橙中 */
 }
 
-/* ── 四季換裝：由 App.jsx 依真實節氣掛 data-season 到 <html> ──
-   只換「第二點綴色」，主色（朱紅印章）不動——品牌識別必須全年一致。 */
-:root[data-season="spring"] { --season-hue: #6E8F4E; --season-tint: rgba(110, 143, 78, .10); }  /* 柳綠 */
-:root[data-season="summer"] { --season-hue: #B23A2E; --season-tint: rgba(178, 58, 46, .10); }   /* 朱 */
-:root[data-season="autumn"] { --season-hue: #B08A3C; --season-tint: rgba(176, 138, 60, .12); }  /* 金 */
-:root[data-season="winter"] { --season-hue: #4A6178; --season-tint: rgba(74, 97, 120, .12); }   /* 黛 */
-/* 深色模式的節氣色需提亮才有足夠對比 */
-:root[data-theme="dark"][data-season="spring"] { --season-hue: #8FB56A; }
-:root[data-theme="dark"][data-season="summer"] { --season-hue: #D9584A; }
-:root[data-theme="dark"][data-season="autumn"] { --season-hue: #D8B96A; }
-:root[data-theme="dark"][data-season="winter"] { --season-hue: #7E9CBB; }
+/* ── 四季換裝：由 nav.jsx 依真實節氣掛 data-season 到 <html> ──
+   只換「第二點綴色」，主色（深藍）不動——品牌識別必須全年一致。
+   ⚠️ 四季只在指定的三色內輪替（春青綠／夏橙／秋橙深／冬深藍），
+   不可再引入第四種色相。這些值會被當文字色用（.sech 標記等），
+   故一律採用文字安全的加深版，不是填色用的原色。 */
+:root[data-season="spring"] { --season-hue: var(--teal-ink);   --season-tint: rgba(57, 197, 187, .14); }
+:root[data-season="summer"] { --season-hue: var(--orange-ink); --season-tint: rgba(224, 114, 39, .12); }
+:root[data-season="autumn"] { --season-hue: var(--orange-ink); --season-tint: rgba(224, 114, 39, .18); }
+:root[data-season="winter"] { --season-hue: var(--navy-500);   --season-tint: rgba(18, 57, 98, .12); }
+/* 深色模式的節氣色需提亮才有足夠對比（深底 5.5~8.3） */
+:root[data-theme="dark"][data-season="spring"] { --season-hue: #39C5BB; }
+:root[data-theme="dark"][data-season="summer"] { --season-hue: #F0913F; }
+:root[data-theme="dark"][data-season="autumn"] { --season-hue: #E07227; }
+:root[data-theme="dark"][data-season="winter"] { --season-hue: #6E9CD2; }
 
 /* ==========================================================================
    Dark mode（§2）——只覆寫 Semantic 層，Legacy 別名自動跟著變
@@ -241,35 +267,42 @@
   --color-surface-2:   #2C271F;
   --color-text:        #EDE7D9;
   --color-text-muted:  #A69E8D;
-  --color-brand:       #D9584A;
-  --color-brand-hover: #E06556;
-  --color-accent:      #8FB56A;
-  --color-gold:        #D8B96A;
+  /* 深色模式：深藍在深底上看不見（對比 2.15），故「文字/連結」用提亮的藍，
+     「實心按鈕底」用 --navy-400（白字 8.24 ✓）。 */
+  --color-brand:       #6E9CD2;   /* 深底文字 6.20 ✓ */
+  --color-brand-hover: #8FB4E0;
+  --color-accent:      #39C5BB;   /* 深底文字 8.33 ✓ */
+  --color-gold:        #F0913F;   /* 深底文字 7.45 ✓ */
   --color-border:      rgba(237, 231, 217, 0.12);
-  --color-focus:       #D9584A;
+  --color-focus:       #6E9CD2;
 
-  /* 實心按鈕仍用深紅底＋白字（對比 5.94）；提亮版只用於文字/連結 */
-  --color-brand-solid: #A83A2E;
+  --color-brand-solid: #1B5088;
 
   /* Legacy 別名中，深色需要不同值的少數項目 */
   --stage:     #12100E;
   --line2:     rgba(237, 231, 217, .22);
   --chip:      #2C271F;
   --field:     #2C271F;
-  --cinnabar-d:#B23A2E;
+  --cinnabar-d:#25659F;
+  --heart:     #F0913F;
+  --gold-hi:   #F0913F;
+  --bronze:    #E07227;
+  --seal:      #6E9CD2;
   --acard-bg:  var(--color-surface-2);
-  --acard-t:   var(--color-gold);
+  --acard-t:   var(--color-accent);
   --acard-d:   var(--color-text-muted);
   --luck-bg:   var(--color-surface-2);
   --note-bg:   #201C16;
-  --yi:        #8FB56A;  --ji: #E08A80;
-  --ok-bg:     #1E2A21;  --ok-fg: #8FB56A;
-  --no-bg:     #2E1D1B;  --no-fg: #E08A80;
-  --oracle-bg: #12203A;  --oracle-fg: #F0DDA6;  --oracle-ln: #2A426B;
-  --st-full:   #8FB56A;  --st-partial: #D8B96A; --st-demo: #C9A98A;
+  --yi:        #39C5BB;  --ji: #F0913F;
+  --on-yi:     var(--ink-900);  --on-ji: var(--ink-900);   /* 亮底 → 墨字（6.76 / 5.30） */
+  --gold:      #F0913F;   /* 文字用的橙在深底需提亮（加深版只有 3.07） */
+  --ok-bg:     #14282A;  --ok-fg: #39C5BB;
+  --no-bg:     #2E2018;  --no-fg: #F0913F;
+  --oracle-bg: #0E2743;  --oracle-fg: #A9E4DF;  --oracle-ln: #24486F;
+  --st-full:   #39C5BB;  --st-partial: #F0913F; --st-demo: #A69E8D;
   --c-text-3:  #8A8274;
-  --tone-1: #2A2419;  --tone-2: #212A22;  --tone-3: #1E2530;
-  --tone-4: #2A2226;  --tone-5: #2C2519;  --tone-6: #2A2220;
+  --tone-1: #23201B;  --tone-2: #16302E;  --tone-3: #172433;
+  --tone-4: #2E2318;  --tone-5: #123B38;  --tone-6: #3A2A17;
 }
 
 /* §7：尊重使用者的動效偏好——token 歸零，全站自動生效 */

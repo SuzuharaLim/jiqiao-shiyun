@@ -56,7 +56,7 @@ export default function Settings() {
         {['admin', 'moderator'].includes(user?.role) && (
           <>
             <SectionHead title="站務" />
-            <ToolRow icon="🛡️" bg="#E0DDE6" title="管理後台"
+            <ToolRow icon="🛡️" bg="var(--tone-3)" title="管理後台"
               sub={user.role === 'admin' ? '使用者角色 · 內容 CMS' : '內容 CMS（版主）'} onClick={() => push('admin')} />
           </>
         )}
@@ -139,7 +139,7 @@ export default function Settings() {
           }} />
         </div>
         <ToolRow iconName="scroll" title="服務條款" sub="使用規範 · 市集分潤 70% · 非商用授權" onClick={() => push('terms')} />
-        <ToolRow icon="🛡️" bg="#E8DCE0" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
+        <ToolRow icon="🛡️" bg="var(--tone-4)" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
 
         <SectionHead title="關於" />
         <ToolRow iconName="book2" title="品牌故事" sub="五位資工生的文化實驗" onClick={() => push('about')} />

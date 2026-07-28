@@ -4,18 +4,18 @@ import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
 const months = [
-  { m: '一月', term: '小寒', e: '❄️', bg: '#D6DEE6', poem: '寒盡春生，靜待新芽' },
-  { m: '二月', term: '雨水', e: '🌧️', bg: '#D8E2DF', poem: '好雨知時，潤物無聲' },
-  { m: '三月', term: '春分', e: '🌸', bg: '#E8DCE0', poem: '晝夜均分，萬物生長' },
-  { m: '四月', term: '清明', e: '🍃', bg: '#DDE5D4', poem: '氣清景明，慎終追遠' },
-  { m: '五月', term: '立夏', e: '🌱', bg: '#DFE5D2', poem: '萬物並秀，欣欣向榮' },
-  { m: '六月', term: '芒種', e: '🌾', bg: '#EDE4CE', poem: '耕耘有時，靜待花開' },
-  { m: '七月', term: '小暑', e: '🌡️', bg: '#EDE0CB', poem: '溫風徐來，心靜自涼' },
-  { m: '八月', term: '立秋', e: '🍂', bg: '#fde9d0', poem: '一葉知秋，收斂沉澱' },
-  { m: '九月', term: '白露', e: '💧', bg: '#E0DDE6', poem: '露凝而白，秋意漸濃' },
-  { m: '十月', term: '寒露', e: '🌾', bg: '#f6d6e4', poem: '鴻雁南飛，天高氣爽' },
-  { m: '十一月', term: '立冬', e: '🍁', bg: '#cfe3f7', poem: '萬物收藏，休養生息' },
-  { m: '十二月', term: '冬至', e: '⛄', bg: '#dceae0', poem: '陰極陽生，圍爐團圓' },
+  { m: '一月', term: '小寒', e: '❄️', bg: 'var(--tone-3)', poem: '寒盡春生，靜待新芽' },
+  { m: '二月', term: '雨水', e: '🌧️', bg: 'var(--tone-3)', poem: '好雨知時，潤物無聲' },
+  { m: '三月', term: '春分', e: '🌸', bg: 'var(--tone-4)', poem: '晝夜均分，萬物生長' },
+  { m: '四月', term: '清明', e: '🍃', bg: 'var(--tone-2)', poem: '氣清景明，慎終追遠' },
+  { m: '五月', term: '立夏', e: '🌱', bg: 'var(--tone-2)', poem: '萬物並秀，欣欣向榮' },
+  { m: '六月', term: '芒種', e: '🌾', bg: 'var(--tone-1)', poem: '耕耘有時，靜待花開' },
+  { m: '七月', term: '小暑', e: '🌡️', bg: 'var(--tone-6)', poem: '溫風徐來，心靜自涼' },
+  { m: '八月', term: '立秋', e: '🍂', bg: 'var(--tone-6)', poem: '一葉知秋，收斂沉澱' },
+  { m: '九月', term: '白露', e: '💧', bg: 'var(--tone-3)', poem: '露凝而白，秋意漸濃' },
+  { m: '十月', term: '寒露', e: '🌾', bg: 'var(--tone-4)', poem: '鴻雁南飛，天高氣爽' },
+  { m: '十一月', term: '立冬', e: '🍁', bg: 'var(--tone-3)', poem: '萬物收藏，休養生息' },
+  { m: '十二月', term: '冬至', e: '⛄', bg: 'var(--tone-5)', poem: '陰極陽生，圍爐團圓' },
 ]
 
 export default function CalendarPreview({ count = 12 }) {

@@ -4,6 +4,8 @@ import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 import { dayFor, todayOffset, TERM_ORDER } from '../data/almanac.js'
+import { lunarFromDate, lunarYearGanzhiIndex } from '../data/lunisolar.js'
+import { weighBone, HOUR_LABELS } from '../data/bone.js'
 
 // 今日所屬節氣 —— 節氣生活資料（當令食材/俗語/養生/開運色）都以此為預設焦點。
 // ⚠️ 要用 dayFor(todayOffset()) 取真實今日，不可用 dayFor(0)（0 是錨點 6/6＝芒種）。
@@ -250,7 +252,7 @@ export function SolarTerms() {
           ))}
         </div>
         {a && <>
-          <div className="img" style={{ height: 150, background: '#EDE4CE', fontSize: 56 }}>{a.emoji}</div>
+          <div className="img" style={{ height: 150, background: 'var(--tone-1)', fontSize: 56 }}>{a.emoji}</div>
           <div className="article">
             <h3>{a.term}{a.term === today && <span className="ty" style={{ marginLeft: 8, verticalAlign: 'middle' }}>今日節氣</span>}</h3>
             <p className="muted" style={{ fontSize: 12 }}>{g?.date || a.sub}</p>
@@ -308,47 +310,95 @@ export function SolarTerms() {
   )
 }
 
-const boneVerses = [
-  '此命推來福不輕，自成自立顯門庭，前途風光終有望，勤懇耕耘步步升。',
-  '此命為人性最良，一生福祿自榮昌，中年運到財源廣，晚景滔滔金滿箱。',
-  '平生衣祿是綿長，件件搜求備齊全，苦心竭力成家計，到老全無怨與嗟。',
-]
+// 袁天罡秤骨 —— 骨重依傳統四柱（農曆年月日時）對照表相加，見 data/bone.js。
+// ⚠️ 三個原本的缺失（使用者回報）：沒說輸入是國曆還是農曆、沒有時辰、
+//    骨重是自創公式所以跟任何參考網站都對不上。三項都已修正。
 export function Bone() {
   const { setToast } = useNav()
+  const [cal, setCal] = useState('solar')            // solar=國曆 / lunar=農曆
   const [b, setB] = useState({ y: '', m: '', d: '' })
+  const [hourIdx, setHourIdx] = useState(0)
   const [res, setRes] = useState(null)
+
   const go = () => {
-    if (!b.y) { setToast('請輸入出生年'); return }
-    const n = (Number(b.y) + Number(b.m || 6) + Number(b.d || 15))
-    const liang = 2 + (n % 5)
-    const qian = (n % 10)
-    setRes({ w: `${liang} 兩 ${qian} 錢`, v: boneVerses[n % boneVerses.length] })
+    const Y = Number(b.y), M = Number(b.m), D = Number(b.d)
+    if (!Y || Y < 1900 || Y > 2100) { setToast('請輸入西元出生年（1900–2100）'); return }
+    if (!M || M < 1 || M > 12) { setToast('請輸入出生月份'); return }
+    if (!D || D < 1 || D > 31) { setToast('請輸入出生日'); return }
+
+    let gz60, lmonth, lday, shownLunar
+    if (cal === 'solar') {
+      const L = lunarFromDate(Y, M, D)
+      if (!L) { setToast('這個日期換算不出農曆，請確認'); return }
+      gz60 = lunarYearGanzhiIndex(Y, M, D)
+      lmonth = L.month; lday = L.day; shownLunar = L.text
+    } else {
+      // 直接輸入農曆：年干支由農曆年推（正月初一為歲首）
+      if (D > 30) { setToast('農曆每月最多 30 日'); return }
+      gz60 = (((Y - 4) % 60) + 60) % 60
+      lmonth = M; lday = D
+      shownLunar = `農曆${M}月${D}日`
+    }
+    const w = weighBone({ gz60, lmonth, lday, hourIdx })
+    if (!w) { setToast('查不到對應骨重，請確認生辰'); return }
+    setRes({ ...w, shownLunar })
   }
+
   return (
     <>
       <TopBar title="袁天罡秤骨神術" onBack />
       <div className="body">
         <div className="pad">
+          {/* 曆別必須讓使用者選並看得見——傳統秤骨用農曆，輸入國曆會整組查錯表 */}
+          <div className="seg" role="tablist" aria-label="曆別" style={{ marginBottom: 10 }}>
+            {[['solar', '國曆（自動換農曆）'], ['lunar', '農曆']].map(([k, lbl]) => (
+              <button key={k} role="tab" aria-selected={cal === k}
+                className={`tap ${cal === k ? 'on' : ''}`} onClick={() => { setCal(k); setRes(null) }}>{lbl}</button>
+            ))}
+          </div>
           {/* ⚠️ .search 基礎樣式是 flex:0 0 auto，三個並排時不會收縮，
               390px 手機上第三個會溢出 162px。必須 minWidth:0 + flex:'1 1 0'
               ——flex 項目預設 min-width:auto，光給 flex:1 仍不會縮到內容寬以下。 */}
           <div style={{ display: 'flex', gap: 8 }}>
-            {[['y', '年', 4], ['m', '月', 2], ['d', '日', 2]].map(([k, lbl, len]) => (
+            {[['y', '西元年', 4], ['m', '月', 2], ['d', '日', 2]].map(([k, lbl, len]) => (
               <input key={k} className="search" style={{ margin: 0, flex: '1 1 0', minWidth: 0, textAlign: 'center' }}
-                placeholder={lbl} aria-label={`出生${lbl}`} maxLength={len} value={b[k]}
+                placeholder={lbl} aria-label={`出生${lbl}`} maxLength={len} value={b[k]} inputMode="numeric"
                 onChange={e => setB(s => ({ ...s, [k]: e.target.value.replace(/\D/g, '') }))} />
             ))}
           </div>
           <div style={{ height: 10 }} />
+          <label className="muted" style={{ fontSize: 'var(--text-xs)', display: 'block', marginBottom: 4 }}>出生時辰</label>
+          <select className="search" style={{ margin: 0, width: '100%' }} aria-label="出生時辰"
+            value={hourIdx} onChange={e => setHourIdx(Number(e.target.value))}>
+            {HOUR_LABELS.map((h, i) => <option key={h} value={i}>{h}</option>)}
+          </select>
+          <div style={{ height: 10 }} />
           <button className="btn-primary tap" onClick={go}>開始秤骨</button>
         </div>
+
         {res ? (
           <div className="card">
-            <h4>⚖️ 命理骨重：{res.w}</h4>
-            <p style={{ marginTop: 8, lineHeight: 1.9 }}>{res.v}</p>
-            <p className="muted" style={{ marginTop: 8, fontSize: 11.5 }}>＊秤骨神術為傳統民俗趣味，僅供參考娛樂。</p>
+            <h4>命理骨重：{res.text}</h4>
+            <p className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 2 }}>
+              以 {res.shownLunar} · {HOUR_LABELS[hourIdx]} 計算
+            </p>
+            {/* 四項分開列出，使用者可自行與其他網站逐項對照 */}
+            {res.parts.map(p => (
+              <div key={p.k} className="kv" style={{ padding: '8px 0' }}>
+                <span>{p.k}</span><b>{p.text}</b>
+              </div>
+            ))}
+            <div className="kv" style={{ padding: '8px 0', borderTop: '1px solid var(--line2)' }}>
+              <span>合計</span><b>{res.text}（{res.band}）</b>
+            </div>
+            <p style={{ marginTop: 8, lineHeight: 1.9 }}>{res.bandNote}</p>
+            <p className="muted" style={{ marginTop: 8, fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
+              ＊骨重表依算準網《袁天罡稱骨算命對照表》；坊間版本的日骨重略有差異，
+              與其他網站相差一兩錢屬版本不同。完整《稱骨歌》五十一首批語未收錄，
+              此處以命格區間概述取代，不以自撰詩句冒充原文。秤骨為傳統民俗趣味，僅供參考娛樂。
+            </p>
           </div>
-        ) : <div className="empty"><div className="empty-ic"><Icon name="ruler" /></div>輸入生辰，為你秤一秤命格</div>}
+        ) : <div className="empty"><div className="empty-ic"><Icon name="ruler" /></div>輸入生辰與時辰，為你秤一秤命格</div>}
         <div style={{ height: 16 }} />
       </div>
     </>

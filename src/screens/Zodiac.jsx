@@ -33,7 +33,9 @@ export default function Zodiac() {
               }} onClick={() => setPick(z.sign)}>
                 <div style={{ fontSize: 30 }}>{z.emoji}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{z.sign}</div>
-                <div style={{ fontSize: 11, color: 'var(--go)', fontWeight: 800 }}>{s}</div>
+                {/* 分數是文字，要用文字安全的 --gold（加深橙 5.28）；
+                    --go 是填色/邊框用的原色橙，當文字只有 3.18 不合 AA */}
+                <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 800 }}>{s}</div>
               </button>
             )
           })}

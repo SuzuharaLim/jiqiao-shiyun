@@ -17,15 +17,15 @@ const isoAgo = (h) => new Date(Date.now() - h * 3600_000).toISOString()
 
 // 種子作者（非真人登入帳號）；handle → 頭像/底色
 const AUTHORS = {
-  wang_photo: { emoji: '🌾', bg: '#cfe3d3', bio: '記錄台中外埔的稻浪四季 🌾' },
-  lin_ocean: { emoji: '🌊', bg: '#cfe3f7', bio: '南台灣海線・晨光獵人' },
-  'flora.tw': { emoji: '🪷', bg: '#f6d6e4', bio: '植物園日常，為明年的植物月曆存檔' },
-  sky_diary: { emoji: '🌅', bg: '#ffedd5', bio: '日出與節氣的日記' },
-  green_life: { emoji: '🍃', bg: '#d3f0ec', bio: '蕨與青草，慢生活' },
-  temple_walk: { emoji: '🏯', bg: '#fde9d0', bio: '走訪廟埕與慶典' },
-  farm_note: { emoji: '🌾', bg: '#d7e9c9', bio: '田間筆記' },
-  hike_tw: { emoji: '⛰️', bg: '#cfe3f7', bio: '台灣百岳與稜線' },
-  sun_field: { emoji: '🌻', bg: '#f3e7c9', bio: '花田與陽光' },
+  wang_photo: { emoji: '🌾', bg: 'var(--tone-2)', bio: '記錄台中外埔的稻浪四季 🌾' },
+  lin_ocean: { emoji: '🌊', bg: 'var(--tone-3)', bio: '南台灣海線・晨光獵人' },
+  'flora.tw': { emoji: '🪷', bg: 'var(--tone-4)', bio: '植物園日常，為明年的植物月曆存檔' },
+  sky_diary: { emoji: '🌅', bg: 'var(--tone-6)', bio: '日出與節氣的日記' },
+  green_life: { emoji: '🍃', bg: 'var(--tone-2)', bio: '蕨與青草，慢生活' },
+  temple_walk: { emoji: '🏯', bg: 'var(--tone-6)', bio: '走訪廟埕與慶典' },
+  farm_note: { emoji: '🌾', bg: 'var(--tone-2)', bio: '田間筆記' },
+  hike_tw: { emoji: '⛰️', bg: 'var(--tone-3)', bio: '台灣百岳與稜線' },
+  sun_field: { emoji: '🌻', bg: 'var(--tone-6)', bio: '花田與陽光' },
 }
 const seedId = (handle) => 'seed-' + handle.replace(/[^a-z0-9]/gi, '_')
 
@@ -61,7 +61,7 @@ async function run() {
     `INSERT INTO users (id,email,name,password_hash,role,handle,bio,avatar,avatar_bg,is_seed,email_verified_at,created_at,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (email) DO NOTHING`,
     ['user-newuser', 'newuser@example.com', '節氣攝影師', testHash, 'user', 'lim_suzuhara',
-     '記錄二十四節氣 🌿　台中', '🌾', '#dcfce7', 0, now(), now(), now()])
+     '記錄二十四節氣 🌿　台中', '🌾', 'var(--tone-2)', 0, now(), now(), now()])
 
   // 2b) 管理者帳號 —— 分級示範最高權限
   // ★ 安全：本機開發用固定密碼方便測試；正式環境（NODE_ENV=production）若未指定 ADMIN_PASSWORD，
@@ -79,7 +79,7 @@ async function run() {
     `INSERT INTO users (id,email,name,password_hash,role,handle,bio,avatar,avatar_bg,is_seed,email_verified_at,created_at,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (email) DO NOTHING`,
     ['user-admin', adminEmail, '站務管理員', adminHash, 'admin', 'jiqiao_admin',
-     '機巧時運 站務', '🛡️', '#e9e3fb', 0, now(), now(), now()])
+     '機巧時運 站務', '🛡️', 'var(--tone-3)', 0, now(), now(), now()])
   if (generated) {
     console.log('\n' + '='.repeat(56))
     console.log('  管理者帳號已建立（此密碼只顯示這一次，請立刻抄下）')

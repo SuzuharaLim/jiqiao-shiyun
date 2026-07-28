@@ -40,8 +40,11 @@ export default function Challenges() {
             <span>參加人數</span>
             <span className="muted">{joined} 人{joined === 0 && '　（還沒有人投稿，快來當第一個）'}</span>
           </div>
+          {/* 剩餘天數用 --gold（加深橙 5.28 ✓）；--heart/--go 是填色用的原色橙，
+              當文字在白底只有 3.18 不合 AA。
+              ⚠️ JSX 註解不可放在 `{cond && (` 之後——那會變成兩個運算式，整支檔案編譯失敗。 */}
           {left !== null && (
-            <div className="kv"><span>剩餘</span><span style={{ color: 'var(--heart)', fontWeight: 700 }}>{left} 天</span></div>
+            <div className="kv"><span>剩餘</span><span style={{ color: 'var(--gold)', fontWeight: 700 }}>{left} 天</span></div>
           )}
           <div className="kv" style={{ borderBottom: 'none' }}>
             <span>投稿作品</span><span className="muted">{entries.length} 件</span>

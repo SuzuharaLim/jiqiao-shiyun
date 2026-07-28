@@ -170,7 +170,7 @@ export default function PostDetail({ id }) {
           const cliked = clikes[c.id]
           return (
             <div key={c.id} className="post-hd" style={{ paddingTop: 6, paddingBottom: 6, alignItems: 'flex-start' }}>
-              <div className="av" style={{ background: c.avatarBg || '#DDE5D4', width: 30, height: 30, fontSize: 15 }}>{c.avatar || '🌾'}</div>
+              <div className="av" style={{ background: c.avatarBg || 'var(--tone-2)', width: 30, height: 30, fontSize: 15 }}>{c.avatar || '🌾'}</div>
               <div className="cap2" style={{ padding: 0, flex: 1 }}>
                 <b>{c.user}</b> {c.body}
                 {c.time && <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>{c.time}</div>}

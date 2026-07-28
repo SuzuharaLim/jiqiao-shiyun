@@ -14,8 +14,8 @@ import { dayFor, todayOffset } from '../data/almanac.js'
 // 說明裡的 #標籤 仍會解析並存進資料庫，繼續供「搜尋」比對。
 
 const COVERS = [
-  { e: '🌾', bg: '#DDE5D4' }, { e: '🌊', bg: '#D6DEE6' }, { e: '🌸', bg: '#E8DCE0' },
-  { e: '🌅', bg: '#EDE0CB' }, { e: '🪷', bg: '#E0DDE6' },
+  { e: '🌾', bg: 'var(--tone-2)' }, { e: '🌊', bg: 'var(--tone-3)' }, { e: '🌸', bg: 'var(--tone-4)' },
+  { e: '🌅', bg: 'var(--tone-6)' }, { e: '🪷', bg: 'var(--tone-3)' },
 ]
 
 // 裝置端壓縮：最長邊 1600px、JPEG 0.82（上傳前先縮，省流量也符合後端 body 上限）

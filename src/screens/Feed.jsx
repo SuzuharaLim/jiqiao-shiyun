@@ -97,7 +97,7 @@ export default function Feed() {
           )}
         </div>
         <div className="center muted" style={{ fontSize: 10, padding: '6px 16px 0' }}>
-          ＊干支・農曆・宜忌為示範演算，正式版將接可靠曆算資料
+          ＊農曆・節氣・干支依天文演算（太陽視黃經與朔望月）；宜忌神煞屬傳統民俗，各流派或有差異
         </div>
 
         <button className="ad-more tap" onClick={() => push('almanacDay', { off })}>

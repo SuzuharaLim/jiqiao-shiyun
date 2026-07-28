@@ -1,10 +1,18 @@
-// 為任意日期產生一張農民曆日頁（示範用，確定性、無亂數）
-// 錨點 6/6 = 芒種・丙午日（offset 0），前後各日以偏移量推算，讓「跳到任意日期」都有內容。
+// 為任意日期產生一張農民曆日頁。確定性、無亂數。
+// off 是相對錨點 6/6 的天數偏移（UI 的翻日單位），但所有曆算都以「該日的真實西曆日期」為輸入。
 //
-// ★ 分層說明（依《農民曆內容總覽》整理）：
-//   天文曆法層（節氣、日月）—— 有科學依據；擇日神煞層（建除、宜忌、沖煞、特殊日）—— 民俗信仰、各家歧異、
-//   本專案為「確定性示範演算」非權威曆算。傳統項目求「有」與定義正確，數值以錨點推演，正式版應接可靠曆算庫。
+// ★ 分層說明（改動前務必分清）：
+//   ① 天文層（真實演算，見 lunisolar.js）：農曆月日與閏月、二十四節氣、年/月/日干支。
+//      已用朔望月與太陽視黃經實算並比對過公開資料（2020–2030 春節 11/11、節氣日期、
+//      2026-07-28＝農曆六月十五・丙午年乙未月癸卯日）。**這一層不是示範值，不要再標「示範演算」。**
+//   ② 擇日神煞層（民俗）：建除、二十八星宿、宜忌、沖煞、胎神、彭祖百忌、特殊日。
+//      規則定義正確，但各家流派本就歧異，且宜忌選詞仍為演算取樣——文案要誠實標示民俗性質。
 import { almanacDays, proverbs } from './mock.js'
+// 天文層（真實農曆／節氣／日干支）——取代原本的近似演算
+import {
+  lunarFromDate, termFromDate, termLocalDay, termTable,
+  dayGanzhiIndex, jdFromDate, TERM_NAMES,
+} from './lunisolar.js'
 
 const G = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
 const Z = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
@@ -17,15 +25,12 @@ const JI_POOL = ['動土', '安葬', '出火', '開倉', '伐木', '作樑', '�
 const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 const MON = ['', '正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '臘']
 
-// 節氣起始（近似國曆），用來判斷任一天屬哪個節氣
-const TERMS = [
-  ['大寒', 1, 20], ['立春', 2, 4], ['雨水', 2, 19], ['驚蟄', 3, 6], ['春分', 3, 21], ['清明', 4, 5],
-  ['穀雨', 4, 20], ['立夏', 5, 6], ['小滿', 5, 21], ['芒種', 6, 6], ['夏至', 6, 21], ['小暑', 7, 7],
-  ['大暑', 7, 23], ['立秋', 8, 8], ['處暑', 8, 23], ['白露', 9, 8], ['秋分', 9, 23], ['寒露', 10, 8],
-  ['霜降', 10, 24], ['立冬', 11, 8], ['小雪', 11, 22], ['大雪', 12, 7], ['冬至', 12, 22], ['小寒', 1, 6],
-]
-// 二十四節氣的年度順序（供 UI 排序節氣清單用）
-export const TERM_ORDER = TERMS.map(t => t[0])
+// 二十四節氣的年度順序（供 UI 排序節氣清單用）——立春起算，與 lunisolar 同源。
+// ⚠️ 原本這裡有一張「固定國曆日期」的節氣表（立春固定 2/4 等），交節日期每年
+// 會差 1~2 天，已改由 lunisolar.js 的太陽視黃經實算，這張表不再存在。
+export const TERM_ORDER = TERM_NAMES
+// 節氣日期表（某西曆年）——供年曆與節氣年表使用
+export { termTable }
 
 const IS_JIE = new Set(['立春', '驚蟄', '清明', '立夏', '芒種', '小暑', '立秋', '白露', '寒露', '立冬', '大雪', '小寒']) // 十二節（月之始）
 
@@ -90,43 +95,12 @@ export function offsetFromDate(d) {
 // 真實「今日」相對錨點的偏移（讓 App 一開就停在系統當前日期，而非錨點 6/6）
 export function todayOffset() { return offsetFromDate(new Date()) }
 
-function termFor(d) {
-  const key = (d.getMonth() + 1) * 100 + d.getDate()
-  let best = '冬至', bestK = -1 // 1/1–1/5 尚未到小寒 → 前一年冬至
-  for (const [t, m, day] of TERMS) {
-    const k = m * 100 + day
-    if (k <= key && k > bestK) { best = t; bestK = k }
-  }
-  return best
-}
-// 該日是否正逢某節氣交節（回傳節氣名或 null）
-function termStartOn(d) {
-  const m = d.getMonth() + 1, day = d.getDate()
-  for (const [t, tm, td] of TERMS) if (tm === m && td === day) return t
-  return null
-}
 function seasonOf(term) {
   if (['立春', '雨水', '驚蟄', '春分', '清明', '穀雨'].includes(term)) return '春'
   if (['立夏', '小滿', '芒種', '夏至', '小暑', '大暑'].includes(term)) return '夏'
   if (['立秋', '處暑', '白露', '秋分', '寒露', '霜降'].includes(term)) return '秋'
   return '冬'
 }
-// 農曆月日（近似演算：錨點 6/6 = 農曆五月十一）
-function lunarMD(off) {
-  let day = 11 + off, mon = 5
-  while (day > 30) { day -= 30; mon++ }
-  while (day < 1) { day += 30; mon-- }
-  mon = mod(mon - 1, 12) + 1
-  return { mon, day }
-}
-function lunarStr(mon, day) {
-  const dstr = day <= 10 ? '初' + CN[day]
-    : day < 20 ? '十' + CN[day - 10]
-    : day === 20 ? '二十'
-    : day < 30 ? '廿' + CN[day - 20] : '三十'
-  return `農曆${MON[mon]}月${dstr}`
-}
-
 const pick = (arr, start, n) => {
   const out = []
   for (let i = 0; out.length < n && i < arr.length; i++) {
@@ -138,13 +112,24 @@ const pick = (arr, start, n) => {
 
 export function dayFor(off) {
   const d = dateFromOffset(off)
-  const gi = mod(2 + off, 10), zi = mod(6 + off, 12)   // 丙午 起算
-  // 年柱由該日真實年份推（Y-4 起甲子）：2026→丙午。近立春邊界略有差，屬示範演算。
-  const yearNum = d.getFullYear()
-  const yearGan = mod(yearNum - 4, 10)
-  const yearZhi = mod(yearNum - 4, 12)
-  const term = termFor(off === undefined ? ANCHOR : d)
-  const { mon: lmon, day: lday } = lunarMD(off)
+  const Y = d.getFullYear(), M = d.getMonth() + 1, D = d.getDate()
+
+  // ── 日柱：由儒略日直接推六十甲子（真實值，非錨點推演）──
+  const gz60 = dayGanzhiIndex(Y, M, D)
+  const gi = gz60 % 10, zi = gz60 % 12
+
+  // ── 年柱：以「立春」為歲首（傳統擇日用），非國曆 1/1 ──
+  // 立春前仍屬前一年的干支，這是原本「用 getFullYear() 直接推」會錯的地方。
+  const lichun = termLocalDay(Y, 0)                       // 該西曆年的立春（當地日 JD）
+  const ganzhiYear = jdFromDate(Y, M, D) < lichun ? Y - 1 : Y
+  const yearGan = mod(ganzhiYear - 4, 10)
+  const yearZhi = mod(ganzhiYear - 4, 12)
+
+  // ── 節氣與農曆：天文演算（見 lunisolar.js）──
+  const termInfo = termFromDate(Y, M, D)
+  const term = termInfo.term
+  const lun = lunarFromDate(Y, M, D)
+  const lmon = lun?.month ?? 1, lday = lun?.day ?? 1
 
   // ±1 用精寫樣本提供較好的宜忌/諺語，其餘演算
   const sample = (off >= -1 && off <= 1) ? almanacDays[off + 1] : null
@@ -159,13 +144,15 @@ export function dayFor(off) {
 
   // ---- 傳統擇日項目 ----
   const jc = mod(zi - TERM_ZHI[term], 12)          // 建除十二神
-  const xiuIdx = mod(off + 12, 28)                 // 二十八星宿（連續，錨點示範）
-  const gz60 = mod(42 + off, 60)                   // 六十甲子序（丙午=42）
+  const xiuIdx = mod(Math.floor(jdFromDate(Y, M, D) + 0.5) + 4, 28)  // 二十八星宿（連續值日）
   const chongZodiac = mod(zi + 6, 12)
   const chongGZ = G[mod(gi + 6, 10)] + Z[chongZodiac]
-  const dir = ['北', '南', '東', '西'][mod(off, 4)]
+  // 煞方：依日支三合組固定對應（寅午戌煞北／申子辰煞南／巳酉丑煞東／亥卯未煞西），
+  // 原本用 off % 4 輪替＝與日支無關的假值。
+  const SHA_DIR = { 2: '北', 6: '北', 10: '北', 8: '南', 0: '南', 4: '南', 5: '東', 9: '東', 1: '東', 11: '西', 3: '西', 7: '西' }
+  const dir = SHA_DIR[zi]
   // 沖煞歲數（虛歲，非實歲——出生即一歲）：所沖生肖近三個世代
-  const curZodiac = mod(d.getFullYear() - 4, 12)
+  const curZodiac = mod(ganzhiYear - 4, 12)
   const baseAge = mod(curZodiac - chongZodiac, 12) + 1
   const chongAges = [baseAge, baseAge + 12, baseAge + 24]
   // 月柱（五虎遁：丙年正月起庚寅）
@@ -189,7 +176,9 @@ export function dayFor(off) {
   const flags = []
   if (G[gi] + Z[zi] === TIANSHE[seasonOf(term)]) flags.push({ t: '天赦日', d: '百無禁忌，最宜祈福、赦罪、解冤', good: true })
   if (SHOUSI[lmon] === zi) flags.push({ t: '受死日', d: '諸事凶，惟入殮、安葬、畋獵可用', good: false })
-  const nextTerm = termStartOn(dateFromOffset(off + 1))
+  const nd = dateFromOffset(off + 1)
+  const nextInfo = termFromDate(nd.getFullYear(), nd.getMonth() + 1, nd.getDate())
+  const nextTerm = nextInfo.startsToday ? nextInfo.term : null
   if (nextTerm && ['立春', '立夏', '立秋', '立冬'].includes(nextTerm)) flags.push({ t: '四絕日', d: `${nextTerm}前一日，大事勿用`, good: false })
   if (nextTerm && ['春分', '夏至', '秋分', '冬至'].includes(nextTerm)) flags.push({ t: '四離日', d: `${nextTerm}前一日，大事勿用`, good: false })
   if (YANGGONG[lmon] === lday) flags.push({ t: '楊公忌', d: '楊公十三忌之一，諸事不宜', good: false })
@@ -197,7 +186,9 @@ export function dayFor(off) {
   if ([5, 14, 23].includes(lday)) flags.push({ t: '月忌日', d: '五黃入中宮，忌大事', good: false })
 
   // 節日／神明聖誕
-  const festival = LUNAR_FEST[`${lmon}-${lday}`] || (termStartOn(d) ? `${termStartOn(d)}（交節）` : null)
+  // 閏月不算節慶（閏六月十五不是中秋）
+  const festival = (!lun?.leap && LUNAR_FEST[`${lmon}-${lday}`])
+    || (termInfo.startsToday ? `${term}（交節）` : null)
 
   return {
     off,
@@ -206,8 +197,8 @@ export function dayFor(off) {
     term,
     ganzhi: G[gi] + Z[zi] + '日',
     yearGZ: G[yearGan] + Z[yearZhi], monthGZ,
-    lunar: lunarStr(lmon, lday),
-    lunarMon: lmon, lunarDay: lday,
+    lunar: lun?.text || '',
+    lunarMon: lmon, lunarDay: lday, lunarLeap: !!lun?.leap,
     zheng: `沖${ZODIAC[chongZodiac]}(${chongGZ})煞${dir}`,
     chong: { zodiac: ZODIAC[chongZodiac], gz: chongGZ, dir, ages: chongAges },
     wuxing: NAYIN[mod(gi * 2 + zi, NAYIN.length)],
@@ -242,12 +233,17 @@ export const yearOverview = {
     poem: '太歲丙午年，高低半憂喜。春夏雨水多，秋來缺雨水。稻麥有偏頗，蠶娘情不喜。豆麥熟不齊，人民多疾疫。',
     div: '卜曰：鼠耗一空虛，田禾五穀秕；相看饑饉來，愁悶皆狼狽。',
   },
+  // 犯太歲對應（丙午年＝午）：
+  //   值太歲 午（本命）／沖太歲 子（午子相沖）／害太歲 丑（丑午相害）／破太歲 卯（卯午相破）
+  //   刑太歲 酉——民間亦稱「偏沖」（與流年生肖相差三年）；午本身另有「自刑」之說。
+  // ⚠️ 各家分類名稱不統一：同一個生肖有來源寫「刑太歲」、有來源寫「偏沖太歲」，
+  //    兩者在通俗用法上指同一件事，故並列標示，避免使用者對照別的網站以為我們算錯。
   fanTaisui: [
-    { z: '馬', k: '值太歲', d: '本命年，起伏較大，宜安太歲、行善積福' },
-    { z: '鼠', k: '沖太歲', d: '正沖，變動最大，凡事忍讓、注意交通' },
-    { z: '牛', k: '害太歲', d: '易犯小人、口舌，慎防人際是非' },
-    { z: '兔', k: '破太歲', d: '易破財、計畫生變，理財保守' },
-    { z: '雞', k: '刑太歲', d: '情緒與健康起伏，多運動調適' },
+    { z: '馬', k: '值太歲', d: '本命年（午年自刑），起伏較大，宜安太歲、行善積福' },
+    { z: '鼠', k: '沖太歲', d: '正沖（午子相沖），變動最大，凡事忍讓、注意交通' },
+    { z: '牛', k: '害太歲', d: '丑午相害，易犯小人、口舌，慎防人際是非' },
+    { z: '兔', k: '破太歲', d: '卯午相破，易破財、計畫生變，理財保守' },
+    { z: '雞', k: '刑太歲（偏沖）', d: '與流年生肖相差三年，情緒與健康起伏，多運動調適' },
   ],
   fangwei: [
     { k: '太歲方', v: '南方（午）', d: '本年太歲所在，不宜動土、修造' },
