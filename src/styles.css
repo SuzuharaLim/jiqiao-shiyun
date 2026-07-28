@@ -1893,8 +1893,8 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   font-size: 0; line-height: 0;
 }
 .ba-seal.seal-mark { width: 54px; height: 54px; }
-/* badge 版（favicon.svg）自帶實心底，給它跟全站一致的 2px 直角圓角 */
-.tb-seal.seal-mark, .wn-seal.seal-mark, .wf-seal.seal-mark { border-radius: 2px; }
+/* badge 版（logo-mark.svg）是透明底的加粗標誌，不需要圓角或底色——
+   App 的頂列/導覽列/頁尾本來就有自己的底，加白方塊在深色模式會變成刺眼的白磚。 */
 .wn-seal.seal-mark  { width: 34px; height: 34px; }
 .wf-seal.seal-mark  { width: 28px; height: 28px; }
 .auth-seal.seal-mark { width: 64px; height: 64px; margin: 0 auto; }
