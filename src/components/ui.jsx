@@ -31,7 +31,10 @@ export function TopBar({ title, brand, left, right, onBack, onClose }) {
         ) : (left || null)}
       </div>
       {brand
-        ? <TitleTag className="brand" {...(isTop && { 'data-screen-title': true, tabIndex: -1 })}>{brand}</TitleTag>
+        /* 標誌用 <Seal>（公司 logo.svg）；alt 留空避免螢幕閱讀器把品牌名唸兩次 */
+        ? <TitleTag className="brand" {...(isTop && { 'data-screen-title': true, tabIndex: -1 })}>
+            <Seal className="tb-seal" alt="" badge />{brand}
+          </TitleTag>
         : <TitleTag className="ttl" {...(isTop && { 'data-screen-title': true, tabIndex: -1 })}>{title}</TitleTag>}
       <div className="row" style={{ minWidth: 30, justifyContent: 'flex-end' }}>{right}</div>
     </div>
@@ -170,12 +173,16 @@ export function Avatar({ imageId, emoji = '🌾' }) {
     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
 }
 
-// 品牌標誌。用 <img> 指向 public/logo.svg（同源，符合 CSP 的 img-src 'self'），
-// 不內嵌 SVG——那份路徑資料 24KB，內嵌四處會讓 bundle 白白多 100KB。
-// ⚠️ 標誌是金色（#C5A046）。實測疊在朱紅底上 32px 只剩 6.3% 可辨像素，
-// 疊在紙色/深色底則有 17-19%——所以容器不加朱紅底，讓金色直接對紙。
-export function Seal({ className = '', alt = '機巧時運' }) {
-  return <img className={`seal-mark ${className}`} src="/logo.svg" alt={alt} />
+// 品牌標誌。用 <img> 指向 public 的 SVG（同源，符合 CSP 的 img-src 'self'），
+// 不內嵌 SVG——那份路徑資料 24KB，內嵌多處會讓 bundle 白白多 100KB。
+//
+// 兩個版本，依尺寸選用（實測畫到 canvas 量可辨像素比例）：
+//   logo.svg   原版：金色細線條、透明底。白底 24px 只有 16.1% 可辨像素、
+//              平均色差 27 —— 小尺寸下是一團糊，只適合 ≥56px 的大標誌。
+//   favicon.svg 小尺寸版：實心底＋鏤空標誌。16px 下 100% 可辨、色差 396。
+// 所以 badge 用在頂列/導覽列/頁尾這種 24–34px 的位置，大圖才用原版。
+export function Seal({ className = '', alt = '機巧時運', badge = false }) {
+  return <img className={`seal-mark ${className}`} src={badge ? '/favicon.svg?v=3' : '/logo.svg'} alt={alt} />
 }
 
 // 空狀態：統一版型。iconName 用線條圖示（取代先前各處寫死的 <div className="big">emoji</div>）

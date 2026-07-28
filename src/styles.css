@@ -706,13 +706,13 @@ a { color:inherit; text-decoration:none; }
 .plan .price, .yiji .yl, .luck .l, .empty .big + *, .sech b { font-family:var(--serif); }
 .topbar .ttl { letter-spacing:.5px; }
 
-/* 品牌字樣 ＋ 朱紅印章標記（取代 IG 手寫體 logo 感） */
+/* 品牌字樣 ＋ 公司標誌。
+   ⚠️ 這裡原本是 `::before { content:"印" }` 的方章——桌機導覽列／頁尾／登入頁／
+   錯誤頁早就換成 <Seal>（公司 logo.svg），只有手機頂列漏掉，變成同一個 App
+   兩種品牌標記。已改為渲染 <Seal className="tb-seal">。 */
 .topbar .brand { font-family:var(--serif); font-weight:800; letter-spacing:1px;
   display:inline-flex; align-items:center; gap:8px; }
-.topbar .brand::before { content:"印"; width:22px; height:22px; flex:0 0 auto;
-  background:var(--primary); color:var(--pfg); border-radius:2px;
-  font-size:var(--text-xs); font-weight:700; display:flex; align-items:center; justify-content:center;
-  box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.4); }
+.tb-seal.seal-mark { width:24px; height:24px; }
 
 /* ⚠️ 這裡原本用兩道 linear-gradient 在 .device 上畫 26px 稿紙格線（「宣紙界格」），
    那就是使用者看到的網格——白底之後格線變成明顯的方格紙，且與文字筆畫互相干擾。
@@ -1886,10 +1886,15 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 
 /* 覆蓋各處原本的朱紅方章樣式 */
 .wn-seal.seal-mark, .wf-seal.seal-mark,
-.auth-seal.seal-mark, .eb-seal.seal-mark {
+.auth-seal.seal-mark, .eb-seal.seal-mark,
+.ba-seal.seal-mark, .tb-seal.seal-mark {
   background: none; border-radius: 0; padding: 0;
+  box-shadow: none;
   font-size: 0; line-height: 0;
 }
+.ba-seal.seal-mark { width: 54px; height: 54px; }
+/* badge 版（favicon.svg）自帶實心底，給它跟全站一致的 2px 直角圓角 */
+.tb-seal.seal-mark, .wn-seal.seal-mark, .wf-seal.seal-mark { border-radius: 2px; }
 .wn-seal.seal-mark  { width: 34px; height: 34px; }
 .wf-seal.seal-mark  { width: 28px; height: 28px; }
 .auth-seal.seal-mark { width: 64px; height: 64px; margin: 0 auto; }

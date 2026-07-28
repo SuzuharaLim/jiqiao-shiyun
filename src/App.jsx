@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNav } from './store/nav.jsx'
-import { TabBar, Toast } from './components/ui.jsx'
+import { TabBar, Toast, Seal } from './components/ui.jsx'
 import WebNav from './components/WebNav.jsx'
 import WebFooter from './components/WebFooter.jsx'
 import AuthWall from './components/AuthWall.jsx'
@@ -68,7 +68,7 @@ export default function App() {
       <main id="main" className={`device ${TopScreen ? 'has-stack' : ''}`}>
         {authLoading ? (
           /* 還原登入狀態中（打 /api/me） */
-          <div className="auth-splash"><div className="ba-seal">印</div><div className="muted">機巧時運載入中…</div></div>
+          <div className="auth-splash"><Seal className="ba-seal" alt="" /><div className="muted">機巧時運載入中…</div></div>
         ) : !user ? (
           /* 未登入 → 登入／註冊畫面（全站入口守門） */
           <Auth />

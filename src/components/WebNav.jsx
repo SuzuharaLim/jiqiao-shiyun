@@ -14,7 +14,7 @@ export default function WebNav() {
     <header className="webnav">
       <div className="wn-inner">
         <button className="wn-brand tap" onClick={() => setTab(0)} aria-label="回首頁">
-          <Seal className="wn-seal" /><span className="wn-word">機巧時運</span>
+          <Seal className="wn-seal" badge /><span className="wn-word">機巧時運</span>
         </button>
 
         <nav className="wn-links" aria-label="主導覽">

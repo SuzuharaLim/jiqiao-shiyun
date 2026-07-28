@@ -7,7 +7,7 @@ export default function WebFooter() {
   return (
     <footer className="webfoot">
       <div className="wf-inner">
-        <div className="wf-brand"><Seal className="wf-seal" />機巧時運</div>
+        <div className="wf-brand"><Seal className="wf-seal" badge />機巧時運</div>
         <nav className="wf-links" aria-label="頁尾連結">
           <button className="tap" onClick={() => push('about')}>品牌故事</button>
           <button className="tap" onClick={() => push('privacy')}>隱私權政策</button>
