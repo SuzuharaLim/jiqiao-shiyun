@@ -176,13 +176,15 @@ export function Avatar({ imageId, emoji = '🌾' }) {
 // 品牌標誌。用 <img> 指向 public 的 SVG（同源，符合 CSP 的 img-src 'self'），
 // 不內嵌 SVG——那份路徑資料 24KB，內嵌多處會讓 bundle 白白多 100KB。
 //
-// 兩個版本，依尺寸選用（實測畫到 canvas 量可辨像素比例）：
-//   logo.svg   原版：金色細線條、透明底。白底 24px 只有 16.1% 可辨像素、
-//              平均色差 27 —— 小尺寸下是一團糊，只適合 ≥56px 的大標誌。
-//   favicon.svg 小尺寸版：實心底＋鏤空標誌。16px 下 100% 可辨、色差 396。
-// 所以 badge 用在頂列/導覽列/頁尾這種 24–34px 的位置，大圖才用原版。
+// 兩個版本，依尺寸選用（實測：畫到 canvas 數「標誌墨跡」佔方塊的比例）：
+//   logo.svg   原版：金色細線條、透明底。白底 24px 只有 16.1% 墨跡、平均色差 27
+//              —— 小尺寸是一團糊，只適合 ≥56px 的大標誌（登入頁/錯誤頁）。
+//   favicon.svg 小尺寸版：實心底＋鏤空標誌＋加粗，16px 下墨跡 28%、置中無裁切。
+// badge 用在頂列(24)/導覽列(34)/頁尾(28)，大圖才用原版。
+// ⚠️ 量測要比對「標誌 vs 方塊底色」，不是「方塊 vs 白色」——後者永遠是 100%，
+//    先前就是這樣量出假的合格數字，實際上標誌只佔 6.3% 且沒置中。
 export function Seal({ className = '', alt = '機巧時運', badge = false }) {
-  return <img className={`seal-mark ${className}`} src={badge ? '/favicon.svg?v=3' : '/logo.svg'} alt={alt} />
+  return <img className={`seal-mark ${className}`} src={badge ? '/favicon.svg?v=4' : '/logo.svg'} alt={alt} />
 }
 
 // 空狀態：統一版型。iconName 用線條圖示（取代先前各處寫死的 <div className="big">emoji</div>）
