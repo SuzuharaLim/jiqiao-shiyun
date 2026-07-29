@@ -27,17 +27,23 @@
 .ui-btn--primary {
   background: var(--c-accent); color: #fff; border-color: var(--c-accent);
 }
+@media (hover:hover) and (pointer:fine) {
 .ui-btn--primary:hover:not(:disabled) {
   background: var(--c-accent-hover); border-color: var(--c-accent-hover);
-}
+}}
+
 
 .ui-btn--ghost { border-color: var(--c-border-2); color: var(--c-text); }
-.ui-btn--ghost:hover:not(:disabled) { border-color: var(--c-text-2); }
+@media (hover:hover) and (pointer:fine) {
+.ui-btn--ghost:hover:not(:disabled) { border-color: var(--c-text-2); }}
+
 
 .ui-btn--text {
   padding-inline: var(--s-1); color: var(--c-accent); font-weight: 700;
 }
-.ui-btn--text:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+@media (hover:hover) and (pointer:fine) {
+.ui-btn--text:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }}
+
 
 .ui-btn--sm { font-size: var(--t-xs); padding: var(--s-2) var(--s-3); }
 .ui-btn--lg { font-size: var(--t-base); padding: var(--s-4) var(--s-6); }
@@ -61,7 +67,9 @@
   border-radius: var(--radius);
   transition: border-color var(--dur-fast) var(--ease);
 }
-.ui-field__input:hover { border-color: var(--c-text-3); }
+@media (hover:hover) and (pointer:fine) {
+.ui-field__input:hover { border-color: var(--c-text-3); }}
+
 .ui-field.is-invalid .ui-field__input { border-color: var(--c-danger); }
 .ui-field__hint { font-size: var(--t-xs); color: var(--c-text-3); }
 .ui-field__err  { font-size: var(--t-xs); color: var(--c-danger); }
@@ -97,13 +105,23 @@
               border-color var(--dur-fast) var(--ease),
               color var(--dur-fast) var(--ease);
 }
+@media (hover:hover) and (pointer:fine) {
 
 /* 極簡風：hover 只改顏色，不位移不放大 */
-.btn-primary:hover:not(:disabled) { background: var(--c-accent-hover); }
-.b.dark:hover:not(:disabled)      { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
-.b:hover:not(:disabled)           { border-color: var(--c-text-3); }
-.pill:hover:not(:disabled)        { border-color: var(--c-text-3); }
-.acc:hover                        { text-decoration: underline; text-underline-offset: 3px; }
+.btn-primary:hover:not(:disabled) { background: var(--c-accent-hover); }}
+
+@media (hover:hover) and (pointer:fine) {
+.b.dark:hover:not(:disabled)      { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }}
+
+@media (hover:hover) and (pointer:fine) {
+.b:hover:not(:disabled)           { border-color: var(--c-text-3); }}
+
+@media (hover:hover) and (pointer:fine) {
+.pill:hover:not(:disabled)        { border-color: var(--c-text-3); }}
+
+@media (hover:hover) and (pointer:fine) {
+.acc:hover                        { text-decoration: underline; text-underline-offset: 3px; }}
+
 
 /* 表單：既有 .field input 統一 focus 表現 */
 .field input:focus-visible,

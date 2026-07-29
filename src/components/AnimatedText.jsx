@@ -1,14 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 
 // 動態文字 —— 每種字體綁定專屬動態：打字機 / 卡拉OK / 霓虹彈跳 / 經典。純 CSS/JS。
+// ⚠️ 打字機是 JS 的 setInterval 驅動的，**CSS 的全域 reduce-motion 覆寫碰不到它**。
+//    使用者明明開了「減少動態」，文字還是一個字一個字慢慢跳出來。
+//    （karaoke / neon 走的是 CSS animation，會被全域覆寫接住，只有這條漏網。）
+// ⚠️ 速度：95ms/字對中文偏慢，20 字要跑 1.9 秒。改成依長度自動調整，
+//    長句子加速，短句子維持節奏感。
 function Typewriter({ text }) {
-  const [n, setN] = useState(0)
+  const reduce = typeof document !== 'undefined' && (
+    document.documentElement.dataset.reduceMotion === 'on'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const [n, setN] = useState(reduce ? text.length : 0)
   useEffect(() => {
+    if (reduce) { setN(text.length); return }     // 直接顯示完整文字
     setN(0)
-    const id = setInterval(() => setN(x => { if (x >= text.length) { clearInterval(id); return x } return x + 1 }), 95)
+    const step = Math.max(35, Math.min(70, Math.round(1400 / Math.max(1, text.length))))
+    const id = setInterval(() => setN(x => { if (x >= text.length) { clearInterval(id); return x } return x + 1 }), step)
     return () => clearInterval(id)
-  }, [text])
-  return <span className="atx typewriter">{text.slice(0, n)}<i className="tw-cursor">|</i></span>
+  }, [text, reduce])
+  return (
+    <span className="atx typewriter">
+      {text.slice(0, n)}
+      {!reduce && <i className="tw-cursor">|</i>}
+    </span>
+  )
 }
 
 // ⚠️ 卡拉OK／霓虹是「每個字一條無限動畫」——一行 20 字就是 20 條同時在跑，

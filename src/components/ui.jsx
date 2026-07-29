@@ -239,11 +239,24 @@ export function StampMark() {
 // 用法：<SheetMask onClose={() => setOpen(false)}>{close => <div className="sheet">…</div>}</SheetMask>
 export function SheetMask({ onClose, children }) {
   const [leaving, setLeaving] = useState(false)
-  const close = () => setLeaving(true)
+  const timer = useRef(null)
+  // ⚠️ 不能只靠 animationend：分頁切到背景時瀏覽器會暫停動畫，事件遲遲不觸發，
+  //    面板就會一直掛在那裡（雖然已經 pointer-events:none，但仍是殘留節點）。
+  //    補一個硬性上限（動畫 240ms + 60ms 緩衝），先到的那個生效。
+  const close = () => {
+    if (leaving) return
+    setLeaving(true)
+    timer.current = setTimeout(() => { timer.current = null; onClose() }, 300)
+  }
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  const finish = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null }
+    onClose()
+  }
   return (
     <div className={`sheet-mask${leaving ? ' out' : ''}`} onClick={close}
       /* 只認遮罩自己的動畫；.sheet 的離場動畫會冒泡上來，要濾掉否則會提早卸載 */
-      onAnimationEnd={(e) => { if (leaving && e.target === e.currentTarget) onClose() }}>
+      onAnimationEnd={(e) => { if (leaving && e.target === e.currentTarget) finish() }}>
       {typeof children === 'function' ? children(close) : children}
     </div>
   )

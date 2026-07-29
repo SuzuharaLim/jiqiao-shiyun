@@ -197,6 +197,12 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 **動效雷區（每一條都是實測踩到的）**：
 
+- **每一條 `:hover` 都要包 `@media (hover:hover) and (pointer:fine)`**：觸控裝置沒有真正的 hover，點一下之後狀態會**黏住**直到點別處——使用者會看到某張卡莫名一直亮著。全站 27 條（含 `styles/components.css` 的 9 條）都已包好，新增時別漏。
+- **捲動位置：`push` 歸零、`pop`/`setTab` 還原**。底部分頁列的心智模型是「五個並排的房間」，不是五條瀏覽紀錄，每次回來被丟回門口很惱人。兩個雷：(1) **手機捲的是 `.device .body` 不是 `window`**，`window.scrollTo` 對它完全沒作用；(2) **還原不能只做一次**——切分頁時 `.body` 整個重掛，貼文/作品又是 fetch 回來才長高，第一幀容器還很矮，寫進去的 `scrollTop` 會被夾成 0（實測捲到 400 切走再切回仍是 0）。要用 rAF ＋ 幾次重試直到到位。
+- **浮層退場中一律 `pointer-events:none`**：遮罩淡到看不見但節點還在時，它照樣蓋住全畫面吃掉點擊——使用者會覺得「有時候按不動」，而畫面看起來完全正常，不會被回報成 bug。另外 `animationend` 在**分頁切到背景時不保證觸發**，`SheetMask` 另有 300ms 硬性 fallback。
+- **`will-change` 不可常駐**：只掛在 `.calpage.tear-next/prev` 這種「正在動」的狀態上；常駐會讓該元素永久佔一張合成圖層白吃記憶體。大角度 3D 翻轉另需 `backface-visibility:hidden`（中低階 Android 會閃現反轉文字）。
+- **JS 驅動的動畫要自己讀 reduce-motion**：CSS 的全域覆寫碰不到 `setInterval`。`AnimatedText` 的打字機就漏過——使用者開了「減少動態」文字還是一個字一個字跳。（karaoke/neon 走 CSS animation，會被全域覆寫接住。）
+
 - **新增 CSS 變數前先 grep 有沒有撞名**：動效 token 原本叫 `--t-fast/--t-base/--t-slow`，但 `tokens.css` 後面有一整排 `--t-*` 是**字級**的舊別名，`--t-base: var(--text-base)` 定義在後面直接覆蓋掉 → 所有 260ms 的動畫讀到 `1.125rem`（無效值）而**完全沒有過場**。撞名不會有任何錯誤訊息，只會安靜地失效。現已改名 `--m-*`。
 - **`.rootpane` 是 `display:contents`，動畫掛上去完全無效**（不產生盒子）。分頁進場動畫要掛在真正有盒子的 `.rootpane > .body`。
 - **`translateX(百分比)` 是相對「元素自己的寬度」不是父層**：底部分頁指示條若做成 24px 寬再 `translateX(100%/6)`，位移只有 4px（24÷6），看起來像原地抖一下。作法是把指示條做成**一格寬**（`100%/6`），`translateX(100% × 序號)` 剛好一格，那條 24px 短線用 `background-position:center` 畫在格子裡。

@@ -183,12 +183,62 @@ export function NavProvider({ children }) {
   const [tab, setTabRaw] = useState(() => initialRoute().tab)
   const [stack, setStack] = useState(() => initialRoute().stack) // [{screen, props}]
 
-  // 桌機為整頁捲動：切換分頁/進出畫面時捲回頂端（否則會停在上一頁的捲動位置）
-  const scrollTop = () => { try { window.scrollTo(0, 0) } catch { /* ignore */ } }
-  const push = useCallback((screen, props = {}) => { setStack(s => [...s, { screen, props }]); scrollTop() }, [])
-  const pop = useCallback(() => { setStack(s => s.slice(0, -1)); scrollTop() }, [])
-  const popAll = useCallback(() => { setStack([]); scrollTop() }, [])
-  const setTab = useCallback((i) => { setStack([]); setTabRaw(i); scrollTop() }, [])
+  // ---- 捲動位置：進入新畫面歸零、返回既有畫面還原 ----
+  //
+  // ⚠️ 兩個捲動容器，必須都處理：
+  //    桌機是「整頁捲動」（window）；手機捲的是 `.device .body`（overflow-y:auto），
+  //    對它呼叫 window.scrollTo(0,0) 完全沒有作用。
+  //    先前手機的捲動歸零其實是 RootScreen 換掉導致 .body 重掛的副作用，不是這行做的。
+  //
+  // ⚠️ 方向性：push（進入子頁）歸零是對的；pop（返回）與 setTab（回到某個分頁）
+  //    歸零是錯的——底部分頁列的心智模型是「五個並排的房間」，不是五條瀏覽紀錄。
+  //    每次回來都被丟回門口，而且 paneIn 的上滑還會強化「這是全新頁面」的錯覺。
+  const scrollMemo = useRef({})
+  const scroller = () => document.querySelector('.device .body')
+  const scrollKey = (t, depth) => `t${t}:${depth}`
+  const readScroll = () => { const el = scroller(); return el ? el.scrollTop : window.scrollY }
+  const writeScroll = (y) => {
+    const el = scroller()
+    if (el) el.scrollTop = y
+    try { window.scrollTo(0, el ? 0 : y) } catch { /* ignore */ }
+  }
+  const remember = (t, depth) => { scrollMemo.current[scrollKey(t, depth)] = readScroll() }
+  // ⚠️ 還原不能只做一次。切分頁時 .body 會整個重掛，而且貼文／作品是 fetch
+  //    回來才渲染的——第一幀容器還很矮，寫進去的 scrollTop 會被瀏覽器夾成 0
+  //    （實測捲到 400 切走再切回來，還原後仍是 0）。
+  //    所以分幾次重試，直到真的設定成功或容器確實沒那麼長為止。
+  const restoreTimers = useRef([])
+  const restore = (t, depth) => {
+    restoreTimers.current.forEach(clearTimeout)
+    restoreTimers.current = []
+    const y = scrollMemo.current[scrollKey(t, depth)] ?? 0
+    if (!y) { writeScroll(0); return }
+    const attempt = () => {
+      const el = scroller()
+      writeScroll(y)
+      // 已到位（或容器就是沒那麼長）→ 不用再試
+      return !el || Math.abs(el.scrollTop - y) < 2 || el.scrollHeight - el.clientHeight <= y
+    }
+    requestAnimationFrame(() => {
+      if (attempt()) return
+      restoreTimers.current = [80, 200, 400].map(ms => setTimeout(attempt, ms))
+    })
+  }
+  useEffect(() => () => restoreTimers.current.forEach(clearTimeout), [])
+
+  const push = useCallback((screen, props = {}) => {
+    setStack(s => { remember(tab, s.length); return [...s, { screen, props }] })
+    writeScroll(0)                                   // 新畫面 → 從頭看
+  }, [tab])
+  const pop = useCallback(() => {
+    setStack(s => { const next = s.slice(0, -1); restore(tab, next.length); return next })
+  }, [tab])
+  const popAll = useCallback(() => { setStack([]); restore(tab, 0) }, [tab])
+  const setTab = useCallback((i) => {
+    setStack(s => { remember(tab, s.length); return [] })
+    setTabRaw(i)
+    restore(i, 0)
+  }, [tab])
 
   // ---- 網址同步（History API）：狀態變 → 更新網址；上一頁/下一頁 → 還原狀態 ----
   const suppressSync = useRef(false)

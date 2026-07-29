@@ -65,7 +65,9 @@ a { color:inherit; text-decoration:none; }
   .wn-links { display:flex; gap:2px; flex:1; margin-left:14px; }
   .wn-link { padding:9px 15px; border-radius:2px; font-size:var(--text-sm); font-weight:600; color:var(--ink-2, var(--muted));
     position:relative; }
-  .wn-link:hover { background:var(--field); color:var(--text); }
+@media (hover:hover) and (pointer:fine) {
+  .wn-link:hover { background:var(--field); color:var(--text); }}
+
   .wn-link.on { color:var(--cinnabar); }
   /* ⚠️ 底線畫在 .wn-link 自己身上（不是 .on），用 scaleX 由中間展開。
      原本只在 .on 時才存在 ::after，切分頁時是「消失／出現」，沒有位移感。 */
@@ -76,16 +78,22 @@ a { color:inherit; text-decoration:none; }
   .wn-right { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
   .wn-icon { width:38px; height:38px; border-radius:2px; display:flex; align-items:center; justify-content:center;
     font-size:var(--text-base); border:1px solid var(--line2); background:var(--bg); position:relative; }
-  .wn-icon:hover { border-color:var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+  .wn-icon:hover { border-color:var(--cinnabar); }}
+
   .wn-icon .ic { width:20px; height:20px; }
   .wn-user { display:flex; align-items:center; gap:8px; padding:4px 8px 4px 4px; border-radius:2px;
     border:1px solid transparent; }
-  .wn-user:hover { border-color:var(--line2); background:var(--bg); }
+@media (hover:hover) and (pointer:fine) {
+  .wn-user:hover { border-color:var(--line2); background:var(--bg); }}
+
   .wn-ava { width:32px; height:32px; border-radius:50%; background:var(--field); display:flex; align-items:center;
     justify-content:center; font-size:var(--text-base); }
   .wn-uname { font-size:var(--text-sm); font-weight:600; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wn-logout { padding:7px 14px; border:1px solid var(--line2); border-radius:2px; font-size:var(--text-xs); font-weight:600; color:var(--text); }
-  .wn-logout:hover { border-color:var(--cinnabar); color:var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+  .wn-logout:hover { border-color:var(--cinnabar); color:var(--cinnabar); }}
+
 
   /* 內容欄：置中的「一段版心」——無外框/圓角/陰影/底色差，直接坐在整頁上，避免頁中頁。
      ★ max-height:none 覆蓋手機 base 的 max-height:100dvh：否則桌機 device 被鎖在一個視窗高，
@@ -129,7 +137,10 @@ a { color:inherit; text-decoration:none; }
     box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.35); }
   .wf-links { display:flex; gap:6px 18px; flex-wrap:wrap; flex:1; }
   .wf-links button { font-size:var(--text-xs); color:var(--muted); font-weight:600; }
-  .wf-links button:hover { color:var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+  .wf-links button:hover { color:var(--cinnabar); }}
+
+@media (hover:hover) and (pointer:fine) {
 
   /* ---------- 桌機 hover 過場（動效銳評 §11）----------
      原本全站 7 條 :hover 只有 2 條有 transition，其餘顏色/邊框都是瞬跳。
@@ -137,14 +148,19 @@ a { color:inherit; text-decoration:none; }
   .wn-link, .wn-icon, .wn-user, .wn-logout, .wf-links button {
     transition:background-color var(--m-fast) var(--e-out),
                color var(--m-fast) var(--e-out),
-               border-color var(--m-fast) var(--e-out); }
+               border-color var(--m-fast) var(--e-out); }}
+
 
   /* .railcard 在桌機是可點卡片，卻完全沒有 hover 狀態＝看不出可以點進去。
      ⚠️ 只在桌機給——手機沒有 hover，靠 .tap:active 就好。 */
   .stage.signed-in .railcard { transition:transform var(--m-base) var(--e-out); }
   .stage.signed-in .railcard .ph { overflow:hidden; transition:box-shadow var(--m-base) var(--e-out); }
-  .stage.signed-in .railcard:hover { transform:translateY(-4px); }
-  .stage.signed-in .railcard:hover .ph { box-shadow:0 12px 26px rgba(90,60,30,.16); }
+@media (hover:hover) and (pointer:fine) {
+  .stage.signed-in .railcard:hover { transform:translateY(-4px); }}
+
+@media (hover:hover) and (pointer:fine) {
+  .stage.signed-in .railcard:hover .ph { box-shadow:0 12px 26px rgba(90,60,30,.16); }}
+
   .wf-copy { flex:0 0 100%; font-size:var(--text-xs); color:var(--muted); border-top:1px solid var(--line);
     padding-top:14px; }
 }
@@ -184,10 +200,12 @@ a { color:inherit; text-decoration:none; }
   /* 搜尋列加大 */
   .stage.signed-in .search { height:48px; margin:4px 0 16px; font-size:var(--text-sm); border-radius:2px; }
 
-  /* 作品格：桌機多欄、加大、hover 浮起 */
+  /* 作品格：桌機多欄、加大（hover 為墨線加深，不浮起——見後段統一規則） */
   .stage.signed-in .album { grid-template-columns:repeat(auto-fill, minmax(195px, 1fr)); gap:16px; padding:6px 0 4px; }
   .stage.signed-in .album .it { transition:transform .13s ease, box-shadow .13s ease, border-color .13s; }
-  .stage.signed-in .album .it:hover { transform:translateY(-3px); box-shadow:0 12px 26px rgba(90,60,30,.15); border-color:var(--line2); }
+  /* ⚠️ 這裡曾有 hover 抬升（translateY -3px ＋ 投影），但被檔案後段的
+     `transform:none` 同權重覆蓋，從來沒有執行過——是死碼。
+     設計決定見後段註解：紙不會浮起來，hover 改為墨線加深。已移除以免誤導。 */
   .stage.signed-in .album .it .ph { font-size:var(--text-4xl); }
 
   /* 節氣輪滿寬 */
@@ -199,8 +217,6 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .rootpane.grid2 .body > :not(.tool) { grid-column:1 / -1; }
   .stage.signed-in .rootpane.grid2 .body > .tool { border:1px solid var(--line); border-radius:2px;
     background:var(--card); padding:16px; transition:transform .13s ease, box-shadow .13s ease, border-color .13s; }
-  .stage.signed-in .rootpane.grid2 .body > .tool:hover { transform:translateY(-2px);
-    box-shadow:0 10px 22px rgba(90,60,30,.12); border-color:var(--line2); }
   .stage.signed-in .rootpane.grid2 .body > .tool:active { background:var(--card); }
 
   /* 個人名帖 banner 化 */
@@ -353,12 +369,14 @@ a { color:inherit; text-decoration:none; }
     padding:14px 16px; margin-bottom:12px;
     transition:border-color .13s ease;
   }
-  .stage.signed-in .screen-settings .body > .tool:hover,
-  .stage.signed-in .screen-settings .body > .opt:hover,
-  .stage.signed-in .screen-deities .body > .tool:hover,
-  .stage.signed-in .screen-store .body > .tool:hover,
-  .stage.signed-in .screen-challengesBoard .body > .tool:hover,
-  .stage.signed-in .screen-creatorConsole .body > .tool:hover { border-color:var(--cinnabar); }
+  @media (hover:hover) and (pointer:fine) {
+    .stage.signed-in .screen-settings .body > .tool:hover,
+    .stage.signed-in .screen-settings .body > .opt:hover,
+    .stage.signed-in .screen-deities .body > .tool:hover,
+    .stage.signed-in .screen-store .body > .tool:hover,
+    .stage.signed-in .screen-challengesBoard .body > .tool:hover,
+    .stage.signed-in .screen-creatorConsole .body > .tool:hover { border-color:var(--cinnabar); }
+  }
 
   /* 3. 時序型 → 單欄但放寬（通知/訂單這類要維持一條時間軸，不可分欄） */
   .stage.signed-in .screen-notifications .body,
@@ -864,6 +882,21 @@ a { color:inherit; text-decoration:none; }
 .meter:nth-of-type(3) > div { animation-delay:.24s; }
 
 .empty { padding:50px 24px; text-align:center; color:var(--muted); font-size:var(--text-xs); }
+/* 空狀態動起來：圖示緩慢浮動，文案與 CTA 依序浮現（riseIn 複用登入頁那條）。
+   ⚠️ 動畫只是包裝——真正讓空狀態有用的是 .empty-cta 那顆按鈕。 */
+.empty .empty-ic { animation:emptyFloat 3.2s var(--ease-in-out) infinite; }
+@keyframes emptyFloat {
+  0%,100% { transform:translateY(0) rotate(-2deg); }
+  50%     { transform:translateY(-6px) rotate(2deg); }
+}
+.empty .empty-t { animation:riseIn .46s .10s var(--e-out) both; }
+.empty .empty-h { animation:riseIn .46s .18s var(--e-out) both; }
+.empty-cta { animation:riseIn .46s .26s var(--e-out) both;
+  margin:16px auto 0; max-width:280px; }
+/* ⚠️ 常駐的循環動畫要明確關掉——全域覆寫的 animation-iteration-count:1
+   會讓它凍結在某一格（歪 2 度），看起來像壞掉而不是靜止。 */
+@media (prefers-reduced-motion: reduce) { .empty .empty-ic { animation:none; } }
+[data-reduce-motion="on"] .empty .empty-ic { animation:none; }
 .empty .big { font-size:var(--text-3xl); margin-bottom:12px; }
 
 /* toast */
@@ -986,7 +1019,13 @@ a { color:inherit; text-decoration:none; }
 @keyframes slideup { from{ transform:translateY(100%) } to{ transform:translateY(0) } }
 /* 離場：面板滑回畫面外、遮罩淡出（由 SheetMask 掛 .out，動畫結束才卸載）。
    ⚠️ 兩者時長必須一致：遮罩先結束的話面板會被攔腰卸載。 */
-.sheet-mask.out { animation:maskOut .24s var(--e-in) forwards; }
+/* ⚠️ 退場中的遮罩一律不再接收點擊。
+   遮罩已經淡到看不見、但節點還在時，它照樣蓋住全畫面吃掉所有點擊——
+   使用者關掉月曆後接著點別的東西會「沒反應」，而畫面看起來完全正常，
+   只會被當成「這網站怪怪的」不會被回報成 bug。
+   這一行是最後防線：就算卸載因故延遲（例如分頁切到背景、animationend
+   遲遲不觸發），後果也是零。 */
+.sheet-mask.out { animation:maskOut .24s var(--e-in) forwards; pointer-events:none; }
 @keyframes maskOut { to { opacity:0 } }
 .sheet-mask.out .sheet { animation:sheetOut .24s var(--e-in) forwards; }
 @keyframes sheetOut { to { transform:translateY(100%) } }
@@ -1119,6 +1158,34 @@ a { color:inherit; text-decoration:none; }
       React 的資料在按下時就換好了，動畫只是蓋住切換點，不需要延遲更新資料。
    ⚠️ 前後翻的方向必須相反，否則使用者感覺不出「往回翻」。 */
 .feed-main { perspective:1200px; }
+/* ⚠️ .calpage 做 rotateX(-62deg → 58deg) 的大角度翻轉，中低階 Android 上
+   容易在翻到背面時閃現反轉文字、或在動畫起始那一幀掉格（圖層是動畫開始
+   才提升的）。backface-visibility 擋掉背面、will-change 預先提升圖層。
+   ⚠️ will-change 只掛在「正在翻」的狀態，不可常駐——常駐會讓這塊永久
+   佔一張合成圖層，白白吃記憶體。 */
+.calpage { backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+/* ---------- 節氣光暈（C-1）----------
+   <html data-season> 早就掛在 DOM 上了，但先前只用來換一個 --season-hue 色票。
+   一個叫「節氣攝影社群」的產品，節氣應該是會動的。
+   曆頁頂部一道極淡的光暈，9 秒一次緩慢呼吸——慢到不會分心，
+   但大暑（暖橙）與霜降（冷灰藍）打開會有不同體溫，這才對得起產品名。
+   ⚠️ pointer-events:none：純裝飾，絕不可擋住底下的內容。
+   ⚠️ .calpage 有 overflow 與 3D 變換，光暈用 ::before 疊在內距上緣即可。 */
+.calpage { position:relative; }
+.calpage::before {
+  content:''; position:absolute; left:0; right:0; top:0; height:120px;
+  pointer-events:none; z-index:0; border-radius:inherit;
+  background:radial-gradient(120% 80% at 50% 0%, var(--season-tint), transparent 70%);
+  animation:seasonGlow 9s var(--ease-in-out) infinite;
+}
+.calpage > * { position:relative; z-index:1; }
+@keyframes seasonGlow {
+  0%,100% { opacity:.55; transform:translateY(0); }
+  50%     { opacity:.95; transform:translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) { .calpage::before { animation:none; } }
+[data-reduce-motion="on"] .calpage::before { animation:none; }
+.calpage.tear-next, .calpage.tear-prev { will-change:transform; }
 .calpage.tear-next { transform-origin:top center; animation:tearNext var(--m-slow) cubic-bezier(.4,0,.25,1); }
 .calpage.tear-prev { transform-origin:top center; animation:tearPrev var(--m-slow) cubic-bezier(.4,0,.25,1); }
 @keyframes tearNext {
@@ -1174,7 +1241,13 @@ a { color:inherit; text-decoration:none; }
 .railhd .t { font-family:var(--serif); font-size:var(--text-sm); font-weight:800; }
 .railhd .t small { font-family:inherit; color:var(--cinnabar); font-weight:800; }
 .railhd .more { font-size:var(--text-xs); color:var(--muted); }
-.rail { display:flex; gap:11px; overflow-x:auto; padding:8px var(--space-4) 4px; flex:0 0 auto; }
+.rail { display:flex; gap:11px; overflow-x:auto; padding:8px var(--space-4) 4px; flex:0 0 auto;
+  /* ⚠️ 用 proximity 不用 mandatory：卡片寬度不一致時（探索頁的 railcard 有設寬、
+     首頁的沒設），mandatory 會產生「甩不掉」的黏滯感。
+     overscroll-behavior-x 順手擋掉滑到底時觸發瀏覽器的「上一頁」手勢。 */
+  scroll-snap-type:x proximity; scroll-padding-left:var(--space-4);
+  overscroll-behavior-x:contain; }
+.rail > .railcard { scroll-snap-align:start; }
 .rail::-webkit-scrollbar { height:0; }
 .railcard { flex:0 0 auto; width:150px; }
 .railcard .ph { width:150px; height:112px; border-radius:2px; display:flex; align-items:center;
@@ -1222,7 +1295,9 @@ a { color:inherit; text-decoration:none; }
   min-height:0;                      /* 免受全域 44px 觸控規則影響 */
 }
 .tiepost .nums > *:last-child { border-right:none; }
-.tiepost .nums > *:hover b { color:var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.tiepost .nums > *:hover b { color:var(--cinnabar); }}
+
 .tiepost .nums > *:focus-visible { outline:2px solid var(--cinnabar); outline-offset:-2px; }
 .tiepost .nums b { font-family:var(--serif); font-size:var(--text-lg); display:block; font-weight:800; }
 .tiepost .nums span { font-size:var(--text-2xs); color:var(--muted); display:block; margin-top:2px; }
@@ -1965,6 +2040,7 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 }
 [data-theme="dark"] .card, [data-theme="dark"] .plan,
 [data-theme="dark"] .sumcard, [data-theme="dark"] .yiji { box-shadow: none; }
+@media (hover:hover) and (pointer:fine) {
 
 /* hover 不再位移＋投影，改為墨線加深（紙不會浮起來，但線可以加重） */
 .stage.signed-in .album .it:hover,
@@ -1972,7 +2048,8 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   transform: none;
   box-shadow: none;
   border-color: var(--cinnabar);
-}
+}}
+
 
 /* ── 3. 朱紅第二套印色：段落標題的起始標記（原本只有曆頁有，改為全站） ── */
 .sech {
@@ -2048,7 +2125,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   position: relative;
   transition: color var(--dur-fast) var(--ease);
 }
-.chip:hover { color: var(--text); }
+@media (hover:hover) and (pointer:fine) {
+.chip:hover { color: var(--text); }}
+
 /* ⚠️ 必須顯式清掉 background：上面舊的 .chip.on 有 background:var(--cinnabar)，
    只改 color 的話會變成「朱紅底 + 朱紅字」＝文字完全看不見。 */
 .chip.on { background: none; color: var(--cinnabar); font-weight: 700; }
@@ -2066,7 +2145,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   font-family: var(--serif); font-size:var(--text-sm); letter-spacing: .04em;
   position: relative;
 }
-.termwheel .tm:hover { color: var(--text); }
+@media (hover:hover) and (pointer:fine) {
+.termwheel .tm:hover { color: var(--text); }}
+
 /* .now＝當前節氣（未選中時仍應看得出來）。
    注意：Explore.jsx 已在文字前面加了「●」，這裡不可再補 ::before 圓點（會變兩個）。*/
 .termwheel .tm.now { color: var(--cinnabar); }
@@ -2171,7 +2252,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   font-weight: 600;
   padding: 9px 14px;
 }
-.qchip:hover { border-color: var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.qchip:hover { border-color: var(--cinnabar); }}
+
 
 /* 輸入區：整條加一條上緣墨線，把「輸入」與「對話」分開 */
 .cinput {
@@ -2251,7 +2334,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   background: none; color: var(--text); cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease);
 }
-.ct-opt:hover { border-color: var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.ct-opt:hover { border-color: var(--cinnabar); }}
+
 /* 實心底＋白字 → 用 --primary（--cinnabar 在深色模式是提亮的藍，白字只有 2.86） */
 .ct-opt.on {
   background: var(--primary); color: var(--pfg); border-color: var(--primary);
@@ -2407,7 +2492,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
    面板依傳統四季分組，像通書的節氣表。
    ══════════════════════════════════════════════════════════════════════ */
 .tm-more { color: var(--muted); font-size:var(--text-xs) !important; letter-spacing: .06em; }
-.tm-more.open, .tm-more:hover { color: var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.tm-more.open, .tm-more:hover { color: var(--cinnabar); }}
+
 
 .term-panel {
   flex: 0 0 auto;
@@ -2440,7 +2527,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .tp-t.now { color: var(--cinnabar); }          /* 當前節氣 */
 .tp-t.on { color: var(--cinnabar); font-weight: 800; text-decoration: underline;
   text-underline-offset: 4px; text-decoration-thickness: 2px; }
-.tp-t:hover { color: var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.tp-t:hover { color: var(--cinnabar); }}
+
 .tp-t:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: -2px; }
 .tp-t .tm-n { margin-left: 2px; }
 
@@ -2513,7 +2602,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   border: 1px solid var(--line2); border-radius: 2px;
   font-size:var(--text-xs); min-height: 0;
 }
-.fsel:hover, .fsel.open { border-color: var(--cinnabar); }
+@media (hover:hover) and (pointer:fine) {
+.fsel:hover, .fsel.open { border-color: var(--cinnabar); }}
+
 .fsel .fs-l { color: var(--muted); font-size:var(--text-2xs); font-family: var(--serif); letter-spacing: .08em; }
 .fsel b { font-weight: 600; }
 .fsel b.sel { color: var(--cinnabar); font-weight: 700; }   /* 套了條件時亮起 */
@@ -2619,7 +2710,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   width: 24px; height: 24px; min-height: 0; line-height: 1;
   font-size:var(--text-xs); flex: 0 0 auto;
 }
-.ck-del:hover { color: var(--ji); border-color: var(--ji); }
+@media (hover:hover) and (pointer:fine) {
+.ck-del:hover { color: var(--ji); border-color: var(--ji); }}
+
 
 /* ══════════════════════════════════════════════════════════════════════
    線條圖示取代彩色 emoji（2026-07 樣式整修）

@@ -131,7 +131,17 @@ export default function Explore() {
           </span>
         </div>
         {list.length === 0 ? (
-          <div className="empty"><div className="empty-ic"><Icon name="search" /></div>找不到{[chip !== '全部' && chip, q].filter(Boolean).join('・') || '任何'}的作品</div>
+          /* ⚠️ 空狀態是新使用者看到最多次的畫面（社群剛起步時尤其）。
+             原本只寫「找不到作品」＝「這裡沒東西」；該傳達的是「這裡在等你」。
+             真正的修法不是動畫，是把空狀態變成入口——那顆 CTA 比會浮動的圖示值錢得多。 */
+          <div className="empty">
+            <div className="empty-ic"><Icon name="search" /></div>
+            <div className="empty-t">找不到{[chip !== '全部' && chip, q].filter(Boolean).join('・') || '任何'}的作品</div>
+            <div className="empty-h">這個節氣還沒有人留下紀錄</div>
+            <button className="b dark tap empty-cta" onClick={() => push('camera')}>
+              ＋ 成為第一個拍下{chip !== '全部' ? chip : '此刻'}的人
+            </button>
+          </div>
         ) : (
           <div className="album">
             {list.map(w => (
