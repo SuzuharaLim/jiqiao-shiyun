@@ -1291,6 +1291,57 @@ const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節
 // ⚠️ 只在記憶體、只給 admin 看：內容可能含金鑰前綴等敏感訊息，不可外洩給一般使用者。
 let lastAiError = null
 
+// ---------- 模型參數相容性 ----------
+// ⚠️ 不同世代的模型接受的參數不一樣，而且「模型在清單裡」不代表「這樣呼叫會成功」：
+//    · 較新的模型用 max_completion_tokens，送 max_tokens 會回 400
+//    · 部分模型只接受預設的 temperature，指定 0.8 會回 400
+//    實測就是這樣踩到的——gpt-5.4-nano 出現在 /v1/models 清單裡，
+//    但用舊參數呼叫一律失敗，而錯誤訊息被我們轉成 502 吞掉了。
+//
+// 作法：先照預設送，被 400 拒絕就從錯誤訊息判斷該拿掉／改名哪個參數，
+//       調整後重試一次，並把「這個模型可用的組合」記下來，之後直接用對的。
+// 這樣換模型時不必改碼，也不必猜它屬於哪個世代。
+const aiParamMode = { tokensKey: 'max_tokens', temperature: 0.8 }
+function aiBody({ messages, stream, maxTokens }) {
+  const b = { model: OPENAI_MODEL, messages, [aiParamMode.tokensKey]: maxTokens }
+  if (aiParamMode.temperature !== null) b.temperature = aiParamMode.temperature
+  if (stream) b.stream = true
+  return JSON.stringify(b)
+}
+// 讀懂上游的抱怨並調整；有調整才回 true（代表值得重試）
+function adaptAiParams(errText) {
+  const t = String(errText || '')
+  let changed = false
+  if (/max_tokens/.test(t) && /max_completion_tokens/.test(t) && aiParamMode.tokensKey === 'max_tokens') {
+    aiParamMode.tokensKey = 'max_completion_tokens'; changed = true
+    console.warn('[ai] 這個模型要用 max_completion_tokens，已自動切換')
+  }
+  if (/temperature/.test(t) && /unsupported|does not support|only the default/i.test(t) && aiParamMode.temperature !== null) {
+    aiParamMode.temperature = null; changed = true
+    console.warn('[ai] 這個模型不接受自訂 temperature，已改用預設值')
+  }
+  return changed
+}
+async function callOpenAI({ messages, stream = false, maxTokens = 500, timeoutMs = 25000 }) {
+  const send = () => fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+    body: aiBody({ messages, stream, maxTokens }),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  // ⚠️ 要用迴圈不能只重試一次：模型可能同時嫌棄多個參數，而上游一次只報一個。
+  //    實測就是這樣——先修好 max_tokens，重試後才冒出 temperature 的抱怨，
+  //    只重試一次的話就停在第二個錯誤上，看起來像「自動調整沒有用」。
+  //    上限 3 次是保險，避免上游一直回沒看懂的 400 造成連打。
+  let r = await send()
+  for (let i = 0; i < 3 && r.status === 400; i++) {
+    const text = await r.text().catch(() => '')
+    if (!adaptAiParams(text)) return { r, preread: text }   // 沒看懂就把原文帶回去
+    r = await send()
+  }
+  return { r, preread: null }
+}
+
 // ---------- 今日曆訊：由伺服器自己算，一次給足 ----------
 // ⚠️ 這是「必然幻覺」的根治。原本 context 只有前端傳來的一行：
 //      「今天大暑，己亥日，宜…；忌…；吉時…」
@@ -1368,23 +1419,18 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
   let sentHeaders = false
   const sse = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
   try {
-    const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({
-        model: OPENAI_MODEL, messages: [{ role: 'system', content: sys }, ...hist],
-        max_tokens: 500, temperature: 0.8, stream: true,
-      }),
-      signal: AbortSignal.timeout(25000),
+    const { r, preread } = await callOpenAI({
+      messages: [{ role: 'system', content: sys }, ...hist],
+      stream: true, maxTokens: 500, timeoutMs: 25000,
     })
     if (!r.ok) {
-      const detail = (await r.text().catch(() => '')).slice(0, 400)
+      const detail = (preread ?? await r.text().catch(() => '')).slice(0, 400)
       console.error('[ai] upstream', r.status, detail)
       lastAiError = { at: now(), status: r.status, detail }   // 供管理後台診斷
       // ⚠️ 上游的失敗要分「設定錯了」和「暫時性」兩類：
       //    金鑰無效／模型名稱不存在／額度用完，重試一萬次都不會好，
       //    卻回「線路不穩，再試一次」等於叫使用者做白工，也讓你查不到真因。
-      const cfgBroken = r.status === 401 || r.status === 403 || r.status === 404
+      const cfgBroken = [400, 401, 403, 404].includes(r.status)
       return res.status(cfgBroken ? 503 : 502).json({
         error: cfgBroken
           ? 'AI 顧問目前無法使用（服務設定有誤，我們已收到通知）'
@@ -1473,22 +1519,21 @@ app.post('/api/admin/mail-test', requireAuth, requireRole('admin'), requireCsrf,
 // ⚠️ 只給 admin，且金鑰一律只回前後各 4 碼，不可回完整值。
 app.post('/api/admin/ai-test', requireAuth, requireRole('admin'), requireCsrf, authLimiter, ah(async (req, res) => {
   const mask = (k) => k ? `${k.slice(0, 6)}…${k.slice(-4)}（長度 ${k.length}）` : '（未設定）'
-  const base = { model: OPENAI_MODEL, baseUrl: OPENAI_BASE, key: mask(OPENAI_KEY), lastError: lastAiError }
+  const base = { model: OPENAI_MODEL, baseUrl: OPENAI_BASE, key: mask(OPENAI_KEY), lastError: lastAiError,
+    params: `${aiParamMode.tokensKey}${aiParamMode.temperature === null ? '（不帶 temperature）' : `, temperature=${aiParamMode.temperature}`}` }
   if (!OPENAI_KEY) {
     return res.status(501).json({ ok: false, ...base,
       hint: '未設定 OPENAI_API_KEY。請在 Secret Manager 建立 jiqiao-openai-key 後重新部署（deploy.sh 已會帶入）。' })
   }
   try {
-    const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({ model: OPENAI_MODEL, messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }),
-      signal: AbortSignal.timeout(15000),
+    const { r, preread } = await callOpenAI({
+      messages: [{ role: 'user', content: 'ping' }], maxTokens: 16, timeoutMs: 15000,
     })
-    const body = (await r.text().catch(() => '')).slice(0, 500)
+    const body = (preread ?? await r.text().catch(() => '')).slice(0, 500)
     await audit('ai_test', req, req.user.id, `${r.status}`)
     if (r.ok) return res.json({ ok: true, ...base, status: r.status, hint: 'AI 可正常呼叫 ✓' })
     const HINTS = {
+      400: '模型不接受送出的參數。程式已自動嘗試改用 max_completion_tokens／移除 temperature 並重試；仍失敗表示還有別的參數不合，請看下方原始錯誤。',
       401: '金鑰無效或已撤銷 → 到 OpenAI 後台重新產生，更新 Secret Manager 的 jiqiao-openai-key 再部署。',
       403: '金鑰沒有這個模型的權限 → 換一個帳號有權限的模型（設環境變數 OPENAI_MODEL）。',
       404: `模型「${OPENAI_MODEL}」不存在或你的帳號不能用 → 設 OPENAI_MODEL 換成可用的模型。`,
