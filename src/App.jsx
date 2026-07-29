@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNav } from './store/nav.jsx'
-import { TabBar, Toast, Seal } from './components/ui.jsx'
+import { TabBar, Toast, Seal, StampMark } from './components/ui.jsx'
 import WebNav from './components/WebNav.jsx'
 import WebFooter from './components/WebFooter.jsx'
 import AuthWall from './components/AuthWall.jsx'
@@ -53,12 +53,47 @@ export default function App() {
     return () => cancelAnimationFrame(id)
   }, [user, tab, top])
 
+  // ---------- 桌機捲動進場（動效銳評 §03 後半）----------
+  // 登入後 ≥900px 是「整頁捲動的長頁面」，但格狀內容原本一次全部就位。
+  // ⚠️ 只在桌機啟用：手機是單一視窗高的 App 版面，捲動進場反而礙事（內容還沒滑到就看不見）。
+  // ⚠️ 每次 tab/stack 變動都要重掃，因為 DOM 整批換過了。
+  useEffect(() => {
+    if (!user) return
+    const desktop = window.matchMedia('(min-width:900px) and (min-height:600px)')
+    const reduce = document.documentElement.dataset.reduceMotion === 'on'
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!desktop.matches || reduce || typeof IntersectionObserver === 'undefined') return
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } })
+    }, { rootMargin: '0px 0px -8% 0px' })
+
+    const SEL = '.railcard, .album .it, .rootpane .tool, .card'
+    let n = 0
+    const scan = () => {
+      document.querySelectorAll(SEL).forEach(el => {
+        if (el.classList.contains('reveal')) return
+        el.classList.add('reveal')
+        el.style.transitionDelay = (n++ % 6) * 45 + 'ms'
+        io.observe(el)
+      })
+    }
+    // ⚠️ 掃一次不夠：作品／貼文是 fetch 回來才渲染的，
+    //    只在切頁當下掃會掃到空的 DOM（實測探索頁 12 張作品一個都沒被觀察到，
+    //    捲動進場等於整頁失效）。用 MutationObserver 補掃後來才出現的節點。
+    const mo = new MutationObserver(scan)
+    mo.observe(document.querySelector('.device') || document.body, { childList: true, subtree: true })
+    const raf = requestAnimationFrame(scan)
+    return () => { cancelAnimationFrame(raf); io.disconnect(); mo.disconnect() }
+  }, [user, tab, top])
+
   return (
     <div className={`stage ${user ? 'signed-in' : ''}`}>
       {/* 跳至主要內容：鍵盤使用者 Tab 第一下就能跳過導覽（規格要求項目） */}
       <a className="skip-link" href="#main">跳至主要內容</a>
 
-      <button className="theme-fab tap" onClick={toggleTheme} aria-label="切換主題">
+      {/* ⚠️ 要把事件物件傳進去——圓形擴散的圓心就是這顆按鈕被按到的位置 */}
+      <button className="theme-fab tap" onClick={(e) => toggleTheme(e)} aria-label="切換主題">
         {theme === 'dark' ? '☀️' : '🌙'}
       </button>
 
@@ -77,7 +112,10 @@ export default function App() {
             <VerifyBanner />
             {/* 根分頁畫面（rootpane 對版面透明；桌機開堆疊畫面時隱藏）
                 tab-N 供桌機各分頁專屬版面；grid2 讓工具列在桌機排成雙欄卡片 */}
-            <div className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
+            {/* key={tab} 讓 React 在切分頁時重新掛載 → paneIn 進場動畫才會重播。
+                ⚠️ 只做極短的淡入上浮，不要做左右滑動：setTab 同時呼叫 window.scrollTo(0,0)，
+                   橫向滑動配上垂直瞬跳會互相打架。 */}
+            <div key={tab} className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
               <RootScreen />
             </div>
 
@@ -99,6 +137,9 @@ export default function App() {
 
       {/* 登入牆（訪客下單/上傳時彈出） */}
       <AuthWall />
+
+      {/* 成功時蓋一枚印（註冊／發佈／下單）。放在 stage 層才能蓋過所有畫面 */}
+      <StampMark />
     </div>
   )
 }

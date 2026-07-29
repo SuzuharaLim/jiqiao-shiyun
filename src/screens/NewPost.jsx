@@ -40,7 +40,7 @@ function compressImage(file) {
 // fromCamera：由相機「下一步」帶進來的照片（已套好濾鏡）。
 // 走這條路徑時不再另外壓縮——相機的 bakeImage() 已縮到 1600px / JPEG 0.85。
 export default function NewPost({ photo: incomingPhoto = null }) {
-  const { pop, popAll, setToast, requireAccount } = useNav()
+  const { pop, popAll, setToast, setStamp, requireAccount } = useNav()
   const [sel, setSel] = useState(0)
   const [photo, setPhoto] = useState(incomingPhoto)   // 使用者選的照片（壓縮後 dataURL）
   const fromCamera = !!incomingPhoto
@@ -82,6 +82,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
       // 3) 勾「上架市集」→ 真的建立市集作品（同一張圖）
       if (onSale) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, tags, price: price || 0, imageId })
       popAll()
+      setStamp('已發佈')
       setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
     } catch (e) {
       setBusy(false)

@@ -88,7 +88,26 @@ export function NavProvider({ children }) {
     if (meta) meta.setAttribute('content', theme === 'dark' ? '#141210' : '#FFFFFF')
     try { localStorage.setItem('jq-theme', theme) } catch { /* 隱私模式忽略 */ }
   }, [theme])
-  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+  // 主題切換 —— 從按鈕位置圓形擴散（日月交替）。
+  // 宣紙暖白 ↔ 墨黑落差極大，數十個 CSS 變數同時瞬間翻轉會閃眼睛。
+  // ⚠️ 不支援 View Transition API 的瀏覽器（Firefox）自動退回原本的瞬切，零風險；
+  //    reduce-motion 也一律走瞬切。
+  const toggleTheme = (ev) => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    const reduce = document.documentElement.dataset.reduceMotion === 'on'
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!document.startViewTransition || reduce) return setTheme(next)
+    // 沒有滑鼠座標時（鍵盤觸發）就從右上角的主題鈕位置擴散
+    const x = ev?.clientX ?? window.innerWidth - 40
+    const y = ev?.clientY ?? 40
+    // 半徑取到「離觸發點最遠的那個角」，否則會有一角來不及被蓋到
+    const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+    const vt = document.startViewTransition(() => setTheme(next))
+    vt.ready.then(() => document.documentElement.animate(
+      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+      { duration: 480, easing: 'cubic-bezier(.2,.8,.3,1)', pseudoElement: '::view-transition-new(root)' },
+    )).catch(() => { /* 動畫被中斷不影響主題已切換 */ })
+  }
 
   // ---- 登入身分（由後端 Session Cookie 決定；啟動時打 /api/me 還原）----
   const [user, setUser] = useState(null)
@@ -303,8 +322,22 @@ export function NavProvider({ children }) {
     toastTimer.t = setTimeout(() => setToastRaw(null), 1800)
   }, [toastTimer])
 
+  // ---- 蓋印章：成功回饋 ----
+  // 印章是這個品牌的動詞。註冊成功、發佈成功、下單成功都蓋一枚印，
+  // 而不是各自跳一個長得一樣的文字 toast。
+  // ⚠️ 時長要跟 .seal-stamp 的動畫（sealIn .5s + sealRing .6s+.18s 延遲）對齊，
+  //    提早卸載會把餘韻切掉。
+  const [stamp, setStampRaw] = useState(null)
+  const stampTimer = useState({ t: null })[0]
+  const setStamp = useCallback((msg) => {
+    setStampRaw(msg)
+    if (stampTimer.t) clearTimeout(stampTimer.t)
+    stampTimer.t = setTimeout(() => setStampRaw(null), 1400)
+  }, [stampTimer])
+
   const value = {
     theme, toggleTheme,
+    stamp, setStamp,
     user, authLoading, login, loginGuest, logout, updateProfile,
     authWall, setAuthWall, requireAccount,
     tab, setTab, stack, push, pop, popAll,

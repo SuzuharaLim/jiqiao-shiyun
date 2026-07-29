@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, SheetMask } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 import AnimatedText from '../components/AnimatedText.jsx'
@@ -391,7 +391,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
 
       {/* 加文字 */}
       {textFxOpen && (
-        <div className="sheet-mask" onClick={() => setTextFxOpen(false)}>
+        <SheetMask onClose={() => setTextFxOpen(false)}>{close => (
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-grip" />
             <div className="lp-hd">加入文字</div>
@@ -405,9 +405,9 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
               ))}
             </div>
             <div className="tfx-preview"><AnimatedText text={text || '預覽文字'} fx={tfx} key={tfx + text} /></div>
-            <button className="b dark tap" style={{ width: '100%', marginTop: 10 }} onClick={() => setTextFxOpen(false)}>完成</button>
+            <button className="b dark tap" style={{ width: '100%', marginTop: 10 }} onClick={close}>完成</button>
           </div>
-        </div>
+        )}</SheetMask>
       )}
     </div>
   )
@@ -418,10 +418,10 @@ function EffectsLibrary({ effects, shotUrl, onClose, onPick }) {
   const [q, setQ] = useState('')
   const list = effects.filter(e => !q || e.name.includes(q) || e.id.includes(q))
   return (
-    <div className="sheet-mask" onClick={onClose}>
+    <SheetMask onClose={onClose}>{close => (
       <div className="sheet lp" onClick={e => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <div className="lp-hd">特效大觀園<button className="lp-close tap" onClick={onClose} aria-label="關閉">✕</button></div>
+        <div className="lp-hd">特效大觀園<button className="lp-close tap" onClick={close} aria-label="關閉">✕</button></div>
         <input className="eff-search" value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋特效（美顏・貓耳・變形…）" aria-label="搜尋特效" />
         <div className="lp-scroll">
           <div className="eff-grid">
@@ -436,7 +436,7 @@ function EffectsLibrary({ effects, shotUrl, onClose, onPick }) {
           <div className="ad-note" style={{ padding: '4px 4px 12px' }}>臉部貼合（貓耳精準跟臉）需要臉部追蹤；此處以 FaceDetector（若支援）或置中疊加近似，美顏用即時濾鏡實作。</div>
         </div>
       </div>
-    </div>
+    )}</SheetMask>
   )
 }
 

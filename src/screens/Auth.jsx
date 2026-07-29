@@ -20,7 +20,7 @@ const initialReset = () => {
 }
 
 export default function Auth() {
-  const { login, loginGuest, setToast } = useNav()
+  const { login, loginGuest, setToast, setStamp } = useNav()
   const resetToken0 = initialReset()
   const [mode, setMode] = useState(resetToken0 ? 'reset' : 'login') // login|register|forgot|reset
   const [f, setF] = useState({ name: '', handle: '', email: '', pw: '', pw2: '' })
@@ -72,7 +72,7 @@ export default function Auth() {
     const r = await api.register({ name: f.name.trim(), handle: f.handle, email: f.email.trim(), password: f.pw, website: hp })
     if (r.devVerifyLink) setDevLink({ type: 'verify', token: tokenFrom(r.devVerifyLink) })
     login(r.user, r.csrfToken)
-    setToast('註冊成功，歡迎加入 🌾（請記得驗證 Email）')
+    setStamp('註冊成功'); setToast('歡迎加入 🌾（請記得驗證 Email）')
   })
   const doForgot = () => run(async () => {
     if (!f.email.trim()) return setErr('請輸入註冊 Email')

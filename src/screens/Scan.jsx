@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, SheetMask, Seal } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { dayFor } from '../data/almanac.js'
 import { makeSignature, bestMatchMultiWindow, matchScore, cropRgba, serializeSig, deserializeSig } from '../lib/scanner.js'
@@ -282,13 +282,14 @@ export default function Scan() {
           min(82dvh, 100dvh-48px) 與 env(safe-area-inset-bottom)：手機橫向
           （390px 視窗）時貼底會超出，iOS home indicator 也會壓住最後一列。 */}
       {found && (
-        <div className="sheet-mask" onClick={resume}>
+        <SheetMask onClose={resume}>{close => (
           <div className="sheet" role="dialog" aria-modal="true" aria-label={`已辨識 ${found.name}`}
             tabIndex={-1} ref={sheetRef}
             onClick={e => e.stopPropagation()}>
             <div className="sheet-grip" />
             <div className="scanres">
-              <div className="okmark">✓</div>
+              {/* 辨識成功＝蓋一枚印，不再用通用的綠圈打勾（那個哪個 App 都長一樣） */}
+              <div className="okmark seal-stamp"><Seal badge alt="" /></div>
               <h3>已辨識：{found.name}</h3>
               <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>匹配度 {found.score}%（自研辨識）</div>
               {found.thumb && <img src={found.thumb} alt={found.name} />}
@@ -300,11 +301,11 @@ export default function Scan() {
                 </div>
               </div>
               <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>🔮 AR 節氣動畫與語音祝福即將推出——屆時掃描這張明信片就會在畫面上播放。</p>
-              <button className="btn-primary tap" onClick={resume}>再掃一次</button>
+              <button className="btn-primary tap" onClick={close}>再掃一次</button>
               <button className="btn-ghost tap" style={{ marginTop: 8 }} onClick={pop}>完成</button>
             </div>
           </div>
-        </div>
+        )}</SheetMask>
       )}
     </>
   )

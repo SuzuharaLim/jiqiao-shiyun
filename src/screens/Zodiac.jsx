@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { TopBar, Disclaimer, Meter } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
 
 // 依時間範圍對基礎分做確定性微調，讓今日/本週/本月有差異
@@ -47,7 +47,7 @@ export default function Zodiac() {
           return (
             <div className="card">
               <h4>{z.emoji} 屬{z.sign} · {range}運勢 {s} 分</h4>
-              <div className="meter"><div style={{ width: `${s}%` }} /></div>
+              <Meter score={s} />
               <p style={{ marginTop: 10 }}>{z.luck}。{range === '今日' ? '把握吉時「辰時・未時」處理要事，能事半功倍。' : range === '本週' ? '一週節奏漸入佳境，週中適合推進計畫。' : '本月宜穩中求進，月底運勢回升。'}</p>
             </div>
           )

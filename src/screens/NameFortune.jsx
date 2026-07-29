@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { TopBar, Disclaimer, Meter } from '../components/ui.jsx'
 
 function scoreOf(str) {
   let s = 0
@@ -37,7 +37,7 @@ export default function NameFortune() {
         {res && (
           <div className="card">
             <h4>「{name}」· {res.v.t}（{res.sc} 分）</h4>
-            <div className="meter"><div style={{ width: `${res.sc}%` }} /></div>
+            <Meter score={res.sc} />
             <div className="kv" style={{ marginTop: 10 }}><span>總筆畫</span><b>{res.strokes} 畫</b></div>
             <div className="kv"><span>三才五格</span><span className="muted">木火土 · 相生</span></div>
             <p style={{ marginTop: 8 }}>{res.v.d}</p>

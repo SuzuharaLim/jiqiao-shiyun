@@ -137,6 +137,19 @@
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
+  /* ---- 動效三檔（動效銳評 §「一組共用的動效參數」）--------------------
+     規則：使用者「主動觸發」的回饋 ≤200ms（按壓、hover、開關切換）；
+     系統「呈現內容」260–450ms（進場、分頁、揭曉）；
+     >500ms 只留給撕曆與蓋印章這種儀式性動作。
+     ⚠️ 新增動畫請一律引用這三個變數，不要每支各寫各的秒數——
+     否則同一畫面會出現 .12s/.18s/.22s/.26s 四種速度，體感會「散」。 */
+  --m-fast: 0.13s;   /* 按壓、hover、開關 */
+  --m-base: 0.26s;   /* 進場、淡入、分頁 */
+  --m-slow: 0.44s;   /* 撕曆、印章、揭曉 */
+  --e-out:    cubic-bezier(0.2, 0.8, 0.3, 1);    /* 進場收斂 */
+  --e-spring: cubic-bezier(0.34, 1.4, 0.5, 1);   /* 回彈（指示條、開關） */
+  --e-in:     cubic-bezier(0.5, 0, 0.75, 0);     /* 離場加速 */
+
   --measure: 68ch;   /* 內文最大行寬 */
 
   /* ======================================================================
@@ -202,6 +215,10 @@
   --c-focus: var(--color-focus);      --c-danger: var(--ji);
   --f-sans: var(--font-sans);         --f-serif: var(--font-serif);
   --f-mono: var(--font-mono);
+  /* ⚠️ 這排 --t-* 是「字級」的舊別名，與動效的 --m-fast/--m-base/--m-slow 是
+     兩套不同的東西。動效 token 曾經也叫 --t-*，被這一行覆蓋掉——
+     結果 260ms 的動畫全部讀到 1.125rem（無效值）而完全沒有過場。
+     命名撞名不會有任何錯誤訊息，只會安靜地失效，新增 token 前務必先 grep。 */
   --t-2xs: var(--text-2xs); --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
   --t-lg: var(--text-lg);   --t-xl: var(--text-xl);   --t-2xl: var(--text-2xl);
   --t-3xl: var(--text-4xl);
@@ -319,6 +336,9 @@
     --duration-slow:   0.01ms;
     --dur-fast: 0.01ms;
     --dur: 0.01ms;
+    --m-fast: 0.01ms;
+    --m-base: 0.01ms;
+    --m-slow: 0.01ms;
   }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

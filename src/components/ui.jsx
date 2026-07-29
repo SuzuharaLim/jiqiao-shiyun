@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Icon from './Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
@@ -50,7 +50,10 @@ const TABS = [
 export function TabBar() {
   const { tab, setTab, push } = useNav()
   return (
-    <div className="tabbar">
+    /* ⚠️ 指示條改掛在 tabbar 上（見 styles.css 的 .tabbar::before），用 transform 滑過去。
+       原本是各按鈕自己的 ::before，切分頁時舊的消失、新的出現，中間沒有位移＝看不出「從哪到哪」。
+       這裡只交出「第幾格」，實際位移由 CSS 算（指示條本體是一格寬，位移＝100% × 序號）。 */
+    <div className="tabbar" style={{ '--ink-i': tab }}>
       {TABS.map(t => (
         <button key={t.i} className={`tabbtn tap ${tab === t.i ? 'on' : ''}`} onClick={() => setTab(t.i)}
           aria-label={t.label} aria-current={tab === t.i ? 'page' : undefined}>
@@ -63,6 +66,37 @@ export function TabBar() {
         <Icon name="scan" />
         <span className="tablbl">掃描</span>
       </button>
+    </div>
+  )
+}
+
+// 占卜／配對的分數條。
+// 占卜的價值在「揭曉」：分數瞬間就位＝答案早就寫好了，從 0 跑上去＝正在為你推算。
+//
+// ⚠️ 這裡刻意用 CSS **animation** 而不是 transition，並靠 key 重掛載來重播。
+//    「先設 0、下一幀再設真值」的 transition 作法在這個元件實測有三種失敗：
+//      1. useState + requestAnimationFrame：effect 在 commit 後、paint 前跑，
+//         rAF 回呼也在同一幀被吃掉，瀏覽器沒畫出 width:0 那一格
+//         → 分數條是從「上一個生肖的分數」滑到新分數（82%→71%），不是從 0。
+//      2. 寫 0% ＋ 強制 reflow：transition 還開著時寫 0% 不會瞬間跳到 0，
+//         而是「開始一段往 0 的過場」，下一行寫真值時起點還在舊分數上
+//         （實測第 16ms 量到的仍是舊值 204px）。
+//      3. 關 transition → 寫 0% → reflow → 開 transition → 寫真值：
+//         起點對了，但瀏覽器仍以 transition:none 當「變更前樣式」，寬度直接跳到終點
+//         （實測 60ms 就到位，等於沒有動畫）。
+//    animation 沒有「變更前樣式」這回事——keyframes 自己定義了起訖，
+//    只要元素是新的就一定從頭播完。key 換掉即重掛載，行為完全確定。
+export function Meter({ score = 0 }) {
+  // key 用「第幾次揭曉」而不是分數本身：不同項目剛好同分時也要重播
+  const [round, setRound] = useState(0)
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) { first.current = false; return }   // 首次掛載本來就會播
+    setRound(r => r + 1)
+  }, [score])
+  return (
+    <div className="meter">
+      <div key={round} style={{ '--meter-to': `${score}%` }} />
     </div>
   )
 }
@@ -159,10 +193,58 @@ export function PhotoImg({ src, style }) {
 }
 
 // 浮動提示（Toast）
+// ⚠️ 「有進場沒離場」是最常見的半套動畫：使用者的大腦記住了它是滑上來的，
+// 於是預期它滑下去；1.8 秒後「啪」地消失會產生一種說不上來的粗糙感。
+// 作法：toast 轉 null 時不立刻卸載，先保留最後一則內容播離場，動畫結束才真的移除。
 export function Toast() {
   const { toast } = useNav()
-  if (!toast) return null
-  return <div className="toast">{toast}</div>
+  const [shown, setShown] = useState(null)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    if (toast) { setShown(toast); setLeaving(false) }
+    else setLeaving(l => (shown ? true : l))
+  }, [toast])          // eslint-disable-line react-hooks/exhaustive-deps
+  if (!shown) return null
+  return (
+    <div className={`toast${leaving ? ' out' : ''}`} role="status"
+      onAnimationEnd={() => { if (leaving) { setShown(null); setLeaving(false) } }}>
+      {shown}
+    </div>
+  )
+}
+
+// 蓋印章：成功回饋的品牌動作（註冊成功／發佈成功／下單成功）。
+// 由 nav 的 setStamp(訊息) 觸發，1.4 秒後自動收。
+export function StampMark() {
+  const { stamp } = useNav()
+  if (!stamp) return null
+  return (
+    <div className="stamp-layer" role="status" aria-live="polite">
+      <div className="stamp-box">
+        <div className="stamp-seal seal-stamp"><Seal badge alt="" /></div>
+        <div className="stamp-tx">{stamp}</div>
+      </div>
+    </div>
+  )
+}
+
+// 底部彈出面板的遮罩層 —— 統一處理「離場動畫跑完才卸載」。
+//
+// ⚠️ 為什麼要有這支：原本 6 個 sheet 都是 `{open && <div className="sheet-mask">…}`，
+//    關閉時直接從 DOM 拔掉。有進場沒離場，收起來像被剪斷。
+//    這裡用 render prop 把「開始關閉」的函式交給內容，內部的 ✕ 鈕才能一起播動畫。
+//
+// 用法：<SheetMask onClose={() => setOpen(false)}>{close => <div className="sheet">…</div>}</SheetMask>
+export function SheetMask({ onClose, children }) {
+  const [leaving, setLeaving] = useState(false)
+  const close = () => setLeaving(true)
+  return (
+    <div className={`sheet-mask${leaving ? ' out' : ''}`} onClick={close}
+      /* 只認遮罩自己的動畫；.sheet 的離場動畫會冒泡上來，要濾掉否則會提早卸載 */
+      onAnimationEnd={(e) => { if (leaving && e.target === e.currentTarget) onClose() }}>
+      {typeof children === 'function' ? children(close) : children}
+    </div>
+  )
 }
 
 // 頭像：有上傳的照片就顯示照片，否則回退 emoji。

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
+import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
 import { usePosts } from '../hooks/useApi.js'
@@ -24,6 +24,34 @@ export default function Feed() {
 
   const RANGE = 1095 // 可翻閱範圍：今日前後約三年（示範演算，已標註近似）
   const clampOff = (o) => Math.max(-RANGE, Math.min(RANGE, o))
+
+  // ---------- 撕曆翻頁 ----------
+  // 實體農民曆的動作是「撕」。原本翻日只是把字串換掉，這是全站最大的一筆浪費：
+  // 翻日是這個產品的靈魂互動。動畫在 rotateX 掀到最高點時「換面」，
+  // 資料其實在按下的瞬間就換好了，動畫只是蓋住那個切換點。
+  // ⚠️ .calpage 已有 min-height:318px 固定插槽，所以加動畫不會造成版面位移。
+  const [tear, setTear] = useState(null)          // 'next' | 'prev' | null
+  const go = (delta) => {
+    const next = clampOff(off + delta)
+    if (next === off) return                      // 已到邊界就不要播動畫
+    setTear(delta > 0 ? 'next' : 'prev')
+    setOff(next)
+  }
+  // 手機：上下滑動翻日，比按 ‹ › 更接近撕日曆的手勢。
+  // ⚠️ 門檻設 44px 並要求垂直位移大於水平，否則橫向捲動（作品卷軸）會誤觸。
+  const touch = useRef(null)
+  const onTouchStart = (e) => {
+    const t = e.touches[0]
+    touch.current = { x: t.clientX, y: t.clientY }
+  }
+  const onTouchEnd = (e) => {
+    const s = touch.current; touch.current = null
+    if (!s) return
+    const t = e.changedTouches[0]
+    const dy = t.clientY - s.y, dx = t.clientX - s.x
+    if (Math.abs(dy) < 44 || Math.abs(dy) <= Math.abs(dx)) return
+    go(dy < 0 ? 1 : -1)                           // 往上滑＝撕掉今天看明天
+  }
   const openCal = () => { const c = dateFromOffset(off); setCal({ y: c.getFullYear(), m: c.getMonth() }) }
   const shiftCal = (dy, dm) => setCal(c => { const dt = new Date(c.y + dy, c.m + dm, 1); return { y: dt.getFullYear(), m: dt.getMonth() } })
   // 該月是否完全超出可選範圍（用於停用整組年/月箭頭）
@@ -46,13 +74,13 @@ export default function Feed() {
         <div className="feed-main">
         {/* 翻日：‹ › 一天，點中間日期可跳任意日 */}
         <div className="daystrip">
-          <button className="side tap" onClick={() => setOff(clampOff(off - 1))} disabled={off <= -RANGE}
+          <button className="side tap" onClick={() => go(-1)} disabled={off <= -RANGE}
             style={off <= -RANGE ? { opacity: .35 } : null} aria-label="前一天">‹</button>
           <button className="mid tap" onClick={openCal}>
             <div className="big">{d.solar}</div>
             <div className="wk">{d.weekday} · {d.lunar} · {d.term} ▾</div>
           </button>
-          <button className="side tap" onClick={() => setOff(clampOff(off + 1))} disabled={off >= RANGE}
+          <button className="side tap" onClick={() => go(1)} disabled={off >= RANGE}
             style={off >= RANGE ? { opacity: .35 } : null} aria-label="後一天">›</button>
         </div>
         {/* 固定高度插槽：切換日期時不會讓下方版面跳動 */}
@@ -63,7 +91,9 @@ export default function Feed() {
         </div>
 
         {/* 今日曆頁（精簡） */}
-        <div className="calpage">
+        <div className={`calpage${tear ? ` tear-${tear}` : ''}`}
+          onAnimationEnd={() => setTear(null)}
+          onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <div className="hd">機巧時運 · 今日曆頁</div>
           <div className="gz"><div className="zi">{gzZi}<small>日</small></div></div>
           <div className="meta"><span className="term">{d.term}</span></div>
@@ -83,7 +113,14 @@ export default function Feed() {
 
           <div className="calnote">
             <span className="k">吉時</span><span className="v">{d.luckyHours}</span>
-            <span className="stars">{'★'.repeat(d.stars)}{'☆'.repeat(5 - d.stars)}</span>
+            {/* 吉日星等逐顆點亮（key 帶 off，翻日時重播）——整排同時出現沒有「揭曉」的味道 */}
+            <span className="stars" aria-label={`吉日星等 ${d.stars} 顆星`}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <i key={`${off}-${i}`} aria-hidden="true" style={{ animationDelay: `${i * 0.08}s` }}>
+                  {i < d.stars ? '★' : '☆'}
+                </i>
+              ))}
+            </span>
           </div>
           {/* 今日一諺：點一下展開白話解釋 */}
           <button className={`calnote asrow tap${provOpen ? ' on' : ''}`} aria-expanded={provOpen}
@@ -149,7 +186,7 @@ export default function Feed() {
 
       {/* 月曆跳日期選擇器：« 年  ‹ 月 | 年月 | 月 ›  年 » */}
       {cal && (
-        <div className="sheet-mask" onClick={() => setCal(null)}>
+        <SheetMask onClose={() => setCal(null)}>{close => (
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-grip" />
             <div className="cal-picker">
@@ -167,17 +204,17 @@ export default function Feed() {
                   const far = Math.abs(c.off) > RANGE
                   return (
                     <button key={i} className={`calcell tap ${c.off === off ? 'on' : ''} ${c.off === T0 ? 'today' : ''}`}
-                      disabled={far} onClick={() => { setOff(c.off); setCal(null) }}>{c.day}</button>
+                      disabled={far} onClick={() => { setOff(c.off); close() }}>{c.day}</button>
                   )
                 })}
               </div>
               <div className="pad" style={{ display: 'flex', gap: 8 }}>
-                <button className="b tap" onClick={() => { setOff(T0); setCal(null) }}>回今日</button>
-                <button className="b dark tap" onClick={() => setCal(null)}>完成</button>
+                <button className="b tap" onClick={() => { setOff(T0); close() }}>回今日</button>
+                <button className="b dark tap" onClick={close}>完成</button>
               </div>
             </div>
           </div>
-        </div>
+        )}</SheetMask>
       )}
     </>
   )

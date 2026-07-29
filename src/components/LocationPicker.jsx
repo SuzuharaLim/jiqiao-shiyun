@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api.js'
+import { SheetMask } from './ui.jsx'
 
 // 地點選擇器 —— 搜尋（OSM，經後端代理）＋ 目前位置（Geolocation）＋ 地圖預覽（代理圖磚）＋ 常用位置。
 const Z = 15
@@ -64,10 +65,10 @@ export default function LocationPicker({ onClose, onPick }) {
   }
 
   return (
-    <div className="sheet-mask" onClick={onClose}>
+    <SheetMask onClose={onClose}>{close => (
       <div className="sheet lp" onClick={e => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <div className="lp-hd">新增地點<button className="lp-close tap" onClick={onClose} aria-label="關閉">✕</button></div>
+        <div className="lp-hd">新增地點<button className="lp-close tap" onClick={close} aria-label="關閉">✕</button></div>
 
         <div className="lp-search">
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋地點（如：台北101、鹿港）" aria-label="搜尋地點" autoFocus />
@@ -104,7 +105,7 @@ export default function LocationPicker({ onClose, onPick }) {
               <div className="lp-list">
                 {favs.map(p => (
                   <div key={p.id} className="lp-item">
-                    <button className="lp-pick tap" onClick={() => { onPick({ name: p.name, lat: p.lat, lon: p.lon }); api.savePlace({ name: p.name, lat: p.lat, lon: p.lon, fav: p.fav }).catch(() => {}); onClose() }}>
+                    <button className="lp-pick tap" onClick={() => { onPick({ name: p.name, lat: p.lat, lon: p.lon }); api.savePlace({ name: p.name, lat: p.lat, lon: p.lon, fav: p.fav }).catch(() => {}); close() }}>
                       <span className="lp-ic">{p.fav ? '⭐' : '🕘'}</span>
                       <span className="lp-txt"><b>{p.name}</b></span>
                     </button>
@@ -116,9 +117,9 @@ export default function LocationPicker({ onClose, onPick }) {
             </>
           )}
 
-          <button className="lp-hide tap" onClick={() => { onPick({ name: '', lat: null, lon: null }); onClose() }}>不顯示地點</button>
+          <button className="lp-hide tap" onClick={() => { onPick({ name: '', lat: null, lon: null }); close() }}>不顯示地點</button>
         </div>
       </div>
-    </div>
+    )}</SheetMask>
   )
 }

@@ -182,6 +182,35 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 | **深色紙紋** | 只留**單向**細紋且透明度更低。雙向 `repeating-linear-gradient` 在深色會呈現「方格紙」狀。 |
 | **漸層** | 紙感語言中**印刷不會有漸層**。整修後全站已無 UI 漸層（靛青占卜卡改黛藍紙底＋金線雙框）；僅存霓虹特效那類刻意的創作特效。 |
 
+## 動效（2026-07-29 依動效銳評整批補上）
+
+整修前：1,237 行 CSS 只有 7 個 transition，其中 5 個是開關／進度條／快門這種功能件；
+主要瀏覽動線（翻日、切分頁、開詳情、按讚、切主題）**全部瞬間硬切**。現在的規則：
+
+| 項目 | 規則 |
+| --- | --- |
+| **時長** | 一律用 `--m-fast`(.13s 按壓/hover/開關)／`--m-base`(.26s 進場/分頁)／`--m-slow`(.44s 撕曆/印章/揭曉)。**不要每支各寫各的秒數**——同畫面出現 4 種速度，體感會「散」。 |
+| **曲線** | `--e-out`(進場收斂)／`--e-spring`(回彈：指示條、開關)／`--e-in`(離場加速)。 |
+| **按壓分級** | `.tap` 預設 `scale(.92)`；**大面積元素（`.tool`/`.coverbig`/`.railcard`/按鈕）改「輕縮 .985 ＋ 換底／壓亮度」**。340px 寬的 ToolRow 縮 10% 等於整條塌 34px，看起來像壞掉不像回饋。 |
+| **招牌動作** | 翻日＝**撕曆**（`.calpage.tear-next/prev`，rotateX 在 38%→39% 翻面）；成功＝**蓋印章**（`setStamp()` → `StampMark`，用在註冊/發佈/下單/掃描辨識）。 |
+| **reduce-motion** | 全域 `*` 覆蓋已涵蓋所有新動畫，不必逐支處理。**但功能性指示要給靜態替代**：`.typing` 三點改顯示「思考中…」、`.scan-line` 直接隱藏（全域 `animation-iteration-count:1` 會讓它們凍結在某一格，看起來像壞掉）。 |
+
+**動效雷區（每一條都是實測踩到的）**：
+
+- **新增 CSS 變數前先 grep 有沒有撞名**：動效 token 原本叫 `--t-fast/--t-base/--t-slow`，但 `tokens.css` 後面有一整排 `--t-*` 是**字級**的舊別名，`--t-base: var(--text-base)` 定義在後面直接覆蓋掉 → 所有 260ms 的動畫讀到 `1.125rem`（無效值）而**完全沒有過場**。撞名不會有任何錯誤訊息，只會安靜地失效。現已改名 `--m-*`。
+- **`.rootpane` 是 `display:contents`，動畫掛上去完全無效**（不產生盒子）。分頁進場動畫要掛在真正有盒子的 `.rootpane > .body`。
+- **`translateX(百分比)` 是相對「元素自己的寬度」不是父層**：底部分頁指示條若做成 24px 寬再 `translateX(100%/6)`，位移只有 4px（24÷6），看起來像原地抖一下。作法是把指示條做成**一格寬**（`100%/6`），`translateX(100% × 序號)` 剛好一格，那條 24px 短線用 `background-position:center` 畫在格子裡。
+- **CSS transition 做不出「從 0 揭曉」**，三種寫法都失敗（詳見 `ui.jsx` 的 `Meter`）：(1) `useState`+`rAF`——effect 在 commit 後 paint 前跑，rAF 也在同一幀被吃掉，瀏覽器沒畫出 0 那一格，結果是從「上一個分數」滑過去；(2) 寫 0% ＋ reflow——transition 還開著時寫 0% 是「開始一段往 0 的過場」，下一行寫真值時起點還在舊值；(3) 關 transition→寫 0→reflow→開 transition→寫真值——起點對了但瀏覽器仍以 `transition:none` 當變更前樣式，寬度直接跳到終點。**正解是改用 `animation` ＋ React `key` 重掛載**：keyframes 自己定義起訖，沒有「變更前樣式」這回事。
+- **曲線太前傾等於白做**：`cubic-bezier(.22,1,.3,1)` 在 1s 動畫裡 **80ms 就跑到終點**，動畫確實有跑但看起來仍是瞬間就位。揭曉類要用 easeOutCubic `cubic-bezier(.33,1,.68,1)`。
+- **捲動進場只掃一次會掃到空 DOM**：作品／貼文是 fetch 回來才渲染的，切頁當下 `querySelectorAll` 找不到任何卡片（實測探索頁 12 張一個都沒被觀察到，整頁進場失效）。要配 `MutationObserver` 補掃後來出現的節點。
+- **「有進場沒離場」是最常見的半套動畫**：使用者記住它是滑上來的，就預期它滑下去。Toast／Sheet 都改成「播完離場動畫才卸載」——Toast 自己保留最後一則內容，6 個 sheet 統一走 `SheetMask`（render prop 把 `close()` 交給內容，內部的 ✕ 鈕才能一起播）。**遮罩與面板的離場時長必須一致**，遮罩先結束會把面板攔腰卸載。
+- **`onAnimationEnd` 要濾 `e.target === e.currentTarget`**：子元素的動畫會冒泡上來，不濾就會提早卸載。
+- **無限循環動畫要能暫停**：`.atx.karaoke`/`.atx.neon` 是「每個字一條無限動畫」，一行 20 字＝20 條，`neonpop` 還在動 `text-shadow`（純 paint 最貴）。預設 `animation-play-state:paused`，由 `IntersectionObserver` 在進入視野時才加 `.atx-play`。
+- **動 `left`/`top` 每幀都要重算版面**，`transform` 只需 GPU 合成。掃描線是無限循環又疊在即時 `<video>` 上，最不該浪費主執行緒——已改 `translateY(100cqh)`（`.scan-frame` 設 `container-type:size`），並用 `@supports` 對舊瀏覽器保留動 `top` 的退路。
+- **主題切換用 View Transition API 圓形擴散**：`toggleTheme(ev)` **要把事件物件傳進去**（圓心＝按鈕被按到的位置）；不支援的瀏覽器（Firefox）與 reduce-motion 自動退回瞬切。CSS 必須關掉 `::view-transition-old/new(root)` 的預設交叉淡入，否則圓形遮罩邊緣會糊掉。
+- **量「置中」不要拿 `innerWidth/2` 當基準**：`position:fixed` 元素只涵蓋 layout viewport（不含 15px 捲軸），中心會差半個捲軸寬＝7.5px，會被誤判成沒置中。
+- **稽核重疊時只能量「最上層」**：手機上 `.screen` 是 `position:absolute` 蓋在 `.rootpane` 上，兩層一起量會把「疊在下面的首頁」全判成重疊（實測 34 頁跑出上百筆假警報）。另外 `.body` 是 `overflow:auto`，捲出可視範圍的元素其 rect 仍在原處，也要排除。
+
 ## 慣例與雷區（改動前務必知道）
 
 - **水平內距全站統一 `var(--space-4)`（16px），不可再寫 12/13/14/15**：整修前 `.pad`14／`.sech`14／`.tool`14／`.opt`14／`.strip`14／`.railhd`15／`.thumbs`12／`.aicard`15／`.sumcard`14 加上 JSX 裡十幾處 inline 12/13，同一頁會出現 3~5 條不同的內容左緣＝「看起來不對稱」。現在只剩 0（滿版列）／16（版心）／24（空狀態）／32（卡片內文＝16 margin＋16 padding）。

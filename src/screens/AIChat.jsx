@@ -6,6 +6,22 @@ import { api } from '../api.js'
 import { aiOpenFor, aiQuickRepliesFor, aiReply } from '../data/mock.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
+// AI 回覆逐句浮現。
+// ⚠️ 整段瞬間出現會讓人覺得「這是預先寫好的罐頭」——對一個叫「AI 時光顧問」
+//    的功能，這個印象是致命的。但也不要真的逐字打（太慢、讀起來卡）：
+//    逐句就夠了，既有生成感又不拖時間。純呈現層，不動資料流。
+function AiMsg({ text }) {
+  // 依中英句末標點斷句；保留標點（lookbehind 分割）
+  const parts = String(text).split(/(?<=[。！？!?\n])/).filter(Boolean)
+  return (
+    <div className="msg ai">
+      {parts.map((s, i) => (
+        <span key={i} className="seg" style={{ animationDelay: `${i * 0.16}s` }}>{s}</span>
+      ))}
+    </div>
+  )
+}
+
 export default function AIChat() {
   const { setToast } = useNav()
   const today = dayFor(todayOffset())   // 真實今日運勢
@@ -20,7 +36,9 @@ export default function AIChat() {
 
   useEffect(() => {
     const el = scroller.current
-    if (el) el.scrollTop = el.scrollHeight
+    // ⚠️ 平滑捲動而非瞬跳：訊息本身有進場動畫，捲動如果是瞬間的，
+    //    會看到「訊息還在浮上來、畫面已經跳到底」兩種節奏打架。
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [msgs, typing])
 
   const send = async (t) => {
@@ -62,7 +80,9 @@ export default function AIChat() {
       </div>
 
       <div className="chat" ref={scroller}>
-        {msgs.map((m, i) => <div key={i} className={`msg ${m.who}`}>{m.text}</div>)}
+        {msgs.map((m, i) => (m.who === 'ai'
+          ? <AiMsg key={i} text={m.text} />
+          : <div key={i} className={`msg ${m.who}`}>{m.text}</div>))}
         {typing && <div className="typing"><i /><i /><i /></div>}
       </div>
 

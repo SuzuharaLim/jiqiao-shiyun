@@ -11,7 +11,7 @@ const PICK = ['🚚 宅配到府', '🏪 超商取貨', '🏬 門市自取']
 const INV = ['🧾 手機載具', '🧾 自然人憑證', '🏢 公司統編', '❤️ 捐贈發票']
 
 export default function Checkout() {
-  const { pop, popAll, setToast, cart, clearCart, removeFromCart, subscribed, addOrder, requireAccount } = useNav()
+  const { pop, popAll, setToast, setStamp, cart, clearCart, removeFromCart, subscribed, addOrder, requireAccount } = useNav()
   // ⚠️ 原本是 `cart.length ? cart : checkoutItems`——購物車空的時候會塞三筆
   // 示範商品（合計 NT$630），使用者會看到自己從沒加入的東西。只吃真實購物車。
   const items = cart
@@ -40,7 +40,8 @@ export default function Checkout() {
       })
       clearCart()
       popAll()
-      setToast('付款成功 🎉 訂單已建立，確認信已寄出')
+      setStamp('訂單成立')
+      setToast('訂單已建立，確認信已寄出')
     } catch (e) {
       setToast(e.message || '建立訂單失敗，請稍後再試')   // 失敗不清購物車，可重試
     } finally {

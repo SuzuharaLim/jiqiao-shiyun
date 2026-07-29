@@ -39,6 +39,11 @@ a { color:inherit; text-decoration:none; }
 .webnav, .webfoot { display:none; }
 /* 根分頁包裹層：預設對版面透明（手機維持 device 的 flex 直排）；桌機有堆疊畫面時隱藏 */
 .rootpane { display:contents; }
+/* ⚠️ .rootpane 是 display:contents——它不產生盒子，動畫掛在它身上完全無效。
+   分頁切換的進場動畫必須掛在真正有盒子的 .body 上。
+   （App.jsx 給 rootpane key={tab}，切分頁時整棵重新掛載，動畫才會重播。） */
+.rootpane > .body { animation:paneIn var(--m-base) var(--e-out); }
+@keyframes paneIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 @media (min-width:900px) and (min-height:600px) {
   /* 版面：頂部橫向導覽列（滿版）＋ 下方置中內容欄，像一般網站 */
   /* 整頁捲動（像網站）：整頁單一連續平面，內容直接坐在頁面上（不做浮起卡片＝避免「頁面裡有頁面」） */
@@ -62,8 +67,12 @@ a { color:inherit; text-decoration:none; }
     position:relative; }
   .wn-link:hover { background:var(--field); color:var(--text); }
   .wn-link.on { color:var(--cinnabar); }
-  .wn-link.on::after { content:''; position:absolute; left:15px; right:15px; bottom:-1px; height:2.5px;
-    border-radius:2px; background:var(--cinnabar); }
+  /* ⚠️ 底線畫在 .wn-link 自己身上（不是 .on），用 scaleX 由中間展開。
+     原本只在 .on 時才存在 ::after，切分頁時是「消失／出現」，沒有位移感。 */
+  .wn-link::after { content:''; position:absolute; left:15px; right:15px; bottom:-1px; height:2.5px;
+    border-radius:2px; background:var(--cinnabar);
+    transform:scaleX(0); transform-origin:center; transition:transform var(--m-base) var(--e-spring); }
+  .wn-link.on::after { transform:scaleX(1); }
   .wn-right { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
   .wn-icon { width:38px; height:38px; border-radius:2px; display:flex; align-items:center; justify-content:center;
     font-size:var(--text-base); border:1px solid var(--line2); background:var(--bg); position:relative; }
@@ -92,7 +101,11 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .body { overflow:visible; height:auto; flex:0 0 auto; }
   .stage.signed-in .rootpane { display:contents; }
   .stage.signed-in .device.has-stack .rootpane { display:none; }
-  .stage.signed-in .screen { position:static; inset:auto; animation:none; z-index:auto; }
+  /* ⚠️ 桌機不要手機那種橫向 slidein（整頁捲動的版面橫移很怪），
+     但也不能完全沒有過場——切頁配上 scrollTo(0,0) 體感會很閃。
+     改用與分頁一致的 260ms 淡入上浮。 */
+  .stage.signed-in .screen { position:static; inset:auto; z-index:auto;
+    animation:paneIn var(--m-base) var(--e-out); }
   /* 桌機隱藏各根分頁自帶頂列（通知/私訊/設定已移到網站導覽列），內容直接貼齊導覽列下方 */
   .stage.signed-in .rootpane .topbar { display:none; }
   /* 堆疊（詳情）畫面頂列黏在網站導覽列下方，捲動時仍可返回；與頁面同底、不做成獨立卡片。
@@ -117,6 +130,21 @@ a { color:inherit; text-decoration:none; }
   .wf-links { display:flex; gap:6px 18px; flex-wrap:wrap; flex:1; }
   .wf-links button { font-size:var(--text-xs); color:var(--muted); font-weight:600; }
   .wf-links button:hover { color:var(--cinnabar); }
+
+  /* ---------- 桌機 hover 過場（動效銳評 §11）----------
+     原本全站 7 條 :hover 只有 2 條有 transition，其餘顏色/邊框都是瞬跳。
+     滑鼠是連續移動的裝置，瞬跳會讓人覺得介面「硬」。 */
+  .wn-link, .wn-icon, .wn-user, .wn-logout, .wf-links button {
+    transition:background-color var(--m-fast) var(--e-out),
+               color var(--m-fast) var(--e-out),
+               border-color var(--m-fast) var(--e-out); }
+
+  /* .railcard 在桌機是可點卡片，卻完全沒有 hover 狀態＝看不出可以點進去。
+     ⚠️ 只在桌機給——手機沒有 hover，靠 .tap:active 就好。 */
+  .stage.signed-in .railcard { transition:transform var(--m-base) var(--e-out); }
+  .stage.signed-in .railcard .ph { overflow:hidden; transition:box-shadow var(--m-base) var(--e-out); }
+  .stage.signed-in .railcard:hover { transform:translateY(-4px); }
+  .stage.signed-in .railcard:hover .ph { box-shadow:0 12px 26px rgba(90,60,30,.16); }
   .wf-copy { flex:0 0 100%; font-size:var(--text-xs); color:var(--muted); border-top:1px solid var(--line);
     padding-top:14px; }
 }
@@ -456,8 +484,49 @@ a { color:inherit; text-decoration:none; }
   stroke-linecap:round; stroke-linejoin:round; display:block; }
 .ic.fill { fill:var(--text); }
 .ic.heart-on { fill:var(--heart); stroke:var(--heart); }
-.tap { transition:transform .08s ease, opacity .15s; }
-.tap:active { transform:scale(.9); opacity:.6; }
+/* ---------- 按讚／收藏／追蹤：全站被觸發最多次的互動 ----------
+   這三個是使用者「主動給出情緒」的動作，沒有回饋等於情緒落空。
+   原本只換顏色，按了跟沒按一樣。三者共用同一組 keyframes 才有系統感。 */
+.ic.heart-on { animation:heartPop var(--m-slow) cubic-bezier(.2,.9,.3,1.4); }
+/* 收藏（加入月曆）與追蹤是文字按鈕，不是圖示——共用同一組 keyframes 但幅度收斂，
+   免得整顆按鈕彈太大。class 由 on/off 切換時動畫自然觸發，不需額外的 state。 */
+.pill.on, .b:not(.dark) { animation:tapPop var(--m-base) cubic-bezier(.2,.9,.3,1.3); }
+@keyframes tapPop { 0%{transform:scale(1)} 40%{transform:scale(.96)} 70%{transform:scale(1.04)} 100%{transform:scale(1)} }
+@keyframes heartPop {
+  0%   { transform:scale(1); }
+  30%  { transform:scale(.82); }
+  55%  { transform:scale(1.25); }
+  100% { transform:scale(1); }
+}
+/* 計數用等寬數字：否則 +1 進位時（99→100）左右會抖一下 */
+.ph-like, .likecount, .cap2 b, .nums b, .stat b { font-variant-numeric:tabular-nums; }
+/* ---------- 按壓回饋：必須依元素尺寸分級 ----------
+   ⚠️ 全站一律 scale(.9) 是最明顯的破綻：對 24px 圖示鈕剛剛好，
+   但 .tap 也套在整條 ToolRow(340px 寬)、整張 .coverbig banner、.railcard 上——
+   340px 縮 10% 等於整條往內塌 34px，看起來不像「按下去」，像壞掉。
+   再加上 opacity:.6 讓文字同時變淡，兩個訊號疊在一起太吵。
+   規則：小元素靠縮放、大元素靠換底色/亮度，兩者都不再壓 opacity。 */
+.tap { transition:transform var(--m-fast) var(--e-out), opacity .15s; }
+.tap:active { transform:scale(.92); opacity:.72; }
+
+/* 大面積元素：輕縮 1.5% + 換底／壓亮度，不塌陷、不變淡 */
+.tool.tap, .ad-more.tap, .coverbig.tap, .feedchal.tap,
+.railcard.tap, .b.tap, .btn-primary.tap, .btn-ghost.tap, .auth-btn.tap, .plan.tap {
+  transition:transform var(--m-fast) var(--e-out), background-color var(--m-fast), filter var(--m-fast);
+}
+.tool.tap:active, .ad-more.tap:active, .b.tap:active, .plan.tap:active {
+  transform:scale(.985); opacity:1; background:var(--field); }
+.coverbig.tap:active, .feedchal.tap:active {
+  transform:scale(.985); opacity:1; filter:brightness(.94); }
+.railcard.tap:active { transform:scale(.97); opacity:1; }
+.btn-primary.tap:active, .auth-btn.tap:active { transform:scale(.985); opacity:1; filter:brightness(.92); }
+.btn-ghost.tap:active { transform:scale(.985); opacity:1; background:var(--field); }
+
+/* 「選中狀態」的元件也該有過場——否則點 chip／節氣輪／月曆格是顏色瞬跳 */
+.chip, .termwheel .tm, .calcell, .seg, .pill, .ct-opt, .qchip, .fsel {
+  transition:background-color var(--m-fast) var(--e-out),
+             color var(--m-fast) var(--e-out),
+             border-color var(--m-fast) var(--e-out); }
 
 /* ---------- top bar ---------- */
 .topbar {
@@ -583,7 +652,9 @@ a { color:inherit; text-decoration:none; }
 /* ---------- tool row ---------- */
 .tool { display:flex; align-items:center; gap:12px; padding:12px var(--space-4);
   border-bottom:1px solid var(--line); width:100%; text-align:left; background:var(--bg); }
-.tool:active { background:var(--field); }
+/* ⚠️ .tool 的按壓底色已由上方 `.tool.tap:active` 統一處理（含輕縮）。
+   這裡只保留給「沒有掛 .tap」的 .tool，避免兩條規則各自為政。 */
+.tool:not(.tap):active { background:var(--field); }
 .ti { width:38px; height:38px; border-radius:2px; display:flex; align-items:center;
   justify-content:center; font-size:var(--text-base); flex:0 0 auto; }
 .tn2 { flex:1; min-width:0; }
@@ -594,9 +665,11 @@ a { color:inherit; text-decoration:none; }
 .sw { width:42px; height:24px; border-radius:var(--space-4); background:var(--line2); position:relative;
   flex:0 0 auto; transition:background .18s; display:inline-block; cursor:pointer; }
 .sw.on { background:var(--yi); }
+/* ⚠️ 用 transform 不用 left：動 left 每一幀都要重算版面（layout→paint→composite），
+   transform 只需 composite，由 GPU 處理。順帶用回彈曲線讓開關更有實體感。 */
 .sw i { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
-  background:#fff; transition:left .18s; }
-.sw.on i { left:20px; }
+  background:#fff; transition:transform var(--m-fast) var(--e-spring); }
+.sw.on i { transform:translateX(18px); }
 
 /* ---------- chat ---------- */
 .chat { flex:1; min-height:0; padding:14px 12px; display:flex; flex-direction:column;
@@ -608,6 +681,14 @@ a { color:inherit; text-decoration:none; }
   border-bottom-left-radius:5px; }
 .msg.me { align-self:flex-end; background:var(--primary); color:var(--pfg);
   border-bottom-right-radius:5px; }
+/* 訊息進場：原本是硬生生插進列表 */
+.msg { animation:msgIn var(--m-base) var(--e-out); }
+@keyframes msgIn { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:none; } }
+/* AI 回覆逐句浮現（延遲由 AIChat.jsx 的 AiMsg 逐句掛上）。
+   ⚠️ display:inline 不可改成 inline-block——那會讓句子無法在中間換行，
+      長回覆會撐出橫向捲軸。 */
+.msg.ai .seg { display:inline; opacity:0; animation:segIn .38s ease forwards; }
+@keyframes segIn { from { opacity:0 } to { opacity:1 } }
 .typing { align-self:flex-start; background:var(--chip); border-radius:16px;
   border-bottom-left-radius:5px; padding:var(--space-4) 15px; display:flex; gap:4px; }
 .typing i { width:7px; height:7px; border-radius:50%; background:var(--muted);
@@ -711,7 +792,21 @@ a { color:inherit; text-decoration:none; }
 
 /* fortune result meter */
 .meter { height:12px; border-radius:6px; background:var(--chip); overflow:hidden; margin-top:8px; }
-.meter > div { height:100%; background:linear-gradient(90deg,var(--gold-hi),var(--cinnabar)); }
+/* ⚠️ 占卜的價值在「揭曉」：分數瞬間就位＝答案早就寫好了；
+   從 0 跑上去＝正在為你推算。同一份資料、完全不同的心理體驗。
+   （對照組：.bar > div 進度條本來就有 transition，這裡反而漏了。） */
+/* 用 animation 而非 transition，重播交給 React 的 key（詳見 ui.jsx 的 Meter）。
+   --meter-to 由元件以 inline style 給定。 */
+.meter > div { height:100%; background:linear-gradient(90deg,var(--gold-hi),var(--cinnabar));
+  width:var(--meter-to, 0%);
+  /* ⚠️ 曲線不可用 cubic-bezier(.22,1,.3,1)：那條太前傾，實測 80ms 就跑到終點，
+     動畫其實有跑但看起來仍是「瞬間就位」，等於白做。揭曉要看得見過程，
+     用 easeOutCubic：200ms 約走一半、500ms 約 87%。 */
+  animation:meterFill .9s cubic-bezier(.33,1,.68,1) both; }
+@keyframes meterFill { from { width:0 } to { width:var(--meter-to, 0%) } }
+/* 多條並列時依序推算，不要三條一起衝到底 */
+.meter:nth-of-type(2) > div { animation-delay:.12s; }
+.meter:nth-of-type(3) > div { animation-delay:.24s; }
 
 .empty { padding:50px 24px; text-align:center; color:var(--muted); font-size:var(--text-xs); }
 .empty .big { font-size:var(--text-3xl); margin-bottom:12px; }
@@ -723,6 +818,9 @@ a { color:inherit; text-decoration:none; }
   white-space:normal; width:max-content; max-width:86%; text-align:center; }
 [data-theme="dark"] .toast { background:rgba(255,255,255,.92); color:#000; }
 @keyframes pop { from{ opacity:0; transform:translate(-50%,8px);} to{opacity:1;transform:translate(-50%,0);} }
+/* 離場：淡出並微微上飄，收得乾淨（元件在動畫結束後才真的卸載，見 ui.jsx 的 Toast） */
+.toast.out { animation:toastOut .22s var(--e-in) forwards; }
+@keyframes toastOut { to { opacity:0; transform:translate(-50%,-8px) scale(.97); } }
 
 /* screen slide-in */
 .screen { position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column;
@@ -779,8 +877,25 @@ a { color:inherit; text-decoration:none; }
 .tabbtn.on .tablbl { color:var(--cinnabar); }
 .tabbtn.on .ic { stroke:var(--cinnabar); }
 .tabbtn.on .ic.fill { fill:var(--cinnabar); stroke:var(--cinnabar); }
-.tabbtn.on::before { content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
-  width:24px; height:2.5px; border-radius:0 0 3px 3px; background:var(--cinnabar); }
+/* ⚠️ 指示條由「各按鈕自己的 ::before」改成 tabbar 上唯一一條，用 transform 滑動。
+   位置由 TabBar 的 --ink-x 提供（見 ui.jsx）。方向感明確，也少了 5 個偽元素。 */
+.tabbtn.on::before { content:none; }
+.tabbar { position:relative; }
+/* ⚠️ translateX 的百分比是相對「元素自己的寬度」，不是父層。
+   若把指示條做成 24px 寬再 translateX(100%/6)，位移只有 4px（24÷6）——
+   看起來像原地抖一下。所以指示條本體做成「一格寬」（100%/6），
+   translateX(100% × 分頁序) 剛好就是一格；那條 24px 的短線用 background
+   置中畫在格子裡。這樣純 CSS、走 transform，也不需要量測像素。 */
+.tabbar::before {
+  content:''; position:absolute; top:0; left:0; height:2.5px; width:calc(100% / 6);
+  background-image:linear-gradient(var(--cinnabar), var(--cinnabar));
+  background-size:24px 100%; background-position:center; background-repeat:no-repeat;
+  border-radius:0 0 3px 3px;
+  transform:translateX(calc(100% * var(--ink-i, 0)));
+  transition:transform var(--m-base) var(--e-spring); }
+/* 圖示微彈，強化「選到這一格」 */
+.tabbtn .ic { transition:transform var(--m-base) var(--e-spring); }
+.tabbtn.on .ic { transform:translateY(-2px) scale(1.1); }
 
 /* 個人檔案分頁底線改朱紅 */
 .pf-tabs .on { border-bottom-color:var(--cinnabar); }
@@ -811,7 +926,15 @@ a { color:inherit; text-decoration:none; }
    壓成 0.01ms、或在不合成畫面的環境下未推進，元素就會停在 from 的
    translateY(24px)——底部彈出的 sheet 會露出視窗外 24px。
    fill-mode:forwards 確保任何情況下都落在終態。 */
-@keyframes slideup { from{ transform:translateY(24px); opacity:.5 } to{ transform:translateY(0); opacity:1 } }
+/* ⚠️ 原本只從 24px 外滑進來，幅度太小、看起來像「抖一下」而不是彈出。
+   bottom sheet 該從「自身高度之外」滑進來（translateY 100%）才有實體感。 */
+@keyframes slideup { from{ transform:translateY(100%) } to{ transform:translateY(0) } }
+/* 離場：面板滑回畫面外、遮罩淡出（由 SheetMask 掛 .out，動畫結束才卸載）。
+   ⚠️ 兩者時長必須一致：遮罩先結束的話面板會被攔腰卸載。 */
+.sheet-mask.out { animation:maskOut .24s var(--e-in) forwards; }
+@keyframes maskOut { to { opacity:0 } }
+.sheet-mask.out .sheet { animation:sheetOut .24s var(--e-in) forwards; }
+@keyframes sheetOut { to { transform:translateY(100%) } }
 .sheet::-webkit-scrollbar{ width:0; }
 .sheet-grip { width:40px; height:4px; border-radius:2px; background:var(--line2); margin:8px auto 4px; }
 
@@ -929,6 +1052,64 @@ a { color:inherit; text-decoration:none; }
 .calnote .k { color:var(--muted); flex:0 0 auto; font-weight:700; }
 .calnote .v { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .calnote .stars { color:var(--gold); letter-spacing:2px; flex:0 0 auto; }
+/* 星等逐顆點亮：整排同時出現沒有「揭曉」的味道 */
+.calnote .stars i { font-style:normal; display:inline-block;
+  opacity:0; transform:scale(.4);
+  animation:starPop .34s var(--e-spring) forwards; }
+@keyframes starPop { to { opacity:1; transform:scale(1); } }
+
+/* ══════════════ 撕曆翻頁（動效銳評 §02，招牌動作）══════════════
+   實體農民曆的動作是「撕」——原本翻日只是把字串換掉，是全站最大的一筆浪費。
+   ⚠️ 38%→39% 之間旋轉方向瞬間翻面，那一格就是「換頁」的瞬間；
+      React 的資料在按下時就換好了，動畫只是蓋住切換點，不需要延遲更新資料。
+   ⚠️ 前後翻的方向必須相反，否則使用者感覺不出「往回翻」。 */
+.feed-main { perspective:1200px; }
+.calpage.tear-next { transform-origin:top center; animation:tearNext var(--m-slow) cubic-bezier(.4,0,.25,1); }
+.calpage.tear-prev { transform-origin:top center; animation:tearPrev var(--m-slow) cubic-bezier(.4,0,.25,1); }
+@keyframes tearNext {
+  0%   { transform:rotateX(0); opacity:1; }
+  38%  { transform:rotateX(-62deg); opacity:.55; box-shadow:0 22px 26px rgba(18,57,98,.22); }
+  39%  { transform:rotateX(58deg); opacity:.45; }
+  100% { transform:rotateX(0); opacity:1; }
+}
+@keyframes tearPrev {
+  0%   { transform:rotateX(0); opacity:1; }
+  38%  { transform:rotateX(58deg); opacity:.5; }
+  39%  { transform:rotateX(-58deg); opacity:.45; box-shadow:0 22px 26px rgba(18,57,98,.22); }
+  100% { transform:rotateX(0); opacity:1; }
+}
+
+/* ---------- 宜忌 stagger（動效銳評 §03）----------
+   宜忌是一組短標籤，天生適合依序浮上：眼睛會自然地由左往右讀。
+   這不只是好看，是閱讀引導。用 nth-child 就好，不必動 JSX 或 JS。 */
+.yiji .ty, .yiji .tn, .yjcols .it > *, .ad-yj .ty, .ad-yj .tn {
+  opacity:0; transform:translateY(6px);
+  animation:chipIn .34s var(--e-out) forwards; }
+@keyframes chipIn { to { opacity:1; transform:none; } }
+
+/* 桌機捲動進場（class 由 App.jsx 的 IntersectionObserver 掛上，只在 ≥900px 啟用）。
+   ⚠️ 用 transition 不用 animation：元素可能在觀察器建立前就已在視野內，
+      transition 只要 class 一加就會從當前狀態過去，不會有「先閃一下」的問題。 */
+.reveal { opacity:0; transform:translateY(14px);
+  transition:opacity .5s var(--e-out), transform .5s var(--e-out); }
+.reveal.in { opacity:1; transform:none; }
+.yiji .ty:nth-child(2), .yiji .tn:nth-child(2),
+.yjcols .it > *:nth-child(2), .ad-yj .ty:nth-child(2), .ad-yj .tn:nth-child(2) { animation-delay:.03s; }
+.yiji .ty:nth-child(3), .yiji .tn:nth-child(3),
+.yjcols .it > *:nth-child(3), .ad-yj .ty:nth-child(3), .ad-yj .tn:nth-child(3) { animation-delay:.06s; }
+.yiji .ty:nth-child(4), .yiji .tn:nth-child(4),
+.yjcols .it > *:nth-child(4), .ad-yj .ty:nth-child(4), .ad-yj .tn:nth-child(4) { animation-delay:.09s; }
+.yiji .ty:nth-child(n+5), .yiji .tn:nth-child(n+5),
+.yjcols .it > *:nth-child(n+5), .ad-yj .ty:nth-child(n+5), .ad-yj .tn:nth-child(n+5) { animation-delay:.12s; }
+/* 三柱干支、吉神方位、十二時辰同樣是格狀資訊，共用同一種依序浮現 */
+.ad-gz > *, .ad-dirs > *, .ad-hours > * {
+  opacity:0; animation:chipIn .34s var(--e-out) forwards; }
+.ad-gz > *:nth-child(2), .ad-dirs > *:nth-child(2) { animation-delay:.04s; }
+.ad-gz > *:nth-child(3), .ad-dirs > *:nth-child(3) { animation-delay:.08s; }
+.ad-gz > *:nth-child(n+4), .ad-dirs > *:nth-child(n+4) { animation-delay:.12s; }
+.ad-hours > *:nth-child(n+2) { animation-delay:.03s; }
+.ad-hours > *:nth-child(n+5) { animation-delay:.06s; }
+.ad-hours > *:nth-child(n+9) { animation-delay:.09s; }
 
 /* 曆頁下的動作鈕列 */
 .calacts { display:flex; gap:9px; padding:12px var(--space-4) 4px; }
@@ -1036,7 +1217,10 @@ a { color:inherit; text-decoration:none; }
 .auth-splash { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
 .auth-splash .ba-seal { width:54px; height:54px; border-radius:2px; background:var(--primary); color:var(--pfg);
   font-family:var(--serif); font-size:var(--text-2xl); font-weight:800; display:flex; align-items:center; justify-content:center;
-  animation:pulse 1.2s ease-in-out infinite; }
+  animation:sealBreath 1.6s ease-in-out infinite; }
+/* ⚠️ 原本是 opacity 1↔.5 的單純閃爍，看起來像壞掉／載入失敗。
+   改成印章的「呼吸」：輕微縮放＋小幅透明度，讀起來是「正在運作」。 */
+@keyframes sealBreath { 0%,100% { transform:scale(1); opacity:1 } 50% { transform:scale(.96); opacity:.75 } }
 @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:.5 } }
 
 /* 錯誤邊界備援畫面 */
@@ -1047,6 +1231,23 @@ a { color:inherit; text-decoration:none; }
   box-shadow:0 6px 18px rgba(200,53,43,.30); }
 .err-boundary .eb-title { font-family:var(--serif); font-size:var(--text-lg); font-weight:800; margin:6px 0 0; }
 .err-boundary .eb-sub { color:var(--muted); font-size:var(--text-sm); margin:0 0 8px; line-height:1.7; }
+/* ---------- 登入頁進場（動效銳評「三個結構性觀察」之一）----------
+   App.jsx 在 !user 時整站只渲染 <Auth />——也就是打開 chengqi.tw 的每一個人，
+   100% 都會先看到這一頁，而它原本是完全靜態的。
+   四段 stagger 約 900ms：印章落下 → 標題 → 副標 → 表單依序上浮。
+   這是把「未完成的 demo」翻轉成「有人在細心經營的產品」成本最低的一筆。
+   ⚠️ 全部用 `both` fill-mode：動畫開始前停在 from、結束後停在 to，
+      不會出現「延遲期間先閃一下完整樣子」。 */
+.auth-seal { animation:sealIn .55s cubic-bezier(.2,.9,.25,1.3) both; }
+.auth-title { animation:riseIn .5s .22s var(--e-out) both; }
+.auth-sub { animation:riseIn .5s .34s var(--e-out) both; }
+.auth-form > * { animation:riseIn .46s var(--e-out) both; }
+.auth-form > *:nth-child(1) { animation-delay:.42s; }
+.auth-form > *:nth-child(2) { animation-delay:.48s; }
+.auth-form > *:nth-child(3) { animation-delay:.54s; }
+.auth-form > *:nth-child(n+4) { animation-delay:.6s; }
+@keyframes riseIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
 .auth-hero { text-align:center; padding:44px 24px 18px; }
 .auth-seal { width:60px; height:60px; margin:0 auto 16px; border-radius:2px;
   background:var(--primary); color:var(--pfg); font-family:var(--serif); font-size:var(--text-2xl); font-weight:800;
@@ -1106,15 +1307,28 @@ a { color:inherit; text-decoration:none; }
 .scan-video { width:100%; height:100%; object-fit:cover; }
 .scan-fallback { text-align:center; color:var(--pfg); padding:24px; max-width:320px; }
 .scan-fallback p { font-size:var(--text-sm); line-height:1.7; margin-top:12px; opacity:.9; }
-.scan-frame { position:absolute; inset:14% 12%; pointer-events:none; }
+/* container-type:size 讓掃描線能用 100cqh 換算框高，改走 transform（見下方註解）。
+   框本身是 inset 定位、尺寸確定，設成 size 容器不會有循環依賴。 */
+.scan-frame { position:absolute; inset:14% 12%; pointer-events:none; container-type:size; }
 .scan-frame .c { position:absolute; width:28px; height:28px; border:3px solid var(--pfg); opacity:.9; }
 .scan-frame .c.tl { top:0; left:0; border-right:none; border-bottom:none; border-radius:2px 0 0 0; }
 .scan-frame .c.tr { top:0; right:0; border-left:none; border-bottom:none; border-radius:0 2px 0 0; }
 .scan-frame .c.bl { bottom:0; left:0; border-right:none; border-top:none; border-radius:0 0 0 2px; }
 .scan-frame .c.br { bottom:0; right:0; border-left:none; border-top:none; border-radius:0 0 2px 0; }
+/* ⚠️ 掃描線是「無限循環」而且疊在即時 <video> 上——最不該浪費主執行緒的場景。
+   原本動的是 top，每幀都要重算版面；改成 transform 只需 GPU 合成。
+   位移量用 100cqh（掃描框自身高度）換算；不支援容器查詢的舊瀏覽器退回動 top。 */
 .scan-line { position:absolute; left:2px; right:2px; top:0; height:2px;
-  background:var(--cinnabar); box-shadow:0 0 10px var(--cinnabar); animation:scanmove 2.6s ease-in-out infinite; }
-@keyframes scanmove { 0%,100% { top:0 } 50% { top:100% } }
+  background:var(--cinnabar); box-shadow:0 0 10px var(--cinnabar);
+  will-change:transform; animation:scanmoveTop 2.6s ease-in-out infinite; }
+@keyframes scanmoveTop { 0%,100% { top:0 } 50% { top:100% } }
+@supports (height:100cqh) {
+  .scan-line { animation-name:scanmove; }
+  @keyframes scanmove {
+    0%,100% { transform:translateY(0); }
+    50%     { transform:translateY(calc(100cqh - 2px)); }
+  }
+}
 .scan-hint { text-align:center; font-size:var(--text-xs); color:var(--muted); padding:16px 24px 2px; flex:0 0 auto; }
 .scan-acts { padding:12px 16px 20px; text-align:center; flex:0 0 auto; }
 .scan-acts .btn-primary { max-width:280px; margin:0 auto; }
@@ -1144,8 +1358,12 @@ a { color:inherit; text-decoration:none; }
 
 /* 辨識成功結果卡 */
 .scanres { text-align:center; padding:4px 24px 8px; }
-.scanres .okmark { width:52px; height:52px; margin:2px auto 10px; border-radius:50%;
-  background:var(--yi); color:#fff; font-size:var(--text-xl); font-weight:800; line-height:52px; }
+/* 辨識成功＝蓋一枚印（原本是通用的綠圈打勾，哪個 App 都長一樣）。
+   ⚠️ 方形不是圓形——印章的形狀本身就是品牌識別。 */
+.scanres .okmark { width:56px; height:56px; margin:2px auto 12px; border-radius:2px;
+  background:var(--primary); display:flex; align-items:center; justify-content:center;
+  box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.35); }
+.scanres .okmark .seal-mark { width:36px; height:36px; }
 .scanres h3 { font-family:var(--serif); font-size:var(--text-lg); margin:0 0 2px; }
 .scanres img { width:150px; height:112px; object-fit:cover; border-radius:12px;
   border:1px solid var(--line2); margin:12px auto 4px; display:block; }
@@ -1176,6 +1394,46 @@ a { color:inherit; text-decoration:none; }
 [data-textsize="lg"] .body { zoom:1.14; }
 [data-textsize="sm"] .body { zoom:0.9; }
 
+/* ══════════════ 主題切換：日／夜圓形擴散（動效銳評 §08）══════════════
+   ⚠️ 必須關掉 View Transition 預設的「交叉淡入」，否則新舊兩層會一起淡，
+      圓形遮罩的邊緣就糊掉了——我們要的是新主題像日出一樣「掃過來」。
+   ⚠️ 新層要疊在舊層之上（z-index），圓形 clip-path 才會是「露出新的」。 */
+::view-transition-old(root),
+::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+::view-transition-old(root) { z-index:1; }
+::view-transition-new(root) { z-index:9999; }
+
+/* ══════════════ 蓋印章：成功回饋的品牌動作（動效銳評 §07）══════════════
+   印章是動詞，原本只被畫成名詞——五個地方（登入頁/導覽列/頁尾/頂列/錯誤頁）
+   全是靜態裝飾。所有「完成」類回饋都改成「蓋一枚印」：從上方壓下、過衝一點、
+   落定，再暈開一圈朱紅餘韻。這是別人會記得住的細節。
+   用在：註冊成功、發佈成功、下單成功、掃描辨識成功。 */
+.seal-stamp { position:relative; animation:sealIn .5s cubic-bezier(.2,.9,.25,1.3) both; }
+@keyframes sealIn {
+  0%   { opacity:0; transform:scale(2.6) rotate(-16deg); }
+  55%  { opacity:1; transform:scale(.92) rotate(3deg); }
+  75%  { transform:scale(1.04) rotate(-1deg); }
+  100% { opacity:1; transform:scale(1) rotate(0); }
+}
+/* 朱紅暈開的餘韻（純裝飾，pointer-events:none 免得擋住底下的按鈕） */
+.seal-stamp::after {
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  border:2px solid var(--cinnabar); animation:sealRing .6s .18s ease-out forwards; }
+@keyframes sealRing { 0% { opacity:.7; transform:scale(1); } 100% { opacity:0; transform:scale(2.1); } }
+
+/* 成功回饋的浮層（StampMark）。
+   ⚠️ pointer-events:none——這是回饋不是對話框，絕不可擋住底下的操作。 */
+.stamp-layer { position:fixed; inset:0; z-index:80; pointer-events:none;
+  display:flex; align-items:center; justify-content:center; }
+.stamp-box { display:flex; flex-direction:column; align-items:center; gap:12px;
+  padding:24px 30px; border-radius:2px; background:var(--bg); border:1px solid var(--line2);
+  box-shadow:0 18px 44px rgba(30,22,14,.18); animation:fade .2s var(--e-out); }
+.stamp-seal { width:64px; height:64px; border-radius:2px; background:var(--primary);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.35); }
+.stamp-seal .seal-mark { width:42px; height:42px; }
+.stamp-tx { font-family:var(--serif); font-size:var(--text-base); font-weight:800; text-align:center; }
+
 /* 減少動態效果（App 內設定開關） */
 [data-reduce-motion="on"] *,
 [data-reduce-motion="on"] *::before,
@@ -1183,6 +1441,22 @@ a { color:inherit; text-decoration:none; }
   animation-duration:0.001ms !important; animation-iteration-count:1 !important;
   transition-duration:0.001ms !important; scroll-behavior:auto !important;
 }
+/* ---------- reduce-motion 下的「功能性指示」替代 ----------
+   ⚠️ 上面的全域 animation-iteration-count:1 !important 會讓無限循環的動畫
+      停在某一格：.typing 的三點會凍結在某個透明度（看起來像壞掉），
+      .scan-line 會停住不動（使用者不知道還在掃描中）。
+   這兩個不是裝飾，是「系統正在運作」的功能性指示，必須給不會動的替代：
+      · 打字指示 → 改顯示「思考中…」文字
+      · 掃描線   → 隱藏，只留靜態四角框（框本身就足以表達「對準這裡」） */
+[data-reduce-motion="on"] .typing i { display:none; }
+[data-reduce-motion="on"] .typing::after { content:'思考中…'; color:var(--muted); font-size:var(--text-xs); }
+[data-reduce-motion="on"] .scan-line { display:none; }
+@media (prefers-reduced-motion: reduce) {
+  .typing i { display:none; }
+  .typing::after { content:'思考中…'; color:var(--muted); font-size:var(--text-xs); }
+  .scan-line { display:none; }
+}
+
 /* 尊重系統層級的減少動態偏好（WCAG 2.3.3） */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1404,6 +1678,10 @@ a { color:inherit; text-decoration:none; }
 .tw-cursor { font-style:normal; animation:twblink 1s step-end infinite; }
 @keyframes twblink { 50% { opacity:0 } }
 .atx.karaoke span, .atx.neon span { display:inline-block; white-space:pre; }
+/* ⚠️ 這兩組是「每個字一條無限動畫」，預設暫停，元件用 IntersectionObserver
+   在進入視野時才補上 .atx-play（見 AnimatedText.jsx）。捲走就不再燒 CPU。 */
+.atx.karaoke span, .atx.neon span { animation-play-state:paused; }
+.atx.karaoke.atx-play span, .atx.neon.atx-play span { animation-play-state:running; }
 .atx.karaoke span { color:rgba(255,255,255,.35); animation:kara 2.6s linear infinite; }
 @keyframes kara { 0%,100% { color:rgba(255,255,255,.35); text-shadow:none } 45%,55% { color:var(--gold); text-shadow:0 0 10px var(--gold) } }
 .atx.neon span { color:#fff; animation:neonpop 1.9s ease-in-out infinite; }

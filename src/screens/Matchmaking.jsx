@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Disclaimer, SectionHead } from '../components/ui.jsx'
+import { TopBar, Disclaimer, SectionHead, Meter } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
 import { combinedMatch, STARS } from '../data/match.js'
 
@@ -67,7 +67,7 @@ export default function Matchmaking() {
         {res ? (
           <div className="card">
             <h4>配對指數 {res.score} 分</h4>
-            <div className="meter"><div style={{ width: `${res.score}%` }} /></div>
+            <Meter score={res.score} />
             {res.zodiac && (
               <>
                 <div className="kv" style={{ padding: '10px 0 4px' }}>
