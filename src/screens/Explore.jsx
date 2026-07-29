@@ -176,7 +176,7 @@ export default function Explore() {
                 <span className="xr-n">{c.works} 件</span>
               </button>
             ))}
-            {creators.length === 0 && <div className="empty" style={{ padding: '20px 12px' }}>還沒有創作者上架作品</div>}
+            {creators.length === 0 && <div className="empty" style={{ padding: '20px var(--space-4)' }}>還沒有創作者上架作品</div>}
           </div>
         </div>
 

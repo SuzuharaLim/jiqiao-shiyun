@@ -40,7 +40,7 @@ export default function Dream() {
           {keys.map(k => <button key={k} className="chip tap" onClick={() => { setQ(k); go(k) }}>{k}</button>)}
         </div>
 
-        <div style={{ padding: '0 13px' }}>
+        <div style={{ padding: '0 var(--space-4)' }}>
           <button className="btn-primary tap" onClick={() => go()}>解夢</button>
         </div>
 

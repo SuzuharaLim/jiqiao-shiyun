@@ -67,7 +67,7 @@ export default function CalendarPreview({ count = 12 }) {
           🔁 換一批詩詞
         </button>
 
-        <div style={{ padding: '4px 13px 16px', display: 'flex', gap: 8 }}>
+        <div style={{ padding: '4px var(--space-4) 16px', display: 'flex', gap: 8 }}>
           {/* ⚠️ 原本 onClick 只 pop() + toast「已存為草稿」，但草稿完全沒有持久化——
               MyProjects.jsx 自己也寫著「專案儲存功能仍在開發中，離開頁面不會保留」，
               兩處說法直接打架。在專案子系統做出來之前，不可謊報儲存成功。 */}

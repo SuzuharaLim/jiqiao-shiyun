@@ -118,7 +118,7 @@ export default function Admin() {
         {tab === 'system' && isAdmin && (
           <>
             <SectionHead title="服務接線狀態" />
-            <div className="card" style={{ margin: '8px 13px' }}>
+            <div className="card" style={{ margin: '8px var(--space-4)' }}>
               {health ? (
                 <>
                   <div className="kv"><span>資料庫</span><b>{health.db === 'pg' ? 'Cloud SQL PostgreSQL' : 'SQLite（本機）'}</b></div>
@@ -131,7 +131,7 @@ export default function Admin() {
             </div>
 
             <SectionHead title="寄信測試" />
-            <div className="acc-form" style={{ padding: '0 13px' }}>
+            <div className="acc-form" style={{ padding: '0 var(--space-4)' }}>
               <div className="field">
                 <input value={mailTo} onChange={e => setMailTo(e.target.value)} placeholder={user?.email || 'you@example.com'}
                   aria-label="測試收件信箱" type="email" />
@@ -155,7 +155,7 @@ export default function Admin() {
             {support === null && <div className="empty">載入中…</div>}
             {support?.length === 0 && <div className="empty"><div className="empty-ic"><Icon name="mail" /></div>目前沒有訊息</div>}
             {support?.map(m => (
-              <div key={m.id} className="card" style={{ margin: '6px 13px' }}>
+              <div key={m.id} className="card" style={{ margin: '6px var(--space-4)' }}>
                 <div className="kv"><span>主題</span><b>{m.topic}</b></div>
                 <div className="kv"><span>寄件者</span><span className="muted">{m.email}</span></div>
                 <div className="kv"><span>時間</span><span className="muted">{String(m.created_at).slice(0, 16).replace('T', ' ')}</span></div>
@@ -190,7 +190,7 @@ export default function Admin() {
             <SectionHead title="使用者檢舉" extra={`${reports.filter(r => r.status === 'open').length} 件待處理`} />
             {reports.length === 0 && <div className="empty"><div className="big">🛡️</div>目前沒有檢舉</div>}
             {reports.map(r => (
-              <div key={r.id} className="card" style={{ margin: '6px 13px' }}>
+              <div key={r.id} className="card" style={{ margin: '6px var(--space-4)' }}>
                 <div className="kv"><span>對象</span><b>{({ post: '貼文', comment: '留言', work: '作品', user: '使用者' })[r.type] || r.type} · {r.targetId.slice(0, 12)}</b></div>
                 <div className="kv"><span>檢舉人</span><span className="muted">@{r.reporter} · {r.time}</span></div>
                 {r.reason && <div className="kv"><span>原因</span><span className="muted">{r.reason}</span></div>}
@@ -217,7 +217,7 @@ export default function Admin() {
               示範作者（wang_photo 等）與其貼文、作品、留言都是預先給的 Demo 內容。正式上線、要換成真人上傳的資料前，可一鍵清除。
               <b>只會刪示範內容</b>——真實註冊使用者、他們的上傳，以及濾鏡/節氣等參考清單都不受影響。
             </div>
-            <div className="card" style={{ margin: '8px 13px' }}>
+            <div className="card" style={{ margin: '8px var(--space-4)' }}>
               {seed ? (
                 <>
                   <div className="kv"><span>示範作者</span><b>{seed.users} 位</b></div>
@@ -226,7 +226,7 @@ export default function Admin() {
                 </>
               ) : <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>讀取中…</div>}
             </div>
-            <div style={{ padding: '4px 13px' }}>
+            <div style={{ padding: '4px var(--space-4)' }}>
               {!armPurge ? (
                 <button className="b tap" style={{ color: 'var(--ji)', borderColor: 'var(--ji)' }}
                   onClick={() => setArmPurge(true)} disabled={!seed || seed.users === 0}>
@@ -276,7 +276,7 @@ export default function Admin() {
               <button className="b dark tap" onClick={addItem}>＋ 新增</button>
             </div>
             {items.map((it, i) => (
-              <div key={it.id} className="card" style={{ margin: '8px 13px' }}>
+              <div key={it.id} className="card" style={{ margin: '8px var(--space-4)' }}>
                 <div className="kv" style={{ padding: '2px 2px 8px' }}><b>{it.id}</b><span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{kind} · sort {it.sort ?? i}</span></div>
                 <textarea value={it._json} spellCheck={false}
                   onChange={e => setItems(list => list.map(x => x.id === it.id ? { ...x, _json: e.target.value } : x))}

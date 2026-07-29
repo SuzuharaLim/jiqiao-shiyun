@@ -108,7 +108,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
           <>
             {/* 選照片（真實上傳）／或用 emoji 佔位圖 */}
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFile} aria-label="選擇照片" />
-            <div style={{ display: 'flex', gap: 8, padding: '10px 13px 0' }}>
+            <div style={{ display: 'flex', gap: 8, padding: '10px var(--space-4) 0' }}>
               <button className="b dark tap" style={{ flex: 1 }} onClick={() => fileRef.current?.click()}>
                 📷 {photo ? '換一張照片' : '上傳照片（相簿/拍照）'}
               </button>
@@ -138,7 +138,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
           <div className="muted" style={{ color: 'var(--cinnabar)' }}>{term} {pickTerm ? '▾' : '›'}</div>
         </button>
         {pickTerm && (
-          <div className="chips" style={{ padding: '10px 13px' }}>
+          <div className="chips" style={{ padding: '10px var(--space-4)' }}>
             {solarTermNames.map(t => (
               <button key={t} className={`chip tap ${term === t ? 'on' : ''}`}
                 onClick={() => { setTerm(t); setPickTerm(false) }}>{t}</button>
@@ -159,7 +159,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
 
         {/* 授權價 —— 真的可選分級 */}
         {onSale && (
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ padding: '10px var(--space-4)', borderBottom: '1px solid var(--line)' }}>
             <div className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: 8 }}>單張授權價</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {licenseTiers.map((p, i) => (
@@ -174,7 +174,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         )}
 
         <div style={{ height: 16 }} />
-        <div style={{ padding: '0 13px' }}>
+        <div style={{ padding: '0 var(--space-4)' }}>
           <button className="btn-primary tap" onClick={publish}>發佈貼文</button>
         </div>
         <div style={{ height: 16 }} />

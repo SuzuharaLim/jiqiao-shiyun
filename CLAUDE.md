@@ -183,6 +183,9 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ## 慣例與雷區（改動前務必知道）
 
+- **水平內距全站統一 `var(--space-4)`（16px），不可再寫 12/13/14/15**：整修前 `.pad`14／`.sech`14／`.tool`14／`.opt`14／`.strip`14／`.railhd`15／`.thumbs`12／`.aicard`15／`.sumcard`14 加上 JSX 裡十幾處 inline 12/13，同一頁會出現 3~5 條不同的內容左緣＝「看起來不對稱」。現在只剩 0（滿版列）／16（版心）／24（空狀態）／32（卡片內文＝16 margin＋16 padding）。
+- **「扣掉左右 margin」的寬度不可寫死數字**：`.note` 與 `.coverbig`／`.ad-more` 原本寫 `calc(100% - 26px)`（假設左右各 13），但 margin 是 `var(--space-4)`＝16、兩側共 32 → 右緣少扣 6px，實測「左 16 / 右 10」的不對稱。一律寫 `calc(100% - var(--space-4) * 2)`，或乾脆拿掉 inline width 讓 flex stretch 自然對稱。
+- **量對稱要相對「容器」不是「視窗」**：桌機內容卡置中於 1440 且有 15px 捲軸，用 `innerWidth - rect.right` 量會把每個元素都判成不對稱（238/254）。要用 `body.getBoundingClientRect()` 當基準，且雙欄（grid）版面本來就一左一右，要排除。
 - **手機 RWD 的四個必檢項（2026-07-28 修）**：
   1. **安全區要「外加」不可「內扣」**：`.tabbar` 是 border-box，寫死 `height:62px` 再加 `padding-bottom:env(safe-area-inset-bottom)`，iPhone（安全區 34px）內容區只剩 27px，圖示 26＋標籤 13 直接放不下＝底部列被擠扁。要用 `height:calc(62px + env(safe-area-inset-bottom))`。
   2. **輸入框字級 <16px 會讓 iOS 聚焦時自動放大整頁**（版面被推歪）。`--text-xs` 是 15px 剛好踩線。已加全域保險 `input/textarea/select { font-size:max(16px, var(--text-sm)) }`（原本只有 `max-width:360px` 那個斷點裡對 `.field input` 做，一般手機沒被保護到）。

@@ -67,7 +67,7 @@ export default function WorkDetail({ id }) {
             <div className="kv"><span>創作者分潤</span><span className="muted">70%（NT${Math.round(price * 0.7)}）</span></div>
           </div>
 
-          <div className="wd-acts" style={{ padding: '4px 13px', display: 'flex', gap: 8 }}>
+          <div className="wd-acts" style={{ padding: '4px var(--space-4)', display: 'flex', gap: 8 }}>
             <button className="b tap" onClick={() => { toggleSave(w.id); setToast(isSaved ? '已移除' : '已加入月曆素材 ✓') }}>
               {isSaved ? '已加入月曆' : '＋ 加入月曆'}
             </button>

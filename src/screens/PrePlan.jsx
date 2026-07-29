@@ -39,7 +39,7 @@ export default function PrePlan() {
         </div>
 
         <SectionHead title="24 節氣・拍照清單" extra="點一下標記已拍" />
-        <div className="grid" style={{ gap: 8, padding: '4px 12px' }}>
+        <div className="grid" style={{ gap: 8, padding: '4px var(--space-4)' }}>
           {TERMS.map((t, i) => (
             <button key={t.m} className="tap" style={{
               border: `1.5px solid ${shots[i] ? 'var(--yi)' : 'var(--line2)'}`, borderRadius: 12,

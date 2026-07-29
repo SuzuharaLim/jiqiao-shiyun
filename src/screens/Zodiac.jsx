@@ -23,7 +23,7 @@ export default function Zodiac() {
           ))}
         </div>
 
-        <div className="grid" style={{ gap: 8, padding: '0 12px' }}>
+        <div className="grid" style={{ gap: 8, padding: '0 var(--space-4)' }}>
           {zodiacs.map(z => {
             const s = scoreFor(z.score, range)
             return (
