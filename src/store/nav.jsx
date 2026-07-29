@@ -65,10 +65,20 @@ function routeFromPath(pathname) {
 const initialRoute = () => { try { return routeFromPath(window.location.pathname) } catch { return { tab: 0, stack: [] } } }
 
 // 後端 auth user → App 使用者形狀
+// ⚠️ 這裡必須把 publicUser()（server/index.js）回傳的欄位**全部**帶過來。
+//    先前手寫成白名單卻漏了三個，而且每一個都造成真實的 bug：
+//      · avatarImageId —— 上傳的頭像照片在重新整理後消失（改頭像 → 當下正常
+//        → 重整就變回 emoji）。因為 updateProfile 的本地 setUser 有帶，
+//        但重整後走 /api/me → toAppUser 把它濾掉了。
+//      · isPrivate     —— 個人檔案的「私密」設定重整後跟著失效。
+//      · id            —— 全站 user.id 都是 undefined。Admin.jsx 用
+//        `disabled={u.id === user.id}` 防止管理員改自己的角色，
+//        undefined === 'user-xxx' 永遠為 false ⇒ **防自鎖的保護整個失效**。
+//    用展開複製而不是逐欄挑，之後後端新增欄位也不會再漏。
 const toAppUser = (u) => ({
-  name: u.name, handle: u.handle || (u.email ? u.email.split('@')[0] : 'user'),
-  email: u.email, role: u.role, emailVerified: u.emailVerified,
-  bio: u.bio, avatar: u.avatar, avatarBg: u.avatarBg, guest: false,
+  ...u,
+  handle: u.handle || (u.email ? u.email.split('@')[0] : 'user'),
+  guest: false,
 })
 
 const NavCtx = createContext(null)
@@ -142,7 +152,9 @@ export function NavProvider({ children }) {
         avatarImageId: patch.avatarImageId,   // 使用者上傳的頭像；null＝改回 emoji
         priv: patch.priv,
       })
-      if (r?.user) setUser(u => ({ ...u, ...r.user }))   // 以伺服器回傳為準
+      // 以伺服器回傳為準。⚠️ 要走 toAppUser 而不是直接展開 r.user——
+      // 後者在 handle 為 null 時會把前端的 email 前綴 fallback 覆蓋掉。
+      if (r?.user) setUser(u => ({ ...u, ...toAppUser(r.user) }))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e?.message || '儲存失敗，請稍後再試' }
