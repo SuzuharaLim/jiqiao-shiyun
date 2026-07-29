@@ -197,18 +197,20 @@ export function PhotoImg({ src, style }) {
 // 於是預期它滑下去；1.8 秒後「啪」地消失會產生一種說不上來的粗糙感。
 // 作法：toast 轉 null 時不立刻卸載，先保留最後一則內容播離場，動畫結束才真的移除。
 export function Toast() {
-  const { toast } = useNav()
+  const { toast, toastAction } = useNav()
   const [shown, setShown] = useState(null)
+  const [act, setAct] = useState(null)
   const [leaving, setLeaving] = useState(false)
   useEffect(() => {
-    if (toast) { setShown(toast); setLeaving(false) }
+    if (toast) { setShown(toast); setAct(toastAction); setLeaving(false) }
     else setLeaving(l => (shown ? true : l))
   }, [toast])          // eslint-disable-line react-hooks/exhaustive-deps
   if (!shown) return null
   return (
     <div className={`toast${leaving ? ' out' : ''}`} role="status"
-      onAnimationEnd={() => { if (leaving) { setShown(null); setLeaving(false) } }}>
-      {shown}
+      onAnimationEnd={() => { if (leaving) { setShown(null); setAct(null); setLeaving(false) } }}>
+      <span>{shown}</span>
+      {act && <button className="toast-act tap" onClick={() => { act.onClick?.(); setLeaving(true) }}>{act.label}</button>}
     </div>
   )
 }

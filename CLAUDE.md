@@ -308,6 +308,16 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 - 干支/農曆/節氣/命理/建除/星宿/沖煞/胎神等**擇日神煞層為確定性示範演算**（`almanac.js`＋各頁 Disclaimer 已標明；規則正確但非權威曆算），正式版應接 lunar-javascript 等函式庫或通書資料核對。年神方位（三煞/五黃/歲破/大將軍）逐年變動，切勿沿用。
 - **AI 顧問有守備範圍限制（2026-07）**：`server/index.js` 的 `AI_SYSTEM` 明確界定只回答農民曆/節氣/生肖/民俗/節氣攝影/App 用法，並以三層防護避免被當成免費通用 ChatGPT（寫程式、寫作業、翻譯）——(1) 系統提示界定範圍與婉拒方式 (2) `AI_ABUSE_RE` 輸入預檢擋明顯越獄與程式碼區塊（**刻意不擋「寫程式」等字眼**，因為「今天適合寫程式嗎」是正常提問）(3) `looksLikeCode()` 輸出守門攔截漏網的程式碼並改回婉拒。攔截會寫 `ai_offtopic` / `ai_offtopic_output` 稽核記錄。改文案找 `AI_SYSTEM` 與 `AI_REFUSAL`。**模型預設 `gpt-5.4-nano`**（最便宜一階，$0.20/$1.25 每 1M tokens；2026-07 查詢值）——本顧問只做限定範圍短問答，不需旗艦模型；換模型設 `OPENAI_MODEL` 環境變數即可，不必改碼。價格表與成本估算見 `docs/操作手冊.md`。
+- **AI 對話是串流的（2026-07-29）**：`/api/ai/chat` 對 OpenAI 開 `stream:true`，再轉成自訂 SSE 事件 `{delta}｜{replace}｜{done}｜{error}`；前端 `api.aiChatStream()` 逐塊拼接。雷區：
+  - **串流會弱化「輸出守門」**——文字一段段送出去，等收完才檢查就已經到瀏覽器了。作法是**前 48 字先扣住不送**（`HOLD`），湊夠了做一次完整 `looksLikeCode()` 判定，放行後仍逐塊檢查有沒有冒出 ``` 圍籬；被繞過就送 `{replace}` 事件把整段換成婉拒（實測程式碼一個字都不會外洩）。
+  - **回覆短於 48 字時，扣住的內容要在迴圈結束後補送**，否則短回覆會整個不見。
+  - **已經開始串流就不能再改 HTTP 狀態碼**，錯誤只能用 `{error}` 事件送；未送 header 前才可以 `res.status(...)`。
+  - **前端不可套用全站的 12 秒逾時**（後端給 OpenAI 是 25 秒）——會變成「前端已中止並吐假回覆、後端還在等、token 照扣」。改成首位元組 20 秒、之後每收到一塊就續命的**閒置逾時**。
+  - **送出鎖必須用 `useRef` 不能用 state**：state 更新非同步，同一個 render 內連點三次讀到的 `typing` 都還是 false，三個請求照送（實測連點 3 下＝3 則訊息、3 次 token）。
+- **降級一律要「看得見」，不可靜默假裝成功**：AI 失敗時**絕不可**偷偷改用 `mock.js` 的腳本。未設金鑰＝回覆掛「示範」徽章（`.msg.ai[data-demo]`）；401/429/502/504 各自顯示 `.msg.sys` 系統訊息＋對應動作（登入／再試一次）。免責文案也要跟著 `GET /api/health` 的 `ai:on/off` 切換——接了金鑰還寫「AI 回覆為示範內容」就是不實陳述。
+- **AI 限流以使用者為單位**（`keyGenerator: req.user?.id ?? req.ip`）：純 IP 級會讓同一間辦公室／學校／電信 NAT 後面的人互相把額度吃光。
+- **模型輸出的 Markdown 要在前端清掉**（`AIChat.jsx` 的 `stripMd`）：`.msg` 是 `white-space:pre-wrap` 的純文字容器不會 render，模型一吐 `**粗體**`／`###` 就是滿螢幕星號。`AI_SYSTEM` 已明令禁止，但模型不是每次都聽話，這層是雙保險。
+- **對話存 sessionStorage**（`jq-ai-chat`，帶 date 跨日重置）：`msgs` 若只是 `useState`，`pop()` 讓元件卸載＝整段對話蒸發，使用者去看個曆頁回來就要重問。
 - 金流、分潤金額為**前端模擬**（訂單、貼文、留言、按讚、追蹤、通知已真實入 DB）。
 - **社群登入（Google/LINE/Apple）已移除（2026-07）**：原本只是彈 Demo 提示的假按鈕，會讓使用者以為能用。目前只提供 Email 註冊/登入。日後要接真 OAuth 再重新加回，設計參考 `docs/登入需求-前端整合.md` §3.6。
 - **寄信已可正式化（2026-07）**：`mailer.js` 支援 **Gmail SMTP／通用 SMTP／Resend／SendGrid／Mailgun／Brevo**，**零新相依**——SMTP 走自寫的 `server/smtp.js`（`net`/`tls`，465 隱式 TLS、587 自動 STARTTLS、AUTH PLAIN/LOGIN、RFC 2047 中文標頭、multipart/alternative、內文 base64 免 dot-stuffing），HTTP API 走內建 `fetch`。**Cloud Run 只封鎖 25 埠，465/587 可用**（先前註記「不能用 SMTP」有誤）。推薦 Gmail＋應用程式密碼（免費 500 封/日）；`GMAIL_USER` 必須與 `GMAIL_APP_PASSWORD` 成對，程式會**自動把 `MAIL_FROM` 位址對齊成 `GMAIL_USER`**（Gmail 只准以登入身分寄信，否則會被改寫）。**雷區：SMTP 錯誤碼語意與 HTTP 相反——4xx 才是暫時性可重試、5xx（如 535 帳密錯）是永久失敗不該重試**。**未設金鑰＝維持原 dev 行為**（只 log 連結＋回傳 `devLink`）；設了金鑰即自動真寄，不需改碼。設計重點：`sendMail()` 維持**同步回傳**介面（呼叫端不需改），實際送信在背景 fire-and-forget，**寄信失敗不會擋住註冊/下單**（實測註冊 408ms 完成）；**已接供應商時不再回傳 `devLink`**（避免一次性連結外洩到 API 回應）；HTML＋純文字雙版本、零外部資源（不被擋圖）。驗證工具：`npm run mail:test -- you@example.com`、`GET /api/health` 的 `mail` 欄、管理後台「系統狀態」分頁可寄測試信（`POST /api/admin/mail-test`，admin 限定）。**`APP_URL` 沒設對信中連結會指向 localhost**。設定教學見 `docs/寄信-Email設定.md`。

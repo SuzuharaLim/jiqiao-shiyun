@@ -5,11 +5,11 @@ export const setCsrf = (t) => { csrf = t }
 
 const TIMEOUT_MS = 12000   // 請求逾時：避免慢網路無限轉圈
 
-async function req(path, { method = 'GET', body } = {}) {
+async function req(path, { method = 'GET', body, timeout = TIMEOUT_MS } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (method !== 'GET' && csrf) headers['x-csrf-token'] = csrf
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => ctrl.abort(), timeout)
   let res
   try {
     res = await fetch('/api' + path, {
@@ -122,5 +122,70 @@ export const api = {
   withdrawReport: (id) => req('/reports/' + id, { method: 'DELETE' }),
   adminAudit: () => req('/admin/audit'),       // 稽核日誌（admin）
   // AI 時光顧問（後端代呼叫 OpenAI；未設金鑰時回 {fallback:true}）
-  aiChat: (messages, context) => req('/ai/chat', { method: 'POST', body: { messages, context } }),
+  //
+  // ⚠️ 這條**不可以**用全站的 12 秒逾時：後端給 OpenAI 的上限是 25 秒，
+  //    中文加上 max_tokens:500，尖峰時段超過 12 秒很常見。前端先中止的話，
+  //    後端還在等、token 照扣，回來的內容直接丟掉——使用者的體感是
+  //    「這 AI 有時候會變笨」，其實是好回覆被自己人掐掉了。
+  //    串流之後改用兩段式逾時：首個位元組 20 秒，之後看「閒置」而不是總時長
+  //    （已經在逐字吐出來的回覆，不該因為講得比較長就被砍掉）。
+  aiChatStream: async (messages, context, { onDelta, signal } = {}) => {
+    const headers = { 'Content-Type': 'application/json' }
+    if (csrf) headers['x-csrf-token'] = csrf
+
+    const ctrl = new AbortController()
+    const abort = () => ctrl.abort()
+    signal?.addEventListener('abort', abort)
+    let timer = setTimeout(abort, 20000)                       // 首位元組逾時
+    const bump = (ms) => { clearTimeout(timer); timer = setTimeout(abort, ms) }
+
+    let res
+    try {
+      res = await fetch('/api/ai/chat', {
+        method: 'POST', credentials: 'include', headers, signal: ctrl.signal,
+        body: JSON.stringify({ messages, context }),
+      })
+    } catch (e) {
+      clearTimeout(timer); signal?.removeEventListener('abort', abort)
+      if (signal?.aborted) throw Object.assign(new Error('已停止'), { stopped: true })
+      throw Object.assign(new Error(e?.name === 'AbortError' ? '顧問想太久了，換個問法或稍後再試' : '網路連線異常，請稍後再試'), { network: true })
+    }
+
+    // 短路情況（未設金鑰 fallback／婉拒／錯誤）後端仍回 JSON
+    if (!res.headers.get('content-type')?.includes('text/event-stream')) {
+      clearTimeout(timer); signal?.removeEventListener('abort', abort)
+      let data = null
+      try { data = await res.json() } catch { /* 無 body */ }
+      if (!res.ok) throw Object.assign(new Error(data?.error || '發生錯誤，請稍後再試'), { status: res.status, data })
+      return data || {}
+    }
+
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = '', full = '', stopped = false
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        bump(20000)                                            // 有資料就續命（閒置逾時）
+        buf += dec.decode(value, { stream: true })
+        const events = buf.split('\n\n'); buf = events.pop() || ''
+        for (const ev of events) {
+          const line = ev.split('\n').find(l => l.startsWith('data:'))
+          if (!line) continue
+          let m; try { m = JSON.parse(line.slice(5).trim()) } catch { continue }
+          if (m.error) throw Object.assign(new Error(m.error), { status: 502 })
+          if (m.replace != null) { full = m.replace; onDelta?.(full, true) }   // 整段換掉（被守門攔下）
+          else if (m.delta) { full += m.delta; onDelta?.(full, false) }
+        }
+      }
+    } catch (e) {
+      if (signal?.aborted) stopped = true                       // 使用者按了「停止」→ 保留已收到的內容
+      else { clearTimeout(timer); signal?.removeEventListener('abort', abort); throw e }
+    } finally {
+      clearTimeout(timer); signal?.removeEventListener('abort', abort)
+      try { reader.cancel() } catch { /* 已關閉 */ }
+    }
+    return { reply: full, stopped }
+  },
 }

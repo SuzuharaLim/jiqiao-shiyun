@@ -673,8 +673,14 @@ a { color:inherit; text-decoration:none; }
 
 /* ---------- chat ---------- */
 .chat { flex:1; min-height:0; padding:14px 12px; display:flex; flex-direction:column;
-  gap:10px; overflow-y:auto; }
-.chat::-webkit-scrollbar{ width:0; }
+  gap:10px; overflow-y:auto; scrollbar-width:thin; }
+/* ⚠️ 捲軸原本被完全隱藏（width:0）——使用者不知道上面還有內容，長對話等於沒有
+   「可以往回捲」的線索。改成細捲軸，並讓 thumb 半透明不搶視覺。 */
+.chat::-webkit-scrollbar { width:4px; }
+.chat::-webkit-scrollbar-thumb { background:var(--line2); border-radius:2px; }
+.chat::-webkit-scrollbar-track { background:transparent; }
+/* .chat 是會捲動的 flex column，子項預設 flex-shrink:1 會被壓扁 → 文字疊在一起 */
+.chat > * { flex-shrink:0; }
 .msg { max-width:82%; font-size:var(--text-xs); line-height:1.6; padding:var(--space-3) var(--space-4); border-radius:2px;
   white-space:pre-wrap; word-break:break-word; }
 .msg.ai { align-self:flex-start; background:var(--chip); color:var(--text);
@@ -684,7 +690,42 @@ a { color:inherit; text-decoration:none; }
 /* 訊息進場：原本是硬生生插進列表 */
 .msg { animation:msgIn var(--m-base) var(--e-out); }
 @keyframes msgIn { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:none; } }
-/* AI 回覆逐句浮現（延遲由 AIChat.jsx 的 AiMsg 逐句掛上）。
+/* ---------- AI 對話：示範徽章 / 系統訊息 / 時間 / 回到最新 ---------- */
+/* 示範內容永遠掛一枚「示範」徽章。使用者有權知道自己在跟腳本還是 AI 講話——
+   靜默 fallback 是「假裝成功」，這個徽章才是「看得見的降級」。 */
+.msg.ai[data-demo]::after {
+  content:attr(data-demo); display:block; margin-top:6px;
+  font-size:var(--text-2xs); opacity:.6; letter-spacing:1px; }
+
+/* 系統訊息（錯誤／需登入）：不能長得像 AI 的回答，否則使用者會以為顧問在說話 */
+.msg.sys { align-self:center; max-width:92%; text-align:center;
+  background:var(--field); color:var(--muted); border:1px dashed var(--line2);
+  font-size:var(--text-xs); line-height:1.7; }
+.msg.sys .sys-acts { display:flex; gap:8px; justify-content:center; margin-top:10px; }
+
+/* 串流中的游標，讓人看得出「還在講」 */
+.msg.ai.live::after {
+  content:''; display:inline-block; width:2px; height:1em; margin-left:2px;
+  vertical-align:-2px; background:var(--cinnabar); animation:caret 1s step-end infinite; }
+@keyframes caret { 0%,50% { opacity:1 } 51%,100% { opacity:0 } }
+
+.chat-time { align-self:center; font-size:var(--text-2xs); color:var(--muted);
+  padding:2px 10px; flex:0 0 auto; }
+
+.quick.followup { padding:2px 0 0; }
+
+/* 回到最新：sticky 貼在捲動容器底部（放在 .chat 內部才有效，見 AIChat.jsx 註解） */
+.tolatest { position:sticky; bottom:2px; align-self:center; z-index:20;
+  background:var(--bg); border:1px solid var(--line2); border-radius:var(--radius-full);
+  padding:6px 14px; font-size:var(--text-2xs); font-weight:600; color:var(--text);
+  box-shadow:0 4px 14px rgba(30,22,14,.14); min-height:24px; }
+
+/* Toast 的動作鈕（例如「復原」） */
+.toast-act { margin-left:12px; font-weight:800; color:var(--gold-hi);
+  text-decoration:underline; font-size:inherit; min-height:24px; }
+[data-theme="dark"] .toast-act { color:var(--orange-500); }
+
+/* AI 回覆逐句浮現（延遲由 AIChat.jsx 的 AiSegments 逐句掛上）。
    ⚠️ display:inline 不可改成 inline-block——那會讓句子無法在中間換行，
       長回覆會撐出橫向捲軸。 */
 .msg.ai .seg { display:inline; opacity:0; animation:segIn .38s ease forwards; }
@@ -700,17 +741,26 @@ a { color:inherit; text-decoration:none; }
 .qchip { font-size:var(--text-xs); padding:8px var(--space-4); border-radius:2px; border:1px solid var(--acard-bd);
   color:var(--acard-t); background:var(--acard-bg); }
 
-.cinput { display:flex; align-items:center; gap:9px; padding:10px 12px;
-  border-top:1px solid var(--line); flex:0 0 auto; }
-.cinput .f { flex:1; background:var(--field); border-radius:2px; height:40px; display:flex;
+.cinput { display:flex; align-items:flex-end; gap:9px; padding:10px 12px;
+  border-top:1px solid var(--line); flex:0 0 auto; position:relative; }
+.cinput .f { flex:1; background:var(--field); border-radius:2px; min-height:40px; display:flex;
   align-items:center; padding:0 15px; }
 /* ⚠️ 輸入框字級不可小於 16px：iOS Safari 在聚焦時會自動把整頁放大，
    放大後版面被推歪、還要手動縮回來。--text-xs 是 15px 剛好踩線，故用 --text-sm(16px)。
    全站的 input/textarea/select 都適用這條。 */
-.cinput input { flex:1; border:none; background:none; outline:none; font-size:var(--text-sm); color:var(--text); }
+.cinput input, .cinput textarea { flex:1; border:none; background:none; outline:none;
+  font-size:var(--text-sm); color:var(--text); font-family:inherit; }
+/* textarea 取代 input：長問題要能換行。auto-grow 由 JSX 控制高度，
+   這裡只負責關掉手動拉伸與預設的行高留白。 */
+.cinput textarea { resize:none; line-height:1.5; padding:10px 0; max-height:108px; overflow-y:auto; }
+.cinput textarea::-webkit-scrollbar { width:0; }
 .sendbtn { width:40px; height:40px; border-radius:50%; background:var(--primary);
   display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
 .sendbtn .ic { stroke:var(--pfg); fill:var(--pfg); width:20px; height:20px; }
+.sendbtn:disabled { opacity:.4; }
+/* 串流中把送出鈕換成「停止」——長回覆跑到一半想喊卡是很常見的需求 */
+.sendbtn.stop { background:var(--field); border:1px solid var(--line2); }
+.sendbtn.stop .ic { stroke:var(--text); fill:none; }
 
 /* luck banner */
 .luck { margin:var(--space-3) var(--space-4) 2px; border:1px solid var(--acard-bd); background:var(--luck-bg);

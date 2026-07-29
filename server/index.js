@@ -111,7 +111,11 @@ app.use(cookieParser())
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false,
   message: { error: '嘗試次數過多，請稍後再試' } })
+// ⚠️ AI 限流要以「使用者」為單位，不能只用 IP：同一間辦公室／學校／電信 NAT
+//    後面的人共用一個對外 IP，會互相把對方的額度用掉（一個人問 15 句，
+//    整層樓的人都被擋）。已登入就用 user.id，退回 IP 只是給未登入的保險。
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ? `u:${req.user.id}` : `ip:${req.ip}`,
   message: { error: 'AI 請求過於頻繁，請稍候再試' } })   // 保護金鑰與 token 花費
 app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false }))
 
@@ -1244,7 +1248,27 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 3. 絕對不輸出程式碼、指令碼、設定檔或偽程式碼。
 4. 命理與宜忌僅供參考娛樂，不對醫療、投資、法律、婚姻做專業斷言；
    遇這類問題請建議尋求專業人士。
-5. 語氣溫暖、簡潔、正向，善用節氣意象，每則回覆控制在 200 字內。`
+5. 語氣溫暖、簡潔、正向，善用節氣意象，每則回覆控制在 200 字內。
+
+【輸出格式｜務必遵守】
+⚠️ 對話氣泡是純文字（white-space:pre-wrap），不會解析 Markdown。
+輸出 Markdown 的話，使用者看到的會是滿螢幕的星號與井字號。
+· 只輸出純文字。禁止 **粗體**、*斜體*、# 標題、--- 分隔線、| 表格，
+  也不要用「- 」或「* 」開頭的清單。
+· 需要分點時用 ①②③ 或直接換行。
+· 最多 3 段，段落之間空一行。
+· 可用 1～2 個貼合節氣的 emoji，不要濫用。
+· 結尾若合適，主動提出一個延伸問題，讓對話能接下去。
+
+【安全邊界】
+· 不知道的事就說不知道。不要編造籤詩、節氣日期、神明誕辰或民俗典故——
+  這些站內都有真實資料，寧可請使用者去查，也不要自己編。
+· 若使用者透露自傷、傷人念頭或急性身心困擾：先表達關心，明確建議尋求
+  專業協助與身邊信任的人（台灣可撥 1925 安心專線、1995 生命線）。
+  這種時候不要做命理解讀，不要預測吉凶，也不要把話題導回節氣。
+
+【站內導流】適合時可提及：完整農民曆曆頁、抽籤、解夢、生肖運勢、
+節氣攝影挑戰、做月曆工作室。`
 
 const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與農民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
 
@@ -1277,26 +1301,87 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
   }
 
   const sys = AI_SYSTEM + (context ? `\n\n【今日曆訊】${String(context).slice(0, 300)}` : '')
+
+  // ---------- 串流回應（SSE）----------
+  // 沒有串流的 AI 對話，體感就是「三個點轉很久然後整段砸出來」。
+  // 這裡把 OpenAI 的串流轉成自訂的 SSE 事件：{delta}｜{replace}｜{done}｜{error}
+  //
+  // ⚠️ 串流會弱化「輸出守門」——文字是一段一段送出去的，等全部收完才檢查
+  //    就已經送到瀏覽器了。作法：前 HOLD 個字先扣住不送，湊夠了才做一次
+  //    完整判定；放行之後仍逐塊檢查有沒有冒出程式碼圍籬。
+  //    真的被繞過就送 replace 事件，前端整段換成婉拒。
+  const HOLD = 48
+  let sentHeaders = false
+  const sse = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
   try {
     const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({ model: OPENAI_MODEL, messages: [{ role: 'system', content: sys }, ...hist], max_tokens: 500, temperature: 0.8 }),
+      body: JSON.stringify({
+        model: OPENAI_MODEL, messages: [{ role: 'system', content: sys }, ...hist],
+        max_tokens: 500, temperature: 0.8, stream: true,
+      }),
       signal: AbortSignal.timeout(25000),
     })
-    if (!r.ok) { console.error('[ai] upstream', r.status, (await r.text().catch(() => '')).slice(0, 200)); return res.status(502).json({ error: 'AI 服務暫時無法回應' }) }
-    const j = await r.json()
-    let reply = j.choices?.[0]?.message?.content?.trim()
+    if (!r.ok) {
+      console.error('[ai] upstream', r.status, (await r.text().catch(() => '')).slice(0, 200))
+      return res.status(502).json({ error: 'AI 服務暫時無法回應' })
+    }
 
-    // (3) 輸出守門：模型若仍吐出程式碼，代表防線被繞過 → 換成婉拒並記錄
-    if (reply && looksLikeCode(reply)) {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')   // 若日後前面擺代理，避免整包被緩衝掉
+    res.flushHeaders?.()
+    sentHeaders = true
+
+    let buf = '', full = '', released = false, blocked = false
+    const gate = async () => {
       console.warn('[ai] 攔截到程式碼輸出，已改為婉拒')
       await audit('ai_offtopic_output', req, req.user.id, lastUser.slice(0, 80))
-      reply = AI_REFUSAL
+      blocked = true
+      sse({ replace: AI_REFUSAL })
+    }
+
+    for await (const chunk of r.body) {
+      buf += Buffer.from(chunk).toString('utf8')
+      // OpenAI 的 SSE 以空行分隔事件；最後一段可能不完整，留在 buf 等下一輪
+      const events = buf.split('\n\n'); buf = events.pop() || ''
+      for (const ev of events) {
+        const line = ev.split('\n').find(l => l.startsWith('data:'))
+        if (!line) continue
+        const payload = line.slice(5).trim()
+        if (payload === '[DONE]') continue
+        let piece = ''
+        try { piece = JSON.parse(payload).choices?.[0]?.delta?.content || '' } catch { continue }
+        if (!piece || blocked) continue
+        full += piece
+        if (!released) {
+          if (full.length < HOLD) continue          // 還沒湊夠，先扣住
+          if (looksLikeCode(full)) { await gate(); break }
+          released = true
+          sse({ delta: full })                      // 一次把扣住的放行
+        } else {
+          if (looksLikeCode(full)) { await gate(); break }
+          sse({ delta: piece })
+        }
+      }
+      if (blocked) break
+    }
+    // 回覆很短（不到 HOLD）時，扣住的內容還沒送出去
+    if (!blocked && !released) {
+      if (looksLikeCode(full)) await gate()
+      else sse({ delta: full || '（目前沒有想法，換個問法試試？）' })
     }
     await audit('ai_chat', req, req.user.id)
-    res.json({ reply: reply || '（目前沒有想法，換個問法試試？）' })
-  } catch (e) { console.error('[ai]', e.message); res.status(504).json({ error: 'AI 連線逾時，請稍後再試' }) }
+    sse({ done: true })
+    res.end()
+  } catch (e) {
+    console.error('[ai]', e.message)
+    // 已經開始串流就不能再改狀態碼，只能用事件告知前端
+    if (sentHeaders) { sse({ error: 'AI 連線中斷，請稍後再試' }); res.end() }
+    else res.status(504).json({ error: 'AI 連線逾時，請稍後再試' })
+  }
 }))
 
 // 健康檢查（含 DB 驅動別、金流、AI、寄信是否已接）

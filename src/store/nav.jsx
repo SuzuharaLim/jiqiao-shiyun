@@ -314,12 +314,16 @@ export function NavProvider({ children }) {
   const toggleCommentLike = (key) => setLikedComments(m => ({ ...m, [key]: !m[key] }))
 
   // ---- Toast ----
+  // 第二個參數可帶一個動作（{ label, onClick }），用於「復原」這種需要反悔的操作。
+  // ⚠️ 有動作時停留久一點（4.5 秒）——1.8 秒不夠使用者反應過來要按什麼。
   const [toast, setToastRaw] = useState(null)
+  const [toastAction, setToastAction] = useState(null)
   const toastTimer = useState({ t: null })[0]
-  const setToast = useCallback((msg) => {
+  const setToast = useCallback((msg, action = null) => {
     setToastRaw(msg)
+    setToastAction(action)
     if (toastTimer.t) clearTimeout(toastTimer.t)
-    toastTimer.t = setTimeout(() => setToastRaw(null), 1800)
+    toastTimer.t = setTimeout(() => { setToastRaw(null); setToastAction(null) }, action ? 4500 : 1800)
   }, [toastTimer])
 
   // ---- 蓋印章：成功回饋 ----
@@ -353,7 +357,7 @@ export function NavProvider({ children }) {
     balance,
     prefs, setPref,
     notifRead, setNotifRead,
-    toast, setToast,
+    toast, toastAction, setToast,
   }
   return <NavCtx.Provider value={value}>{children}</NavCtx.Provider>
 }

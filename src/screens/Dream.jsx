@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { dayFor, todayOffset } from '../data/almanac.js'
 
 const DB = {
   水: '夢見水多主財與情緒。清水為吉、渾水宜謹慎理財。',
@@ -14,6 +15,7 @@ const DB = {
 const keys = Object.keys(DB)
 
 export default function Dream() {
+  const today = dayFor(todayOffset())   // 真實今日（節氣/干支/吉時）
   const [q, setQ] = useState('')
   const [res, setRes] = useState(null)
 
@@ -22,7 +24,9 @@ export default function Dream() {
     if (!term) return
     const hit = keys.find(k => term.includes(k))
     const base = hit ? DB[hit] : '這個夢境較特殊，可從「近期心境」與「未竟之事」兩方向解讀。'
-    setRes(`《周公解夢》：${base}\n\nAI 延伸：結合今日「芒種・丙午日」的火旺之氣，此夢提醒你近期宜「緩」不宜「急」，重要決定放到未時（13–15 時）再拍板。`)
+    // ⚠️ 這裡的節氣與干支曾寫死「芒種・丙午日」，大暑當天打開就自打嘴巴。
+    //    一律取真實今日（同 AIChat 的資料來源）。
+    setRes(`《周公解夢》：${base}\n\n延伸：結合今日「${today.term.replace('（交節）', '')}・${today.ganzhi}」，此夢提醒你近期宜「緩」不宜「急」，重要決定不妨放到吉時（${today.luckyHours}）再拍板。`)
   }
 
   return (
