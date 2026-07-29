@@ -1,5 +1,11 @@
 # 機巧時運 — 搜尋引擎爬蟲規則
-# 正式上線後若有 sitemap，補上：Sitemap: https://<正式網域>/sitemap.xml
+# ⚠️ 這個檔案是公開可讀的，不要在裡面留 TODO 或內部註記。
+# ⚠️ robots.txt 不是安全機制；要保護的端點一律靠伺服器端驗證（requireAuth/requireRole）。
 User-agent: *
-Allow: /
 Disallow: /api/
+Disallow: /admin
+Disallow: /checkout
+Disallow: /security
+Disallow: /edit-profile
+
+Sitemap: https://chengqi.tw/sitemap.xml

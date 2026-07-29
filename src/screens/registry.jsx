@@ -1,5 +1,6 @@
 // 分頁根畫面 + 堆疊（詳情）畫面註冊表
 import Feed from './Feed.jsx'
+import NotFound from './NotFound.jsx'
 import Explore from './Explore.jsx'
 import Create from './Create.jsx'
 import Almanac from './Almanac.jsx'
@@ -93,6 +94,7 @@ export const SCREENS = {
   about: About,
   accountSecurity: AccountSecurity,
   admin: Admin,
+  notFound: NotFound,
   privacy: Privacy,
   terms: Terms,
   contact: Contact,

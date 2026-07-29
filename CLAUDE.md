@@ -87,6 +87,7 @@ chengqi-main/
 │     └─ *.jsx             40+ 個畫面
 ├─ server/
 │  ├─ index.js             ★Express：所有 /api 路由（認證＋社群內容＋參考內容）+ 安全中介層 + serve dist（全 async）
+│  ├─ seo.js               ★逐頁 meta 注入／真 404 路由表／sitemap（CSR 的爬蟲補救）
 │  ├─ db.js                ★資料層抽象：pg(Cloud SQL) / better-sqlite3 後備；async get/all/run/exec，`?`→`$n`
 │  ├─ schema.sql           ★可移植 DDL（pg/sqlite 皆可）：users/sessions/tokens/audit_log/orders/posts/comments/post_likes/works/follows/notifications/ref_items
 │  ├─ seed.js              ★種子：把 mock.js 灌入 DB（作者/貼文/作品/留言/通知/ref_items），冪等
@@ -213,6 +214,10 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **桌機各詳情畫面微調**：`App.jsx` 給堆疊 `.screen` 加 `screen-<key>` class（如 `screen-postDetail`、`screen-subscription`），可在 CSS 針對單一畫面調版面（訂閱雙欄、貼文窄欄等）。
 - **桌機 `.device` 一定要覆寫 base 的 `max-height:100dvh`**：手機 base 是 `height:100dvh; max-height:100dvh`（滿版手機框內捲）。桌機是整頁捲動，device 要 `height:auto; max-height:none`。**只覆寫 height 忘了 max-height** → device 被鎖在一個視窗高，較長內容溢出、頁尾（device 之後的手足）疊到內容上（「頁尾殘影」）。
 - **`.coverbig` 有 inline `width:calc(100%-26px)`**：桌機要 `width:auto !important` 才蓋得掉。
+- **新增畫面要同時改三處路由表**：`registry.jsx` 的 `SCREENS`、`nav.jsx` 的 `SCREEN_PATH`、以及 **`server/seo.js` 的 `ROUTES`**。漏了第三處，新頁會被伺服器判定為未知路由而回 **404 狀態碼**（畫面仍能用，但搜尋引擎不收錄）。
+- **CSR 的爬蟲補救在 `server/seo.js`**：**LINE／FB／Threads 的預覽抓取器完全不執行 JS**，所以每頁的 title/description/og/canonical 必須在伺服器端就寫進 HTML（`injectMeta`），不能等 React 設 `document.title`。個人頁／需登入頁在路由表標 `noindex`。
+- **未知路由回真 404**：原本一律回 index.html + 200＝soft 404，等於告訴搜尋引擎「站上有無限多個內容重複的有效頁面」。現在 body 仍送 SPA HTML（使用者看得到設計過的找不到頁面），但狀態碼是 404。
+- **`notFound` 畫面不在 `SCREEN_PATH` 裡**：`pathFromState` 特別為它回傳 `window.location.pathname`，保留使用者打錯的網址；否則網址會被同步邏輯改寫成 `/`，重整就變首頁。
 - **主題切換不重整**：`nav.jsx` 讀寫 `localStorage('jq-theme')`；勿把主題 script inline 進 HTML（違反 CSP，已外移 `public/theme-init.js`）。
 - **真 Chrome 截圖**：點擊/導航後常 CDP timeout（renderer freeze），重試單獨 screenshot 即可；量測用 `javascript_tool` 較穩。
 - **不要**放回 IG 風格元素（彩虹 story 環、IG 藍、IG Shop 黑底 $ 徽章、純圖示底部列）——刻意去 IG 化，走宣紙/墨/朱紅/金/靛青 + 襯線明體。

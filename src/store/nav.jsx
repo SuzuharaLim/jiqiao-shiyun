@@ -39,6 +39,10 @@ export const hrefForScreen = (screen, props) => buildPath(screen, props)
 export const hrefForTab = (tab) => TAB_PATHS[tab] || '/'
 function pathFromState(tab, stack) {
   const top = stack[stack.length - 1]
+  // ⚠️ 找不到頁面沒有自己的路徑：要保留使用者打錯的那個網址，
+  // 否則同步邏輯會把網址改寫成 '/'，使用者按重新整理就變成首頁、
+  // 也無法把壞掉的連結回報給我們。
+  if (top?.screen === 'notFound') return window.location.pathname
   if (top) { const p = buildPath(top.screen, top.props); if (p) return p }
   return TAB_PATHS[tab] || '/'
 }
@@ -54,7 +58,9 @@ function routeFromPath(pathname) {
       return { tab: 0, stack: [{ screen: m.screen, props }] }
     }
   }
-  return { tab: 0, stack: [] }   // 未知路徑 → 首頁
+  // ⚠️ 未知路徑不可靜默回首頁：伺服器已回 404 狀態碼，畫面卻顯示首頁的話，
+  // 使用者不知道自己打錯網址，只會覺得「連結壞掉」。改推明確的找不到頁面。
+  return { tab: 0, stack: [{ screen: 'notFound', props: {} }] }
 }
 const initialRoute = () => { try { return routeFromPath(window.location.pathname) } catch { return { tab: 0, stack: [] } } }
 

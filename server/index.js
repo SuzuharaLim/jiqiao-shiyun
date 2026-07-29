@@ -10,10 +10,11 @@ import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
+import { matchRoute, injectMeta, buildSitemap } from './seo.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1320,7 +1321,26 @@ app.post('/api/admin/mail-test', requireAuth, requireRole('admin'), requireCsrf,
 const distDir = join(__dirname, '..', 'dist')
 if (existsSync(distDir)) {
   app.use(express.static(distDir, { index: false, maxAge: '1y', setHeaders: (res, p) => { if (p.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache') } }))
-  app.get('*', (req, res, next) => req.path.startsWith('/api/') ? next() : res.sendFile(join(distDir, 'index.html')))
+
+  const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf8')
+  const originOf = (req) => process.env.APP_URL?.replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`
+
+  // sitemap：即時產生（路由表就是唯一真相，不需要另外維護一份檔案）
+  app.get('/sitemap.xml', (req, res) => {
+    res.type('application/xml').set('Cache-Control', 'public, max-age=3600')
+      .send(buildSitemap(originOf(req)))
+  })
+
+  // SPA fallback ＋ 逐頁 meta 注入 ＋ 真 404
+  // ⚠️ 未知路由必須回 404 狀態碼。原本一律回 index.html + 200，等於告訴搜尋引擎
+  //    「本站有無限多個內容一樣的有效頁面」＝soft 404，會稀釋權重、浪費爬取配額。
+  //    但 body 仍要送 SPA 的 HTML，使用者才會看到 App 內設計過的找不到頁面。
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next()
+    const route = matchRoute(req.path)
+    const html = injectMeta(indexHtml, { origin: originOf(req), pathname: req.path, route })
+    res.status(route ? 200 : 404).type('html').set('Cache-Control', 'no-cache').send(html)
+  })
 }
 
 // ---------- 錯誤處理 ----------
