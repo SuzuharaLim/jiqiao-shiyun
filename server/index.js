@@ -1287,6 +1287,10 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 
 const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與農民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
 
+// 最近一次上游失敗的原因（供管理後台「系統狀態」查看）。
+// ⚠️ 只在記憶體、只給 admin 看：內容可能含金鑰前綴等敏感訊息，不可外洩給一般使用者。
+let lastAiError = null
+
 // ---------- 今日曆訊：由伺服器自己算，一次給足 ----------
 // ⚠️ 這是「必然幻覺」的根治。原本 context 只有前端傳來的一行：
 //      「今天大暑，己亥日，宜…；忌…；吉時…」
@@ -1374,8 +1378,18 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
       signal: AbortSignal.timeout(25000),
     })
     if (!r.ok) {
-      console.error('[ai] upstream', r.status, (await r.text().catch(() => '')).slice(0, 200))
-      return res.status(502).json({ error: 'AI 服務暫時無法回應' })
+      const detail = (await r.text().catch(() => '')).slice(0, 400)
+      console.error('[ai] upstream', r.status, detail)
+      lastAiError = { at: now(), status: r.status, detail }   // 供管理後台診斷
+      // ⚠️ 上游的失敗要分「設定錯了」和「暫時性」兩類：
+      //    金鑰無效／模型名稱不存在／額度用完，重試一萬次都不會好，
+      //    卻回「線路不穩，再試一次」等於叫使用者做白工，也讓你查不到真因。
+      const cfgBroken = r.status === 401 || r.status === 403 || r.status === 404
+      return res.status(cfgBroken ? 503 : 502).json({
+        error: cfgBroken
+          ? 'AI 顧問目前無法使用（服務設定有誤，我們已收到通知）'
+          : 'AI 服務忙碌中，請稍後再試',
+      })
     }
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -1450,6 +1464,42 @@ app.post('/api/admin/mail-test', requireAuth, requireRole('admin'), requireCsrf,
   const r = await delivery   // 測試信才等結果，方便你立刻看到成功/失敗原因
   await audit('mail_test', req, req.user.id, `${to}:${r.sent ? 'ok' : 'fail'}`)
   res.json({ ok: !!r.sent, provider: st.provider, from: st.from, result: r })
+}))
+
+// AI 自我檢測（admin 限定）——直接打一次上游，把「真正的失敗原因」帶回來。
+// ⚠️ 為什麼需要這支：使用者只會看到「AI 顧問目前無法使用」，真因（金鑰無效／
+//    模型名稱不存在／額度用完）原本只寫進 Cloud Run log，等於要翻雲端日誌才查得到。
+//    金鑰錯與模型名稱錯的症狀完全一樣，沒有這支就只能猜。
+// ⚠️ 只給 admin，且金鑰一律只回前後各 4 碼，不可回完整值。
+app.post('/api/admin/ai-test', requireAuth, requireRole('admin'), requireCsrf, authLimiter, ah(async (req, res) => {
+  const mask = (k) => k ? `${k.slice(0, 6)}…${k.slice(-4)}（長度 ${k.length}）` : '（未設定）'
+  const base = { model: OPENAI_MODEL, baseUrl: OPENAI_BASE, key: mask(OPENAI_KEY), lastError: lastAiError }
+  if (!OPENAI_KEY) {
+    return res.status(501).json({ ok: false, ...base,
+      hint: '未設定 OPENAI_API_KEY。請在 Secret Manager 建立 jiqiao-openai-key 後重新部署（deploy.sh 已會帶入）。' })
+  }
+  try {
+    const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({ model: OPENAI_MODEL, messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const body = (await r.text().catch(() => '')).slice(0, 500)
+    await audit('ai_test', req, req.user.id, `${r.status}`)
+    if (r.ok) return res.json({ ok: true, ...base, status: r.status, hint: 'AI 可正常呼叫 ✓' })
+    const HINTS = {
+      401: '金鑰無效或已撤銷 → 到 OpenAI 後台重新產生，更新 Secret Manager 的 jiqiao-openai-key 再部署。',
+      403: '金鑰沒有這個模型的權限 → 換一個帳號有權限的模型（設環境變數 OPENAI_MODEL）。',
+      404: `模型「${OPENAI_MODEL}」不存在或你的帳號不能用 → 設 OPENAI_MODEL 換成可用的模型。`,
+      429: '額度用完或請求過於頻繁 → 到 OpenAI 後台看用量與付款方式。',
+    }
+    res.status(200).json({ ok: false, ...base, status: r.status, body,
+      hint: HINTS[r.status] || `上游回 ${r.status}，詳見 body。` })
+  } catch (e) {
+    res.status(200).json({ ok: false, ...base, error: e.message,
+      hint: '連不上上游（逾時或網路問題）。若 OPENAI_BASE_URL 有自訂，先確認它是對的。' })
+  }
 }))
 
 // ---------- 靜態前端 ----------

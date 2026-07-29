@@ -36,6 +36,16 @@ export default function Admin() {
   useEffect(() => { if (tab === 'support') api.adminSupport().then(r => setSupport(r.messages || [])).catch(() => setSupport([])) }, [tab])
   useEffect(() => { if (tab === 'audit' && isAdmin) api.adminAudit().then(r => setAudit(r.audit || [])).catch(() => setAudit([])) }, [tab, isAdmin])
   useEffect(() => { if (tab === 'system' && isAdmin) api.health().then(setHealth).catch(() => {}) }, [tab, isAdmin])
+  // AI 自我檢測：把上游真正的失敗原因帶回來（金鑰無效／模型不存在／額度用完
+  // 三者症狀完全一樣，沒有這支只能翻 Cloud Run log 用猜的）
+  const [aiDiag, setAiDiag] = useState(null)
+  const [aiBusy, setAiBusy] = useState(false)
+  const doAiTest = async () => {
+    setAiBusy(true); setAiDiag(null)
+    try { setAiDiag(await api.aiTest()) }
+    catch (e) { setAiDiag({ ok: false, hint: e?.message || '檢測失敗' }) }
+    finally { setAiBusy(false) }
+  }
   const doMailTest = async () => {
     setMailBusy(true)
     try {
@@ -129,6 +139,28 @@ export default function Admin() {
                 </>
               ) : <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>讀取中…</div>}
             </div>
+
+            <SectionHead title="AI 自我檢測" />
+            <div className="pad" style={{ paddingTop: 0 }}>
+              <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, margin: '0 0 10px' }}>
+                使用者看到「AI 顧問目前無法使用」時按這裡，可以問出真正的原因
+                （金鑰無效／模型名稱不存在／額度用完，三者的症狀一模一樣）。
+              </p>
+              <button className="b dark tap" style={{ width: '100%' }} onClick={doAiTest} disabled={aiBusy}>
+                {aiBusy ? '檢測中…' : '測試 AI 連線'}
+              </button>
+            </div>
+            {aiDiag && (
+              <div className="card" style={{ margin: '8px var(--space-4)' }}>
+                <div className="kv"><span>結果</span>
+                  <b style={{ color: aiDiag.ok ? 'var(--yi)' : 'var(--ji)' }}>{aiDiag.ok ? '正常 ✓' : `失敗${aiDiag.status ? `（${aiDiag.status}）` : ''}`}</b></div>
+                {aiDiag.model && <div className="kv"><span>模型</span><b>{aiDiag.model}</b></div>}
+                {aiDiag.key && <div className="kv"><span>金鑰</span><span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{aiDiag.key}</span></div>}
+                {aiDiag.hint && <p style={{ fontSize: 'var(--text-xs)', lineHeight: 1.8, marginTop: 10 }}>{aiDiag.hint}</p>}
+                {aiDiag.body && <pre style={{ fontSize: 'var(--text-2xs)', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  background: 'var(--field)', padding: 10, borderRadius: 2, marginTop: 8, maxHeight: 160, overflow: 'auto' }}>{aiDiag.body}</pre>}
+              </div>
+            )}
 
             <SectionHead title="寄信測試" />
             <div className="acc-form" style={{ padding: '0 var(--space-4)' }}>

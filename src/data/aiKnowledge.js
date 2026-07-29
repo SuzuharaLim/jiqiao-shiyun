@@ -18,6 +18,8 @@
 // ⚠️ 新增意圖時務必遵守：不要在這裡寫任何「價格、退費天數、出貨時間」的具體數字。
 //    那些一旦與實際政策不符就是糾紛來源；一律導向站內頁面或真人客服。
 
+import { termGuideOf } from './termGuide.js'
+
 const j = (...lines) => lines.filter(Boolean).join('\n')
 
 // 站內導引：{ label, screen } —— screen 對應 registry.jsx 的 SCREENS key
@@ -138,6 +140,36 @@ const INTENTS = [
     fn: (d) => ({
       text: `今日農諺：「${d.proverb}」🌾${d.proverbMean ? '\n\n' + d.proverbMean : ''}`,
     }),
+  },
+
+  // ---------- 節氣養生：站內有人工編纂的 24 節氣資料庫，別讓模型自己編 ----------
+  // ⚠️ 這一則接的是 termGuide.js（當令農產漁獲＋產地、俗語、應景食物、養生提醒），
+  //    是有來源的人工資料。先前這類問題全部丟給 GPT——結果 OpenAI 一出狀況
+  //    （金鑰無效／模型名稱不對），連「大暑要注意什麼」這種站內明明有答案的
+  //    問題都答不出來。有現成權威資料的題目不該有外部相依。
+  {
+    id: 'termLife',
+    keys: ['要注意什麼', '注意事項', '養生', '該吃什麼', '吃什麼好', '當令', '時令', '產季',
+      '應景', '習俗', '禁忌', '開運色', '幸運色'],
+    fn: (d) => {
+      const g = termGuideOf(d.term)
+      if (!g) return null                       // 沒收錄就交給 GPT，不要硬掰
+      const land = (g.land || []).slice(0, 4).map(x => x.name).join('、')
+      const sea = (g.sea || []).slice(0, 3).map(x => x.name).join('、')
+      return {
+        text: j(
+          `「${d.term}」${g.date ? `（${g.date}）` : ''} 🌾`,
+          '',
+          (g.tips || []).length ? (g.tips || []).map(t => '· ' + t).join('\n') : '',
+          land ? `\n當令農產：${land}` : '',
+          sea ? `當令漁獲：${sea}` : '',
+          (g.foods || []).length ? `應景食物：${(g.foods || []).join('、')}` : '',
+          (g.sayings || []).length ? `\n俗語：「${g.sayings[0]}」` : '',
+          g.luckyColor ? `開運色：${g.luckyColor}` : '',
+        ),
+        actions: [{ label: '🌿 節氣專欄', screen: 'solarterms' }, { label: '🥬 當令食材', screen: 'ingredients' }],
+      }
+    },
   },
 
   // ---------- 客服：訂單 / 商品 / 帳號 / 訂閱 ----------
@@ -582,6 +614,7 @@ const INTENTS = [
   // ---------- 情緒陪伴：不要回運勢報表 ----------
   {
     id: 'emotion',
+    notKeys: ['適合', '哪天', '幾號', '宜不宜'],
     keys: ['分手', '失戀', '難過', '想哭', '好累', '壓力', '焦慮', '緊張', '睡不著', '心情不好',
       '被罵', '吵架', '孤單', '寂寞', '過世', '走了', '喪', '告別式', '諸事不順', '很不順', '倒楣'],
     fn: (d) => ({
@@ -596,7 +629,11 @@ const INTENTS = [
   },
   {
     id: 'interview',
-    keys: ['面試', '考試', '報告', '上台', '比賽緊張', '提案'],
+    // ⚠️ notKeys：這些詞出現時代表使用者問的是「擇日」不是「安撫」。
+    //    實測「今天適合跟客戶提案嗎？」被這條情緒意圖接走，回了一段
+    //    「會緊張表示你在乎」——答非所問。擇日類要讓給 GPT（它現在有完整曆訊）。
+    notKeys: ['適合', '哪天', '幾號', '哪一天', '宜不宜', '好不好', '可以嗎'],
+    keys: ['面試', '考試', '上台', '比賽緊張', '提案', '好緊張', '很緊張'],
     fn: (d) => {
       const good = d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時 ${h.range}`)
       return {
@@ -685,11 +722,19 @@ export function localAnswer(text, day) {
   if (!raw) return null
   const q = toTrad(raw).toLowerCase()
 
+  // ⚠️ 這個 catch 是為了「曆訊缺某個欄位時安靜讓給 GPT，不要讓整頁壞掉」，
+  //    但它也會把 handler 裡的打字錯誤（例如忘了 import）一起吞掉——
+  //    症狀是該意圖安靜失效、問題被丟給 GPT，完全沒有任何跡象。
+  //    （實測就踩過一次：termGuideOf 忘了 import，整條節氣養生意圖靜靜失聯。）
+  //    所以保留容錯，但一定要留下痕跡。
   const run = (it) => {
     try {
       const r = it.fn(day)
       return r ? { ...r, intent: it.id } : null
-    } catch { return null }   // 曆訊缺欄位時安靜讓給 GPT，不要讓整頁壞掉
+    } catch (e) {
+      console.warn(`[aiKnowledge] 意圖 "${it.id}" 執行失敗，已讓給 GPT：`, e?.message)
+      return null
+    }
   }
 
   // 1) 安全類優先
@@ -701,9 +746,10 @@ export function localAnswer(text, day) {
   for (const it of INTENTS) {
     if ((it.exact || []).some(e => q === toTrad(e).toLowerCase())) return run(it)
   }
-  // 3) 最長關鍵字優先
+  // 3) 最長關鍵字優先（notKeys 命中就整條略過——見 interview 的註解）
   let best = null
   for (const it of INTENTS) {
+    if ((it.notKeys || []).some(nk => q.includes(toTrad(nk).toLowerCase()))) continue
     for (const k of it.keys || []) {
       const kk = toTrad(k).toLowerCase()
       if (q.includes(kk) && (!best || kk.length > best.len)) best = { it, len: kk.length }

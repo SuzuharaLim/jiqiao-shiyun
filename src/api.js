@@ -101,6 +101,7 @@ export const api = {
   // 系統狀態 / 寄信測試（管理者）
   health: () => req('/health'),
   mailTest: (to) => req('/admin/mail-test', { method: 'POST', body: { to } }),
+  aiTest: () => req('/admin/ai-test', { method: 'POST', timeout: 20000 }),   // AI 自我檢測（admin）
   // 金流（scaffold）
   payIntent: (b) => req('/payments/intent', { method: 'POST', body: b }),
   support: (b) => req('/support', { method: 'POST', body: b }),   // 客服／聯絡訊息（真的會送出）

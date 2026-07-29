@@ -177,10 +177,14 @@ export default function AIChat() {
       //    使用者完全不知道自己在跟 5 條 if 講話。降級必須「看得見」。
       if (e?.stopped) { /* 使用者自己按停止，保留已收到的內容 */ }
       else {
+        // ⚠️ 503（設定有誤）不可給「再試一次」——金鑰無效或模型名稱不對時，
+        //    重試一萬次都不會好，那顆按鈕只是讓使用者做白工。
+        //    改成誠實說明＋導向站內還能用的東西（曆頁、聯絡我們）。
         const map = {
           401: { text: '這一段要登入才能請顧問開口 🌿 免費註冊後，今日運勢、解籤、解夢都能問。', cta: 'login' },
           429: { text: '問得有點快，讓顧問喘口氣～稍等十秒再試 🍃', cta: 'retry' },
           502: { text: '顧問那頭線路不穩，要再問一次嗎？', cta: 'retry' },
+          503: { text: 'AI 顧問暫時休息中 🌿 我們已經收到通知，會盡快恢復。\n\n這期間曆頁、宜忌、吉時、沖煞這些還是查得到——你也可以直接問我這類問題，我不用連線就答得出來。', cta: 'almanac' },
           504: { text: '這題想太久了，換個問法或稍後再試 🌾', cta: 'retry' },
         }
         const hit = map[e?.status] || { text: e?.message || '發生錯誤，請稍後再試', cta: 'retry' }
@@ -226,9 +230,17 @@ export default function AIChat() {
                 <div className="msg sys">
                   <span>{m.text}</span>
                   <div className="sys-acts">
-                    {m.cta === 'login'
-                      ? <button className="qchip tap" onClick={() => requireAccount('AI 時光顧問')}>去註冊 / 登入</button>
-                      : <button className="qchip tap" onClick={() => send(m.q)} disabled={typing || streaming}>再試一次</button>}
+                    {m.cta === 'login' ? (
+                      <button className="qchip tap" onClick={() => requireAccount('AI 時光顧問')}>去註冊 / 登入</button>
+                    ) : m.cta === 'almanac' ? (
+                      /* 設定有誤時「再試一次」是白工，改導向還能用的功能 */
+                      <>
+                        <button className="qchip tap" onClick={() => push('almanacDay')}>📜 看完整農民曆</button>
+                        <button className="qchip tap" onClick={() => push('dms')}>✉️ 回報問題</button>
+                      </>
+                    ) : (
+                      <button className="qchip tap" onClick={() => send(m.q)} disabled={typing || streaming}>再試一次</button>
+                    )}
                   </div>
                 </div>
               ) : m.who === 'ai' ? (
