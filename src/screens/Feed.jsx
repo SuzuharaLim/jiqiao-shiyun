@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -37,21 +37,11 @@ export default function Feed() {
     setTear(delta > 0 ? 'next' : 'prev')
     setOff(next)
   }
-  // 手機：上下滑動翻日，比按 ‹ › 更接近撕日曆的手勢。
-  // ⚠️ 門檻設 44px 並要求垂直位移大於水平，否則橫向捲動（作品卷軸）會誤觸。
-  const touch = useRef(null)
-  const onTouchStart = (e) => {
-    const t = e.touches[0]
-    touch.current = { x: t.clientX, y: t.clientY }
-  }
-  const onTouchEnd = (e) => {
-    const s = touch.current; touch.current = null
-    if (!s) return
-    const t = e.changedTouches[0]
-    const dy = t.clientY - s.y, dx = t.clientX - s.x
-    if (Math.abs(dy) < 44 || Math.abs(dy) <= Math.abs(dx)) return
-    go(dy < 0 ? 1 : -1)                           // 往上滑＝撕掉今天看明天
-  }
+  // ⚠️ 曆頁「上下滑翻日」的手勢已於 2026-07-29 移除，切勿再加回來。
+  // 使用者實測回報：手指在曆頁上稍微碰一下、或想往下捲頁面時就換了日期。
+  // 這個區塊佔滿整張曆頁又位在頁面中段，垂直滑動本來就是「捲動」的意思，
+  // 把它綁成翻日等於跟瀏覽器的預設手勢搶輸入——門檻調高也只是讓誤觸變難預測。
+  // 翻日一律走上方的 ‹ › 與日期選擇器（明確、可預期、不會誤觸）。
   const openCal = () => { const c = dateFromOffset(off); setCal({ y: c.getFullYear(), m: c.getMonth() }) }
   const shiftCal = (dy, dm) => setCal(c => { const dt = new Date(c.y + dy, c.m + dm, 1); return { y: dt.getFullYear(), m: dt.getMonth() } })
   // 該月是否完全超出可選範圍（用於停用整組年/月箭頭）
@@ -92,8 +82,7 @@ export default function Feed() {
 
         {/* 今日曆頁（精簡） */}
         <div className={`calpage${tear ? ` tear-${tear}` : ''}`}
-          onAnimationEnd={() => setTear(null)}
-          onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          onAnimationEnd={() => setTear(null)}>
           <div className="hd">機巧時運 · 今日曆頁</div>
           <div className="gz"><div className="zi">{gzZi}<small>日</small></div></div>
           <div className="meta"><span className="term">{d.term}</span></div>
