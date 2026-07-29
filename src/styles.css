@@ -39,7 +39,7 @@ a { color:inherit; text-decoration:none; }
 .webnav, .webfoot { display:none; }
 /* 根分頁包裹層：預設對版面透明（手機維持 device 的 flex 直排）；桌機有堆疊畫面時隱藏 */
 .rootpane { display:contents; }
-@media (min-width:900px) {
+@media (min-width:900px) and (min-height:600px) {
   /* 版面：頂部橫向導覽列（滿版）＋ 下方置中內容欄，像一般網站 */
   /* 整頁捲動（像網站）：整頁單一連續平面，內容直接坐在頁面上（不做浮起卡片＝避免「頁面裡有頁面」） */
   .stage.signed-in { flex-direction:column; align-items:center; justify-content:flex-start;
@@ -124,7 +124,7 @@ a { color:inherit; text-decoration:none; }
 /* ==========================================================================
    桌機內容設計層（≥900px）：真正用到橫向空間、雙欄卡片、層次與 hover
    ========================================================================== */
-@media (min-width:900px) {
+@media (min-width:900px) and (min-height:600px) {
   /* 內容畫布加寬 */
   .stage.signed-in .device { width:min(100%, 1000px); max-width:1000px; }
   /* 導覽列/頁尾的版心對齊內容卡：原本 1040＋28 內距，內容卡是 1000＋26，
@@ -382,7 +382,13 @@ a { color:inherit; text-decoration:none; }
 .ordfoot { display:flex; justify-content:space-between; align-items:center; padding-top:2px; }
 
 /* 平板以上：手機外框 + 溫潤品牌背景 */
-@media (min-width:560px) {
+/* ⚠️ 平板／桌機的斷點必須同時看「高度」，不能只看寬度：
+   橫向手機（例如 844×390）寬度也 ≥560，會被誤判成平板而套用「手機模型框」
+   ——實測變成中間一個 420×334 的小框、左右各 212px 灰邊，只用到 43% 螢幕，
+   可視內容剩 221px 高。加上 min-height:600px 之後，矮視窗（橫向手機）
+   一律維持滿版手機版面。600px 這個門檻能乾淨分開橫向手機（320~430 高）
+   與正常桌機視窗（≥600 高）。 */
+@media (min-width:560px) and (min-height:600px) {
   .stage {
     padding:28px; gap:clamp(20px, 4vw, 56px);
     /* 原本疊了兩道朱紅／金的 radial glow（舊色票）。換白底三色後那兩團暖光
@@ -412,7 +418,7 @@ a { color:inherit; text-decoration:none; }
    會永久壓在右下方的內容上——實測蓋住首頁「更多作品 ›」與神明頁的提醒列。
    主題切換在「設定」裡已有同功能開關（Settings.jsx 的 Switch），
    為了一個重複的入口而永久佔用內容區並不划算。平板/桌機維持右上角（不壓內容）。 */
-@media (max-width:559px){ .theme-fab{ display:none; } }
+@media (max-width:559px), (max-height:599px){ .theme-fab{ display:none; } }
 
 /* ---------- 通用結構 ---------- */
 .body {
@@ -444,14 +450,25 @@ a { color:inherit; text-decoration:none; }
 .topbar .brand { font-size:var(--text-lg); font-weight:800; letter-spacing:.3px; }
 .topbar .ttl { font-size:var(--text-base); font-weight:700; }
 .topbar .row { display:flex; align-items:center; gap:16px; }
-.iconbtn { display:flex; align-items:center; justify-content:center; padding:2px; position:relative; }
+/* ⚠️ 觸控目標最小 24×24（WCAG 2.5.8 AA）。留言的讚原本只有 19×19、刪除 ✕ 只有 16×30，
+   手機上很難點中。
+   ⚠️ 曾試過用 ::after 把「可點範圍」擴到 40×40（不動版面），但實測留言列裡
+   讚與刪除相鄰，兩個擴張區重疊 6×37，還會蓋到送出留言鈕——反而更容易點錯。
+   改成單純把按鈕本體撐到 24×24：達標且不會互相侵犯。 */
+.iconbtn { display:flex; align-items:center; justify-content:center; padding:2px; position:relative;
+  min-width:24px; min-height:24px; }
 .acc { color:var(--accent); font-weight:700; font-size:var(--text-sm); }
 .badge-dot { position:absolute; top:-1px; right:-2px; width:8px; height:8px;
   background:var(--heart); border-radius:50%; border:1.5px solid var(--bg); }
 
 /* ---------- tab bar ---------- */
+/* ⚠️ 高度必須把安全區「加進去」，不能只加 padding：
+   box-sizing 是 border-box，寫死 height 的話 padding-bottom 會從固定高度裡扣，
+   iPhone（home indicator 安全區 34px）上內容區只剩 56-34=22px，
+   圖示 26px＋標籤 13px 直接放不下 → 底部列被擠扁。用 calc 把安全區外加。 */
 .tabbar {
-  height:56px; border-top:1px solid var(--line); flex:0 0 auto;
+  height:calc(56px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line); flex:0 0 auto;
   display:flex; align-items:center; justify-content:space-around; background:var(--bg);
   padding-bottom:env(safe-area-inset-bottom);
 }
@@ -588,7 +605,10 @@ a { color:inherit; text-decoration:none; }
   border-top:1px solid var(--line); flex:0 0 auto; }
 .cinput .f { flex:1; background:var(--field); border-radius:2px; height:40px; display:flex;
   align-items:center; padding:0 15px; }
-.cinput input { flex:1; border:none; background:none; outline:none; font-size:var(--text-xs); color:var(--text); }
+/* ⚠️ 輸入框字級不可小於 16px：iOS Safari 在聚焦時會自動把整頁放大，
+   放大後版面被推歪、還要手動縮回來。--text-xs 是 15px 剛好踩線，故用 --text-sm(16px)。
+   全站的 input/textarea/select 都適用這條。 */
+.cinput input { flex:1; border:none; background:none; outline:none; font-size:var(--text-sm); color:var(--text); }
 .sendbtn { width:40px; height:40px; border-radius:50%; background:var(--primary);
   display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
 .sendbtn .ic { stroke:var(--pfg); fill:var(--pfg); width:20px; height:20px; }
@@ -624,8 +644,9 @@ a { color:inherit; text-decoration:none; }
   width:100%; text-align:left; background:var(--bg); }
 .opt .l { display:flex; align-items:center; gap:9px; }
 .capin { padding:var(--space-4) 14px; border-bottom:1px solid var(--line); }
+/* ⚠️ 同上：發文說明的 textarea 也要 ≥16px，否則 iOS 聚焦時整頁被放大 */
 .capin textarea { width:100%; border:none; outline:none; resize:none; background:none;
-  font:inherit; font-size:var(--text-xs); color:var(--text); min-height:44px; }
+  font:inherit; font-size:var(--text-sm); color:var(--text); min-height:44px; }
 
 /* ---------- profile ---------- */
 .pf-hd { display:flex; align-items:center; gap:20px; padding:16px 16px 10px; }
@@ -718,10 +739,19 @@ a { color:inherit; text-decoration:none; }
    那就是使用者看到的網格——白底之後格線變成明顯的方格紙，且與文字筆畫互相干擾。
    已整組移除（含深色版與暖罩），底色一律純色。**不要再加回任何格線／紋理。** */
 .device { background-color:var(--bg); }
+/* 橫向手機（矮視窗但寬度 >430）：拿掉 430px 上限讓 App 填滿螢幕。
+   ⚠️ 不解除的話，手機一轉橫向就變成中間 430px、左右各 200 多 px 的灰邊，
+   只用到一半螢幕——原生 App 轉橫向是填滿的，這裡要一致。
+   .sheet 同步放寬，否則底部彈出面板會只有 430 寬、與畫面不對齊。 */
+@media (max-height:599px) and (min-width:431px) {
+  .device { max-width:none; }
+  .sheet  { max-width:none; }
+}
 .topbar, .tabbar, .body { position:relative; z-index:1; }
 
-/* 底部分頁列：加中文標籤 ＋ 朱紅選中態（取代 IG 純圖示列） */
-.tabbar { height:62px; }
+/* 底部分頁列：加中文標籤（取代 IG 純圖示列）。
+   ⚠️ 同上，安全區要外加不可內扣，否則 iPhone 上圖示＋標籤會被壓掉。 */
+.tabbar { height:calc(62px + env(safe-area-inset-bottom)); }
 .tabbtn { position:relative; flex-direction:column; gap:3px; }
 .tabbtn .ic { width:23px; height:23px; }
 .tablbl { font-size:var(--text-2xs); font-weight:600; color:var(--muted); letter-spacing:.5px; }
@@ -763,6 +793,17 @@ a { color:inherit; text-decoration:none; }
 @keyframes slideup { from{ transform:translateY(24px); opacity:.5 } to{ transform:translateY(0); opacity:1 } }
 .sheet::-webkit-scrollbar{ width:0; }
 .sheet-grip { width:40px; height:4px; border-radius:2px; background:var(--line2); margin:8px auto 4px; }
+
+/* ---------- 手機：輸入框最小字級（防 iOS 聚焦自動放大） ----------
+   ⚠️ iOS Safari 只要輸入框字級 <16px，聚焦時就會把整頁放大，版面被推歪、
+   使用者還得手動縮回來。這是全站保險，個別規則若不小心用了 --text-xs(15px)
+   也會被這條拉回 16px。
+   ⚠️ 原本只有 `@media (max-width:360px)` 裡對 .field input 做了這件事——
+   那個斷點只涵蓋極窄機型，一般手機（390/430）完全沒被保護到。 */
+@media (max-width:559px), (max-height:599px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),
+  textarea, select { font-size:max(16px, var(--text-sm)); }
+}
 
 /* ---------- 無障礙：全域可見焦點環（鍵盤導覽） ---------- */
 :where(button, a, input, textarea, [tabindex], [role="switch"]):focus-visible {
@@ -1211,7 +1252,7 @@ a { color:inherit; text-decoration:none; }
 .ya-tai .d { font-size:var(--text-2xs); color:var(--muted); margin-top:3px; line-height:1.5; }
 
 /* 桌機：完整曆頁／年度總覽收斂為單欄宜讀寬度（避免格子過寬） */
-@media (min-width:900px) {
+@media (min-width:900px) and (min-height:600px) {
   .stage.signed-in .screen-almanacDay .body,
   .stage.signed-in .screen-yearAlmanac .body { width:min(100%, 760px); margin-left:auto; margin-right:auto; }
   .stage.signed-in .ad-hours { grid-template-columns:repeat(6,1fr); }
@@ -1226,7 +1267,7 @@ a { color:inherit; text-decoration:none; }
   background:transparent; color:var(--text); font-size:var(--text-xs); font-weight:700; cursor:pointer; }
 .verify-banner .vb-btn.on { background:var(--yi); border-color:var(--yi); color:#fff; }
 .verify-banner .vb-x { flex:0 0 auto; background:none; border:none; color:var(--muted); font-size:var(--text-sm); cursor:pointer; padding:2px 4px; }
-@media (min-width:900px){ .stage.signed-in .verify-banner{ max-width:900px; margin-left:auto; margin-right:auto; } }
+@media (min-width:900px) and (min-height:600px){ .stage.signed-in .verify-banner{ max-width:900px; margin-left:auto; margin-right:auto; } }
 
 /* ── 地點選擇器（LocationPicker）── */
 .sheet.lp { max-height:88vh; display:flex; flex-direction:column; padding-bottom:0; }
@@ -1630,7 +1671,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
    而不是一整塊飽和色。
    ══════════════════════════════════════════════════════════════════════ */
 .chips {
-  gap: 20px;
+  /* 間距從 20 收到 13，換給 .chip 左右內距當觸控寬度——
+     兩者相加後「相鄰項的中心距」維持在 39px 左右，視覺節奏不變。 */
+  gap: 13px;
   padding: 2px 16px 0;
   border-bottom: 1px solid var(--line);
   align-items: stretch;
@@ -1639,7 +1682,10 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
   background: none;
   border: none;
   border-radius: 0;
-  padding: 8px 1px 9px;
+  /* ⚠️ 左右內距不可再收回 1px：單一中文字的 chip（周公解夢的「水」「雨」…）
+     會只剩 19px 寬，低於 WCAG 2.5.8 的 24×24，手機上很難點中。 */
+  padding: 8px 5px 9px;
+  min-width: 24px;
   font-family: var(--serif);
   font-size:var(--text-sm);
   font-weight: 500;

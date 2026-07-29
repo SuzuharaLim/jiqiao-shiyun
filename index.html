@@ -2,7 +2,11 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- ⚠️ interactive-widget=resizes-content：手機鍵盤彈出時讓「版面視窗」跟著縮，
+         100dvh 才會變小。少了它，鍵盤會直接蓋住底部的輸入列（留言、AI 對話），
+         使用者看不到自己在打什麼。
+         ⚠️ 不可加 user-scalable=no / maximum-scale——那會禁止雙指放大，違反無障礙。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="description" content="機巧時運 — 智慧互動農民曆．社群攝影．AI 時光顧問，虛實整合的會說話文化手帳。" />
     <!-- ⚠️ 分頁圖示的快取獨立於 HTTP 快取，改了圖檔瀏覽器常常還是顯示舊的。

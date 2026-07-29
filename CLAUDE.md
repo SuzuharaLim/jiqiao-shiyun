@@ -140,6 +140,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 | **560–899px 平板** | 手機外框置中、溫潤品牌背景 |
 | **≥900px 桌機（登入）** | **網站式**：`WebNav` 頂部列 + 整頁捲動內容 + `WebFooter`；多欄版面 |
 
+**⚠️ 斷點同時看寬度與高度**：平板/桌機的兩個斷點都是 `and (min-height:600px)`。只看寬度的話，橫向手機（844×390）寬度也 ≥560，會被當成平板而套用「手機外框」——實測變成中間 420×334 的小框、左右各 212px 灰邊，只用到 43% 螢幕。矮視窗（橫向手機）一律走滿版手機版面，另有 `@media (max-height:599px) and (min-width:431px)` 解除 `.device` 的 430px 上限讓它填滿。
+
 桌機是**整頁捲動的網站**（非 App 內捲）：sticky navbar、內容直接坐在單一頁面上（無外框卡片＝避免頁中頁）、footer 落最後；各分頁多欄化（曆頁雙欄、探索/作品集 4 欄相簿、占卜/建立/我的工具列雙欄卡片、作品詳情雙欄商品頁）。細節、class 詞彙表、雷區見 [docs/樣式與RWD.md](docs/樣式與RWD.md)。
 
 ---
@@ -181,6 +183,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ## 慣例與雷區（改動前務必知道）
 
+- **手機 RWD 的四個必檢項（2026-07-28 修）**：
+  1. **安全區要「外加」不可「內扣」**：`.tabbar` 是 border-box，寫死 `height:62px` 再加 `padding-bottom:env(safe-area-inset-bottom)`，iPhone（安全區 34px）內容區只剩 27px，圖示 26＋標籤 13 直接放不下＝底部列被擠扁。要用 `height:calc(62px + env(safe-area-inset-bottom))`。
+  2. **輸入框字級 <16px 會讓 iOS 聚焦時自動放大整頁**（版面被推歪）。`--text-xs` 是 15px 剛好踩線。已加全域保險 `input/textarea/select { font-size:max(16px, var(--text-sm)) }`（原本只有 `max-width:360px` 那個斷點裡對 `.field input` 做，一般手機沒被保護到）。
+  3. **viewport 要有 `interactive-widget=resizes-content`**：否則手機鍵盤彈出時 `100dvh` 不會縮，鍵盤直接蓋住底部輸入列。**絕不可加 `user-scalable=no`／`maximum-scale`**（禁止雙指放大＝無障礙失敗）。
+  4. **觸控目標 ≥24×24**（WCAG 2.5.8 AA）。留言的讚曾是 19×19、刪除 ✕ 16×30。**用 `min-width/min-height` 撐大本體，不要用 `::after` 擴張隱形點擊區**——實測 40×40 的擴張區會與相鄰按鈕重疊（讚 ↔ 刪除重疊 6×37、還蓋到送出鈕），反而更容易點錯。
 - **`.body` 是 flex column**：內含 `overflow:hidden` 的區塊要加 `flex:0 0 auto`，否則被壓成 0 高。
 - **按鈕點開的覆蓋層／面板必須自己限高並可捲**：`.sheet`(max-height `min(82dvh, 100dvh-48px)`)、`.fmenu`(45dvh)、`.glosspanel`(40dvh) 皆已設定。**上限不可用「視窗高減固定值」**——面板起點取決於頂列/搜尋/選單列的實際高度，會隨字級與斷點變化（實測橫向 390px 時固定扣 140px 仍超出 61px），要用 dvh 比例。**也不可用 `flex:1 1 auto` 讓它自動填滿**——`.body` 是 flex column，空間不足時 `flex-shrink` 預設 1 會把面板壓成 0 高（實測高度 0、內容溢出 78px），必須 `flex:0 0 auto`。
 - **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
