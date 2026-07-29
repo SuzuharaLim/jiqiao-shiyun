@@ -697,6 +697,11 @@ a { color:inherit; text-decoration:none; }
   content:attr(data-demo); display:block; margin-top:6px;
   font-size:var(--text-2xs); opacity:.6; letter-spacing:1px; }
 
+/* 行動卡片：本地知識層回答時附的站內導引，把「聊天」變成「辦事」 */
+.msg-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;
+  padding-top:10px; border-top:1px solid var(--line); }
+.msg-acts .qchip { font-size:var(--text-2xs); padding:6px 12px; }
+
 /* 系統訊息（錯誤／需登入）：不能長得像 AI 的回答，否則使用者會以為顧問在說話 */
 .msg.sys { align-self:center; max-width:92%; text-align:center;
   background:var(--field); color:var(--muted); border:1px dashed var(--line2);

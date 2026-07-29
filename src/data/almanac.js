@@ -19,7 +19,6 @@ const Z = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉',
 const ZODIAC = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬']
 const WD = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 const NAYIN = ['海中金', '爐中火', '大林木', '路旁土', '劍鋒金', '山頭火', '澗下水', '城頭土', '白蠟金', '楊柳木', '天河水', '大驛土']
-const HOURS = ['子時・午時', '丑時・未時', '寅時・申時', '卯時・酉時', '辰時・戌時', '巳時・亥時', '辰時・未時', '卯時・巳時', '午時・酉時']
 const YI_POOL = ['祈福', '開市', '納財', '出行', '嫁娶', '祭祀', '安床', '入宅', '交易', '立券', '沐浴', '會親友', '裁衣', '栽種', '解除', '求嗣']
 const JI_POOL = ['動土', '安葬', '出火', '開倉', '伐木', '作樑', '行喪', '破土', '針灸', '掘井']
 const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
@@ -136,7 +135,25 @@ export function dayFor(off) {
   const yi = sample ? sample.yi : pick(YI_POOL, mod(off * 3, YI_POOL.length), 4)
   const jiRaw = sample ? sample.ji : pick(JI_POOL, mod(off * 2 + 5, JI_POOL.length), 2).filter(x => !yi.includes(x))
   const ji = jiRaw.length ? jiRaw : ['諸事不宜']
-  const luckyHours = sample ? sample.luckyHours : HOURS[mod(off * 7, HOURS.length)]
+  // ── 十二時辰吉凶（時支與日支：六合/三合→吉，相沖→凶，餘平）──
+  // ⚠️ 必須算在 luckyHours 之前——luckyHours 由這份推導出來。
+  const SANHE = [[8, 0, 4], [11, 3, 7], [2, 6, 10], [5, 9, 1]]
+  const LIUHE = { 0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3, 4: 9, 9: 4, 5: 8, 8: 5, 6: 7, 7: 6 }
+  const hours12 = Z.map((zn, t) => {
+    const start = mod(t * 2 - 1, 24)
+    const range = `${String(start).padStart(2, '0')}–${String((start + 2) % 24).padStart(2, '0')}`
+    let luck = '平'
+    if (LIUHE[t] === zi || SANHE.some(sh => sh.includes(t) && sh.includes(zi))) luck = '吉'
+    else if (mod(t + 6, 12) === zi) luck = '凶'
+    return { zhi: zn, range, luck }
+  })
+
+  // ⚠️ 吉時「只有一個來源」：由 hours12 推導，不可再另外查表。
+  //    先前 luckyHours 來自一張與日支無關的 HOURS 常數（按 off 輪替），
+  //    而完整曆頁顯示的是 hours12——實測連續 60 天 **100% 互相矛盾**
+  //    （例：AI 說吉時「寅時・申時」，曆頁把申時標成「平」）。
+  //    使用者只要點開曆頁對照就會發現在說謊，這是自己打自己的臉。
+  const luckyHours = hours12.filter(h => h.luck === '吉').map(h => h.zhi + '時').join('・') || '無特別吉時'
   const stars = sample ? sample.stars : 1 + mod(off * 3 + 2, 5)
   // 諺語連同白話解釋一起回傳（樣本日只存諺語本身，回查 proverbs 取得 mean）
   const proverb = sample ? sample.proverb : proverbs[mod(off, proverbs.length)].tw
@@ -159,18 +176,6 @@ export function dayFor(off) {
   const monthZhi = TERM_ZHI[term]
   const monthGan = mod(2 * yearGan + 2 + mod(monthZhi - 2, 12), 10)   // 五虎遁：年干推正月天干
   const monthGZ = G[monthGan] + Z[monthZhi]
-
-  // 十二時辰吉凶（時支與日支：六合/三合→吉，相沖→凶，餘平）
-  const SANHE = [[8, 0, 4], [11, 3, 7], [2, 6, 10], [5, 9, 1]]
-  const LIUHE = { 0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3, 4: 9, 9: 4, 5: 8, 8: 5, 6: 7, 7: 6 }
-  const hours12 = Z.map((zn, t) => {
-    const start = mod(t * 2 - 1, 24)
-    const range = `${String(start).padStart(2, '0')}–${String((start + 2) % 24).padStart(2, '0')}`
-    let luck = '平'
-    if (LIUHE[t] === zi || SANHE.some(s => s.includes(t) && s.includes(zi))) luck = '吉'
-    else if (mod(t + 6, 12) === zi) luck = '凶'
-    return { zhi: zn, range, luck }
-  })
 
   // 特殊日提示
   const flags = []

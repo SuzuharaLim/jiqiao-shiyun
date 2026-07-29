@@ -1,4 +1,5 @@
 import { TopBar, SectionHead } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 
 // 法務與聯絡頁（上架合規：隱私權政策 / 服務條款 / 聯絡我們——取代原本的 toast 佔位）
@@ -65,8 +66,7 @@ export function Terms({ onClose }) {
 }
 
 export function Contact() {
-  const { setToast } = useNav()
-  const copy = (text) => { try { navigator.clipboard.writeText(text); setToast('已複製 ✓') } catch { /* ignore */ } }
+  const { push } = useNav()
   return (
     <>
       <TopBar title="聯絡我們" onBack />
@@ -76,12 +76,18 @@ export function Contact() {
         <div className="kv" style={{ padding: '12px 16px' }}><span>營運團隊</span><span className="muted">承氣有限公司</span></div>
         <div className="kv" style={{ padding: '12px 16px' }}><span>所在地</span><span className="muted">彰化縣大村鄉（大葉大學）</span></div>
         <SectionHead title="聯絡方式" />
-        <button className="kv tap" style={{ padding: '12px 16px', width: '100%', textAlign: 'left' }}
-          onClick={() => copy('hello@jiqiao.example')}>
-          <span>客服信箱</span><b>hello@jiqiao.example</b>
+        {/* ⚠️ 這裡原本只放 hello@jiqiao.example —— 一個**不存在的網域**。
+            客服是使用者最後一道防線，指向死信箱等於整條逃生路是斷的
+            （AI 答不出來 → 叫你找客服 → 客服信箱寄不到）。
+            站內表單是真的會寫進 support_messages 並通知我們的，扶正為主要路徑；
+            公開信箱等實際申請好再放上來，不要先掛一個假的。 */}
+        <button className="tool tap" onClick={() => push('dms')}>
+          <div className="ti ti-line"><Icon name="mail" /></div>
+          <div className="tn2"><b>傳訊息給我們</b><span>站內表單，會由專人回覆</span></div>
+          <Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />
         </button>
         <div className="kv" style={{ padding: '12px 16px' }}><span>服務時間</span><span className="muted">週一至週五 09:00–17:00（國定假日除外）</span></div>
-        <P>＊示範原型：正式聯絡信箱、電話與公司登記資訊將於上線前公告並更新本頁。點信箱可複製。</P>
+        <P>＊公開客服信箱與公司登記資訊將於正式上線前公告並更新本頁。在那之前，用上面的站內表單聯絡我們最快。</P>
         <SectionHead title="快速協助" />
         <P>・帳號問題（忘記密碼）：登入頁「忘記密碼」可自助重設。<br />
           ・訂單問題：「我的 → 我的訂單」查看狀態。<br />

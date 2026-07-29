@@ -15,6 +15,11 @@ import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
 import { matchRoute, injectMeta, buildSitemap } from './seo.js'
+// ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
+//    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
+//    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
+//    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
+import { dayFor, todayOffset } from '../src/data/almanac.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1260,6 +1265,16 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 · 可用 1～2 個貼合節氣的 emoji，不要濫用。
 · 結尾若合適，主動提出一個延伸問題，讓對話能接下去。
 
+【資料紀律｜這條最重要】
+· 上面【今日曆訊】裡有的數字——農曆日期、干支、納音、建除、宜忌、沖煞、
+  煞方、吉時、凶時、喜神、財神、貴人、胎神、二十八宿、彭祖百忌、星等——
+  一律照抄，不得自行推算、換算或改寫。你沒有能力重算這些，算了一定錯。
+· 曆訊裡沒有的（例如明天或某個指定日期的宜忌），就說「這個我得翻一下曆頁」，
+  並請使用者到完整農民曆自己挑日子。不要憑印象回答。
+· 商品價格、退費政策、出貨時間、運費、帳號功能細節：一律不要自己講。
+  改說「這部分我幫你轉客服」或請對方到站內對應頁面查。
+  編造價格或政策會造成實質的商業與法律糾紛——使用者會截圖要求你履約。
+
 【安全邊界】
 · 不知道的事就說不知道。不要編造籤詩、節氣日期、神明誕辰或民俗典故——
   這些站內都有真實資料，寧可請使用者去查，也不要自己編。
@@ -1271,6 +1286,39 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 節氣攝影挑戰、做月曆工作室。`
 
 const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與農民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
+
+// ---------- 今日曆訊：由伺服器自己算，一次給足 ----------
+// ⚠️ 這是「必然幻覺」的根治。原本 context 只有前端傳來的一行：
+//      「今天大暑，己亥日，宜…；忌…；吉時…」
+//    使用者問沖什麼生肖、財神在哪、胎神占方、農曆幾號、運勢幾顆星——
+//    這些欄位**根本沒被送進 prompt**，模型不可能知道，只能編。
+//    實測（薄 context）：沖煞干支錯、煞方錯、財神方位錯、農曆日期整個錯、
+//    星等憑空生出一張四維表。這不是機率問題，是結構上的必然。
+//
+// ⚠️ 也不可沿用前端傳來的字串——那是使用者可竄改的輸入。
+function buildAlmanacContext(user) {
+  const d = dayFor(todayOffset())
+  const good = d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時(${h.range})`)
+  const bad = d.hours12.filter(h => h.luck === '凶').map(h => `${h.zhi}時`)
+  const L = [
+    `國曆 ${d.solar}（${d.weekday}）｜${d.lunar}｜節氣：${d.term}`,
+    `干支：${d.yearGZ}年 ${d.monthGZ}月 ${d.ganzhi}｜納音 ${d.wuxing}｜建除「${d.jianchu}」日（${d.jianchuYi}）`,
+    `今日評等 ${d.stars}/5 星`,
+    `宜：${d.yi.join('、')}`,
+    `忌：${d.ji.join('、')}`,
+    `沖煞：${d.zheng}（生肖${d.chong.zodiac}者今日宜低調；虛歲 ${d.chong.ages.join('、')} 尤須留意）`,
+    `吉時：${good.join('、') || '無'}｜凶時：${bad.join('、') || '無'}`,
+    `方位：喜神${d.xishen}、財神${d.caishen}｜天乙貴人生肖：${d.guiren}`,
+    `胎神占方：${d.taishen}（孕婦忌動該處）`,
+    `二十八宿：${d.xiu}宿（${d.xiuAnimal}）${d.xiuLuck}`,
+    `彭祖百忌：${d.pengzu.join('；')}`,
+    `今日農諺：${d.proverb}${d.proverbMean ? `（${d.proverbMean}）` : ''}`,
+  ]
+  if (d.festival) L.push(`今日節慶：${d.festival}`)
+  if (d.flags?.length) L.push(`特殊日：${d.flags.map(f => `${f.t}（${f.d}）`).join('；')}`)
+  if (user?.name) L.push(`使用者暱稱：${user.name}`)
+  return L.join('\n')
+}
 
 // 輸入預檢：只擋「絕不可能是節氣問題」的樣態，避免誤傷（例如「今天適合寫程式嗎？」是正常提問，不擋）
 const AI_ABUSE_RE = new RegExp([
@@ -1300,7 +1348,9 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     return res.json({ reply: AI_REFUSAL, refused: true })
   }
 
-  const sys = AI_SYSTEM + (context ? `\n\n【今日曆訊】${String(context).slice(0, 300)}` : '')
+  // ⚠️ 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
+  //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
+  const sys = AI_SYSTEM + `\n\n【今日曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user)}`
 
   // ---------- 串流回應（SSE）----------
   // 沒有串流的 AI 對話，體感就是「三個點轉很久然後整段砸出來」。

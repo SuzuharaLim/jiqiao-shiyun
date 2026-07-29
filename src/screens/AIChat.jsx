@@ -5,6 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { aiOpenFor, aiQuickRepliesFor, aiReply } from '../data/mock.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
+import { localAnswer } from '../data/aiKnowledge.js'
 
 // ⚠️ 防禦性 Markdown 清除。
 // system prompt 已明確禁止 Markdown（server/index.js 的 AI_SYSTEM），但模型不是
@@ -54,7 +55,7 @@ const LS_KEY = 'jq-ai-chat'
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
 export default function AIChat() {
-  const { setToast, requireAccount } = useNav()
+  const { setToast, requireAccount, push } = useNav()
   const today = dayFor(todayOffset())
   const opening = aiOpenFor(today)
 
@@ -124,6 +125,19 @@ export default function AIChat() {
     if (taRef.current) taRef.current.style.height = 'auto'
     setAtBottom(true)
     setTyping(true)
+
+    // ⚠️ 先讓本地知識層接手（見 aiKnowledge.js）。
+    //    這些題目本來就有確定答案（來自 dayFor 的真實曆算或站內事實），
+    //    交給模型只會多花 token 又多一次幻覺機會——實測金鑰接上後，
+    //    模型會編出不存在的商品價格與退費政策。
+    //    附帶好處：不打 API＝不受 requireAuth 擋，**訪客也能用**。
+    const local = localAnswer(q, today)
+    if (local) {
+      setTyping(false)
+      busyRef.current = false
+      pushMsg({ who: 'ai', text: local.text, actions: local.actions, local: true, followups: followupsFor(q) })
+      return
+    }
 
     const base = [...msgs, { who: 'me', text: q, t: Date.now() }]
     const history = base.filter(m => m.who === 'me' || m.who === 'ai')
@@ -220,6 +234,14 @@ export default function AIChat() {
               ) : m.who === 'ai' ? (
                 <div className={`msg ai${m.live ? ' live' : ''}`} data-demo={m.demo ? '示範' : undefined}>
                   {m.live ? m.text : <AiSegments text={m.text} />}
+                  {/* 行動卡片：本地層回答時附上站內導引，讓「聊天」可以直接變「辦事」 */}
+                  {m.actions?.length > 0 && (
+                    <div className="msg-acts">
+                      {m.actions.map(a => (
+                        <button key={a.screen} className="qchip tap" onClick={() => push(a.screen)}>{a.label}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="msg me">{m.text}</div>
