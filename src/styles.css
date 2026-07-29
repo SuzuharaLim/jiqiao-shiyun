@@ -426,6 +426,22 @@ a { color:inherit; text-decoration:none; }
   display:flex; flex-direction:column;
   -webkit-overflow-scrolling:touch;
 }
+/* ⚠️ 捲動用的 flex column，子項一律不可被壓縮。
+   flex 項目預設 flex-shrink:1——內容總高超過容器時（會捲動的頁面幾乎都是），
+   每一列都會被壓到自己的 min-height，文字卻不會跟著縮，於是溢出去疊到下一列。
+   實測「我的」頁：列內容需要 60px，被壓成 44px（全域觸控規則的 min-height），
+   標題與上一列的副標重疊 10px——就是使用者看到的「文字堆疊在一起」。
+   字級放大前內容剛好 ~44px，所以這個瑕疵一直被蓋著沒發現。
+   ⚠️ 這條要放在元件規則之前：需要自行伸縮的（.chat/.scan-stage 等）
+   會用自己的 flex 宣告覆蓋掉。
+   ⚠️ 必須連 `display:contents` 的包裝層一起列出（.ex-top/.ex-main/.ex-side、
+   .feed-main/.feed-side）——CSS 的 `>` 比對的是 DOM 結構不是盒模型，
+   包裝層雖然沒有盒子，`.body > *` 仍然只選到包裝層本身，選不到它裡面
+   那些「真正變成 flex 項目」的卡片。探索頁的挑戰卡就是這樣被壓成 44px
+   （需要 108px），整塊蓋到下面的「本月人氣創作者」。 */
+.body > *,
+.ex-top > *, .ex-main > *, .ex-side > *,
+.feed-main > *, .feed-side > * { flex-shrink:0; }
 .body::-webkit-scrollbar { width:0; }
 .pad { padding:14px; }
 .muted { color:var(--muted); }

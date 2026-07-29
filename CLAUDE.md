@@ -188,7 +188,10 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   2. **輸入框字級 <16px 會讓 iOS 聚焦時自動放大整頁**（版面被推歪）。`--text-xs` 是 15px 剛好踩線。已加全域保險 `input/textarea/select { font-size:max(16px, var(--text-sm)) }`（原本只有 `max-width:360px` 那個斷點裡對 `.field input` 做，一般手機沒被保護到）。
   3. **viewport 要有 `interactive-widget=resizes-content`**：否則手機鍵盤彈出時 `100dvh` 不會縮，鍵盤直接蓋住底部輸入列。**絕不可加 `user-scalable=no`／`maximum-scale`**（禁止雙指放大＝無障礙失敗）。
   4. **觸控目標 ≥24×24**（WCAG 2.5.8 AA）。留言的讚曾是 19×19、刪除 ✕ 16×30。**用 `min-width/min-height` 撐大本體，不要用 `::after` 擴張隱形點擊區**——實測 40×40 的擴張區會與相鄰按鈕重疊（讚 ↔ 刪除重疊 6×37、還蓋到送出鈕），反而更容易點錯。
-- **`.body` 是 flex column**：內含 `overflow:hidden` 的區塊要加 `flex:0 0 auto`，否則被壓成 0 高。
+- **`.body` 是 flex column，子項一律要 `flex-shrink:0`（已加全域規則）**：flex 項目預設 `flex-shrink:1`，內容總高超過容器時（會捲動的頁面幾乎都是）**每一列都會被壓到自己的 min-height，但文字不會跟著縮 → 溢出去疊到下一列**。實測「我的」頁：列內容需 60px、被壓成 44px（全域觸控規則的 `min-height`），標題與上一列副標重疊 10px＝使用者看到的「文字堆疊在一起」。字級放大前內容剛好 ~44px 所以一直被蓋著沒發現。
+  - **必須連 `display:contents` 的包裝層一起列**（`.ex-top/.ex-main/.ex-side`、`.feed-main/.feed-side`）：CSS 的 `>` 比對 DOM 不是盒模型，`.body > *` 只選到包裝層本身，選不到裡面那些真正變成 flex 項目的卡片（探索頁挑戰卡就這樣被壓成 44px／需要 108px）。
+  - **稽核要查「文字重疊」**：溢出、裁切、觸控大小這三項都驗不出這個 bug——`overflow:visible` 不會被判為裁切、頁面也沒有橫向溢出。要兩兩比對含文字節點的元素矩形是否相交。
+- **`.body` 內含 `overflow:hidden` 的區塊要加 `flex:0 0 auto`**，否則被壓成 0 高。
 - **按鈕點開的覆蓋層／面板必須自己限高並可捲**：`.sheet`(max-height `min(82dvh, 100dvh-48px)`)、`.fmenu`(45dvh)、`.glosspanel`(40dvh) 皆已設定。**上限不可用「視窗高減固定值」**——面板起點取決於頂列/搜尋/選單列的實際高度，會隨字級與斷點變化（實測橫向 390px 時固定扣 140px 仍超出 61px），要用 dvh 比例。**也不可用 `flex:1 1 auto` 讓它自動填滿**——`.body` 是 flex column，空間不足時 `flex-shrink` 預設 1 會把面板壓成 0 高（實測高度 0、內容溢出 78px），必須 `flex:0 0 auto`。
 - **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
 - **`.lp-map` 地圖預覽不可用固定高**：原本 184px，手機橫向時搜尋結果的捲動區只剩 72px（地圖看得到但選不到地點）。改 `clamp(120px, 24dvh, 184px)`，矮視窗另壓到 100px 並給清單 `min-height`。
