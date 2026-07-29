@@ -357,5 +357,6 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 | [docs/legal/terms-of-service-en.md](docs/legal/terms-of-service-en.md) · [docs/legal/privacy-policy-en.md](docs/legal/privacy-policy-en.md) | ★英文版服務條款與隱私權政策草案（**未經律師審閱**，`[BRACKETED]` 佔位待填；免責條款的「法律不允許排除者除外」但書切勿刪除，刪了整條可能被判無效） | 法務 |
 | [docs/寄信-Email設定.md](docs/寄信-Email設定.md) | ★如何讓驗證信/重設密碼信真的寄出：供應商比較、金鑰、網域驗證、Secret Manager、疑難排解 | 部署 |
 | [docs/金流-付款串接.md](docs/金流-付款串接.md) | ★如何讓使用者付款：金流商比較、金鑰、Stripe/TapPay/藍新、webhook、PCI | 部署 |
-| [docs/社交平台檢驗報告.md](docs/社交平台檢驗報告.md) | ★95 項社交平台 QA 逐項檢驗結果（含 2026-07 已修 23 項與 P0/P1/P2 待辦） | 開發/營運 |
+| [docs/待辦總表.md](docs/待辦總表.md) | ★★**目前還沒做好的部分**（2026-07-29 逐項在 codebase 驗證）。舊的待辦文件多有已完成項，**以這份為準** | 全部 |
+| [docs/社交平台檢驗報告.md](docs/社交平台檢驗報告.md) | ★95 項社交平台 QA 逐項檢驗結果（P0/P1/P2 待辦部分已過時，見待辦總表） | 開發/營運 |
 | docs/登入需求-*.md · docs/部署-CloudRun.md · docs/功能完成度.md | 既有（部分早於資料庫化/路由改版，以 CLAUDE.md 與上列新文件為準） | 參考 |
