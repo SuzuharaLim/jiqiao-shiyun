@@ -202,7 +202,7 @@ a { color:inherit; text-decoration:none; }
 
   /* 作品格：桌機多欄、加大（hover 為墨線加深，不浮起——見後段統一規則） */
   .stage.signed-in .album { grid-template-columns:repeat(auto-fill, minmax(195px, 1fr)); gap:16px; padding:6px 0 4px; }
-  .stage.signed-in .album .it { transition:transform .13s ease, box-shadow .13s ease, border-color .13s; }
+  .stage.signed-in .album .it { transition:transform var(--m-fast) var(--e-out), box-shadow var(--m-fast) var(--e-out), border-color var(--m-fast); }
   /* ⚠️ 這裡曾有 hover 抬升（translateY -3px ＋ 投影），但被檔案後段的
      `transform:none` 同權重覆蓋，從來沒有執行過——是死碼。
      設計決定見後段註解：紙不會浮起來，hover 改為墨線加深。已移除以免誤導。 */
@@ -216,7 +216,7 @@ a { color:inherit; text-decoration:none; }
     gap:12px 16px; align-content:start; }
   .stage.signed-in .rootpane.grid2 .body > :not(.tool) { grid-column:1 / -1; }
   .stage.signed-in .rootpane.grid2 .body > .tool { border:1px solid var(--line); border-radius:2px;
-    background:var(--card); padding:16px; transition:transform .13s ease, box-shadow .13s ease, border-color .13s; }
+    background:var(--card); padding:16px; transition:transform var(--m-fast) var(--e-out), box-shadow var(--m-fast) var(--e-out), border-color var(--m-fast); }
   .stage.signed-in .rootpane.grid2 .body > .tool:active { background:var(--card); }
 
   /* 個人名帖 banner 化 */
@@ -367,7 +367,7 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .screen-creatorConsole .body > .tool {
     border:1px solid var(--line); border-radius:2px; background:var(--card);
     padding:14px 16px; margin-bottom:12px;
-    transition:border-color .13s ease;
+    transition:border-color var(--m-fast) var(--e-out);
   }
   @media (hover:hover) and (pointer:fine) {
     .stage.signed-in .screen-settings .body > .tool:hover,
@@ -681,7 +681,7 @@ a { color:inherit; text-decoration:none; }
 
 /* switch */
 .sw { width:42px; height:24px; border-radius:var(--space-4); background:var(--line2); position:relative;
-  flex:0 0 auto; transition:background .18s; display:inline-block; cursor:pointer; }
+  flex:0 0 auto; transition:background var(--m-fast); display:inline-block; cursor:pointer; }
 .sw.on { background:var(--yi); }
 /* ⚠️ 用 transform 不用 left：動 left 每一幀都要重算版面（layout→paint→composite），
    transform 只需 composite，由 GPU 處理。順帶用回彈曲線讓開關更有實體感。 */
@@ -751,7 +751,9 @@ a { color:inherit; text-decoration:none; }
 /* AI 回覆逐句浮現（延遲由 AIChat.jsx 的 AiSegments 逐句掛上）。
    ⚠️ display:inline 不可改成 inline-block——那會讓句子無法在中間換行，
       長回覆會撐出橫向捲軸。 */
-.msg.ai .seg { display:inline; opacity:0; animation:segIn .38s ease forwards; }
+/* ⚠️ 同「動畫只負責怎麼出現、不負責是否存在」原則：不預設 opacity:0。
+   這裡是 AI 的回覆本文——動畫沒跑就看不到答案，是最不能接受的失效。 */
+.msg.ai .seg { display:inline; animation:segIn .38s ease both; }
 @keyframes segIn { from { opacity:0 } to { opacity:1 } }
 .typing { align-self:flex-start; background:var(--chip); border-radius:16px;
   border-bottom-left-radius:5px; padding:var(--space-4) 15px; display:flex; gap:4px; }
@@ -912,8 +914,12 @@ a { color:inherit; text-decoration:none; }
 
 /* screen slide-in */
 .screen { position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column;
-  animation:slidein .22s ease; z-index:10; }
-@keyframes slidein { from{ transform:translateX(14px); opacity:.4; } to{ transform:none; opacity:1; } }
+  z-index:10; }
+/* ⚠️ 這裡原本有 `animation:slidein .22s`，但 styles/components.css 的
+   `.screen, .rootpane > * { animation: ui-enter … }` 同權重且後載入，
+   實測 .screen 跑的一直是 ui-enter——slidein 從來沒有執行過。
+   留著死碼最大的害處不是體積，是「你以為改它有用」：
+   調了半天沒反應，只會開始懷疑自己。已移除。 */
 
 .article { padding:14px var(--space-4); font-size:var(--text-sm); line-height:1.75; }
 .article h3 { font-size:var(--text-base); margin:16px 0 6px; }
@@ -1148,9 +1154,11 @@ a { color:inherit; text-decoration:none; }
 .calnote .stars { color:var(--gold); letter-spacing:2px; flex:0 0 auto; }
 /* 星等逐顆點亮：整排同時出現沒有「揭曉」的味道 */
 .calnote .stars i { font-style:normal; display:inline-block;
-  opacity:0; transform:scale(.4);
-  animation:starPop .34s var(--e-spring) forwards; }
-@keyframes starPop { to { opacity:1; transform:scale(1); } }
+  animation:starPop .34s var(--e-spring) both; }
+@keyframes starPop {
+  from { opacity:0; transform:scale(.4); }
+  to   { opacity:1; transform:scale(1); }
+}
 
 /* ══════════════ 撕曆翻頁（動效銳評 §02，招牌動作）══════════════
    實體農民曆的動作是「撕」——原本翻日只是把字串換掉，是全站最大的一筆浪費。
@@ -1204,14 +1212,39 @@ a { color:inherit; text-decoration:none; }
 /* ---------- 宜忌 stagger（動效銳評 §03）----------
    宜忌是一組短標籤，天生適合依序浮上：眼睛會自然地由左往右讀。
    這不只是好看，是閱讀引導。用 nth-child 就好，不必動 JSX 或 JS。 */
+/* ⚠️ 基礎樣式必須是「可見」，起始狀態交給 keyframes 的 from 定義。
+   先前寫成「基礎 opacity:0 ＋ 只定義 to」——只要動畫因故沒有執行，
+   宜忌 chip 就**永久隱形**（而且是靜默的：版面在、文字在、就是看不見）。
+   會讓動畫不執行的情況比想像多：列印、動畫被使用者代理停用、
+   元素在 display:none 容器內掛載後才顯示、某些嵌入式 WebView。
+   「動畫沒跑就看不到內容」是絕對不能接受的失效模式——
+   動畫只該負責『怎麼出現』，不該負責『是否存在』。 */
 .yiji .ty, .yiji .tn, .yjcols .it > *, .ad-yj .ty, .ad-yj .tn {
-  opacity:0; transform:translateY(6px);
-  animation:chipIn .34s var(--e-out) forwards; }
-@keyframes chipIn { to { opacity:1; transform:none; } }
+  animation:chipIn .34s var(--e-out) both; }
+@keyframes chipIn {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:none; }
+}
+
+/* 骨架的文字列（.ui-skeleton 本體在 styles/components.css） */
+.sk-line { height:.9em; margin:2px 0; border-radius:2px; }
+.sk-line.short { width:55%; }
+
+/* 照片載入淡入（class 由 PhotoImg 掛上）。
+   ⚠️ 這裡的 opacity:0 是安全的：class 由 React 依 onLoad／img.complete 控制，
+      而且 onError 也會標記完成——不會出現「載入失敗就永久空白」。 */
+.photo-img { opacity:0; transition:opacity .35s var(--e-out); }
+.photo-img.loaded { opacity:1; }
+@media (prefers-reduced-motion: reduce) { .photo-img { transition:none; } }
 
 /* 桌機捲動進場（class 由 App.jsx 的 IntersectionObserver 掛上，只在 ≥900px 啟用）。
    ⚠️ 用 transition 不用 animation：元素可能在觀察器建立前就已在視野內，
       transition 只要 class 一加就會從當前狀態過去，不會有「先閃一下」的問題。 */
+/* ⚠️ 這條靠 transition，基礎必須是隱形才有東西可過場。
+   但 class 是 JS 加上去的（App.jsx 的 IntersectionObserver，且只在桌機），
+   所以「JS 沒跑 ⇒ 沒有 .reveal ⇒ 內容正常顯示」——失效方向是安全的。
+   ⚠️ 切勿把 .reveal 寫進 JSX 的靜態 className，那就會變成
+      「JS 沒跑就永久隱形」。 */
 .reveal { opacity:0; transform:translateY(14px);
   transition:opacity .5s var(--e-out), transform .5s var(--e-out); }
 .reveal.in { opacity:1; transform:none; }
@@ -1224,8 +1257,9 @@ a { color:inherit; text-decoration:none; }
 .yiji .ty:nth-child(n+5), .yiji .tn:nth-child(n+5),
 .yjcols .it > *:nth-child(n+5), .ad-yj .ty:nth-child(n+5), .ad-yj .tn:nth-child(n+5) { animation-delay:.12s; }
 /* 三柱干支、吉神方位、十二時辰同樣是格狀資訊，共用同一種依序浮現 */
+/* 同上：不預設 opacity:0，避免動畫沒跑就看不到內容 */
 .ad-gz > *, .ad-dirs > *, .ad-hours > * {
-  opacity:0; animation:chipIn .34s var(--e-out) forwards; }
+  animation:chipIn .34s var(--e-out) both; }
 .ad-gz > *:nth-child(2), .ad-dirs > *:nth-child(2) { animation-delay:.04s; }
 .ad-gz > *:nth-child(3), .ad-dirs > *:nth-child(3) { animation-delay:.08s; }
 .ad-gz > *:nth-child(n+4), .ad-dirs > *:nth-child(n+4) { animation-delay:.12s; }
@@ -1741,7 +1775,7 @@ a { color:inherit; text-decoration:none; }
 .cam-bottom { display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 16px calc(14px + env(safe-area-inset-bottom)); background:var(--cam-bg); }
 .cam-bottom.row { flex-direction:row; justify-content:space-between; gap:10px; }
 .cam-hint { font-size:var(--text-2xs); color:var(--cam-muted-2); }
-.shutter { width:66px; height:66px; border-radius:50%; border:5px solid #fff; background:rgba(255,255,255,.15); cursor:pointer; transition:transform .1s; }
+.shutter { width:66px; height:66px; border-radius:50%; border:5px solid #fff; background:rgba(255,255,255,.15); cursor:pointer; transition:transform var(--m-fast); }
 .shutter:active { transform:scale(.92); }
 .shutter.rec { border-color:var(--heart); background:var(--heart); border-radius:22%; animation:recpulse 1s ease-in-out infinite; }
 @keyframes recpulse { 50% { opacity:.6 } }

@@ -187,9 +187,34 @@ export function GlossPanel({ gl }) {
 }
 
 // 使用者上傳的照片：填滿容器（.ph/.img/.gimg 等 emoji 佔位框），無圖時由呼叫端 fallback 到 emoji
+// 照片：載入完成才淡入，不要「啪」一下出現。
+// ⚠️ 容器（.ph / .album .it .ph / .gimg / .railcard .ph）本來就有
+//    aspect-ratio 或固定尺寸，空間是預留好的——所以這裡**沒有 CLS 問題**，
+//    加淡入純粹是為了收掉那個突兀的瞬間。不要為此再給 img 設寬高，
+//    那會和容器的 aspect-ratio 打架。
+// ⚠️ 必須處理「圖片已在快取」的情況：那時 onLoad 可能在 React 掛上
+//    handler 之前就觸發過了，只靠 onLoad 會永遠停在透明。用 ref 補查
+//    img.complete。
 export function PhotoImg({ src, style }) {
-  return <img src={src} alt="" loading="lazy"
-    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit', ...style }} />
+  const [loaded, setLoaded] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (el?.complete) setLoaded(true)     // 快取命中：onLoad 不會再來
+  }, [src])
+  return (
+    <img
+      ref={ref}
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      onError={() => setLoaded(true)}      // 載入失敗也要顯示（才看得到破圖佔位，不是一片空白）
+      className={`photo-img${loaded ? ' loaded' : ''}`}
+      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit', ...style }}
+    />
+  )
 }
 
 // 浮動提示（Toast）

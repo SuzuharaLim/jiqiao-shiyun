@@ -130,7 +130,19 @@ export default function Explore() {
             )}
           </span>
         </div>
-        {list.length === 0 ? (
+        {loading && list.length === 0 ? (
+          /* ⚠️ 載入中不可顯示空狀態——那會在資料還在路上時就跟使用者說
+             「找不到任何作品」，一個剛起步的社群最不需要的就是這句話。
+             骨架同時預留了版面，內容長出來時不會跳動。 */
+          <div className="album" aria-busy="true" aria-label="作品載入中">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="it">
+                <div className="ph ui-skeleton" />
+                <div className="cap"><div className="ui-skeleton sk-line" /><div className="ui-skeleton sk-line short" /></div>
+              </div>
+            ))}
+          </div>
+        ) : list.length === 0 ? (
           /* ⚠️ 空狀態是新使用者看到最多次的畫面（社群剛起步時尤其）。
              原本只寫「找不到作品」＝「這裡沒東西」；該傳達的是「這裡在等你」。
              真正的修法不是動畫，是把空狀態變成入口——那顆 CTA 比會浮動的圖示值錢得多。 */

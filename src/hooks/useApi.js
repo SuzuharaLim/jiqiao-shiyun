@@ -20,7 +20,10 @@ export function useContent(kind, fallback = []) {
 function usePagedList(fetcher, key, pick, fallback) {
   const [items, setItems] = useState(fallback)
   const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(false)
+  // ⚠️ 初值必須是 true：元件掛載後一定會發首次請求，若從 false 開始，
+  //    第一幀會是「loading=false 且 items=[]」——呼叫端會把它判成「沒有資料」
+  //    而顯示空狀態，使用者在資料還在路上時就被告知「這裡什麼都沒有」。
+  const [loading, setLoading] = useState(true)
   const [cursor, setCursor] = useState(null)
 
   // key 變動（換節氣）＝重新開始，不可沿用舊 cursor
