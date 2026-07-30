@@ -53,6 +53,11 @@ export default function PostDetail({ id }) {
     if (!requireAccount('幫這則貼文按讚')) return
     const next = !liked
     setLiked(next); setLikeCount(c => c + (next ? 1 : -1))   // 樂觀更新
+    // 觸覺回饋：12ms 只是「一下」不是震動。iOS Safari 不支援會自然略過；
+    // 開了「減少動態」的人通常也不想被震，一併尊重。
+    if (next && 'vibrate' in navigator
+      && document.documentElement.dataset.reduceMotion !== 'on'
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) navigator.vibrate(12)
     try { const r = await api.likePost(post.id); setLiked(r.liked); setLikeCount(r.likeCount) }
     catch { setLiked(!next); setLikeCount(c => c + (next ? -1 : 1)); setToast('操作失敗，請稍後再試') }
   }

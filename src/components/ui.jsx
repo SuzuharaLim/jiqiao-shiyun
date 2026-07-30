@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Icon from './Icon.jsx'
-import { useNav } from '../store/nav.jsx'
+import { useNav, hrefForScreen, hrefForTab } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
 // 頂列（Top bar）
@@ -48,26 +48,77 @@ const TABS = [
   { i: 4, name: 'user', label: '我的' },
 ]
 export function TabBar() {
-  const { tab, setTab, push } = useNav()
+  const { tab } = useNav()
   return (
     /* ⚠️ 指示條改掛在 tabbar 上（見 styles.css 的 .tabbar::before），用 transform 滑過去。
        原本是各按鈕自己的 ::before，切分頁時舊的消失、新的出現，中間沒有位移＝看不出「從哪到哪」。
        這裡只交出「第幾格」，實際位移由 CSS 算（指示條本體是一格寬，位移＝100% × 序號）。 */
+    /* ⚠️ 分頁是真的 <a href>（Link 元件）不是 <button>：
+       中鍵/Cmd+點擊可開新分頁、爬蟲有內部連結可走。SPA 行為不變。 */
     <div className="tabbar" style={{ '--ink-i': tab }}>
       {TABS.map(t => (
-        <button key={t.i} className={`tabbtn tap ${tab === t.i ? 'on' : ''}`} onClick={() => setTab(t.i)}
+        <Link key={t.i} tab={t.i} className={`tabbtn tap ${tab === t.i ? 'on' : ''}`}
           aria-label={t.label} aria-current={tab === t.i ? 'page' : undefined}>
           <Icon name={t.name} fill={tab === t.i} />
           <span className="tablbl">{t.label}</span>
-        </button>
+        </Link>
       ))}
       {/* 掃描：開啟鏡頭掃描實體明信片／手帳（之後接明信片辨識） */}
-      <button className="tabbtn tap scanbtn" onClick={() => push('scan')} aria-label="掃描明信片">
+      <Link screen="scan" className="tabbtn tap scanbtn" aria-label="掃描明信片">
         <Icon name="scan" />
         <span className="tablbl">掃描</span>
-      </button>
+      </Link>
     </div>
   )
+}
+
+// SPA 內部導覽連結 —— 必須是真的 <a href>，不是 <button>。
+// ⚠️ 為什麼：實測全站原本只有 1 個 <a>（跳過主要內容），導覽列、頁尾全是
+//    <button>——中鍵／Cmd+點擊開新分頁完全失效，搜尋引擎也爬不到任何內部連結
+//    （逐頁 meta 都做了，卻沒有連結能讓爬蟲走到那些頁）。
+// 行為：一般左鍵 → preventDefault 走 SPA 導覽（不重整）；
+//       中鍵／Cmd／Ctrl／Shift ＋點擊 → 交還瀏覽器原生行為（開新分頁）。
+// href 一律來自 nav.jsx 的 hrefFor*（路徑的唯一真相），不可自己拼字串。
+export function Link({ tab, screen, params, className = '', onNavigate, children, ...rest }) {
+  const { setTab, push } = useNav()
+  const href = screen != null ? (hrefForScreen(screen, params) || '/') : hrefForTab(tab)
+  return (
+    <a href={href} className={className}
+      onClick={(e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+        e.preventDefault()
+        if (screen != null) push(screen, params || {})
+        else setTab(tab)
+        onNavigate?.()
+      }}
+      {...rest}>
+      {children}
+    </a>
+  )
+}
+
+// 數字滾動（count-up）：從 0 滾到目標值。
+// 「0 作品」直接顯示沒差，但使用者真的有 12 件作品時，滾上去的那一下是成就感。
+// ⚠️ reduce-motion（系統偏好或 App 內開關）時直接顯示終值，不播。
+export function CountUp({ value, ms = 900 }) {
+  const n = Number(value) || 0
+  const reduce = typeof document !== 'undefined' && (
+    document.documentElement.dataset.reduceMotion === 'on'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const [shown, setShown] = useState(reduce ? n : 0)
+  useEffect(() => {
+    if (reduce || n === 0) { setShown(n); return }
+    let raf
+    const t0 = performance.now()
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / ms)
+      setShown(Math.round(n * (1 - Math.pow(1 - p, 3))))   // easeOutCubic
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [n, ms, reduce])
+  return <>{shown.toLocaleString()}</>
 }
 
 // 占卜／配對的分數條。

@@ -53,6 +53,15 @@ export default function App() {
     return () => cancelAnimationFrame(id)
   }, [user, tab, top])
 
+  // 分頁切到背景時暫停所有循環動畫（seasonGlow 這類 9 秒的呼吸在
+  // 看不見的分頁裡白燒 CPU 與電池；回到前景就恢復）。CSS 一條規則全暫停。
+  useEffect(() => {
+    const sync = () => { document.documentElement.dataset.pageHidden = document.hidden ? 'true' : 'false' }
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
+  }, [])
+
   // ---------- 桌機捲動進場（動效銳評 §03 後半）----------
   // 登入後 ≥900px 是「整頁捲動的長頁面」，但格狀內容原本一次全部就位。
   // ⚠️ 只在桌機啟用：手機是單一視窗高的 App 版面，捲動進場反而礙事（內容還沒滑到就看不見）。

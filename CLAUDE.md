@@ -252,6 +252,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **桌機各詳情畫面微調**：`App.jsx` 給堆疊 `.screen` 加 `screen-<key>` class（如 `screen-postDetail`、`screen-subscription`），可在 CSS 針對單一畫面調版面（訂閱雙欄、貼文窄欄等）。
 - **桌機 `.device` 一定要覆寫 base 的 `max-height:100dvh`**：手機 base 是 `height:100dvh; max-height:100dvh`（滿版手機框內捲）。桌機是整頁捲動，device 要 `height:auto; max-height:none`。**只覆寫 height 忘了 max-height** → device 被鎖在一個視窗高，較長內容溢出、頁尾（device 之後的手足）疊到內容上（「頁尾殘影」）。
 - **`.coverbig` 有 inline `width:calc(100%-26px)`**：桌機要 `width:auto !important` 才蓋得掉。
+- **站內導覽一律用 `ui.jsx` 的 `<Link>`（真 `<a href>`），不可用 `<button>`＋`push()` 當導覽**：全站曾只有 1 個 `<a>`（跳過主要內容），中鍵/Cmd+點擊開新分頁全部失效、爬蟲爬不到任何內部連結（逐頁 meta 都做了卻沒有連結能走到那些頁）。`Link` 的 href 來自 `nav.jsx` 的 `hrefForTab/hrefForScreen`（路徑唯一真相），左鍵走 SPA、修飾鍵交還瀏覽器。`<button>` 保留給「動作」（登出、送出、切主題）。
 - **新增畫面要同時改三處路由表**：`registry.jsx` 的 `SCREENS`、`nav.jsx` 的 `SCREEN_PATH`、以及 **`server/seo.js` 的 `ROUTES`**。漏了第三處，新頁會被伺服器判定為未知路由而回 **404 狀態碼**（畫面仍能用，但搜尋引擎不收錄）。
 - **CSR 的爬蟲補救在 `server/seo.js`**：**LINE／FB／Threads 的預覽抓取器完全不執行 JS**，所以每頁的 title/description/og/canonical 必須在伺服器端就寫進 HTML（`injectMeta`），不能等 React 設 `document.title`。個人頁／需登入頁在路由表標 `noindex`。
 - **未知路由回真 404**：原本一律回 index.html + 200＝soft 404，等於告訴搜尋引擎「站上有無限多個內容重複的有效頁面」。現在 body 仍送 SPA HTML（使用者看得到設計過的找不到頁面），但狀態碼是 404。

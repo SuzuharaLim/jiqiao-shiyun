@@ -209,7 +209,12 @@ export default function AIChat() {
 
       {/* 今日運勢橫幅 */}
       <div className="luck">
-        <div className="s">{'★'.repeat(today.stars)}{'☆'.repeat(5 - today.stars)}</div>
+        {/* 星等逐顆點亮（--i 給 stagger 延遲；沿用曆頁同一套 starPop） */}
+        <div className="s" aria-label={`今日運勢 ${today.stars} 顆星`}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <i key={i} aria-hidden="true" style={{ '--i': i }}>{i < today.stars ? '★' : '☆'}</i>
+          ))}
+        </div>
         <div className="l">今日運勢 · {today.ganzhi} · 宜{today.yi.slice(0, 2).join('')}</div>
       </div>
 
@@ -276,8 +281,8 @@ export default function AIChat() {
         {/* 續問建議：跟著最後一則 AI 回覆走 */}
         {!typing && !streaming && lastAi?.followups && (
           <div className="quick followup">
-            {lastAi.followups.map(q => (
-              <button key={q} className="qchip tap" onClick={() => send(q)}>{q}</button>
+            {lastAi.followups.map((q, i) => (
+              <button key={q} className="qchip tap" style={{ '--i': i }} onClick={() => send(q)}>{q}</button>
             ))}
           </div>
         )}
@@ -285,8 +290,8 @@ export default function AIChat() {
 
       {showQuick && (
         <div className="quick">
-          {aiQuickRepliesFor(today).map(q => (
-            <button key={q} className="qchip tap" onClick={() => send(q)}>{q}</button>
+          {aiQuickRepliesFor(today).map((q, i) => (
+            <button key={q} className="qchip tap" style={{ '--i': i }} onClick={() => send(q)}>{q}</button>
           ))}
         </div>
       )}

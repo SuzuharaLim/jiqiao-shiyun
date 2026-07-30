@@ -546,6 +546,12 @@ a { color:inherit; text-decoration:none; }
              color var(--m-fast) var(--e-out),
              border-color var(--m-fast) var(--e-out); }
 
+/* 導覽連結（<a> 版）：外觀必須與原本的 <button> 完全一致。
+   ⚠️ 這些是 Link 元件產生的真連結（SEO／中鍵開新分頁），不是視覺改動。 */
+a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
+  text-decoration:none; color:inherit; cursor:pointer; }
+.wf-links a { font-size:var(--text-xs); color:var(--muted); font-weight:600; }
+
 /* ---------- top bar ---------- */
 .topbar {
   height:50px; border-bottom:1px solid var(--line); flex:0 0 auto;
@@ -603,7 +609,10 @@ a { color:inherit; text-decoration:none; }
 /* ---------- search + chips ---------- */
 .search { margin:var(--space-3) var(--space-4); background:var(--field); border-radius:2px; height:38px;
   display:flex; align-items:center; gap:8px; padding:0 12px; color:var(--muted);
-  font-size:var(--text-sm); flex:0 0 auto; }
+  font-size:var(--text-sm); flex:0 0 auto;
+  border:1px solid transparent;
+  transition:border-color var(--m-fast) var(--e-out), background-color var(--m-fast); }
+.search:focus-within { border-color:var(--cinnabar); background:var(--bg); }
 .search input { flex:1; border:none; background:none; outline:none; color:var(--text);
   font-size:var(--text-sm); }
 .chips { display:flex; gap:8px; padding:0 var(--space-4) 11px; flex:0 0 auto; overflow-x:auto; }
@@ -736,6 +745,10 @@ a { color:inherit; text-decoration:none; }
   padding:2px 10px; flex:0 0 auto; }
 
 .quick.followup { padding:2px 0 0; }
+/* 快捷問句依序浮現（--i 由 JSX 逐顆給）。
+   ⚠️ chipIn 的 keyframes 已同時定義 from/to 且用 both——動畫沒跑也看得見。 */
+.quick .qchip { animation:chipIn .32s var(--e-out) both;
+  animation-delay:calc(var(--i, 0) * 60ms); }
 
 /* 回到最新：sticky 貼在捲動容器底部（放在 .chat 內部才有效，見 AIChat.jsx 註解） */
 .tolatest { position:sticky; bottom:2px; align-self:center; z-index:20;
@@ -998,6 +1011,10 @@ a { color:inherit; text-decoration:none; }
 .luck { background:linear-gradient(145deg, var(--oracle-bg), var(--oracle-bg-2));
   border:1px solid var(--oracle-ln); }
 .luck .s { color:var(--gold); }   /* 生肖分數是文字，需 AA → 加深橙 */
+/* 橫幅星等逐顆點亮（同曆頁 .stars 的規則，一致才有系統感） */
+.luck .s i { font-style:normal; display:inline-block;
+  animation:starPop .34s var(--e-spring) both;
+  animation-delay:calc(var(--i, 0) * 80ms); }
 .luck .l { color:var(--oracle-fg); }
 
 /* AI 卡加一枚右上角小印，強化手帳感 */
@@ -1012,6 +1029,7 @@ a { color:inherit; text-decoration:none; }
 .sheet-mask { position:fixed; inset:0; z-index:70; background:rgba(30,22,14,.45);
   display:flex; align-items:flex-end; justify-content:center; animation:fade .2s ease; }
 @keyframes fade { from{opacity:0} to{opacity:1} }
+@keyframes menuIn { from { opacity:0; transform:scaleY(.94); } to { opacity:1; transform:scaleY(1); } }
 .sheet { width:100%; max-width:430px; max-height:82%; overflow-y:auto;
   background:var(--bg); border-radius:2px 2px 0 0; border:1px solid var(--line2);
   padding:6px 0 20px; animation:slideup .26s ease forwards; }
@@ -1597,6 +1615,12 @@ a { color:inherit; text-decoration:none; }
   box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.35); }
 .stamp-seal .seal-mark { width:42px; height:42px; }
 .stamp-tx { font-family:var(--serif); font-size:var(--text-base); font-weight:800; text-align:center; }
+
+/* 分頁切到背景時暫停所有動畫（seasonGlow/sealBreath 這類循環動畫在
+   看不見的分頁裡白燒 CPU 與電池；回到前景就恢復）。class 由 App.jsx 掛。 */
+[data-page-hidden="true"] *,
+[data-page-hidden="true"] *::before,
+[data-page-hidden="true"] *::after { animation-play-state:paused !important; }
 
 /* 減少動態效果（App 內設定開關） */
 [data-reduce-motion="on"] *,
@@ -2645,7 +2669,9 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .fsel .fs-c { color: var(--muted); font-size:var(--text-2xs); }
 .fsel:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
 
-.fmenu { flex: 0 0 auto; animation: fade .14s var(--ease); }
+/* 選單由上緣 scaleY 展開，不要硬開。origin 設 top 才像「從按鈕長出來」。 */
+.fmenu { flex: 0 0 auto; transform-origin: top;
+  animation: menuIn .22s var(--e-out); }
 .tp-quick { display: flex; gap: 8px; padding: 10px var(--space-4) 0; }
 .fmenu .term-panel { margin-top: 8px; }
 

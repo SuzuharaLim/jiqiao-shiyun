@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar} from '../components/ui.jsx'
+import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -56,13 +56,13 @@ export default function Profile() {
           {/* 三個統計都可點：作品／市集上架切換下方清單，粉絲開真實名單 */}
           <div className="nums">
             <button className="tap" onClick={() => setView('works')}>
-              <b>{stats.works}</b><span>作品</span>
+              <b><CountUp value={stats.works} /></b><span>作品</span>
             </button>
             <button className="tap" onClick={() => push('followList', { handle: me.handle, rel: 'followers' })}>
-              <b>{stats.followers}</b><span>粉絲</span>
+              <b><CountUp value={stats.followers} /></b><span>粉絲</span>
             </button>
             <button className="tap" onClick={() => setView('market')}>
-              <b>{my ? my.stats.works : 0}</b><span>市集上架</span>
+              <b><CountUp value={my ? my.stats.works : 0} /></b><span>市集上架</span>
             </button>
           </div>
         </div>
