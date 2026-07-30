@@ -42,8 +42,23 @@ a { color:inherit; text-decoration:none; }
 /* ⚠️ .rootpane 是 display:contents——它不產生盒子，動畫掛在它身上完全無效。
    分頁切換的進場動畫必須掛在真正有盒子的 .body 上。
    （App.jsx 給 rootpane key={tab}，切分頁時整棵重新掛載，動畫才會重播。） */
-.rootpane > .body { animation:paneIn var(--m-base) var(--e-out); }
-@keyframes paneIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+/* ⚠️ 內容的「可見性」絕不可掛在動畫上。
+   實測：把 paneIn 暫停在 0%（瀏覽器在背景分頁會這樣做，我們自己的
+   data-page-hidden 暫停規則也會），整個內容區 opacity 變 0——
+   DOM 完整、文字都在，就是整片看不見。
+   同一個失效還會發生在：列印、UA 停用動畫、截圖服務。
+   作法：基礎樣式明確可見；進場只在 keyframes 內部從 0 起跑，
+   且**不加 fill-mode**——動畫沒跑或被暫停時，元素落在基礎樣式（可見）。 */
+/* ⚠️ 大容器的進場**只動 transform，不動 opacity**。
+   原則：元素越大，它的可見性越不該依賴動畫。
+   .body 裝著整頁的內容——只要有任何一種情況讓動畫停在起點
+   （被暫停、被停用、列印、截圖服務），整頁就是一片空白。
+   只用位移的話，最壞情況也只是「內容偏移 8px」，永遠看得見。
+   小元件（chip、星等、訊息）可以用淡入，因為失效只影響那一個。 */
+.rootpane > .body { opacity:1; animation:paneIn var(--m-base) var(--e-out); }
+@keyframes paneIn { from { transform:translateY(8px); } to { transform:none; } }
+/* 列印與 reduce-motion：直接關掉進場，內容一律可見 */
+@media print { .rootpane > .body, .screen { animation:none !important; opacity:1 !important; transform:none !important; } }
 @media (min-width:900px) and (min-height:600px) {
   /* 版面：頂部橫向導覽列（滿版）＋ 下方置中內容欄，像一般網站 */
   /* 整頁捲動（像網站）：整頁單一連續平面，內容直接坐在頁面上（不做浮起卡片＝避免「頁面裡有頁面」） */
@@ -539,6 +554,27 @@ a { color:inherit; text-decoration:none; }
 .railcard.tap:active { transform:scale(.97); opacity:1; }
 .btn-primary.tap:active, .auth-btn.tap:active { transform:scale(.985); opacity:1; filter:brightness(.92); }
 .btn-ghost.tap:active { transform:scale(.985); opacity:1; background:var(--field); }
+
+/* ---------- 桌機：大內容卡的 hover 語言 ----------
+   ⚠️ .tap 原本只定義了 :active。手機沒差（沒有 hover），但桌機使用者
+      游標從卡片上掃過去完全沒有回應——整頁讀起來像海報不像介面，
+      收不到「這裡可以點」的訊號。
+   ⚠️ 一律包 @media (hover:hover)：觸控裝置點完會卡在 hover 狀態。
+   ⚠️ 曆頁卡（.calpage）刻意不加位移——它是主視覺，浮起來很吵；
+      也不加 hover 陰影，避免和撕曆的 3D 翻頁打架。 */
+@media (hover:hover) and (pointer:fine) {
+  .tool.tap, .ad-more.tap, .feedchal.tap, .b.tap, .plan.tap, .album .it.tap {
+    transition:transform var(--m-fast) var(--e-out),
+               box-shadow var(--m-base) var(--e-out),
+               border-color var(--m-fast) var(--e-out); }
+  .tool.tap:hover, .ad-more.tap:hover, .feedchal.tap:hover,
+  .b.tap:hover, .plan.tap:hover, .album .it.tap:hover {
+    transform:translateY(-2px);
+    box-shadow:0 6px 18px rgba(18,57,98,.10); }
+  /* 右側箭頭往前挪一點，暗示「進得去」 */
+  .tool .ic, .ad-more .go { transition:transform var(--m-base) var(--e-out); }
+  .tool.tap:hover .ic:last-child, .ad-more.tap:hover .go { transform:translateX(3px); }
+}
 
 /* 「選中狀態」的元件也該有過場——否則點 chip／節氣輪／月曆格是顏色瞬跳 */
 .chip, .termwheel .tm, .calcell, .seg, .pill, .ct-opt, .qchip, .fsel {
@@ -1178,6 +1214,18 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
   to   { opacity:1; transform:scale(1); }
 }
 
+/* 日期滾字：與撕曆同方向，讓「翻過去」是一個連貫的動作。
+   ⚠️ 日期是全頁最大的字，眼睛動線由上往下——它若瞬間跳字，會把下方
+      440ms 的撕曆整個蓋掉（先看到跳字才看到翻頁）。
+   ⚠️ 只動 transform 不動 opacity：主要資訊不可因動畫沒跑而消失。 */
+.daystrip .mid { overflow:hidden; }
+@keyframes dayRollNext { from { transform:translateY(-.3em) } to { transform:none } }
+@keyframes dayRollPrev { from { transform:translateY( .3em) } to { transform:none } }
+.daynum[data-dir="next"] { animation:dayRollNext var(--m-base) var(--e-out); }
+.daynum[data-dir="prev"] { animation:dayRollPrev var(--m-base) var(--e-out); }
+.daysub[data-dir="next"] { animation:dayRollNext var(--m-base) var(--e-out) 60ms; }
+.daysub[data-dir="prev"] { animation:dayRollPrev var(--m-base) var(--e-out) 60ms; }
+
 /* ══════════════ 撕曆翻頁（動效銳評 §02，招牌動作）══════════════
    實體農民曆的動作是「撕」——原本翻日只是把字串換掉，是全站最大的一筆浪費。
    ⚠️ 38%→39% 之間旋轉方向瞬間翻面，那一格就是「換頁」的瞬間；
@@ -1267,13 +1315,15 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
   transition:opacity .5s var(--e-out), transform .5s var(--e-out); }
 .reveal.in { opacity:1; transform:none; }
 .yiji .ty:nth-child(2), .yiji .tn:nth-child(2),
-.yjcols .it > *:nth-child(2), .ad-yj .ty:nth-child(2), .ad-yj .tn:nth-child(2) { animation-delay:.03s; }
+.yjcols .it > *:nth-child(2), .ad-yj .ty:nth-child(2), .ad-yj .tn:nth-child(2) { animation-delay:.06s; }
 .yiji .ty:nth-child(3), .yiji .tn:nth-child(3),
-.yjcols .it > *:nth-child(3), .ad-yj .ty:nth-child(3), .ad-yj .tn:nth-child(3) { animation-delay:.06s; }
+.yjcols .it > *:nth-child(3), .ad-yj .ty:nth-child(3), .ad-yj .tn:nth-child(3) { animation-delay:.12s; }
 .yiji .ty:nth-child(4), .yiji .tn:nth-child(4),
-.yjcols .it > *:nth-child(4), .ad-yj .ty:nth-child(4), .ad-yj .tn:nth-child(4) { animation-delay:.09s; }
+.yjcols .it > *:nth-child(4), .ad-yj .ty:nth-child(4), .ad-yj .tn:nth-child(4) { animation-delay:.18s; }
 .yiji .ty:nth-child(n+5), .yiji .tn:nth-child(n+5),
-.yjcols .it > *:nth-child(n+5), .ad-yj .ty:nth-child(n+5), .ad-yj .tn:nth-child(n+5) { animation-delay:.12s; }
+/* ⚠️ 級距要 ≥50ms 才看得見。原本 30ms——四個 chip 在 90ms 內全部結束，
+   視覺上就是一起出現，等於寫了 stagger 但使用者看不到。第 5 個之後封頂。 */
+.yjcols .it > *:nth-child(n+5), .ad-yj .ty:nth-child(n+5), .ad-yj .tn:nth-child(n+5) { animation-delay:.24s; }
 /* 三柱干支、吉神方位、十二時辰同樣是格狀資訊，共用同一種依序浮現 */
 /* 同上：不預設 opacity:0，避免動畫沒跑就看不到內容 */
 .ad-gz > *, .ad-dirs > *, .ad-hours > * {
@@ -1618,9 +1668,20 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 
 /* 分頁切到背景時暫停所有動畫（seasonGlow/sealBreath 這類循環動畫在
    看不見的分頁裡白燒 CPU 與電池；回到前景就恢復）。class 由 App.jsx 掛。 */
-[data-page-hidden="true"] *,
-[data-page-hidden="true"] *::before,
-[data-page-hidden="true"] *::after { animation-play-state:paused !important; }
+/* ⚠️ 只暫停「無限循環」的環境動畫，**絕不可用 `*` 全部暫停**。
+   一次性的進場動畫（paneIn / ui-enter / chipIn…）若被暫停在 0%，
+   元素就停在 opacity:0——整個內容區變成一片空白（實測重現）。
+   而且暫停一次性動畫本來就沒有省電意義：它只跑幾百毫秒就結束了。
+   這裡逐一列出真正會一直跑的那幾支。新增循環動畫時記得加進來。 */
+[data-page-hidden="true"] .calpage::before,        /* seasonGlow 9s  */
+[data-page-hidden="true"] .auth-splash .ba-seal,   /* sealBreath     */
+[data-page-hidden="true"] .empty .empty-ic,        /* emptyFloat     */
+[data-page-hidden="true"] .ui-skeleton,            /* ui-pulse       */
+[data-page-hidden="true"] .scan-line,              /* scanmove       */
+[data-page-hidden="true"] .typing i,               /* blink          */
+[data-page-hidden="true"] .shutter.rec,            /* recpulse       */
+[data-page-hidden="true"] .atx.karaoke span,
+[data-page-hidden="true"] .atx.neon span { animation-play-state:paused !important; }
 
 /* 減少動態效果（App 內設定開關） */
 [data-reduce-motion="on"] *,

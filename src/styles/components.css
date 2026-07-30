@@ -153,11 +153,17 @@
    階段 5：動效——只做「狀態轉換的可理解性」
    ========================================================================== */
 /* 頁面切換：opacity 0→1 + translateY(6px)→0 */
+/* ⚠️ 只動 transform 不動 opacity——這支掛在 .screen 與 .rootpane > *
+   這種「裝著整頁內容」的大容器上。動畫一旦停在起點，用 opacity 會讓
+   整片內容消失；只用位移的話最壞也只是偏移 6px，永遠看得見。 */
 @keyframes ui-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
+  from { transform: translateY(6px); }
+  to   { transform: none; }
 }
-.screen, .rootpane > * { animation: ui-enter var(--dur) var(--ease) both; }
+/* ⚠️ 不可用 `both`：fill-mode 會讓元素在動畫「開始前」就套用 from（opacity:0），
+   動畫一旦被暫停在起點或根本沒執行，內容就整片看不見（實測背景分頁重現）。
+   基礎樣式明確可見，動畫只負責「怎麼出現」。 */
+.screen, .rootpane > * { opacity: 1; animation: ui-enter var(--dur) var(--ease); }
 
 /* 焦點承接目標（頁面切換後 focus 移到 h1）不應顯示外框——
    它是程式移轉的焦點，不是使用者主動 Tab 到的 */

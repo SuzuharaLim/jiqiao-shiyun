@@ -66,9 +66,13 @@ export default function Feed() {
         <div className="daystrip">
           <button className="side tap" onClick={() => go(-1)} disabled={off <= -RANGE}
             style={off <= -RANGE ? { opacity: .35 } : null} aria-label="前一天">‹</button>
+          {/* ⚠️ 日期是全頁最大的字，眼睛的動線由上往下——它若瞬間跳字，
+              會把下方 440ms 的撕曆整個蓋掉（使用者先看到跳字才看到翻頁）。
+              key 帶日期讓 React 重新掛載，動畫才會重播；方向跟著翻頁走。
+              ⚠️ 只動 transform 不動 opacity：這是主要資訊，不可因動畫沒跑就消失。 */}
           <button className="mid tap" onClick={openCal}>
-            <div className="big">{d.solar}</div>
-            <div className="wk">{d.weekday} · {d.lunar} · {d.term} ▾</div>
+            <div className="big daynum" key={d.solar} data-dir={tear || 'next'}>{d.solar}</div>
+            <div className="wk daysub" key={`s-${d.solar}`} data-dir={tear || 'next'}>{d.weekday} · {d.lunar} · {d.term} ▾</div>
           </button>
           <button className="side tap" onClick={() => go(1)} disabled={off >= RANGE}
             style={off >= RANGE ? { opacity: .35 } : null} aria-label="後一天">›</button>

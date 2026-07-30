@@ -198,6 +198,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 **動效雷區（每一條都是實測踩到的）**：
 
 - **動畫只負責「怎麼出現」，不可負責「是否存在」**：絕不可寫成「基礎樣式 `opacity:0` ＋ keyframes 只定義 `to`」——動畫一旦沒執行（列印、UA 停用動畫、在 `display:none` 容器內掛載、某些 WebView），內容就**永久隱形**，而且是靜默的（版面在、文字在、就是看不見）。要寫成 `animation: x .34s both` ＋ keyframes 同時定義 `from`/`to`，讓基礎樣式保持可見。實測舊寫法在動畫停用時有 15 個元素消失（宜忌 chip、三柱干支、吉日星等、AI 回覆本文）。
+  - **元素越大，可見性越不該依賴動畫**：`.rootpane > .body` 與 `.screen` 裝著整頁內容，它們的進場**只動 `transform` 不動 `opacity`**——最壞情況只是偏移 8px，永遠看得見。小元件（chip／星等／訊息）才可以用淡入，因為失效只影響那一個。
+  - **`animation-play-state:paused` 絕不可用 `*` 全站套**：一次性的進場動畫被暫停在 0% 就等於內容消失（實測整個內容區變 opacity 0）。只列出真正無限循環的那幾支（seasonGlow／sealBreath／ui-pulse／scanmove／blink…）。暫停一次性動畫本來也沒有省電意義。
   - 例外是 **transition 驅動**的 `.reveal`：它的基礎必須隱形才有東西可過場，但 class 由 JS 加上，所以「JS 沒跑 ⇒ 沒有 class ⇒ 內容正常顯示」，失效方向是安全的。**切勿把 `.reveal` 寫進 JSX 的靜態 className**，那就變成「JS 沒跑就永久隱形」。
 - **載入中不可顯示空狀態**：`usePagedList` 的 `loading` 初值必須是 `true`（元件掛載後一定會發首次請求）。若從 `false` 開始，第一幀是「loading=false 且 items=[]」，呼叫端會判成「沒有資料」而顯示「找不到任何作品」——在資料還在路上時就跟使用者說這裡是空的，對剛起步的社群是最糟的第一印象。載入中請用 `.ui-skeleton` 骨架（同時預留版面）。
 - **每一條 `:hover` 都要包 `@media (hover:hover) and (pointer:fine)`**：觸控裝置沒有真正的 hover，點一下之後狀態會**黏住**直到點別處——使用者會看到某張卡莫名一直亮著。全站 27 條（含 `styles/components.css` 的 9 條）都已包好，新增時別漏。
