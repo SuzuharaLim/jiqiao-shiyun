@@ -47,7 +47,17 @@ export default function Camera({ onDone }) {
     ;(async () => {
       stopAll()
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: true })
+        // ⚠️ 解析度必須明確要求。只給 facingMode 的話，行動瀏覽器預設回
+        //    640×480（VGA）——手機原生相機是 1200 萬畫素起跳，差幾十倍的
+        //    像素量，這就是「網頁拍的比 App 爛很多」的根因。
+        //    用 ideal 不用 exact：exact 在裝置不支援時會直接丟
+        //    OverconstrainedError（黑畫面）；ideal 則由瀏覽器夾到該裝置
+        //    能給的最大值（新手機約 4K、舊手機 1080p，都遠好於 VGA）。
+        //    4096×3072 取 4:3——與手機感光元件同比例，避免被裁切降階。
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 4096 }, height: { ideal: 3072 } },
+          audio: true,
+        })
         if (cancelled) { s.getTracks().forEach(t => t.stop()); return }  // 快速連按切鏡頭時丟棄過期串流
         streamRef.current = s; setStream(s); setStatus('ready')
       } catch { if (!cancelled) setStatus('denied') }
