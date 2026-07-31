@@ -20,7 +20,7 @@ export default function Almanac() {
         {/* AI 時光顧問 —— 夜觀星象 hero */}
         <button className="coverbig oracle tap" onClick={() => push('aiChat')} style={{ textAlign: 'left' }}>
           <div className="bt">✦ AI 時光顧問</div>
-          <div className="bd">用對話占卜今日運勢、解宜忌、抽籤、解夢——你的專屬命理顧問。</div>
+          <div className="bd">用對話問今日宜忌、吉時、沖煞、解夢——你的專屬命理顧問。</div>
           <span className="cta">開始占卜 →</span>
         </button>
 

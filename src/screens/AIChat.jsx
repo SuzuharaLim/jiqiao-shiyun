@@ -38,14 +38,16 @@ function AiSegments({ text }) {
 // 續問建議：對話式介面最常見的流失點，就是使用者答完第一題後面對一個空輸入框。
 // 依「上一則問的是什麼」給三個方向，沿用現成的 .qchip 樣式。
 const FOLLOWUPS = [
-  { keys: ['籤', '抽'], list: ['這支籤怎麼解？', '再抽一支', '這幾天適合出遊嗎？'] },
+  // ⚠️ 站上沒有抽籤功能，續問建議不可出現「這支籤怎麼解？」「再抽一支」——
+  //    一支籤都沒抽到，這兩句只會讓人更困惑。
+  { keys: ['籤'], list: ['今天的宜忌是什麼？', '這幾天適合出遊嗎？', '這個節氣要注意什麼？'] },
   { keys: ['夢', '解夢'], list: ['夢裡還有別的細節', '這代表要注意什麼？'] },
   { keys: ['節氣', '養生', '吃', 'food'], list: ['這節氣吃什麼好？', '有什麼禁忌？', '推薦拍什麼題材'] },
   { keys: ['簽約', '開市', '生意', '合約'], list: ['那明天呢？', '有哪些要避開的？', '看完整國民曆'] },
 ]
 const followupsFor = (q) =>
   (FOLLOWUPS.find(f => f.keys.some(k => q.includes(k)))?.list)
-  || ['那明天呢？', '幫我抽一支籤', '這個節氣要注意什麼？']
+  || ['那明天呢？', '今天沖什麼生肖？', '這個節氣要注意什麼？']
 
 // 對話持久化（階段一：sessionStorage）。
 // ⚠️ msgs 原本是純 useState，pop() 讓元件卸載 → 整段對話蒸發。
@@ -55,7 +57,7 @@ const LS_KEY = 'jq-ai-chat'
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
 export default function AIChat() {
-  const { setToast, requireAccount, push } = useNav()
+  const { setToast, requireAccount, push, user } = useNav()
   const today = dayFor(todayOffset())
   const opening = aiOpenFor(today)
 
@@ -83,6 +85,16 @@ export default function AIChat() {
   useEffect(() => {
     try { sessionStorage.setItem(LS_KEY, JSON.stringify({ date: todayKey(), msgs })) } catch { /* 空間不足則不存 */ }
   }, [msgs])
+
+  // 登入之後要把「請先登入」那類系統訊息清掉。
+  // ⚠️ 對話存在 sessionStorage，所以訪客時期跳出的
+  //    「這一段要登入才能請顧問開口／去註冊・登入」在登入後仍然掛在畫面上，
+  //    使用者已經登入了卻還被叫去登入——那顆 CTA 也已經沒有意義。
+  //    這一則的生命週期綁的是登入狀態，不是對話內容，所以要單獨處理。
+  useEffect(() => {
+    if (!user || user.guest) return
+    setMsgs(list => (list.some(m => m.cta === 'login') ? list.filter(m => m.cta !== 'login') : list))
+  }, [user?.id, user?.guest])
 
   // 免責聲明的文案要跟著實際狀態走：接了金鑰還寫「AI 回覆為示範內容」就是錯的
   useEffect(() => {

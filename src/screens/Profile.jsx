@@ -81,7 +81,8 @@ export default function Profile() {
 
         <ToolRow iconName="receipt" title="我的訂單" sub={`購買紀錄 · 授權下載${orders.length ? ` · ${orders.length} 筆` : ''}`} onClick={() => push('orders')} />
         <ToolRow iconName="book2" title="我的手帳專案" sub="草稿 · 歷年月曆 · 重訂" onClick={() => push('myProjects')} />
-        <ToolRow iconName="fortune" title="我的占卜紀錄" sub="運勢 · 籤詩 · 解夢" onClick={() => push('records')} />
+        {/* ⚠️ 副標不可寫「籤詩」——站上沒有抽籤功能，紀錄裡也永遠不會有籤 */}
+        <ToolRow iconName="fortune" title="我的占卜紀錄" sub="運勢 · 解夢 · 秤骨（開發中）" onClick={() => push('records')} />
         <ToolRow iconName="sparkle" title="訂閱與帳號" sub={subscribed ? 'Premium 會員 · 管理' : 'Free · 升級 Premium'} onClick={() => push('subscription')} />
         <ToolRow iconName="coin" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
         <ToolRow iconName="basket" title="商店" sub="手帳 · 方案 · 企業版" onClick={() => push('store')} />

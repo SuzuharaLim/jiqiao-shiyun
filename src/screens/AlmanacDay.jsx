@@ -115,10 +115,19 @@ export default function AlmanacDay({ off, date }) {
         {/* 吉神方位 */}
         <section className="ad-blk b-dir" aria-label="今日吉神方位">
         <SectionHead title="今日吉神方位" />
+        {/* ⚠️ 這一區叫「方位」，四格就都要是方位。舊版喜神／財神給方位、
+            貴神卻給生肖，性質不一致；天乙貴人的生肖另外列一行。 */}
         <div className="ad-dirs">
           <div className="ad-dir"><small>喜神</small><b>{d.xishen}</b></div>
           <div className="ad-dir"><small>財神</small><b>{d.caishen}</b></div>
-          <div className="ad-dir"><small>貴神（天乙貴人）</small><b>{d.guiren}</b></div>
+          <div className="ad-dir"><small>陽貴神</small><b>{d.yanggui}</b></div>
+          <div className="ad-dir"><small>陰貴神</small><b>{d.yingui}</b></div>
+        </div>
+        <div className="card">
+          <div className="kv" style={{ borderBottom: 'none' }}>
+            <span>天乙貴人（生肖）</span><b>{d.guiren}</b>
+          </div>
+          <div className="ad-note">＊天乙貴人指的是「哪些生肖的人是你今日的貴人」，與上方的方位是兩回事。</div>
         </div>
         </section>
 
