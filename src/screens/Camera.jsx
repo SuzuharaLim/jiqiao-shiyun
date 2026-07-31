@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { TopBar, SheetMask } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 import AnimatedText from '../components/AnimatedText.jsx'
@@ -123,7 +124,7 @@ export default function Camera({ onDone }) {
   // 放棄編輯只需把 shot 清掉，相機由上面的生命週期 effect 自動重開
   //（先前這裡另外呼叫 startCam() 會與 effect 互搶，導致回到拍攝畫面時黑畫面）
   if (shot) return <Review shot={shot} filters={storyFilters} feedFilters={feedFilters} effects={effects}
-    onBack={() => setShot(null)} onUse={usePhoto} setToast={setToast} />
+    onBack={() => setShot(null)} onExit={popAll} onUse={usePhoto} setToast={setToast} />
 
   // ── 錄影完成預覽 ──
   if (videoUrl) return (
@@ -284,7 +285,7 @@ function bakeImage({ url, filterCss, strength = 100, overlayEmoji = '', overlayP
 }
 
 // ═══════ 檢視（濾鏡/強度/文字/搖晃框）═══════
-function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }) {
+function Review({ shot, filters, feedFilters, effects, onBack, onExit, onUse, setToast }) {
   const [lib, setLib] = useState('story')            // story | feed（經典濾鏡庫）
   const list = lib === 'story' ? filters : feedFilters
   const [fi, setFi] = useState(0)
@@ -332,8 +333,15 @@ function Review({ shot, filters, feedFilters, effects, onBack, onUse, setToast }
 
   return (
     <div className="cam review">
-      <TopBar title="檢視" onClose={onBack}
-        right={<button className="iconbtn tap" aria-label="加文字" onClick={() => setTextFxOpen(true)}>Ａ</button>} />
+      {/* ⚠️ 這裡原本是 onClose（✕）而它做的是「回到取景畫面重拍」，不是離開相機。
+          手機版相機沒有分頁列也沒有導覽列，使用者按了全畫面唯一的 ✕ 卻又看到相機，
+          會判定「卡住了、按不出去」——要按第二次（取景畫面的 ✕）才真的離開。
+          改成「←＝回去重拍」＋右側另給一個真正離開相機的 ✕，兩條路都看得見。 */}
+      <TopBar title="檢視" onBack={onBack}
+        right={<>
+          <button className="iconbtn tap" aria-label="加文字" onClick={() => setTextFxOpen(true)}>Ａ</button>
+          <button className="iconbtn tap" aria-label="離開相機" onClick={onExit}><Icon name="x" /></button>
+        </>} />
 
       <div className="cam-stage"
         onPointerDown={e => { startX.current = e.clientX }} onPointerUp={onSwipe}>
