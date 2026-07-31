@@ -37,6 +37,8 @@ export default function Almanac() {
         <SectionHead title="國民曆 · 曆頁" />
         <ToolRow iconName="scroll" title="今日完整曆頁" sub="建除・星宿・彭祖百忌・胎神・沖煞・十二時辰" onClick={() => push('almanacDay', { off: T0 })} />
         <ToolRow iconName="dragon" title={`${yearOverview.ganzhi} 年度總覽`} sub="值年太歲・地母經・犯太歲・年度凶方" onClick={() => push('yearAlmanac')} />
+        <ToolRow iconName="scroll" title="擇日工具" sub="搬家・結婚・開市・安床・動土 吉日查詢" onClick={() => push('auspiciousIndex')} />
+        <ToolRow iconName="book" title="術語解釋" sub="建除・彭祖百忌・受死日・黃道吉時 是什麼意思" onClick={() => push('glossary')} />
 
         <SectionHead title="算命 · 命理" extra="全部" />
         {fortuneTools.map(t => (

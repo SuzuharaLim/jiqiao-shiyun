@@ -3089,3 +3089,49 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 @media (hover: hover) and (pointer: fine) {
   .term-cell:not(.on):hover { background: var(--tone-1); }
 }
+
+/* ---------- 擇日工具 / 術語 / 編輯政策（第二階段 SEO 新頁）---------- */
+.au-lead {
+  margin: var(--space-3) var(--space-4) 0; padding: var(--space-3);
+  background: var(--tone-1); border-left: 2px solid var(--season-hue);
+  border-radius: 0 6px 6px 0; font-size: var(--text-xs); line-height: 1.85;
+}
+.au-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2); padding: 0 var(--space-4); flex: 0 0 auto;
+}
+@media (min-width: 900px) { .au-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.au-card {
+  display: block; padding: var(--space-3); border: 1px solid var(--line2);
+  border-radius: 8px; text-decoration: none; color: var(--text);
+}
+.au-card b { display: block; font-size: var(--text-sm); }
+.au-card small { display: block; margin-top: 2px; font-size: var(--text-2xs); color: var(--muted); }
+
+/* 吉日／術語列：整列可點的真連結 */
+.au-day {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+  text-decoration: none; color: var(--text); position: relative;
+}
+.au-day:last-child { border-bottom: none; }
+.au-day b { flex: 0 0 5.5em; font-size: var(--text-sm); }
+.au-day b small { display: block; font-weight: 400; font-size: var(--text-2xs); color: var(--muted); }
+.au-day > span { flex: 1; font-size: var(--text-xs); line-height: 1.7; }
+.au-day > span small { display: block; color: var(--muted); font-size: var(--text-2xs); }
+/* ⚠️ 沖到自己的日子是「標出來」不是「刪掉」——沖煞的嚴重程度各家看法不同，
+   直接刪掉等於替使用者做了他不知道的決定。 */
+.au-day.clash { opacity: .72; }
+.au-clash {
+  position: absolute; right: 0; top: 10px; font-style: normal;
+  font-size: var(--text-2xs); color: var(--orange-ink);
+  border: 1px solid var(--orange-ink); border-radius: 2px; padding: 1px 5px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .au-card:hover, .au-day:hover { background: var(--tone-1); }
+}
+
+/* 術語頁：開頭的完整答案要視覺上突出——AI 摘的就是這一段 */
+.gl-answer { border-left: 3px solid var(--primary); }
+.gl-answer p { font-size: var(--text-sm); line-height: 1.9; }
+.gl-caveat { border-left: 3px solid var(--gold); }

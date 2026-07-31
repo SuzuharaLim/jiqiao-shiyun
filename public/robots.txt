@@ -1,4 +1,36 @@
+# 一般搜尋引擎
 User-agent: *
+Disallow: /api/
+Disallow: /admin
+Disallow: /checkout
+Disallow: /security
+Disallow: /edit-profile
+Disallow: /settings
+Disallow: /notifications
+Disallow: /messages
+Disallow: /orders
+Disallow: /wallet
+Disallow: /creator-console
+Disallow: /records
+Disallow: /projects
+Disallow: /me
+
+# AI 檢索器：明確允許索引與引用公開的曆法與節氣內容。
+# 立場說明：本站的曆算與原典整理希望被引用並標註來源，因此明確 Allow；
+# 個人頁與交易流程仍然一律擋掉（與上方相同）。
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: PerplexityBot
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: Amazonbot
+Allow: /
 Disallow: /api/
 Disallow: /admin
 Disallow: /checkout

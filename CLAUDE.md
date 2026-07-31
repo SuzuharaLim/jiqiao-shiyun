@@ -318,6 +318,15 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **首屏靜態層要涵蓋畫面上真的有的東西**：節氣頁的當令農產與節氣生活資料也要進去，否則爬蟲只看到典據那一半。**放畫面沒有的才是 cloaking，這裡是相反的情況**。24 個節氣頁靜態層皆 ≥800 字。
 - **總覽頁的切換 chip 是 `<button>`，爬蟲點不到**：節氣、神佛、解夢三個總覽頁都要另外給真的 `<a href>` 清單（節氣改成四季網格，順便解掉 1280px 下「立春」被切出畫面的問題）。
 - **`Breadcrumb`（`ui.jsx`）同時輸出畫面麵包屑與 BreadcrumbList JSON-LD**：JSON-LD 必須用 `dangerouslySetInnerHTML`——React 會把 `{JSON.stringify(x)}` 當文字轉義，`<` 變成 `&lt;` 會讓 Google 解析失敗。
+- **路徑樣板的參數名稱必須「單次掃描依序收集」**（`nav.jsx` 與 `server/seo.js` 兩邊同一套）：`'/auspicious/:kind/:ym?'` 若分兩次 replace（先處理選填的 `:ym?` 再處理 `:kind`），`names` 會變成 `['ym','kind']`，但 regex 的捕獲組順序是 `(kind)(ym)`——整個錯位，`kind` 拿到 undefined，畫面顯示「找不到」。**新增畫面也要在 `App.jsx` 的 `SCREEN_TITLES` 補一筆**，否則站內導覽後標題會退回預設值。
+- **擇日工具（`src/data/auspicious.js`）沒有新的命理判定**：全部是 `dayFor()` 宜欄的重新組織——某用途出現在當日宜欄就是吉日。**不可為了讓每個月都有吉日而放寬標準**，寧可誠實顯示「這個月沒有」。生肖沖煞是「標出來」不是「刪掉」——沖煞的嚴重程度各家看法不同，直接刪掉等於替使用者做了他不知道的決定。
+- **術語頁（`src/data/glossary.js`）的 `answer` 欄位是給 AI 摘的**：開頭 40–60 字直接給完整定義、不鋪陳。`source` 沒有明確典據就留空，不可掰一個書名充數。`caveat`（常見誤解）是本站相對於一般命理站的實質差異，也最容易被引用。
+- **`robots.txt` 對 AI 爬蟲的立場是「明確 Allow」**：GPTBot、PerplexityBot、ClaudeBot 等逐一列出並允許索引公開內容，個人頁與交易流程仍一律擋掉。要改變立場（不希望被 AI 引用）就把那一段改成 `Disallow: /`。搭配 `public/llms.txt` 說明資料的三層可信度與引用方式。
+- **`max-image-preview:large` 不可拿掉**（`index.html` 的 robots meta）：沒有這行，Google 在 Discover 與搜尋只給小縮圖，Discover 幾乎進不去。這個站有節氣攝影社群＝獨家高畫質圖，是競品沒有的資產。
+- **sitemap 分成 index + 五類**（core／daily／solarterms／auspicious／entries）：GSC 對每一份分別統計「已建立索引 ÷ 提交數」，拆開才知道是哪一類沒被收（低於 60% 代表那一類有品質問題）。主 `sitemap.xml` 仍保留完整版供相容。
+- **IndexNow 需設 `INDEXNOW_KEY` 環境變數**（任意 8–128 位十六進位字串），未設就跳過不報錯。Bing／Yandex 支援而台灣 Yahoo 奇摩吃 Bing。**Google 不支援 IndexNow**，其 Indexing API 只開放徵才與直播內容，不要浪費時間去接。
+- **公開 API `GET /api/v1/almanac/:date` 免金鑰但有速率限制**（以 IP 計，每小時 600 次）。回應帶 `_source` / `_license`，目的是換取開發者在 README 與技術文章裡的外連。`/widget/today` 是可嵌入的今日宜忌卡，**本身要 noindex**（避免與曆頁重複），底部的來源連結是 do-follow。
+- **`manifest.webmanifest` 的 `screenshots` 刻意沒放**：那需要真實截圖檔，寫一個不存在的路徑會讓安裝介面壞掉，比不寫更糟。有實際截圖再補。
 - **秤骨用真表（`src/data/bone.js`）**：農曆年（六十甲子）/月/日/時辰四項骨重相加，來源註明於檔頭。原本是 `(年+月+日)%5` 自創公式，與任何參考網站都對不上。輸入需明示國曆/農曆（國曆會自動轉換）。**完整《稱骨歌》51 首批語未收錄，不可用自撰詩句冒充原文。**
 - **犯太歲的分類名稱各家不一**：同一生肖有寫「刑太歲」有寫「偏沖」（查證：商周良醫健康網明確寫「刑太歲又稱偏沖」）。故並列標示，避免使用者對照別站以為算錯。丙午年：午值／子沖／丑害／卯破／酉刑（偏沖）。
 - **神明誕辰要分清誕辰與成道/飛昇日**：土地公曾誤填農曆 8/15（那是成道日），誕辰為二月初二。已依台灣省城隍廟誕辰表（sim.org.tw）核對 12 位。倒數天數由 `nextLunarOccurrence` 實算，不可寫死。

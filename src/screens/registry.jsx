@@ -47,11 +47,17 @@ import { Privacy, Terms, Contact } from './LegalScreens.jsx'
 import { Proverbs, Festivals, Flowers, Ingredients, SolarTerms, Bone } from './InfoScreens.jsx'
 import TermDetail from './TermDetail.jsx'
 import { DeityDetail, DreamDetail } from './EntryDetail.jsx'
+import Auspicious, { AuspiciousIndex } from './Auspicious.jsx'
+import GlossaryDetail, { GlossaryIndex } from './Glossary.jsx'
+import { Editorial, Myths } from './Editorial.jsx'
 
 export const ROOTS = [Feed, Explore, Create, Almanac, Profile]
 
 export const SCREENS = {
   termDetail: TermDetail, deityDetail: DeityDetail, dreamDetail: DreamDetail,
+  auspiciousIndex: AuspiciousIndex, auspicious: Auspicious,
+  glossary: GlossaryIndex, glossaryDetail: GlossaryDetail,
+  editorial: Editorial, myths: Myths,
   aiChat: AIChat,
   checkout: Checkout,
   workDetail: WorkDetail,

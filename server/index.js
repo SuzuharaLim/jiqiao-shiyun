@@ -14,12 +14,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
-import { matchRoute, injectMeta, entryExists, buildSitemap } from './seo.js'
+import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
-import { dayFor, todayOffset } from '../src/data/almanac.js'
+import { dayFor, todayOffset, dateFromOffset, offsetFromDate } from '../src/data/almanac.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1563,6 +1563,149 @@ if (existsSync(distDir)) {
   app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml').set('Cache-Control', 'public, max-age=3600')
       .send(buildSitemap(originOf(req)))
+  })
+
+  // 換行常數（模板字串裡直接寫跳脫字元容易在多層引號中出錯）
+  const NEWLINE = String.fromCharCode(10)
+
+  // 公開 API 的速率限制：免金鑰但不能被當成免費的無限後端。
+  // ⚠️ 以 IP 計，因為呼叫者沒有帳號。額度給得寬鬆（讓人願意用），
+  //    但足以擋掉整站爬取式的濫用。
+  const publicApiLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false,
+    message: { error: '請求太頻繁，請稍後再試。若需要大量資料，歡迎來信 hello@chengqi.tw' },
+  })
+
+  // sitemap 分拆：index + 五個分類。
+  // ⚠️ GSC 對每一份 sitemap 分別統計「已建立索引 ÷ 提交數」，
+  //    拆開才知道是哪一類沒被收（低於 60% 就代表那一類有品質或抓取問題）。
+  app.get('/sitemap-:kind.xml', (req, res, next) => {
+    if (!SITEMAP_KINDS.includes(req.params.kind)) return next()
+    res.type('application/xml').set('Cache-Control', 'public, max-age=3600')
+      .send(buildSitemapKind(originOf(req), req.params.kind))
+  })
+  app.get('/sitemap-index.xml', (req, res) => {
+    res.type('application/xml').set('Cache-Control', 'public, max-age=3600')
+      .send(buildSitemapIndex(originOf(req)))
+  })
+
+  // ── IndexNow：即時推送新增／更新的網址 ──────────────────────
+  // Bing / Yandex 支援（而台灣的 Yahoo 奇摩吃 Bing 的結果），收錄速度差很多。
+  // ⚠️ Google 不支援 IndexNow；Google 的 Indexing API 只開放徵才與直播內容，
+  //    農民曆用不上，不要浪費時間去接。
+  // 需設 INDEXNOW_KEY 環境變數（任意 8–128 位十六進位字串）。未設就跳過，不報錯。
+  const INDEXNOW_KEY = process.env.INDEXNOW_KEY || ''
+  if (INDEXNOW_KEY) {
+    // 金鑰驗證檔：IndexNow 會來抓 https://網域/<key>.txt 確認你擁有這個站
+    app.get(`/${INDEXNOW_KEY}.txt`, (_req, res) => res.type('text/plain').send(INDEXNOW_KEY))
+  }
+  async function pingIndexNow(urls) {
+    if (!INDEXNOW_KEY || !urls?.length) return { skipped: true }
+    const host = (process.env.APP_URL || 'https://chengqi.tw').replace(/^https?:\/\//, '').replace(/\/$/, '')
+    try {
+      const r = await fetch('https://api.indexnow.org/IndexNow', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ host, key: INDEXNOW_KEY, keyLocation: `https://${host}/${INDEXNOW_KEY}.txt`, urlList: urls }),
+      })
+      return { ok: r.ok, status: r.status, count: urls.length }
+    } catch (e) { return { ok: false, error: String(e?.message || e) } }
+  }
+  // 管理者手動觸發（也可由部署腳本呼叫）。一次最多 10,000 筆是 IndexNow 的上限。
+  app.post('/api/admin/indexnow', requireAuth, requireRole('admin'), async (req, res) => {
+    const origin = originOf(req)
+    const urls = Array.isArray(req.body?.urls) && req.body.urls.length
+      ? req.body.urls.slice(0, 10000)
+      : [`${origin}/`, `${origin}/almanac/day`, `${origin}/solarterms`, `${origin}/auspicious`, `${origin}/glossary`]
+    res.json(await pingIndexNow(urls))
+  })
+
+  // ── RSS feed ───────────────────────────────────────────────
+  // 聚合器、電子報服務、Slack/Discord bot、第三方 App 都會來訂，
+  // 是被動的曝光與外連來源。內容用「每日曆頁」——它天天更新，最適合做 feed。
+  app.get('/feed.xml', (req, res) => {
+    const origin = originOf(req)
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const items = []
+    const t0 = todayOffset()
+    for (let i = 0; i < 14; i++) {
+      const off = t0 + i
+      const d = dayFor(off)
+      const dt = dateFromOffset(off)
+      const link = `${origin}/almanac/day/${iso(dt)}`
+      items.push([
+        '  <item>',
+        `    <title>${esc(`${dt.getMonth() + 1}/${dt.getDate()}（${d.weekday}）${d.lunar}・${d.ganzhi}`)}</title>`,
+        `    <link>${link}</link>`,
+        `    <guid isPermaLink="true">${link}</guid>`,
+        `    <pubDate>${dt.toUTCString()}</pubDate>`,
+        `    <description>${esc(`宜：${d.yi.join('、')}／忌：${d.ji.join('、')}。${d.term}第 ${d.termDay} 天，${d.zheng}，吉時 ${d.luckyHours}。${d.summary || ''}`)}</description>`,
+        '  </item>',
+      ].join(NEWLINE))
+    }
+    res.type('application/rss+xml').set('Cache-Control', 'public, max-age=3600').send([
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+      '<channel>',
+      '  <title>機巧時運｜每日國民曆</title>',
+      `  <link>${origin}/</link>`,
+      '  <description>每日宜忌、黃道吉時、沖煞與節氣。曆算為天文演算，宜忌屬傳統民俗。</description>',
+      '  <language>zh-Hant-TW</language>',
+      `  <atom:link href="${origin}/feed.xml" rel="self" type="application/rss+xml" />`,
+      ...items,
+      '</channel>',
+      '</rss>',
+      '',
+    ].join(NEWLINE))
+  })
+
+  // ── 公開 API：讓開發者引用，換取持續的高品質外連 ──────────────
+  // ⚠️ 刻意做成免金鑰但有速率限制。回應帶 _source / _license，
+  //    讓使用者知道該怎麼標註來源——這正是外連的來源。
+  app.get('/api/v1/almanac/:date', publicApiLimiter, (req, res) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(req.params.date || '')
+    if (!m) return res.status(400).json({ error: '日期格式須為 YYYY-MM-DD' })
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    if (Number.isNaN(dt.getTime()) || dt.getMonth() !== Number(m[2]) - 1) {
+      return res.status(400).json({ error: '不是有效的日期' })
+    }
+    const d = dayFor(offsetFromDate(dt))
+    res.set('Cache-Control', 'public, max-age=86400')
+      .set('Access-Control-Allow-Origin', '*')
+      .json({
+        date: req.params.date,
+        ...d,
+        _source: '機巧時運 https://chengqi.tw',
+        _license: '可自由使用，請標註來源與連結。曆算為天文演算；宜忌、神煞屬傳統民俗，各流派判定可能相異。',
+        _docs: 'https://chengqi.tw/llms.txt',
+      })
+  })
+
+  // 可嵌入的今日宜忌 widget（給部落格、廟宇網站、討論區放側邊欄）
+  // ⚠️ 本身要 noindex，避免被當成與曆頁重複的內容；底部的來源連結是 do-follow。
+  app.get('/widget/today', (req, res) => {
+    const origin = originOf(req)
+    const d = dayFor(todayOffset())
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    res.type('html').set('Cache-Control', 'public, max-age=1800').send([
+      '<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8">',
+      '<meta name="robots" content="noindex, follow">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      '<title>今日宜忌</title><style>',
+      'body{margin:0;font:14px/1.7 system-ui,"PingFang TC","Microsoft JhengHei",sans-serif;color:#1a1815;background:#fff}',
+      '.w{border:1px solid #e6e1da;border-radius:10px;padding:14px 16px}',
+      '.d{font-size:20px;font-weight:800}.s{color:#6b6560;font-size:12px;margin-bottom:8px}',
+      '.r{display:flex;gap:10px;margin:6px 0}.k{flex:0 0 2em;font-weight:700;color:#123962}',
+      'a{color:#123962;font-size:12px}@media(prefers-color-scheme:dark){body{background:#1c1a18;color:#f0ece6}.w{border-color:#2e2b27}.s{color:#a09a92}.k,a{color:#6E9CD2}}',
+      '</style></head><body><div class="w">',
+      `<div class="d">${esc(d.solar.replace(/\s/g, ''))} ${esc(d.weekday)}</div>`,
+      `<div class="s">${esc(d.lunar)}・${esc(d.ganzhi)}・${esc(d.term)}</div>`,
+      `<div class="r"><span class="k">宜</span><span>${esc(d.yi.join('、'))}</span></div>`,
+      `<div class="r"><span class="k">忌</span><span>${esc(d.ji.join('、'))}</span></div>`,
+      `<div class="r"><span class="k">吉時</span><span>${esc(d.luckyHours)}</span></div>`,
+      `<div style="margin-top:10px"><a href="${origin}/almanac/day" target="_blank" rel="noopener">資料來源：機巧時運</a></div>`,
+      '</div></body></html>',
+    ].join(NEWLINE))
   })
 
   // SPA fallback ＋ 逐頁 meta 注入 ＋ 真 404

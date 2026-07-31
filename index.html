@@ -11,12 +11,17 @@
          會是刺眼的白，與 App 內的深色底不連續。深色主題本身早就有（styles.css）。 -->
     <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1A1815" media="(prefers-color-scheme: dark)" />
+    <!-- ⚠️ 沒有這一行，Google 在 Discover 與搜尋結果只會給小縮圖，Discover 幾乎進不去。
+         這個站有節氣攝影社群＝源源不絕的獨家高畫質圖，是農民曆競品都沒有的資產，
+         不開大圖預覽等於自願棄權。max-snippet:-1 一併放開摘要長度。 -->
+    <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="description" content="今天宜什麼？機巧時運用 AI 把國民曆讀成人話——每日宜忌、吉時、沖煞白話解釋，加上二十四節氣與節氣攝影社群。" />
     <!-- ⚠️ 分頁圖示的快取獨立於 HTTP 快取，改了圖檔瀏覽器常常還是顯示舊的。
          換圖時把 ?v= 的號碼 +1，才會真的更新（否則使用者得開無痕視窗才看得到）。 -->
     <link rel="icon" href="/favicon.svg?v=5" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="alternate" type="application/rss+xml" title="機巧時運｜每日國民曆" href="/feed.xml" />
     <link rel="canonical" href="https://chengqi.tw/" />
     <title>機巧時運 · 智慧互動國民曆</title>
 
@@ -43,7 +48,11 @@
     <script type="application/ld+json">
     {"@context":"https://schema.org","@graph":[
       {"@type":"Organization","@id":"https://chengqi.tw/#org","name":"機巧時運",
-       "legalName":"承氣有限公司","url":"https://chengqi.tw/","logo":"https://chengqi.tw/icon-512.png"},
+       "legalName":"承氣有限公司","url":"https://chengqi.tw/","logo":"https://chengqi.tw/icon-512.png",
+       "address":{"@type":"PostalAddress","addressCountry":"TW","addressRegion":"臺灣"},
+       "contactPoint":{"@type":"ContactPoint","contactType":"customer support",
+         "email":"hello@chengqi.tw","availableLanguage":["zh-Hant"]},
+       "knowsAbout":["二十四節氣","國民曆","農民曆","擇日","干支曆法","台灣民俗"]},
       {"@type":"WebSite","@id":"https://chengqi.tw/#site","url":"https://chengqi.tw/",
        "name":"機巧時運","inLanguage":"zh-Hant-TW","publisher":{"@id":"https://chengqi.tw/#org"},
        "description":"用 AI 把國民曆（農民曆）讀成人話的每日宜忌與二十四節氣攝影社群。",

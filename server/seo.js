@@ -2,6 +2,8 @@ import { dayFor, offsetFromDate } from '../src/data/almanac.js'
 import { TERM_ARTICLES, articleBySlug } from '../src/data/termArticle.js'
 import { DEITY_ARTICLES, deityBySlug } from '../src/data/deityArticle.js'
 import { DREAMS } from '../src/data/dream.js'
+import { PURPOSES, purposeBySlug, goodDaysInMonth } from '../src/data/auspicious.js'
+import { GLOSSARY, glossaryBySlug } from '../src/data/glossary.js'
 import { termGuide } from '../src/data/termGuide.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
@@ -43,6 +45,20 @@ const ROUTES = [
   // 而「2026年8月15日 國民曆」正是這類產品最大宗的長尾搜尋。
   { path: '/almanac/day/:date', title: '國民曆查詢｜指定日期的宜忌、吉時、沖煞、建除',
     desc: '查詢任一天的完整國民曆：宜忌、黃道吉時、沖煞、建除十二神、二十八宿、胎神與彭祖百忌。' },
+  { path: '/auspicious', title: '擇日工具｜搬家、結婚、開市吉日查詢｜機巧時運',
+    desc: '依傳統擇日的宜忌推算搬家、入宅、結婚、開市、安床、動土、出行、祭祀、安葬等用途的吉日，附每日沖煞與白話說明，可標出沖到自己生肖的日子。' },
+  { path: '/auspicious/:kind', title: '吉日查詢｜機巧時運',
+    desc: '該用途全年的吉日一覽，附農曆、干支、沖煞與宜忌說明。' },
+  { path: '/auspicious/:kind/:ym', title: '吉日查詢｜機巧時運',
+    desc: '該用途該月份的吉日一覽，附農曆、干支、沖煞與宜忌說明。' },
+  { path: '/glossary', title: '國民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時',
+    desc: '曆頁上那些看不懂的名詞逐一解釋：建除十二神、彭祖百忌、受死日、三娘煞、黃道吉時、二十八星宿、沖煞、胎神、天干地支、犯太歲，每則標明典據與常見誤解。' },
+  { path: '/glossary/:slug', title: '術語解釋｜機巧時運',
+    desc: '傳統曆法與擇日名詞的定義、詳細說明、典據出處與常見誤解。' },
+  { path: '/editorial', title: '編輯政策｜資料來源、校對流程與 AI 的角色',
+    desc: '機巧時運的內容分成天文演算、傳統擇日、原典引用三層，本頁說明各層的來源與校對方式，以及 AI 只做白話翻譯、不參與曆算與原典整理的界線。' },
+  { path: '/myths', title: '國民曆的常見誤解｜逐項澄清',
+    desc: '傳統曆法容易被誤讀的地方逐項澄清：干支年不等於農曆年、沖煞歲數是虛歲、二十八宿差七天看不出來、午年沒有刑太歲屬雞等，包含我們自己曾經算錯又修正的部分。' },
   { path: '/solarterms/:slug', title: '節氣專頁｜機巧時運',
     desc: '單一節氣的由來釋義、七十二候原典、台灣實際氣候與物候、當令農產、俗語慶典與節氣攝影建議。' },
   { path: '/deities/:slug', title: '神明聖誕｜機巧時運',
@@ -128,9 +144,9 @@ const ROUTES = [
 
 const MATCHERS = ROUTES.map(r => ({
   ...r,
-  rx: new RegExp('^' + r.path
-    .replace(/\/:(\w+)\?/g, '(?:/([^/]+))?')
-    .replace(/:(\w+)/g, '([^/]+)') + '/?$'),
+  // 與 nav.jsx 同一套規則：單次掃描，選填參數連同前面的斜線一起可省略
+  rx: new RegExp('^' + r.path.replace(/\/:(\w+)\?|:(\w+)/g,
+    (_, opt) => (opt ? '(?:/([^/]+))?' : '([^/]+)')) + '/?$'),
 }))
 
 export function matchRoute(pathname) {
@@ -183,6 +199,35 @@ function entryMeta(pathname, route) {
     return {
       title: `${d.name}聖誕｜農曆${d.lunarMonth}月${d.lunarDay}日｜由來與台灣主要廟宇`,
       desc: `${d.name}${d.alias?.length ? `（又稱${d.alias.join('、')}）` : ''}誕辰為農曆${d.lunarMonth}月${d.lunarDay}日。本頁附國曆換算與倒數天數、由來典故、信仰內涵、常見祈求，以及${d.temples[0].split('（')[0]}等台灣主要廟宇與祭祀習俗。`,
+    }
+  }
+  if (p === '/auspicious/:kind' || p === '/auspicious/:kind/:ym') {
+    const parts = pathname.split('/').filter(Boolean)   // ['auspicious', kind, ym?]
+    const kd = purposeBySlug(decodeURIComponent(parts[1] || ''))
+    if (!kd) return null
+    const ym = /^(\d{4})-(\d{2})$/.exec(parts[2] || '')
+    const y = ym ? Number(ym[1]) : new Date().getFullYear()
+    if (ym) {
+      const mo = Number(ym[2])
+      if (mo < 1 || mo > 12) return null
+      const n = goodDaysInMonth(kd.slug, y, mo).length
+      return {
+        title: `${y}年${mo}月${kd.title}｜共 ${n} 天，附農曆干支與沖煞`,
+        desc: `${y} 年 ${mo} 月適合${kd.name}的日子共 ${n} 天。${kd.intro}每一天都附農曆、干支、當日沖煞與宜忌說明，可標出沖到自己生肖的日子。`,
+      }
+    }
+    const total = Array.from({ length: 12 }, (_, i) => goodDaysInMonth(kd.slug, y, i + 1).length)
+      .reduce((x, z) => x + z, 0)
+    return {
+      title: `${y}年${kd.title}一覽｜全年 ${total} 天，附沖煞與宜忌說明`,
+      desc: `${y} 年適合${kd.name}的日子全年共 ${total} 天，依月份列出。${kd.intro}每一天都附農曆、干支、當日沖煞與宜忌，並可標出沖到自己生肖的日子。`,
+    }
+  }
+  if (p === '/glossary/:slug') {
+    const g = glossaryBySlug(slugOf(pathname)); if (!g) return null
+    return {
+      title: `${g.term}是什麼意思？定義、典據與常見誤解｜國民曆術語`,
+      desc: `${g.answer.slice(0, 62)}${g.source ? `　典據：${g.source.slice(0, 24)}` : ''}`,
     }
   }
   if (p === '/dream/:slug') {
@@ -325,6 +370,50 @@ function fallbackFor(pathname, route) {
   if (p === '/solarterms/:slug') return termFallback(slug)
   if (p === '/deities/:slug') return deityFallback(slug)
   if (p === '/dream/:slug') return dreamFallback(slug)
+  if (p === '/glossary/:slug') {
+    const g = glossaryBySlug(slug)
+    if (!g) return ''
+    return `
+      <h1>${esc(g.term)}是什麼意思？</h1>
+      ${g.aka?.length ? `<p>又稱${esc(g.aka.join('、'))}</p>` : ''}
+      <p>${esc(g.answer)}</p>
+      <h2>詳細說明</h2><p>${esc(g.detail)}</p>
+      ${g.source ? `<h2>典據</h2><p>${esc(g.source)}</p>` : ''}
+      ${g.caveat ? `<h2>常見誤解</h2><p>${esc(g.caveat)}</p>` : ''}`
+  }
+  if (p === '/glossary') {
+    return `
+      <h1>國民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時</h1>
+      <ul>${GLOSSARY.map(g =>
+        `<li><a href="/glossary/${g.slug}">${esc(g.term)}</a>——${esc(g.answer.slice(0, 40))}…</li>`).join('')}</ul>`
+  }
+  if (p === '/auspicious') {
+    return `
+      <h1>擇日工具｜搬家、結婚、開市吉日查詢</h1>
+      <p>依傳統擇日的宜忌推算各用途的吉日。判準來自曆頁的宜欄與當日神煞，不另外發明規則。</p>
+      <ul>${PURPOSES.map(x =>
+        `<li><a href="/auspicious/${x.slug}">${esc(x.title)}</a>——${esc(x.intro.slice(0, 36))}…</li>`).join('')}</ul>`
+  }
+  if (p === '/auspicious/:kind' || p === '/auspicious/:kind/:ym') {
+    const parts = pathname.split('/').filter(Boolean)
+    const kd = purposeBySlug(decodeURIComponent(parts[1] || ''))
+    if (!kd) return ''
+    const ym = /^(\d{4})-(\d{2})$/.exec(parts[2] || '')
+    const y = ym ? Number(ym[1]) : new Date().getFullYear()
+    const mos = ym ? [Number(ym[2])] : Array.from({ length: 12 }, (_, i) => i + 1)
+    const rows = mos.map(mo => {
+      const ds = goodDaysInMonth(kd.slug, y, mo)
+      return `<h2>${y} 年 ${mo} 月（${ds.length} 天）</h2>${ds.length
+        ? `<ul>${ds.map(x => `<li>${esc(x.d.solar.replace(/\s/g, ''))}（${esc(x.d.weekday)}）　${esc(x.d.lunar)}・${esc(x.d.ganzhi)}　宜${esc(x.matched.join('、'))}　${esc(x.d.zheng)}</li>`).join('')}</ul>`
+        : '<p>這個月沒有適合的日子。這是實算結果，不是資料缺漏。</p>'}`
+    }).join('')
+    return `
+      <h1>${y} 年${esc(kd.title)}${ym ? `　${Number(ym[2])} 月` : ''}</h1>
+      <p>${esc(kd.intro)}</p>
+      ${rows}
+      <h2>${esc(kd.name)}的傳統講究</h2><p>${esc(kd.tips)}</p>`
+  }
+  if (p === '/editorial' || p === '/myths') return ''   // 這兩頁由 React 渲染，內容本來就長
   // 節氣總覽：列出 24 個節氣的真連結，爬蟲才走得到 24 個條目頁
   if (p === '/solarterms') {
     return `
@@ -386,6 +475,67 @@ export function injectMeta(html, { origin, pathname, route }) {
 
 // sitemap：只收可索引的靜態路由（動態頁的 id 由前端資料決定，
 // 之後要收錄作品頁再從 DB 產生第二份 sitemap）。
+// ── sitemap 分拆 ────────────────────────────────────────────────
+// ⚠️ 全部塞在一份裡的話，GSC 只會給你一個總數，出問題時不知道是哪一類沒被收。
+//    拆開之後可以逐類看「已建立索引 ÷ 提交數」，低於 60% 就代表那一類有品質問題。
+export const SITEMAP_KINDS = ['core', 'daily', 'solarterms', 'auspicious', 'entries']
+
+const XML_HEAD = '<?xml version="1.0" encoding="UTF-8"?>'
+const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
+
+export function buildSitemapIndex(origin, lastmod = SITE_LASTMOD) {
+  const items = SITEMAP_KINDS.map(k =>
+    `  <sitemap><loc>${origin}/sitemap-${k}.xml</loc><lastmod>${lastmod}</lastmod></sitemap>`)
+  return [XML_HEAD, `<sitemapindex xmlns="${NS}">`, ...items, '</sitemapindex>', ''].join(String.fromCharCode(10))
+}
+
+export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const item = (loc, mod) => `  <url><loc>${loc}</loc><lastmod>${mod}</lastmod></url>`
+  const wrap = (rows) => [XML_HEAD, `<urlset xmlns="${NS}">`, ...rows, '</urlset>', ''].join(String.fromCharCode(10))
+
+  if (kind === 'core') {
+    return wrap(ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
+      .map(r => item(origin + r.path, r.lastmod || lastmod)))
+  }
+  if (kind === 'daily') {
+    const rows = []
+    const now = new Date()
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    for (let i = -365; i <= 365; i++) {
+      const d = new Date(base); d.setDate(d.getDate() + i)
+      const ds = iso(d)
+      rows.push(item(`${origin}/almanac/day/${ds}`, ds))
+    }
+    return wrap(rows)
+  }
+  if (kind === 'solarterms') {
+    return wrap(TERM_ARTICLES.map(a => item(`${origin}/solarterms/${a.slug}`, lastmod)))
+  }
+  if (kind === 'auspicious') {
+    // 總表 + 當年與明年的月份頁（吃「9月搬家吉日」這種查詢）
+    const y = new Date().getFullYear()
+    const rows = []
+    for (const p of PURPOSES) {
+      rows.push(item(`${origin}/auspicious/${p.slug}`, lastmod))
+      for (const yy of [y, y + 1]) {
+        for (let m = 1; m <= 12; m++) {
+          rows.push(item(`${origin}/auspicious/${p.slug}/${yy}-${String(m).padStart(2, '0')}`, lastmod))
+        }
+      }
+    }
+    return wrap(rows)
+  }
+  if (kind === 'entries') {
+    return wrap([
+      ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
+      ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
+      ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
+    ])
+  }
+  return wrap([])
+}
+
 export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const item = (loc, mod) => `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${mod}</lastmod>\n  </url>`
@@ -417,6 +567,13 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     ...TERM_ARTICLES.map(a => item(`${origin}/solarterms/${a.slug}`, lastmod)),
     ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
     ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
+    ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
+    ...PURPOSES.flatMap(p => [
+      item(`${origin}/auspicious/${p.slug}`, lastmod),
+      ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
+        Array.from({ length: 12 }, (_, m) =>
+          item(`${origin}/auspicious/${p.slug}/${yy}-${String(m + 1).padStart(2, '0')}`, lastmod))),
+    ]),
   ]
 
   const body = [...statics, ...entries, ...days].join('\n')
@@ -429,8 +586,9 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
 //    內容重複的有效頁面。條目化之後這個風險比以前大得多（三種路由 × 任意字串）。
 export function entryExists(pathname, route) {
   const p = route?.path
-  if (p !== '/solarterms/:slug' && p !== '/deities/:slug'
-      && p !== '/dream/:slug' && p !== '/almanac/day/:date') return true
+  const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
+    '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym']
+  if (!ENTRY.includes(p)) return true
   return entryMeta(pathname, route) !== null
 }
 

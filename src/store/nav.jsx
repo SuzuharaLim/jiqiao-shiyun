@@ -19,6 +19,10 @@ const SCREEN_PATH = {
   scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day/:date?',
   // 條目頁：一個節氣／一位神明／一個夢境各自一個網址（SEO 長尾）
   termDetail: '/solarterms/:slug', deityDetail: '/deities/:slug', dreamDetail: '/dream/:slug',
+  // 擇日工具：/auspicious/moving 是總表、/auspicious/moving/2026-09 是月份頁
+  auspiciousIndex: '/auspicious', auspicious: '/auspicious/:kind/:ym?',
+  glossary: '/glossary', glossaryDetail: '/glossary/:slug',
+  editorial: '/editorial', myths: '/myths',
   yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
   ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
   creatorPage: '/creator/:user', followList: '/creator/:handle/:rel', prePlan: '/preplan', editProfile: '/edit-profile',
@@ -29,10 +33,16 @@ const SCREEN_PATH = {
 // 選填參數是為了「完整國民曆」這種頁面——它既要能用 /almanac/day 代表今天，
 // 也要能用 /almanac/day/2026-08-15 指向特定一天並且可分享。
 const SCREEN_MATCHERS = Object.entries(SCREEN_PATH).map(([screen, tpl]) => {
+  // ⚠️ 參數名稱必須依「樣板裡出現的順序」收集，不能分兩次 replace 各自 push。
+  //    '/auspicious/:kind/:ym?' 若先處理選填的 :ym? 再處理 :kind，
+  //    names 會變成 ['ym','kind']，但 regex 的捕獲組順序是 (kind)(ym)——
+  //    對應就整個錯位，kind 拿到 undefined，畫面顯示「找不到」。
+  //    改成單次掃描，同時決定名稱順序與 regex 片段。
   const names = []
-  const body = tpl
-    .replace(/\/:(\w+)\?/g, (_, k) => { names.push(k); return '(?:/([^/]+))?' })
-    .replace(/:(\w+)/g, (_, k) => { names.push(k); return '([^/]+)' })
+  const body = tpl.replace(/\/:(\w+)\?|:(\w+)/g, (_, opt, req) => {
+    names.push(opt || req)
+    return opt ? '(?:/([^/]+))?' : '([^/]+)'
+  })
   return { screen, rx: new RegExp('^' + body + '/?$'), names }
 })
 function buildPath(screen, props = {}) {
