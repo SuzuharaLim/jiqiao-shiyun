@@ -15,8 +15,14 @@ const SANHE = [[8, 0, 4], [11, 3, 7], [2, 6, 10], [5, 9, 1]]
 const LIUHE = { 0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3, 4: 9, 9: 4, 5: 8, 8: 5, 6: 7, 7: 6 }
 // 六害：子未、丑午、寅巳、卯辰、申亥、酉戌
 const LIUHAI = { 0: 7, 7: 0, 1: 6, 6: 1, 2: 5, 5: 2, 3: 4, 4: 3, 8: 11, 11: 8, 9: 10, 10: 9 }
-// 相刑：寅巳申、丑戌未 三刑；子卯 相刑；辰午酉亥 自刑
+// 相刑：寅巳申（無恩）、丑戌未（恃勢）三刑；子卯（無禮）相刑；辰午酉亥 自刑
+// ⚠️ 這行註解一直是完整的，但下面的常數只寫了兩組三刑——子卯與四自刑從來沒被判到。
+//    於是「鼠×兔」被判成「無特別的合或沖，屬平和之配」、「雞×雞」被判成「同生肖」，
+//    而本站自己的「干支・三合六合」頁白紙黑字寫著「子卯（無禮之刑）　辰午酉亥（自刑）」
+//    ——同一個 App 兩頁互相打臉。註解與常數不同步就是這樣發生的。
 const SANXING = [[2, 5, 8], [1, 10, 7]]
+const XING_PAIRS = [[0, 3]]          // 子卯 無禮之刑
+const SELF_XING = [4, 6, 9, 11]      // 辰午酉亥 自刑
 
 // 生肖配對：回傳 { score, level, reason }
 export function zodiacMatch(signA, signB) {
@@ -29,11 +35,18 @@ export function zodiacMatch(signA, signB) {
   if (LIUHE[a] === b)
     return { score: 88, level: '六合', reason: `${gz}相合（六合），彼此吸引、遇事容易同心，是安穩長久的配。` }
   if (mod12(a + 6) === b)
-    return { score: 45, level: '六沖', reason: `${gz}相沖（六合之對沖），主張常相左右，需要刻意留溝通空間；沖也代表變動與刺激，不是不能在一起。` }
+    // ⚠️ 原本寫「六合之對沖」——六沖就是六沖，這個說法在術語上講不通
+    return { score: 45, level: '六沖', reason: `${gz}相沖（六沖／對沖），主張常相左右，需要刻意留溝通空間；沖也代表變動與刺激，不是不能在一起。` }
   if (LIUHAI[a] === b)
     return { score: 55, level: '六害', reason: `${gz}相害，容易在小事上互相消耗，宜把話講開、少猜心。` }
   if (a !== b && SANXING.some(g => g.includes(a) && g.includes(b)))
-    return { score: 58, level: '相刑', reason: `${gz}相刑，相處易有摩擦與拉扯，需要各自留餘地。` }
+    return { score: 58, level: '相刑', reason: `${gz}相刑（${SANXING.find(g => g.includes(a) && g.includes(b)).map(i => Z[i]).join('')}三刑），相處易有摩擦與拉扯，需要各自留餘地。` }
+  if (a !== b && XING_PAIRS.some(p => p.includes(a) && p.includes(b)))
+    return { score: 58, level: '相刑', reason: `${gz}相刑（子卯無禮之刑），容易在分寸與界線上互相踩線，需要把規矩講清楚。` }
+  // ⚠️ 自刑必須放在「同生肖」之前判。辰午酉亥同屬自刑，
+  //    先判同生肖的話，酉酉就會被歸成一般的「同生肖 72 分」而漏掉刑。
+  if (a === b && SELF_XING.includes(a))
+    return { score: 60, level: '自刑', reason: `同屬${signA}，${Z[a]}${Z[a]}為自刑，兩人的執著與盲點一模一樣，容易在同一件事上反覆內耗。` }
   if (a === b)
     return { score: 72, level: '同生肖', reason: `同屬${signA}，理解對方的直覺很強，但缺點也相同，容易一起卡在同一個地方。` }
   return { score: 70, level: '平和', reason: `${gz}無特別的合或沖，屬平和之配，關係走向多取決於相處與經營。` }

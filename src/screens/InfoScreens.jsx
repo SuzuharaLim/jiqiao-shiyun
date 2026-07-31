@@ -3,9 +3,9 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
-import { dayFor, todayOffset, TERM_ORDER, monthsForTerm } from '../data/almanac.js'
+import { dayFor, todayOffset, TERM_ORDER, monthsForTerm, offsetFromDate } from '../data/almanac.js'
 import { PRODUCE_BY_MONTH } from '../data/produce.js'
-import { lunarFromDate, lunarYearGanzhiIndex } from '../data/lunisolar.js'
+import { lunarFromDate, lunarYearGanzhiIndex, nextLunarOccurrence } from '../data/lunisolar.js'
 import { weighBone, HOUR_LABELS } from '../data/bone.js'
 
 // 今日所屬節氣 —— 節氣生活資料（當令食材/俗語/養生/開運色）都以此為預設焦點。
@@ -43,9 +43,14 @@ export function Proverbs() {
   const term = useCurrentTerm()
   const { byTerm, list } = useTermGuide()
   const curGuide = byTerm[term]
-  // 依日期輪替「每日一句」
-  const [i, setI] = useState(() => Math.floor(Date.now() / 86400000))
-  const cur = proverbs.length ? proverbs[i % proverbs.length] : null
+  // 「每日一句」必須與首頁曆頁的「今日一諺」是同一句。
+  // ⚠️ 這兩處原本各自算各自的：首頁用 `proverbs[mod(off, len)]`（錨點偏移），
+  //    這裡用 `floor(Date.now()/86400000) % len`（epoch 天數）——同一天、同一個 App
+  //    卻給出兩句不同的「每日一句」。改成直接取曆算的那一句當起點。
+  const todayProverb = dayFor(todayOffset()).proverb
+  const [i, setI] = useState(null)
+  const baseIdx = Math.max(0, proverbs.findIndex(p => p.tw === todayProverb))
+  const cur = proverbs.length ? proverbs[(i ?? baseIdx) % proverbs.length] : null
   return (
     <>
       <TopBar title="台灣諺語" onBack />
@@ -54,7 +59,7 @@ export function Proverbs() {
           <div className="t">💬 每日一句</div>
           <div className="d" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--acard-t)' }}>「{cur.tw}」</div>
           <div className="d" style={{ margin: '0 0 10px' }}>{cur.mean}</div>
-          <button className="go tap" onClick={() => { setI(n => (n + 1) % proverbs.length); setToast('換一句 🗣️') }}>換一句</button>
+          <button className="go tap" onClick={() => { setI(n => ((n ?? baseIdx) + 1) % proverbs.length); setToast('換一句 🗣️') }}>換一句</button>
         </div>}
         {/* 節氣俗語：先講當令那一句，再列全年 */}
         {curGuide?.sayings?.length > 0 && (
@@ -98,22 +103,52 @@ export function Proverbs() {
 export function Festivals() {
   const festivals = useContent('festivals')
   const today = useCurrentTerm()
-  const { list } = useTermGuide()
+  // 由介紹卡的 time 欄位解析農曆日期 → 實算今年的國曆日期與所屬節氣。
+  // ⚠️ 只處理「農曆 M/D」這種明確到日的；「農曆 3 月」「三年一科」沒有確定日期，
+  //    不可猜一個日期填上去。
+  const dated = useMemo(() => {
+    const out = []
+    for (const f of festivals) {
+      const m = /農曆\s*(\d+)\s*\/\s*(\d+)/.exec(f.time || '')
+      if (!m) continue
+      const occ = nextLunarOccurrence(Number(m[1]), Number(m[2]))
+      if (!occ) continue
+      const dt = occ.date
+      out.push({
+        ...f,
+        md: `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`,
+        lunarText: `農曆 ${m[1]}/${m[2]}`,
+        term: dayFor(offsetFromDate(dt)).term,
+        daysAway: occ.daysAway,
+      })
+    }
+    return out.sort((a, b) => a.daysAway - b.daysAway)
+  }, [festivals])
   return (
     <>
       <TopBar title="臺灣特色慶典活動" onBack />
       <div className="body">
-        {/* 節氣慶典年表：termGuide 逐節收錄的活動。
-            ⚠️ 原始資料只有活動名稱，沒有地點與簡介——不得替它編造，
-            下方詳細介紹卡片才是有查證地點/說明的那幾場。 */}
-        {list.length > 0 && (
+        {/* ⚠️ 這裡原本是「節氣慶典年表」：把 termGuide 的 24 個節氣各配一場活動。
+            但這些慶典絕大多數綁的是**農曆日期**，不是節氣，掛上去每年都會跑掉——
+            鹽水蜂炮掛在「立春」，可是它自己的介紹就寫著「元宵 · 農曆 1/15」，
+            2026 元宵是 3/3 落在雨水；南鯤鯓王爺祭掛小滿實際在芒種；
+            頭城搶孤掛處暑實際已進白露。全都是現在就已經錯的。
+            改成由農曆日期逐年實算，落在哪個節氣就顯示哪個節氣。 */}
+        {dated.length > 0 && (
           <>
-            <SectionHead title="節氣慶典年表" extra={`${list.reduce((a, g) => a + (g.festivals?.length || 0), 0)} 場`} />
-            {list.filter(g => g.festivals?.length).map(g => (
-              <div key={g.term} className="kv"
-                style={{ padding: '10px 16px', alignItems: 'flex-start', background: g.term === today ? 'var(--tone-1)' : undefined }}>
-                <b style={{ flex: '0 0 52px' }}>{g.term}</b>
-                <span style={{ textAlign: 'right' }}>{g.festivals.join('、')}</span>
+            {/* ⚠️ 標題不可寫死當年年份：今年已過的慶典會算到明年那一次，
+                寫「2026 年行事曆」卻列出 2027 的日期就自相矛盾。 */}
+            <SectionHead title="接下來的慶典" extra={`${dated.length} 場`} />
+            {dated.map((f, i) => (
+              <div key={i} className="kv" style={{ padding: '10px 16px', alignItems: 'flex-start',
+                background: f.term === today ? 'var(--tone-1)' : undefined }}>
+                <b style={{ flex: '0 0 5.5em' }}>{f.emoji} {f.name}</b>
+                <span style={{ textAlign: 'right' }}>
+                  {f.md}
+                  <small className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)' }}>
+                    {f.lunarText} · {f.term}{f.daysAway === 0 ? '（就是今天）' : `（還有 ${f.daysAway} 天）`}
+                  </small>
+                </span>
               </div>
             ))}
           </>
@@ -128,6 +163,11 @@ export function Festivals() {
             <p style={{ marginTop: 8 }}>{f.desc}</p>
           </div>
         ))}
+        <p className="muted" style={{ padding: '10px 16px 0', fontSize: 'var(--text-2xs)', lineHeight: 1.8 }}>
+          ＊綁農曆日期的慶典（蜂炮、龍舟、搶孤等）每年對應的國曆日期與節氣都會變動，
+          上方行事曆為當年實算結果。標示「三年一科」「兩年一小祭」等非年度性祭典，
+          以及只寫月份未定日期者，不列入行事曆、僅保留介紹。實際日期請以主辦單位公告為準。
+        </p>
         <div style={{ height: 16 }} />
       </div>
     </>
