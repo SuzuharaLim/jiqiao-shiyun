@@ -87,6 +87,12 @@ export const useNav = () => useContext(NavCtx)
 // 訂單一律以後端 /api/orders 為準；訪客沒有帳號＝沒有訂單，顯示空狀態而非假資料。
 // （先前這裡放示範訂單，訪客會看到「植物萬年曆手帳 NT$800 已出貨」這種不存在的購買紀錄。）
 
+// 訪客身分（純前端；後端所有寫入 API 仍以 requireAuth 擋下訪客）
+const GUEST_KEY = 'jq-guest'
+const GUEST_USER = { name: '訪客', handle: 'guest', guest: true, role: 'guest', emailVerified: false }
+const readGuest = () => { try { return localStorage.getItem(GUEST_KEY) === '1' } catch { return false } }
+const writeGuest = (on) => { try { on ? localStorage.setItem(GUEST_KEY, '1') : localStorage.removeItem(GUEST_KEY) } catch { /* 無痕模式忽略 */ } }
+
 export function NavProvider({ children }) {
   // ---- 主題（記憶到 localStorage，reload 不重置）----
   const [theme, setTheme] = useState(() => {
@@ -126,15 +132,23 @@ export function NavProvider({ children }) {
     let alive = true
     api.me()
       .then(({ user: u, csrfToken }) => { if (!alive) return; setCsrf(csrfToken); setUser(toAppUser(u)) })
-      .catch(() => { if (alive) setUser(null) })
+      // 沒有後端 session 時，看看是不是「訪客模式」——訪客沒有 cookie，
+      // 身分只是前端狀態，所以要自己從 localStorage 還原。
+      // ⚠️ 這不是安全漏洞：訪客沒有 csrf token，後端所有寫入 API 都有
+      //    requireAuth，訪客一律 401。這裡只還原「可以逛」這件事。
+      .catch(() => { if (alive) setUser(readGuest() ? GUEST_USER : null) })
       .finally(() => { if (alive) setAuthLoading(false) })
     return () => { alive = false }
   }, [])
   // 由 Auth 畫面登入/註冊成功後呼叫（傳入後端回的 user 與 csrfToken）
   const login = (apiUser, csrfToken) => { setCsrf(csrfToken); setUser(toAppUser(apiUser)) }
-  const loginGuest = () => { setCsrf(null); setUser({ name: '訪客', handle: 'guest', guest: true, role: 'guest', emailVerified: false }) }
+  // ⚠️ 訪客身分要寫進 localStorage。原本純記憶體的作法有三個沒人預期得到的死路：
+  //    按 F5 回登入牆、把網址貼給朋友對方看到登入牆、從書籤打開也是登入牆。
+  //    使用者只會覺得「這站一直把我踢出去」，而不會知道自己是訪客。
+  const loginGuest = () => { setCsrf(null); writeGuest(true); setUser(GUEST_USER) }
   const logout = async () => {
     try { if (!user?.guest) await api.logout() } catch { /* 忽略：仍在前端登出 */ }
+    writeGuest(false)
     setCsrf(null); setUser(null); setStack([]); setTabRaw(0)
   }
   // ⚠️ 回傳 Promise：呼叫端必須 await 後才顯示「已更新」。

@@ -15,6 +15,7 @@ export default function Feed() {
   const [cal, setCal] = useState(null) // {y, m} 開啟月曆選擇器
   const gl = useGlossary()               // 宜/忌 詞彙白話解釋
   const [provOpen, setProvOpen] = useState(false)  // 今日一諺是否展開解釋
+  const [starHelp, setStarHelp] = useState(false)   // 吉日星等說明是否展開
 
   const d = dayFor(off)
   const gzZi = d.ganzhi.replace(/日$/, '')
@@ -89,7 +90,12 @@ export default function Feed() {
           onAnimationEnd={() => setTear(null)}>
           <div className="hd">機巧時運 · 今日曆頁</div>
           <div className="gz"><div className="zi">{gzZi}<small>日</small></div></div>
-          <div className="meta"><span className="term">{d.term}</span></div>
+          {/* ⚠️ 只寫「大暑」會被讀成「今天就是大暑」，但節氣是一段約 15 天的區間。
+              標出區間與第幾天，語意才正確。 */}
+          <div className="meta">
+            <span className="term">{d.term}</span>
+            {d.termRange && <small className="termrange">（{d.termRange}）第 {d.termDay} 天</small>}
+          </div>
 
           <div className="yjcols">
             <div className="yi-col">
@@ -103,18 +109,34 @@ export default function Feed() {
             </div>
           </div>
           <GlossPanel gl={gl} />
+          {/* 新手看不懂「解除」「作樑」，先給一句白話總結，再讓他點詞看詳解 */}
+          {d.summary && <p className="daysummary">{d.summary}</p>}
 
           <div className="calnote">
-            <span className="k">吉時</span><span className="v">{d.luckyHours}</span>
+            {/* ⚠️ 只寫「子時・丑時」新手不知道是幾點，原本要點進第二層才看得到對照 */}
+            <span className="k">吉時</span>
+            <span className="v">{d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時（${h.range}）`).join('・') || '無特別吉時'}</span>
             {/* 吉日星等逐顆點亮（key 帶 off，翻日時重播）——整排同時出現沒有「揭曉」的味道 */}
-            <span className="stars" aria-label={`吉日星等 ${d.stars} 顆星`}>
+            {/* 星等原本沒有任何說明——不知道是運勢還是吉日等級、滿分幾顆。
+                補上文字評等，並讓整組可點開解釋。 */}
+            <button type="button" className={`stars asbtn tap${starHelp ? ' on' : ''}`}
+              aria-expanded={starHelp} onClick={() => setStarHelp(v => !v)}
+              aria-label={`吉日星等 ${d.stars} 顆星（滿分 5），${d.rating}，查看說明`}>
               {Array.from({ length: 5 }, (_, i) => (
                 <i key={`${off}-${i}`} aria-hidden="true" style={{ animationDelay: `${i * 0.08}s` }}>
                   {i < d.stars ? '★' : '☆'}
                 </i>
               ))}
-            </span>
+              <small className="rating">{d.rating}</small>
+            </button>
           </div>
+          {starHelp && (
+            <div className="glosspanel inrow"><span>
+              吉日星等（滿分 5 顆）綜合當日的建除、二十八星宿、黃道吉時數量與特殊日神煞推算。
+              {d.flags.length > 0 && `本日神煞：${d.flags.map(f => f.t).join('、')}。`}
+              星等與評等來自同一組推算，不會互相矛盾。宜忌屬傳統民俗，各流派或有差異。
+            </span></div>
+          )}
           {/* 今日一諺：點一下展開白話解釋 */}
           <button className={`calnote asrow tap${provOpen ? ' on' : ''}`} aria-expanded={provOpen}
             onClick={() => setProvOpen(v => !v)}>

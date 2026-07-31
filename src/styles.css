@@ -2908,3 +2908,28 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .feedchal .fc-ic { display: flex; align-items: center; color: var(--season-hue); }
 .feedchal .fc-ic .ic { width: 20px; height: 20px; stroke: currentColor; }
 .ph-like .ic { stroke: currentColor; fill: currentColor; }
+
+/* ---------- 曆頁新手友善（依 chengqi-review 第一部分 B 節）---------- */
+/* 節氣區間：「大暑」旁的（7/23–8/6）第 9 天 */
+.calpage .meta .termrange { margin-left:6px; font-size:var(--text-2xs); color:var(--muted); font-weight:400; }
+
+/* 一句話白話總結：新手看不懂宜忌詞，先給結論再讓他點詞看詳解 */
+.daysummary {
+  margin:var(--space-2) var(--space-4) 0; padding:var(--space-2) var(--space-3);
+  border-left:2px solid var(--season-hue); border-radius:0 6px 6px 0;
+  background:var(--tone-1); color:var(--ink); font-size:var(--text-xs); line-height:1.75;
+}
+
+/* 星等改成可點的說明入口。⚠️ 本體是 <button>，要清掉瀏覽器預設外觀，
+   否則會在紙感版面裡冒出一個灰色系統按鈕。 */
+.stars.asbtn {
+  background:none; border:none; padding:2px 4px; margin:-2px -4px;
+  border-radius:6px; display:inline-flex; align-items:center; gap:4px;
+  cursor:pointer; color:inherit; font:inherit;
+  min-height:24px;   /* WCAG 2.5.8：觸控目標 ≥24px */
+}
+.stars.asbtn .rating { font-size:var(--text-2xs); color:var(--muted); }
+.stars.asbtn.on { background:var(--tone-1); }
+@media (hover:hover) and (pointer:fine){
+  .stars.asbtn:hover { background:var(--tone-1); }
+}

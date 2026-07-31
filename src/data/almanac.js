@@ -11,7 +11,7 @@ import { almanacDays, proverbs } from './mock.js'
 // 天文層（真實農曆／節氣／日干支）——取代原本的近似演算
 import {
   lunarFromDate, termFromDate, termLocalDay, termTable,
-  dayGanzhiIndex, jdFromDate, TERM_NAMES,
+  dayGanzhiIndex, jdFromDate, dateFromJd, TERM_NAMES,
 } from './lunisolar.js'
 
 const G = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
@@ -83,6 +83,20 @@ const YANGGONG = { 1: 13, 2: 11, 3: 9, 4: 7, 5: 5, 6: 3, 7: 1, 8: 27, 9: 25, 10:
 // 天赦日（季節 → 日干支）：春戊寅、夏甲午、秋戊申、冬甲子
 const TIANSHE = { 春: '戊寅', 夏: '甲午', 秋: '戊申', 冬: '甲子' }
 
+
+// 宜忌詞 → 白話短語。⚠️ 這是「一句話總結」用的極短別名，與 DB 裡 almanacTerms 的
+// 完整解釋是兩回事：那邊是點下去看的詳解，這邊是要能串成一句話的口語詞。
+// 新手看到「宜：祭祀 交易 會親友 解除」是看不懂的——「解除」解除什麼？「作樑」是什麼？
+const PLAIN = {
+  祈福: '拜拜祈福', 開市: '開張做生意', 納財: '收錢入帳', 出行: '出遠門', 嫁娶: '結婚',
+  祭祀: '拜拜', 安床: '搬床位', 入宅: '搬新家', 交易: '談生意', 立券: '簽約',
+  沐浴: '淨身', 會親友: '見親友', 裁衣: '裁製衣物', 栽種: '種東西', 解除: '除穢消災',
+  求嗣: '求子', 動土: '開工動土', 安葬: '下葬', 出火: '遷移神位', 開倉: '開倉出貨',
+  伐木: '砍樹', 作樑: '上樑裝修', 行喪: '辦喪事', 破土: '破土', 針灸: '針灸',
+  掘井: '挖井', 入殮: '入殮',
+}
+const toPlain = (list) => list.map(t => PLAIN[t]).filter(Boolean)
+
 export const ANCHOR = new Date(2026, 5, 6) // 6/6
 
 const mod = (n, m) => ((n % m) + m) % m
@@ -132,9 +146,11 @@ export function dayFor(off) {
 
   // ±1 用精寫樣本提供較好的宜忌/諺語，其餘演算
   const sample = (off >= -1 && off <= 1) ? almanacDays[off + 1] : null
-  const yi = sample ? sample.yi : pick(YI_POOL, mod(off * 3, YI_POOL.length), 4)
-  const jiRaw = sample ? sample.ji : pick(JI_POOL, mod(off * 2 + 5, JI_POOL.length), 2).filter(x => !yi.includes(x))
-  const ji = jiRaw.length ? jiRaw : ['諸事不宜']
+  // ⚠️ 這裡只產出「候選」宜忌，最終值要等下方神煞算完才定案（見 reconcile 區塊）。
+  //    先前這兩行的結果就是最終顯示值，與建除、受死日完全無關，於是同一頁會出現
+  //    「閉日：忌開市」與「今日宜：交易」並存——交易就是開市，行家一眼看穿。
+  let yi = sample ? sample.yi : pick(YI_POOL, mod(off * 3, YI_POOL.length), 4)
+  let ji = sample ? sample.ji : pick(JI_POOL, mod(off * 2 + 5, JI_POOL.length), 2).filter(x => !yi.includes(x))
   // ── 十二時辰吉凶：黃道黑道十二神 ──
   // ⚠️ 這裡曾用「日支三合(寅午戌)＋六合為吉、六沖為凶」的簡化法。那套民間確實存在，
   //    但與台灣市售通書幾乎相反——丙午日它判寅未戌為吉，通書那三個時辰分別是
@@ -164,7 +180,6 @@ export function dayFor(off) {
   //    （例：AI 說吉時「寅時・申時」，曆頁把申時標成「平」）。
   //    使用者只要點開曆頁對照就會發現在說謊，這是自己打自己的臉。
   const luckyHours = hours12.filter(h => h.luck === '吉').map(h => h.zhi + '時').join('・') || '無特別吉時'
-  const stars = sample ? sample.stars : 1 + mod(off * 3 + 2, 5)
   // 諺語連同白話解釋一起回傳（樣本日只存諺語本身，回查 proverbs 取得 mean）
   const proverb = sample ? sample.proverb : proverbs[mod(off, proverbs.length)].tw
   const proverbMean = (proverbs.find(p => p.tw === proverb) || {}).mean || ''
@@ -211,6 +226,90 @@ export function dayFor(off) {
   const festival = (!lun?.leap && LUNAR_FEST[`${lmon}-${lday}`])
     || (termInfo.startsToday ? `${term}（交節）` : null)
 
+  // ── 宜忌與神煞對帳（reconcile）──
+  // 這一段存在的理由：宜忌候選、建除註解、特殊日三者原本各算各的，同一天可以
+  // 一邊寫「閉日：忌開市」一邊把「交易」列進宜，一邊寫「受死日：諸事凶」一邊
+  // 說宜會親友。使用者不需要懂擇日也看得出前後不一致，而懂的人會直接判定整站不可信。
+  // 作法：神煞有否決權——建除的「忌」與大凶日可以把宜項刷掉，反之不行。
+  //
+  // ⚠️ 同義詞必須成組處理：「交易」「立券」「納財」在擇日裡都屬開市（財貨交易）一類，
+  //    只比對「開市」兩個字會漏掉另外三個，那正是原本沒被發現的原因。
+  const SYN = {
+    開市: ['開市', '交易', '立券', '納財'],
+    動土: ['動土', '破土', '掘井', '出火'],
+    嫁娶: ['嫁娶', '求嗣'],
+    安葬: ['安葬', '行喪'],
+    出行: ['出行'],
+    開倉: ['開倉'],
+  }
+  // 從建除註解的「忌…」把被禁的類別抓出來（註解格式：「宜…；忌動土、開倉」）
+  const jcText = JIANCHU_YI[JIANCHU[jc]] || ''
+  const jcBan = new Set()
+  const banPart = jcText.split('忌')[1] || ''
+  for (const [key, words] of Object.entries(SYN)) {
+    if (banPart.includes(key)) words.forEach(w => jcBan.add(w))
+  }
+  // 「諸事不宜」型的大凶日：受死日、楊公忌、破日、四絕/四離
+  const bigBad = flags.filter(f => !f.good && ['受死日', '楊公忌', '四絕日', '四離日'].includes(f.t))
+  const allBad = bigBad.length > 0 || jcText.includes('諸事不宜')
+
+  if (allBad) {
+    // 受死日的傳統例外就是喪葬與畋獵，其餘一概不列——寧可少講也不要自打嘴巴
+    yi = yi.filter(t => ['祭祀', '安葬', '入殮'].includes(t))
+    if (!yi.length) yi = ['諸事不宜']
+    const reason = bigBad[0]?.t || '破日'
+    if (!ji.includes(`大事勿用（${reason}）`)) ji = [`大事勿用（${reason}）`, ...ji]
+  } else {
+    yi = yi.filter(t => !jcBan.has(t))
+    if (!yi.length) yi = ['平常日，無特別宜忌']
+  }
+  // 建除明令禁止的項目，補進忌欄（使用者才知道為什麼那項不見了）
+  for (const w of jcBan) if (!ji.includes(w) && !yi.includes(w)) ji.push(w)
+  if (!ji.length) ji = ['諸事不宜']
+
+  // ── 吉日星等：由神煞推導，不可再用亂數 ──
+  // 原本是 `1 + mod(off*3+2, 5)`，與當天任何一項神煞都無關，所以會出現
+  // 受死日＋三娘煞＋閉日卻拿三顆星這種明顯對不上的情況。
+  // 基準 3 星，吉神加分、凶神扣分，並以黃道吉時數量與星宿吉凶微調。
+  let score = 3
+  for (const f of flags) score += f.good ? 1 : -1
+  if (allBad) score -= 1
+  if (XIU_LUCK[xiuIdx] === '吉') score += 0.5; else score -= 0.5
+  score += (hours12.filter(h => h.luck === '吉').length - 6) * 0.25   // 六吉六凶為常態，偏離才調整
+  // ⚠️ 大凶日一律壓到 2 星以下。否則會出現「★★★」配「凶勝於吉」自相矛盾——
+  //    星等是使用者唯一會掃到的視覺訊號，它必須和評等講同一件事。
+  const starMax = allBad ? 2 : 5
+  // ⚠️ 上限也要套用在精寫樣本上——樣本是人工寫的固定星等，若那天剛好是大凶日，
+  //    不套上限就會漏出「★★★★★ 凶勝於吉」（實測 400 天中就有這麼一天）。
+  const stars = Math.max(1, Math.min(starMax, sample?.stars ?? Math.round(score)))
+
+  // ── 節氣區間與第幾天 ──
+  // 「大暑」單獨出現會被讀成「今天就是大暑」，但節氣是一段約 15 天的區間，
+  // 7/31 其實是大暑的第 9 天。標出區間與天數，語意才不會誤導。
+  const todayJd = jdFromDate(Y, M, D)
+  const termDay = termInfo.termJd ? Math.round(todayJd - termInfo.termJd) + 1 : null
+  const fmtJd = (j) => { const t = dateFromJd(j + 0.5); return `${t.m}/${t.d}` }
+  // 下一個節氣的前一天＝本節氣最後一天
+  let nextTermJd = null
+  for (let i = 1; i <= 20; i++) {
+    const nn = dateFromOffset(off + i)
+    if (termFromDate(nn.getFullYear(), nn.getMonth() + 1, nn.getDate()).startsToday) { nextTermJd = todayJd + i; break }
+  }
+  const termRange = termInfo.termJd && nextTermJd ? `${fmtJd(termInfo.termJd)}–${fmtJd(nextTermJd - 1)}` : null
+
+  // ── 一句話白話總結 ──
+  const yiPlain = toPlain(yi), jiPlain = toPlain(ji)
+  // yi 可能是「諸事不宜」「平常日…」這類佔位字串（不在 PLAIN 表裡），
+  // 直接串就會變成只講忌、不講宜的半句話，要另外處理。
+  const summary = yi[0] === '諸事不宜'
+    ? '今天諸事不宜，重要的事建議改天'
+    : (yiPlain.length || jiPlain.length)
+      ? [yiPlain.length ? `今天適合${yiPlain.join('、')}` : '', jiPlain.length ? `不適合${jiPlain.join('、')}` : '']
+          .filter(Boolean).join('；')
+      : null
+  // 一句話評等，讓使用者不必自己解讀星等
+  const rating = allBad ? '凶勝於吉' : stars >= 4 ? '吉勝於凶' : stars <= 2 ? '凶勝於吉' : '吉凶參半'
+
   return {
     off,
     solar: `${d.getMonth() + 1} / ${d.getDate()}`,
@@ -223,7 +322,7 @@ export function dayFor(off) {
     zheng: `沖${ZODIAC[chongZodiac]}(${chongGZ})煞${dir}`,
     chong: { zodiac: ZODIAC[chongZodiac], gz: chongGZ, dir, ages: chongAges },
     wuxing: NAYIN[mod(gi * 2 + zi, NAYIN.length)],
-    luckyHours, stars, yi, ji, proverb, proverbMean,
+    luckyHours, stars, rating, yi, ji, summary, termDay, termRange, proverb, proverbMean,
     // 傳統項目
     jianchu: JIANCHU[jc], jianchuYi: JIANCHU_YI[JIANCHU[jc]],
     xiu: XIU[xiuIdx], xiuAnimal: XIU_ANIMAL[xiuIdx], xiuLuck: XIU_LUCK[xiuIdx],
