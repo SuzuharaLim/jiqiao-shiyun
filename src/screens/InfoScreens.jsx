@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
-import { dayFor, todayOffset, TERM_ORDER } from '../data/almanac.js'
+import { dayFor, todayOffset, TERM_ORDER, monthsForTerm } from '../data/almanac.js'
+import { PRODUCE_BY_MONTH } from '../data/produce.js'
 import { lunarFromDate, lunarYearGanzhiIndex } from '../data/lunisolar.js'
 import { weighBone, HOUR_LABELS } from '../data/bone.js'
 
@@ -172,7 +173,28 @@ export function Ingredients() {
   const today = useCurrentTerm()
   const { byTerm, list } = useTermGuide()
   const [term, setTerm] = useState(today)
+  const [showAll, setShowAll] = useState(false)
   const g = byTerm[term]
+
+  // ── 當令農產：直接取農糧署開放資料，依節氣涵蓋的月份取聯集 ──
+  // ⚠️ 原本是人工在 termGuide.js 維護一張表，每個節氣只有 3–7 項，
+  //    而官方 7 月盛產有 41 項——芒果、鳳梨、荔枝、龍眼、綠竹筍全被漏掉。
+  //    改成從官方資料算，覆蓋率問題就不會再回來。
+  const { produce, months } = useMemo(() => {
+    const ms = monthsForTerm(term)
+    const seen = new Map()
+    for (const m of ms) {
+      for (const it of (PRODUCE_BY_MONTH[String(m)] || [])) {
+        // 同一品項橫跨兩個月時只留一筆，但記下它從哪個月開始盛產
+        if (!seen.has(it.name)) seen.set(it.name, { ...it, month: m })
+      }
+    }
+    return { produce: [...seen.values()], months: ms }
+  }, [term])
+  // 換節氣時收合，否則上一個節氣展開過，下一個就直接是 41 項的長清單
+  useEffect(() => { setShowAll(false) }, [term])
+  const TYPES = ['水果', '蔬菜', '雜糧特作', '花卉']
+  const shown = showAll ? produce : produce.slice(0, 6)
 
   return (
     <>
@@ -190,8 +212,38 @@ export function Ingredients() {
         {!g ? <div className="empty">載入中…</div> : <>
           <p className="muted" style={{ padding: '4px 16px 0', fontSize: 'var(--text-xs)' }}>{g.date}</p>
 
-          <ProduceCard icon="branch" title="陸・農產" rows={g.land} />
-          <ProduceCard icon="wave" title="海・漁獲" rows={g.sea} />
+          <div className="card">
+            <h4><Icon name="branch" /> 陸・農產
+              <small className="muted" style={{ fontWeight: 400, marginLeft: 6, fontSize: 'var(--text-2xs)' }}>
+                {months.map(m => `${m} 月`).join('・')}盛產　共 {produce.length} 項
+              </small>
+            </h4>
+            {!produce.length
+              ? <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>這個節氣沒有收錄當令品項</p>
+              : shown.map((r, i) => (
+                <div key={r.name} className="kv" style={{ padding: '8px 0', alignItems: 'flex-start' }}>
+                  <b style={{ flex: '0 0 6.5em' }}>
+                    {r.name}
+                    <small className="muted" style={{ display: 'block', fontWeight: 400, fontSize: 'var(--text-2xs)' }}>
+                      {r.type}{months.length > 1 ? ` · ${r.month} 月起` : ''}
+                    </small>
+                  </b>
+                  <span className="muted" style={{ textAlign: 'right', fontSize: 'var(--text-xs)', lineHeight: 1.6 }}>
+                    {r.variety && <em style={{ fontStyle: 'normal', color: 'var(--teal-ink)' }}>{r.variety}<br /></em>}
+                    {r.origin || '—'}
+                  </span>
+                </div>
+              ))}
+            {produce.length > 6 && (
+              <button className="b tap" style={{ marginTop: 8 }} onClick={() => setShowAll(v => !v)}>
+                {showAll ? '收合' : `展開看全部（${produce.length} 項）`}
+              </button>
+            )}
+          </div>
+
+          {/* ⚠️ 漁獲資料多數節氣是空的。入口文案寫「農產漁獲」卻給一句
+              「沒有收錄」＝承諾落空，比不提還糟。資料補齊前直接不顯示這個區塊。 */}
+          {g.sea?.length > 0 && <ProduceCard icon="wave" title="海・漁獲" rows={g.sea} />}
 
           {g.foods?.length > 0 && (
             <div className="card">
@@ -204,7 +256,9 @@ export function Ingredients() {
           )}
 
           <p className="muted" style={{ padding: '0 16px', fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>
-            ＊產地為主要產區，實際上市時間受當年氣候影響。
+            ＊產地為主要產區，實際上市時間受當年氣候影響。<br />
+            ＊農產資料來源：農業部（農糧署）「每月盛產農產品產地」開放資料，
+            依政府資料開放授權條款第 1 版使用；本頁依節氣涵蓋的月份取聯集顯示。
           </p>
         </>}
         <div style={{ height: 16 }} />

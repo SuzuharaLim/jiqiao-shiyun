@@ -334,6 +334,24 @@ export function dayFor(off) {
 }
 
 // 月曆格子（含每格對應 offset），供跳日期選擇器使用
+// 某個節氣涵蓋哪些國曆月份（回傳如 [7, 8]）。
+// ⚠️ 節氣是一段約 15 天的區間，常常橫跨兩個月——大暑是 7/23–8/6。
+//    當令食材原本只取節氣「開始那個月」，於是 8 月才進入盛產的文旦柚、金針、
+//    柿子全被漏掉，而金針正好是大暑到立秋最有畫面、最適合節氣攝影的品項。
+//    要取「聯集」而不是「起始月」。
+export function monthsForTerm(termName, year = new Date().getFullYear()) {
+  const table = termTable(year)
+  const i = table.findIndex(t => t.name === termName)
+  if (i < 0) return []
+  const start = table[i]
+  // 下一個節氣：可能落在隔年（大寒之後是次年立春）
+  const next = table[i + 1] || termTable(year + 1)[0]
+  const endJd = next.jd - 1
+  const months = new Set([start.m])
+  for (let jd = start.jd; jd <= endJd; jd++) months.add(dateFromJd(jd + 0.5).m)
+  return [...months]
+}
+
 export function monthCells(year, month) {
   const startWd = new Date(year, month, 1).getDay()
   const days = new Date(year, month + 1, 0).getDate()

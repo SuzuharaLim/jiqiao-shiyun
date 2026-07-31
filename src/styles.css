@@ -2933,3 +2933,23 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 @media (hover:hover) and (pointer:fine){
   .stars.asbtn:hover { background:var(--tone-1); }
 }
+
+/* 橫向 chip 列的捲動提示（依 chengqi-review 第三部分 問題 9）
+   1280px 桌機視窗下，24 個節氣的第一顆「立春」左緣實測為 -26px＝已經被切到畫面外，
+   而且沒有任何提示，使用者不會知道左邊還有東西。
+
+   用經典的 CSS-only 捲動陰影：兩層背景，一層 `local`（跟著內容捲動的白色遮罩）、
+   一層 `scroll`（固定在容器邊緣的漸層）。捲到底時白色遮罩剛好蓋住漸層，
+   陰影就自動消失——不需要任何 JS 監聽 scroll 事件。
+   ⚠️ 必須寫在 .chips 的基礎規則之後，否則被覆蓋。 */
+.chips {
+  background:
+    /* ⚠️ 遮罩色一定要用 --color-bg 不可用 --paper-100：--paper-100 在深色模式
+       仍然是 #FFFFFF（它是「紙色」原色，不是「目前背景」），拿來當遮罩會在
+       深色底上畫出兩條白帶。深色模式的實際頁面背景是 --color-bg (#1A1815)。 */
+    linear-gradient(to right, var(--color-bg) 30%, transparent) left center / 28px 100% no-repeat local,
+    linear-gradient(to left,  var(--color-bg) 30%, transparent) right center / 28px 100% no-repeat local,
+    linear-gradient(to right, rgba(0,0,0,.14), transparent) left center / 14px 100% no-repeat scroll,
+    linear-gradient(to left,  rgba(0,0,0,.14), transparent) right center / 14px 100% no-repeat scroll;
+  scroll-padding-inline: var(--space-4);
+}
