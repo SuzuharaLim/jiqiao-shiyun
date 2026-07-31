@@ -59,7 +59,13 @@ a { color:inherit; text-decoration:none; }
 @keyframes paneIn { from { transform:translateY(8px); } to { transform:none; } }
 /* 列印與 reduce-motion：直接關掉進場，內容一律可見 */
 @media print { .rootpane > .body, .screen { animation:none !important; opacity:1 !important; transform:none !important; } }
-@media (min-width:900px) and (min-height:600px) {
+/* ⚠️ 這個斷點原本是 900px，導致**平板直式全部落在手機外框那一層**：
+   實測 820×1180 的平板只用到 51% 的寬度，中間一個 420px 的框、左右各 200px 死白，
+   而且 WebNav 與底部分頁列同時存在（兩套導覽）。
+   iPad 直式 810–834、Android 平板 800、iPad mini 744——全部中彈。
+   改成 600px：登入後只要視窗夠寬夠高就走網站版面，多欄版面仍維持在 900px
+   （600–899 是單欄，那個寬度排兩欄會太擠）。 */
+@media (min-width:600px) and (min-height:600px) {
   /* 版面：頂部橫向導覽列（滿版）＋ 下方置中內容欄，像一般網站 */
   /* 整頁捲動（像網站）：整頁單一連續平面，內容直接坐在頁面上（不做浮起卡片＝避免「頁面裡有頁面」） */
   .stage.signed-in { flex-direction:column; align-items:center; justify-content:flex-start;
@@ -72,12 +78,16 @@ a { color:inherit; text-decoration:none; }
     border-bottom:1px solid var(--line); }
   .wn-inner { max-width:1120px; margin:0 auto; height:62px; display:flex; align-items:center;
     gap:20px; padding:0 28px; }
-  .wn-brand { display:flex; align-items:center; gap:9px; flex:0 0 auto; }
+  .wn-brand { display:flex; align-items:center; gap:9px; flex:0 0 auto; min-width:0; }
   .wn-seal { width:32px; height:32px; border-radius:2px; background:var(--primary); color:var(--pfg);
     font-family:var(--serif); font-size:var(--text-lg); font-weight:800; display:flex; align-items:center; justify-content:center;
     box-shadow:inset 0 0 0 1.5px rgba(252,248,240,.35); }
   .wn-word { font-family:var(--serif); font-size:var(--text-lg); font-weight:800; letter-spacing:2px; }
-  .wn-links { display:flex; gap:2px; flex:1; margin-left:14px; }
+  /* ⚠️ 三個區塊都要能收縮，否則窄視窗會被撐破。
+     實測 600×700：wn-right 的使用者名稱＋登出把整列推到 670px，
+     整頁出現橫向捲軸。flex 項目的 min-width 預設是 auto（＝內容寬），
+     不設 min-width:0 的話 `flex:1` 也縮不下去。 */
+  .wn-links { display:flex; gap:2px; flex:1 1 auto; min-width:0; margin-left:14px; overflow:hidden; }
   .wn-link { padding:9px 15px; border-radius:2px; font-size:var(--text-sm); font-weight:600; color:var(--ink-2, var(--muted));
     position:relative; }
 @media (hover:hover) and (pointer:fine) {
@@ -90,7 +100,7 @@ a { color:inherit; text-decoration:none; }
     border-radius:2px; background:var(--cinnabar);
     transform:scaleX(0); transform-origin:center; transition:transform var(--m-base) var(--e-spring); }
   .wn-link.on::after { transform:scaleX(1); }
-  .wn-right { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+  .wn-right { display:flex; align-items:center; gap:10px; flex:0 1 auto; min-width:0; }
   .wn-icon { width:38px; height:38px; border-radius:2px; display:flex; align-items:center; justify-content:center;
     font-size:var(--text-base); border:1px solid var(--line2); background:var(--bg); position:relative; }
 @media (hover:hover) and (pointer:fine) {
@@ -118,7 +128,7 @@ a { color:inherit; text-decoration:none; }
     margin:0 auto; border:none; border-radius:0; overflow:visible;
     background:transparent; box-shadow:none; }
   .stage.signed-in .tabbar { display:none; }
-  .stage.signed-in .theme-fab { display:none; }
+  .stage.signed-in .theme-fab { display:none; }   /* 登入後由 WebNav 提供切換鈕 */
 
   /* 桌機整頁捲動：內容區與各畫面不再各自內捲，改由整頁捲動 */
   .stage.signed-in .body { overflow:visible; height:auto; flex:0 0 auto; }
@@ -183,6 +193,23 @@ a { color:inherit; text-decoration:none; }
 /* ==========================================================================
    桌機內容設計層（≥900px）：真正用到橫向空間、雙欄卡片、層次與 hover
    ========================================================================== */
+/* 平板（600–899）：網站版面但單欄，版心比桌機窄 */
+@media (min-width:600px) and (max-width:899.98px) and (min-height:600px) {
+  .stage.signed-in .device { width:min(100%, 760px); max-width:760px; }
+  .wn-inner, .wf-inner { max-width:760px; padding-left:20px; padding-right:20px; }
+  .stage.signed-in .rootpane .body { padding:18px 20px 12px; }
+  .stage.signed-in .screen .body { width:100%; padding:0 20px 8px; }
+  /* ⚠️ 導覽列在這個寬度會擠：把品牌字與使用者名稱收起來，只留印章與連結。
+     連結本身不可縮——那是主要導覽。 */
+  .wn-word { display:none; }
+  .wn-user .wn-name { display:none; }
+  /* 600–700 這種窄視窗（分割畫面、小瀏覽器視窗）連登出文字都放不下 */
+  .wn-logout { font-size:var(--text-2xs); padding:4px 8px; white-space:nowrap; }
+  .wn-links a { padding-left:8px; padding-right:8px; }
+  .wn-inner { gap:12px; }
+  .wn-links { margin-left:8px; }
+}
+
 @media (min-width:900px) and (min-height:600px) {
   /* 內容畫布加寬 */
   .stage.signed-in .device { width:min(100%, 1000px); max-width:1000px; }
@@ -449,14 +476,17 @@ a { color:inherit; text-decoration:none; }
    可視內容剩 221px 高。加上 min-height:600px 之後，矮視窗（橫向手機）
    一律維持滿版手機版面。600px 這個門檻能乾淨分開橫向手機（320~430 高）
    與正常桌機視窗（≥600 高）。 */
+/* ⚠️ 手機外框只保留給**未登入**的登入頁——那是一張置中的卡片，框起來很好看。
+   登入後一律走網站版面（見上方 600px 斷點），不要再把內容塞進 420px 的框裡。
+   選擇器加 :not(.signed-in) 而不是靠後面的規則覆蓋，意圖比較清楚。 */
 @media (min-width:560px) and (min-height:600px) {
-  .stage {
+  .stage:not(.signed-in) {
     padding:28px; gap:clamp(20px, 4vw, 56px);
     /* 原本疊了兩道朱紅／金的 radial glow（舊色票）。換白底三色後那兩團暖光
        在灰白底上會顯得髒，且與新配色無關，改為單純底色。 */
     background:var(--stage);
   }
-  .device {
+  .stage:not(.signed-in) .device {
     width:min(100%, 420px);
     height:min(924px, calc(100dvh - 56px));
     max-height:calc(100dvh - 56px);
@@ -464,7 +494,7 @@ a { color:inherit; text-decoration:none; }
     border:1px solid var(--line2);
     box-shadow:0 26px 72px rgba(70,45,25,.30);
   }
-  [data-theme="dark"] .device { box-shadow:0 26px 72px rgba(0,0,0,.66); }
+  [data-theme="dark"] .stage:not(.signed-in) .device { box-shadow:0 26px 72px rgba(0,0,0,.66); }
 }
 
 /* 主題切換浮鈕（桌機顯示於外框旁） */
@@ -1008,6 +1038,17 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 @media (max-height:599px) and (min-width:431px) {
   .device { max-width:none; }
   .sheet  { max-width:none; }
+}
+/* 431–599 寬的直式視窗（小平板、平板分割畫面、折疊機外螢幕）：
+   ⚠️ 這一段既不夠寬套網站版面（≥600），又會被基礎的 430px 上限卡住，
+   實測 540×720 只用到 80% 寬度、左右各 55px 灰邊。既然這個寬度仍走
+   手機版面（底部分頁列），就讓它填滿——原生 App 在這種尺寸也是填滿的。 */
+/* ⚠️ 上界要寫 599.98 不可寫 599：視窗寬度可能帶小數（螢幕縮放、DPR、捲軸），
+   實測 599px 的視窗回報 599.x，`max-width:599px` 直接不匹配，整段規則靜默失效。
+   下界用整數沒問題（min-width:600 對 599.x 本來就該不匹配）。 */
+@media (min-width:431px) and (max-width:599.98px) and (min-height:600px) {
+  .stage.signed-in .device { max-width:none; }
+  .stage.signed-in .sheet  { max-width:none; }
 }
 .topbar, .tabbar, .body { position:relative; z-index:1; }
 
