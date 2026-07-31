@@ -3135,3 +3135,13 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .gl-answer { border-left: 3px solid var(--primary); }
 .gl-answer p { font-size: var(--text-sm); line-height: 1.9; }
 .gl-caveat { border-left: 3px solid var(--gold); }
+
+/* 六十甲子表：手機 4 欄、桌機 6 欄 */
+.gz-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+@media (min-width: 560px) { .gz-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.gz-cell {
+  padding: 6px 2px; text-align: center; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--bg);
+}
+.gz-cell b { display: block; font-size: var(--text-xs); }
+.gz-cell small { display: block; font-size: var(--text-2xs); color: var(--muted); margin-top: 1px; }

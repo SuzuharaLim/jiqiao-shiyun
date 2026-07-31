@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node --watch server/index.js",
-    "build": "vite build",
+    "build": "node scripts/check-almanac.mjs && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js",
@@ -15,7 +15,8 @@
     "mail:test": "node server/mail-test.js",
     "purge:demo": "node server/purge-demo.js",
     "make:admin": "node server/make-admin.js",
-    "push:keys": "node server/push-keys.js"
+    "push:keys": "node server/push-keys.js",
+    "check:almanac": "node scripts/check-almanac.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

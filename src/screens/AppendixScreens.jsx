@@ -1,3 +1,4 @@
+import { nayinOf } from '../data/almanac.js'
 import { TopBar, SectionHead, Disclaimer } from '../components/ui.jsx'
 
 // 國民曆常見附錄工具表：食物相剋、度量衡換算、六十甲子與三合六合對照。
@@ -75,12 +76,31 @@ export function Units() {
 export function GanzhiTable() {
   return (
     <>
-      <TopBar title="干支・三合六合" onBack />
+      <TopBar title="六十甲子與三合六合對照表｜天干地支查詢" onBack />
       <div className="body">
         <SectionHead title="天干・地支" />
         <div className="card">
           <div className="kv"><span>十天干</span><b style={{ letterSpacing: 2 }}>{GAN}</b></div>
           <div className="kv" style={{ borderBottom: 'none' }}><span>十二地支</span><b style={{ letterSpacing: 1 }}>{ZHI}</b></div>
+        </div>
+
+        {/* ⚠️ 這頁的 <title> 一直寫著「六十甲子與三合六合對照表」，
+            但頁面上根本沒有六十甲子表——標題與內容不符。補上，
+            順便附納音（正好驗證納音表修好了）。 */}
+        <SectionHead title="六十甲子" extra="含納音" />
+        <div className="card">
+          <div className="gz-grid">
+            {Array.from({ length: 60 }, (_, n) => (
+              <div key={n} className="gz-cell">
+                <b>{GAN[n % 10]}{ZHI[n % 12]}</b>
+                <small>{nayinOf(n % 10, n % 12)}</small>
+              </div>
+            ))}
+          </div>
+          <p className="muted td-note">
+            ＊天干十個、地支十二個依序配對，因十與十二的最小公倍數為六十，
+            故共六十種組合。納音兩兩一組（甲子與乙丑同為海中金）。
+          </p>
         </div>
 
         <SectionHead title="地支三合・六合" />
