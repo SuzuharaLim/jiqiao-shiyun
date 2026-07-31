@@ -1,7 +1,7 @@
 {
-  "name": "機巧時運 · 智慧互動農民曆",
+  "name": "機巧時運 · 智慧互動國民曆",
   "short_name": "機巧時運",
-  "description": "今天宜什麼？AI 幫你把農民曆讀成人話。每日宜忌、二十四節氣與節氣攝影社群。",
+  "description": "今天宜什麼？AI 幫你把國民曆讀成人話。每日宜忌、二十四節氣與節氣攝影社群。",
   "lang": "zh-Hant-TW",
   "start_url": "/?source=pwa",
   "scope": "/",

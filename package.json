@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "機巧時運 — 智慧互動農民曆 App 互動原型 Demo",
+  "description": "機巧時運 — 智慧互動國民曆 App 互動原型 Demo",
   "scripts": {
     "dev": "vite",
     "dev:server": "node --watch server/index.js",

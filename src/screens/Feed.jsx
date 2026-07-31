@@ -27,7 +27,7 @@ export default function Feed() {
   const clampOff = (o) => Math.max(-RANGE, Math.min(RANGE, o))
 
   // ---------- 撕曆翻頁 ----------
-  // 實體農民曆的動作是「撕」。原本翻日只是把字串換掉，這是全站最大的一筆浪費：
+  // 實體國民曆的動作是「撕」。原本翻日只是把字串換掉，這是全站最大的一筆浪費：
   // 翻日是這個產品的靈魂互動。動畫在 rotateX 掀到最高點時「換面」，
   // 資料其實在按下的瞬間就換好了，動畫只是蓋住那個切換點。
   // ⚠️ .calpage 已有 min-height:318px 固定插槽，所以加動畫不會造成版面位移。
@@ -155,7 +155,7 @@ export default function Feed() {
         <button className="ad-more tap" onClick={() => push('almanacDay', { off })}>
           <span className="ad-more-ic"><Icon name="scroll" /></span>
             <span className="ad-more-tx">
-            <b>看完整農民曆</b>
+            <b>看完整國民曆</b>
             <small>建除・星宿・彭祖百忌・胎神・沖煞歲數・財喜貴方位・十二時辰</small>
           </span>
           <span className="go">›</span>

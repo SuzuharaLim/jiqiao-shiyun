@@ -19,7 +19,7 @@ const SCREEN_TITLES = {
   notifications: '通知', dms: '聯絡我們', settings: '設定', records: '占卜紀錄',
   creatorConsole: '創作者後台', store: '商店', orders: '我的訂單', scan: '掃描明信片', camera: '相機',
   todayShots: '今日大家拍的', challenges: '節氣挑戰', challengesBoard: '挑戰排行榜',
-  creatorPage: '創作者', followList: '粉絲／追蹤中', prePlan: '明年預拍', almanacDay: '完整農民曆', yearAlmanac: '年度總覽',
+  creatorPage: '創作者', followList: '粉絲／追蹤中', prePlan: '明年預拍', almanacDay: '完整國民曆', yearAlmanac: '年度總覽',
   foodTaboo: '食物相剋', units: '度量衡換算', ganzhiTable: '干支對照',
   editProfile: '編輯個人檔案', about: '品牌故事', accountSecurity: '帳號安全', admin: '管理後台',
   privacy: '隱私權政策', terms: '服務條款', contact: '聯絡我們',
@@ -41,9 +41,9 @@ export default function App() {
   //   才會宣告新標題。first 用來跳過初次載入（那時焦點本來就在頁首）。
   const firstRender = useRef(true)
   useEffect(() => {
-    if (!user) { document.title = '機巧時運 · 智慧互動農民曆'; return }
+    if (!user) { document.title = '機巧時運 · 智慧互動國民曆'; return }
     const t = top ? SCREEN_TITLES[top.screen] : TAB_TITLES[tab]
-    document.title = t ? `${t} · 機巧時運` : '機巧時運 · 智慧互動農民曆'
+    document.title = t ? `${t} · 機巧時運` : '機巧時運 · 智慧互動國民曆'
 
     if (firstRender.current) { firstRender.current = false; return }
     // 等新畫面掛載完成再移轉焦點

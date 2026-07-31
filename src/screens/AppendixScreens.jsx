@@ -1,6 +1,6 @@
 import { TopBar, SectionHead, Disclaimer } from '../components/ui.jsx'
 
-// 農民曆常見附錄工具表：食物相剋、度量衡換算、六十甲子與三合六合對照。
+// 國民曆常見附錄工具表：食物相剋、度量衡換算、六十甲子與三合六合對照。
 
 const FOODS = [
   { a: '螃蟹', b: '柿子', why: '皆屬寒涼，同食易腸胃不適、腹瀉' },

@@ -13,7 +13,7 @@ export default function Almanac() {
   const today = dayFor(T0)   // 真實今日曆頁（取代靜態 mock）
   return (
     <>
-      <TopBar title="占卜 · 農民曆"
+      <TopBar title="占卜 · 國民曆"
         right={<button className="iconbtn tap" onClick={() => push('deities')} aria-label="神佛提醒"><Icon name="bell" /></button>} />
 
       <div className="body">
@@ -34,7 +34,7 @@ export default function Almanac() {
           <GlossPanel gl={gl} />
         </div>
 
-        <SectionHead title="農民曆 · 曆頁" />
+        <SectionHead title="國民曆 · 曆頁" />
         <ToolRow iconName="scroll" title="今日完整曆頁" sub="建除・星宿・彭祖百忌・胎神・沖煞・十二時辰" onClick={() => push('almanacDay', { off: T0 })} />
         <ToolRow iconName="dragon" title={`${yearOverview.ganzhi} 年度總覽`} sub="值年太歲・地母經・犯太歲・年度凶方" onClick={() => push('yearAlmanac')} />
 

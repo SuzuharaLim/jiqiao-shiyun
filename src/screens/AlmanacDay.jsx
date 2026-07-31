@@ -1,13 +1,13 @@
 import { TopBar, SectionHead, Disclaimer, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
 
-// 完整農民曆日頁 —— 傳統每日曆頁的所有項目（建除、星宿、彭祖百忌、胎神、沖煞歲數、財喜貴方位、十二時辰、特殊日）。
+// 完整國民曆日頁 —— 傳統每日曆頁的所有項目（建除、星宿、彭祖百忌、胎神、沖煞歲數、財喜貴方位、十二時辰、特殊日）。
 export default function AlmanacDay({ off }) {
   const d = dayFor(off ?? todayOffset())
   const gl = useGlossary()   // 宜/忌 詞彙白話解釋
   return (
     <>
-      <TopBar title="完整農民曆" onBack />
+      <TopBar title="完整國民曆" onBack />
       <div className="body ad-sheet">
         {/* 頭部 */}
         <div className="ad-head">

@@ -1116,7 +1116,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 }
 
 /* ==========================================================================
-   農民曆「今日曆頁」主場（去 IG 動態牆）—— 曆頁 · 宜忌雙欄 · 節氣卷軸 · 手帳個人頁
+   國民曆「今日曆頁」主場（去 IG 動態牆）—— 曆頁 · 宜忌雙欄 · 節氣卷軸 · 手帳個人頁
    ========================================================================== */
 
 /* 日期翻頁列 */
@@ -1227,7 +1227,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .daysub[data-dir="prev"] { animation:dayRollPrev var(--m-base) var(--e-out) 60ms; }
 
 /* ══════════════ 撕曆翻頁（動效銳評 §02，招牌動作）══════════════
-   實體農民曆的動作是「撕」——原本翻日只是把字串換掉，是全站最大的一筆浪費。
+   實體國民曆的動作是「撕」——原本翻日只是把字串換掉，是全站最大的一筆浪費。
    ⚠️ 38%→39% 之間旋轉方向瞬間翻面，那一格就是「換頁」的瞬間；
       React 的資料在按下時就換好了，動畫只是蓋住切換點，不需要延遲更新資料。
    ⚠️ 前後翻的方向必須相反，否則使用者感覺不出「往回翻」。 */
@@ -1714,9 +1714,9 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
   }
 }
 
-/* ══════════════ 完整農民曆日頁（AlmanacDay）══════════════ */
+/* ══════════════ 完整國民曆日頁（AlmanacDay）══════════════ */
 
-/* 首頁曆頁「看完整農民曆」入口 */
+/* 首頁曆頁「看完整國民曆」入口 */
 .ad-more { display:flex; align-items:center; gap:10px; width:calc(100% - var(--space-4) * 2); margin:var(--space-2) var(--space-4) 2px;
   padding:12px 15px; border:1px solid var(--cinnabar); border-radius:2px;
   background:var(--card); color:var(--text); text-align:left; cursor:pointer; }
@@ -1985,7 +1985,7 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 
 /* ══════════════════════════════════════════════════════════════════════
    曆面 —— 「明確紙感」+ 桌機單頁式版面
-   設計決策（2026-07）：農民曆的核心價值是「攤開一張紙、一眼掃盡」。
+   設計決策（2026-07）：國民曆的核心價值是「攤開一張紙、一眼掃盡」。
    原本的圓角卡片流把它拆成 1636px 高的直向捲軸，桌機還浪費 40% 橫向空間。
    這一段把曆頁改回「一張紙」：墨線分區取代浮起卡片，朱紅作為第二套印色，
    ≥900px 排成三欄一屏看完。手機維持單欄捲動不變。
@@ -2324,7 +2324,7 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 .ya-hero .ya-year { color: var(--text); opacity: 1; }
 .ya-hero .ya-meta { color: var(--muted); opacity: 1; }
 
-/* 「看完整農民曆」的箭頭：.go 基礎樣式有 background:var(--cinnabar)，
+/* 「看完整國民曆」的箭頭：.go 基礎樣式有 background:var(--cinnabar)，
    而 .ad-more .go 只覆寫了 color 成朱紅 → 朱紅底＋朱紅字，箭頭完全看不見，
    使用者看到的是一個純紅色塊。（圓角時像個圓鈕，改方之後就更明顯了。）
    與先前 .chip.on／.tm.on 是同一類錯誤：改配色時沒清掉舊規則的 background。 */
@@ -2866,7 +2866,7 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
    ⚠️ 朱紅是「印章色」，力量來自稀少——實測首頁曾有 11 個朱紅元素互相搶戲，
    而占卜頁只有 1 個整頁灰撲撲。這裡把「與節氣相關的次要元素」改用
    --season-hue（春柳綠／夏朱／秋金／冬黛），讓朱紅回歸品牌焦點角色，
-   同時讓產品隨節氣換裝——這是農民曆產品現成的用色理由。
+   同時讓產品隨節氣換裝——這是國民曆產品現成的用色理由。
    規則：主要行動（發佈/購買/確認）仍用朱紅；節氣類標示改節氣色。
    ══════════════════════════════════════════════════════════════════════ */
 

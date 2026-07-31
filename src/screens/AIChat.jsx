@@ -41,7 +41,7 @@ const FOLLOWUPS = [
   { keys: ['籤', '抽'], list: ['這支籤怎麼解？', '再抽一支', '這幾天適合出遊嗎？'] },
   { keys: ['夢', '解夢'], list: ['夢裡還有別的細節', '這代表要注意什麼？'] },
   { keys: ['節氣', '養生', '吃', 'food'], list: ['這節氣吃什麼好？', '有什麼禁忌？', '推薦拍什麼題材'] },
-  { keys: ['簽約', '開市', '生意', '合約'], list: ['那明天呢？', '有哪些要避開的？', '看完整農民曆'] },
+  { keys: ['簽約', '開市', '生意', '合約'], list: ['那明天呢？', '有哪些要避開的？', '看完整國民曆'] },
 ]
 const followupsFor = (q) =>
   (FOLLOWUPS.find(f => f.keys.some(k => q.includes(k)))?.list)
@@ -49,7 +49,7 @@ const followupsFor = (q) =>
 
 // 對話持久化（階段一：sessionStorage）。
 // ⚠️ msgs 原本是純 useState，pop() 讓元件卸載 → 整段對話蒸發。
-//    使用者從 AI 頁點去看完整農民曆再回來，得從頭問起。
+//    使用者從 AI 頁點去看完整國民曆再回來，得從頭問起。
 //    帶 date 是為了跨日自動重置——昨天的「今日運勢」今天看沒有意義。
 const LS_KEY = 'jq-ai-chat'
 const todayKey = () => new Date().toISOString().slice(0, 10)
@@ -240,7 +240,7 @@ export default function AIChat() {
                     ) : m.cta === 'almanac' ? (
                       /* 設定有誤時「再試一次」是白工，改導向還能用的功能 */
                       <>
-                        <button className="qchip tap" onClick={() => push('almanacDay')}>📜 看完整農民曆</button>
+                        <button className="qchip tap" onClick={() => push('almanacDay')}>📜 看完整國民曆</button>
                         <button className="qchip tap" onClick={() => push('dms')}>✉️ 回報問題</button>
                       </>
                     ) : (

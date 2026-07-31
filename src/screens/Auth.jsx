@@ -108,7 +108,7 @@ export default function Auth() {
           {mode === 'register' ? '建立你的節氣文化手帳帳號'
             : mode === 'forgot' ? '找回你的帳號'
             : mode === 'reset' ? '設定新密碼'
-            : '智慧互動農民曆 · 節氣攝影社群'}
+            : '智慧互動國民曆 · 節氣攝影社群'}
         </div>
       </div>
 

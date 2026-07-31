@@ -2,7 +2,7 @@
 
 export const BRAND = '機巧時運'
 
-// 今日農民曆
+// 今日國民曆
 export const today = {
   term: '芒種',
   ganzhi: '丙午日',
@@ -14,7 +14,7 @@ export const today = {
   stars: 4,
 }
 
-// 農民曆日曆頁（可前後翻日）—— 首頁曆頁主場資料
+// 國民曆日曆頁（可前後翻日）—— 首頁曆頁主場資料
 export const almanacDays = [
   {
     solar: '6 / 5', weekday: '週四', term: '芒種', ganzhi: '乙巳日',
@@ -391,5 +391,5 @@ export function aiReply(text, day) {
     const gz = day.ganzhi.replace('日', '')
     return hit.reply.replaceAll('芒種', term).replaceAll('丙午', gz)
   }
-  return '我聽見了 🌿 這題我可以結合農民曆與你的近況幫你細看。\n（Demo 示範：實際版本會由 AI 時光顧問依你的問題與歷史紀錄，給出個人化的宜忌、運勢與生活建議。）'
+  return '我聽見了 🌿 這題我可以結合國民曆與你的近況幫你細看。\n（Demo 示範：實際版本會由 AI 時光顧問依你的問題與歷史紀錄，給出個人化的宜忌、運勢與生活建議。）'
 }

@@ -1,6 +1,6 @@
-# 機巧時運 · 智慧互動農民曆
+# 機巧時運 · 智慧互動國民曆
 
-> 虛實整合的「會說話文化手帳」——**智慧互動農民曆 × 節氣攝影社群 × AI 時光顧問**。
+> 虛實整合的「會說話文化手帳」——**智慧互動國民曆 × 節氣攝影社群 × AI 時光顧問**。
 > 全端可互動產品（真實帳號認證、真實資料庫），已上線於 **https://chengqi.tw**（Google Cloud Run + Cloud SQL）。
 
 **開發者／AI 代理請先讀 [CLAUDE.md](CLAUDE.md)** —— 架構、指令、慣例、雷區的單一入口。
@@ -20,10 +20,10 @@
 
 | 分頁 | 內容 |
 | --- | --- |
-| 🏠 **今日曆頁** | 翻日農民曆、干支宜忌、**完整曆頁**（建除/星宿/彭祖/胎神/沖煞/十二時辰）、年度總覽、今日社群卷軸 |
+| 🏠 **今日曆頁** | 翻日國民曆、干支宜忌、**完整曆頁**（建除/星宿/彭祖/胎神/沖煞/十二時辰）、年度總覽、今日社群卷軸 |
 | 🔍 **探索** | 搜尋、節氣篩選、作品市集、購買授權、創作者頁、挑戰排行 |
 | ➕ **建立** | **相機工作室**（拍攝/版面/限動/濾鏡+強度/搖晃顯影/動態文字，純瀏覽器 API）、發貼文（含地點搜尋/地圖/常用位置）、做月曆 |
-| 🔮 **占卜** | AI 時光顧問、完整農民曆/年度總覽、命名/婚配/神佛/生肖/秤骨/解夢、24 節氣、附錄查詢表 |
+| 🔮 **占卜** | AI 時光顧問、完整國民曆/年度總覽、命名/婚配/神佛/生肖/秤骨/解夢、24 節氣、附錄查詢表 |
 | 👤 **我的** | 個人檔案、訂單、創作者後台、訂閱、錢包、商店、設定、**管理後台**（RBAC） |
 
 ## 本機開發
@@ -55,7 +55,7 @@ npm run start       # 正式：node 同時 serve dist/ + /api（8080）
 │  ├─ main.jsx · App.jsx · styles.css · api.js
 │  ├─ store/nav.jsx   全域狀態 + 每頁網址路由
 │  ├─ hooks/useApi.js 內容 fetch hooks（DB 為源）
-│  ├─ data/           mock.js（種子）· almanac.js（農民曆引擎）
+│  ├─ data/           mock.js（種子）· almanac.js（國民曆引擎）
 │  ├─ lib/scanner.js  自研影像辨識
 │  ├─ components/      ui · Icon · WebNav · WebFooter · AuthWall · ErrorBoundary · LocationPicker · VerifyBanner · AnimatedText
 │  └─ screens/         registry.jsx（ROOTS+SCREENS）+ 40+ 畫面（含 Camera · Admin · AlmanacDay · YearAlmanac …）

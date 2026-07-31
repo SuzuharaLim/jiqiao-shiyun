@@ -85,7 +85,7 @@ export function render({ kind, subject, link }) {
       </td></tr>
       <tr><td style="border-top:1px solid #e2d8bf;padding:16px 26px;text-align:center;">
         <p style="margin:0;font-size:11px;line-height:1.7;color:#9c917e;font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;">
-          ${BRAND}　智慧互動農民曆 × 節氣攝影社群<br>此為系統自動發送的交易信件。
+          ${BRAND}　智慧互動國民曆 × 節氣攝影社群<br>此為系統自動發送的交易信件。
         </p>
       </td></tr>
     </table>

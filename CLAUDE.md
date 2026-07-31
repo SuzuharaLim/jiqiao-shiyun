@@ -1,6 +1,6 @@
 # CLAUDE.md — 機巧時運 專案導覽（先讀這份，通常不必逐檔掃描）
 
-> 「機巧時運」是**智慧互動農民曆 × 節氣攝影社群 × AI 時光顧問**的虛實整合原型。
+> 「機巧時運」是**智慧互動國民曆 × 節氣攝影社群 × AI 時光顧問**的虛實整合原型。
 > 本檔是給 AI 代理／開發者的**單一入口**：架構、指令、慣例、雷區都在這；細節見 `docs/`。
 > 最後更新：2026-07。若你改動了架構，請一併更新本檔與對應的 `docs/*`。
 
@@ -68,7 +68,7 @@ chengqi-main/
 │  │  ├─ bone.js           袁天罡秤骨骨重表（年/月/日/時四柱，農曆）
 │  │  ├─ match.js          生肖三合六合沖害刑＋星座元素配對
 │  │  ├─ termGuide.js      ★24 節氣生活資料庫（當令農產/漁獲+產地、俗語、應景食物、慶典、花期、養生、開運色）
-│  │  └─ almanac.js        任意日期生農民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
+│  │  └─ almanac.js        任意日期生國民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
 │  │                        ★todayOffset() 讓 App 開在真實今日；dayFor 回傳完整傳統項目（三柱干支動態年份/建除/星宿/彭祖/胎神/沖煞歲數/財喜貴方位/十二時辰/特殊日）；另 export yearOverview
 │  ├─ lib/
 │  │  └─ scanner.js        ★自研影像辨識（dHash＋直方圖＋清晰度，純陣列運算零相依，可直接 Node 測試）
@@ -81,7 +81,7 @@ chengqi-main/
 │  │  └─ ErrorBoundary.jsx 全站錯誤邊界（單元件崩不整頁白屏）
 │  └─ screens/
 │     ├─ registry.jsx      ★ ROOTS[5] + SCREENS{} 畫面對照表 → 見 docs/畫面地圖.md
-│     ├─ AlmanacDay.jsx    完整農民曆日頁（dayFor → 全部傳統項目）
+│     ├─ AlmanacDay.jsx    完整國民曆日頁（dayFor → 全部傳統項目）
 │     ├─ YearAlmanac.jsx   年度總覽卷首（yearOverview → 太歲/地母經/犯太歲/凶方）
 │     ├─ AppendixScreens.jsx 附錄工具：食物相剋/度量衡/干支對照
 │     └─ *.jsx             40+ 個畫面
@@ -330,7 +330,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 ## 已知限制（上線前需處理）
 
 - 干支/農曆/節氣/命理/建除/星宿/沖煞/胎神等**擇日神煞層為確定性示範演算**（`almanac.js`＋各頁 Disclaimer 已標明；規則正確但非權威曆算），正式版應接 lunar-javascript 等函式庫或通書資料核對。年神方位（三煞/五黃/歲破/大將軍）逐年變動，切勿沿用。
-- **AI 顧問有守備範圍限制（2026-07）**：`server/index.js` 的 `AI_SYSTEM` 明確界定只回答農民曆/節氣/生肖/民俗/節氣攝影/App 用法，並以三層防護避免被當成免費通用 ChatGPT（寫程式、寫作業、翻譯）——(1) 系統提示界定範圍與婉拒方式 (2) `AI_ABUSE_RE` 輸入預檢擋明顯越獄與程式碼區塊（**刻意不擋「寫程式」等字眼**，因為「今天適合寫程式嗎」是正常提問）(3) `looksLikeCode()` 輸出守門攔截漏網的程式碼並改回婉拒。攔截會寫 `ai_offtopic` / `ai_offtopic_output` 稽核記錄。改文案找 `AI_SYSTEM` 與 `AI_REFUSAL`。**模型預設 `gpt-5.4-nano`**（最便宜一階，$0.20/$1.25 每 1M tokens；2026-07 查詢值）——本顧問只做限定範圍短問答，不需旗艦模型；換模型設 `OPENAI_MODEL` 環境變數即可，不必改碼。價格表與成本估算見 `docs/操作手冊.md`。
+- **AI 顧問有守備範圍限制（2026-07）**：`server/index.js` 的 `AI_SYSTEM` 明確界定只回答國民曆/節氣/生肖/民俗/節氣攝影/App 用法，並以三層防護避免被當成免費通用 ChatGPT（寫程式、寫作業、翻譯）——(1) 系統提示界定範圍與婉拒方式 (2) `AI_ABUSE_RE` 輸入預檢擋明顯越獄與程式碼區塊（**刻意不擋「寫程式」等字眼**，因為「今天適合寫程式嗎」是正常提問）(3) `looksLikeCode()` 輸出守門攔截漏網的程式碼並改回婉拒。攔截會寫 `ai_offtopic` / `ai_offtopic_output` 稽核記錄。改文案找 `AI_SYSTEM` 與 `AI_REFUSAL`。**模型預設 `gpt-5.4-nano`**（最便宜一階，$0.20/$1.25 每 1M tokens；2026-07 查詢值）——本顧問只做限定範圍短問答，不需旗艦模型；換模型設 `OPENAI_MODEL` 環境變數即可，不必改碼。價格表與成本估算見 `docs/操作手冊.md`。
 - **模型參數會自動適配，換模型不必改碼（2026-07-30）**：不同世代的模型接受的參數不一樣——較新的要 `max_completion_tokens`（送 `max_tokens` 回 400）、部分只接受預設 `temperature`。`callOpenAI()` 先照預設送，被 400 拒絕就從錯誤訊息判斷該改哪個參數，調整後重試，並把可用組合記在 `aiParamMode`，之後直接用對的。**雷區**：(1) **要用迴圈不能只重試一次**——模型可能同時嫌棄多個參數而上游一次只報一個（實測先修好 `max_tokens`，重試後才冒出 `temperature` 的抱怨）；(2) **「模型出現在 `/v1/models` 清單裡」不等於「這樣呼叫會成功」**，實測 `gpt-5.4-nano` 在清單中但用舊參數一律 400；(3) 400 要歸類為「設定有誤」（回 503、不給重試鈕），不是暫時性錯誤。
 - **AI 上游失敗要能診斷**：金鑰無效／模型不存在／額度用完三者症狀完全一樣，真因原本只寫進 Cloud Run log。`POST /api/admin/ai-test`（admin）會直接打一次上游，回傳狀態碼、模型、遮蔽後金鑰（只前後 4 碼）、目前實際使用的參數組合與對應修法；管理後台「系統狀態」有按鈕。
 - **AI 對話是串流的（2026-07-29）**：`/api/ai/chat` 對 OpenAI 開 `stream:true`，再轉成自訂 SSE 事件 `{delta}｜{replace}｜{done}｜{error}`；前端 `api.aiChatStream()` 逐塊拼接。雷區：
@@ -360,7 +360,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **真實圖片上傳（2026-07）**：`images` 表（base64 TEXT，pg/sqlite 通用）＋`POST /api/images`（登入者上傳，前端 canvas 壓縮 ≤1600px JPEG，後端驗 MIME 魔數、3MB 上限、只能掛自己的圖）＋`GET /api/images/:id` 同源供圖（CSP `img-src 'self'` 相容、immutable 快取）。`posts.image_id`/`works.image_id` 經 db.js 輕量 ALTER 遷移（**免砍本機 DB**）。前端 `PhotoImg`（ui.jsx）在 `.ph/.img/.gimg` 佔位框內覆蓋顯示，有圖顯圖、無圖回退 emoji。**⚠️ 用 `PhotoImg` 的畫面務必 import**——漏了只有「有照片時」才會崩（無照片走 emoji 分支不會踩到），症狀是點進詳情頁整頁空白但網址與標題已變（WorkDetail/PostDetail 曾雙雙漏掉）——涵蓋 Feed/Explore/TodayShots/PostDetail/WorkDetail/Profile/CreatorPage/MakeCalendar/Leaderboard。NewPost「上傳照片」＋勾「上架市集」會真的 `POST /api/works`（同一張圖）。**排行榜改 `GET /api/leaderboard` 依真實 like_count 即時計算**（ref_items 的 leaderboard 清單已不被前端使用）。
 - nav context 單一 provider 全樹重繪（原型可接受）。
 - 已處理（2026-07 全面總檢）：法務三頁（privacy/terms/contact）、帳號安全 UI（改密/匯出/刪帳）、訂單後端化（orders 表+API+確認信+防連點）、robots.txt、503.html、API 錯誤中介層、fetch 逾時+友善網路錯誤、註冊 honeypot、每頁 title、main 地標、prefers-reduced-motion、表單 aria-label、曆頁星期對齊真實日期、react vendor chunk 分割。
-- 已處理（2026-07 農民曆內容補全）：自研影像辨識掃描（`lib/scanner.js`＋`Scan.jsx`，零相依裝置端）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整農民曆」＋占卜「農民曆·曆頁」「附錄·查詢表」入口。
+- 已處理（2026-07 國民曆內容補全）：自研影像辨識掃描（`lib/scanner.js`＋`Scan.jsx`，零相依裝置端）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整國民曆」＋占卜「國民曆·曆頁」「附錄·查詢表」入口。
 - 已處理（2026-07 資料庫化＋部署）：App 開在**真實今日**（`todayOffset`，年柱動態）；後端由 SQLite 抽象為 **pg(Cloud SQL)/sqlite 雙驅動**（`db.js`＋`schema.sql`，全 async）；社群內容 DB 化（`posts/comments/post_likes/works/follows/notifications` 表＋API＋前端 `useApi` hooks，`mock.js` 降為種子）；`npm run seed`；**Cloud Run + Cloud SQL 部署 runbook＋一鍵腳本**（全程 Cloud Shell、免本機安裝、免 GitHub）。
 - 已處理（2026-07 相機/帳號/金流大版）：**相機工作室**（`Camera.jsx`：拍攝單點照/長按錄、2–6格版面拼貼、建立限動[漸層+文字+票選/問答/倒數]、滑動濾鏡、貼文經典濾鏡+強度滑桿、特效庫、搖晃顯影[DeviceMotion]、動態文字[打字機/卡拉OK/霓虹]；**純瀏覽器 API 零第三方**；濾鏡/特效/漸層/字體設定存 DB `ref_items`、可經 CMS 改）；**註冊自訂 handle**（唯一索引＋即時可用性）；**Email 驗證**（`VerifyBanner`＋重寄）；**RBAC 四級**（user/creator/moderator/admin，`Admin.jsx` 後台改角色/內容）；**新增地點**（`LocationPicker`：OSM 搜尋/反查/圖磚全走後端代理、Geolocation、`user_places` 常用位置）；**金流 scaffold**（`/api/payments/intent`+`webhook`+`PAY_PROVIDER`，串接指南見文件）。臉部 AR 為 CSS 疊加近似（無第三方 face-tracking）。
 - 已處理（2026-07 每頁獨立網址＋上線）：路由由「單一 URL」改為**每畫面一個網址**（`nav.jsx` 的 `TAB_PATHS`/`SCREEN_PATH`＋History API 同步；`vite.config.js` `base:'/'`），deep-link/上一頁/下一頁皆可；**已部署 Cloud Run + Cloud SQL 並綁自訂網域 `chengqi.tw`**。AI 顧問接 OpenAI（`/api/ai/chat`，未設金鑰回 fallback；金鑰走 Secret Manager）。

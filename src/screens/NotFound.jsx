@@ -25,7 +25,7 @@ export default function NotFound() {
         <div className="sech"><span className="sech-t">你可能想找</span></div>
         <button className="tool tap" onClick={() => push('almanacDay')}>
           <div className="ti ti-line"><Icon name="scroll" /></div>
-          <div className="tn2"><b>今日完整農民曆</b><span>宜忌 · 吉時 · 沖煞 · 建除</span></div>
+          <div className="tn2"><b>今日完整國民曆</b><span>宜忌 · 吉時 · 沖煞 · 建除</span></div>
           <Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />
         </button>
         <button className="tool tap" onClick={() => setTab(1)}>
