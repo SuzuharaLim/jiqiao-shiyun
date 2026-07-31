@@ -89,7 +89,8 @@ export default function AlmanacDay({ off }) {
         <div className="ad-hours">
           {d.hours12.map(h => (
             <div key={h.zhi} className={`ad-hour ${h.luck === '吉' ? 'good' : h.luck === '凶' ? 'bad' : ''}`}>
-              <b>{h.zhi}</b><small>{h.range}</small><span>{h.luck}</span>
+              {/* 顯示黃道黑道十二神的神名——這是判吉凶的依據，寫出來使用者才能與通書對照 */}
+              <b>{h.zhi}</b><small>{h.range}</small><span>{h.shen || h.luck}</span>
             </div>
           ))}
         </div>
