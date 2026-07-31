@@ -129,7 +129,8 @@ export default function Camera({ onDone }) {
   // ── 錄影完成預覽 ──
   if (videoUrl) return (
     <div className="cam">
-      <TopBar title="影片" onClose={() => setVideoUrl(null)} />
+      <TopBar title="影片" onBack={() => setVideoUrl(null)}
+        right={<button className="iconbtn tap" aria-label="離開相機" onClick={popAll}><Icon name="x" /></button>} />
       <div className="cam-stage"><video src={videoUrl} controls autoPlay loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
       {/* ⚠️ 原本 onClick 只 toast「影片已保存（示範）」然後 setVideoUrl(null)——
           使用者拍的影片直接被丟棄，卻以為存好了。
@@ -151,7 +152,7 @@ export default function Camera({ onDone }) {
   )
 
   // ── 建立模式（限動）──
-  if (mode === 'create') return <CreateStory onExit={() => setMode('capture')} onUse={usePhoto} setToast={setToast} />
+  if (mode === 'create') return <CreateStory onExit={() => setMode('capture')} onLeave={popAll} onUse={usePhoto} setToast={setToast} />
 
   // ── 版面 / 拍攝 ──
   return (
@@ -465,7 +466,7 @@ const toLocalInput = (d) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-function CreateStory({ onExit, onUse, setToast }) {
+function CreateStory({ onExit, onLeave, onUse, setToast }) {
   const gradients = useContent('gradients', [{ id: 'ink', name: '墨', css: 'linear-gradient(160deg,#232526,#414345)' }])
   const [bg, setBg] = useState(0)
   const [text, setText] = useState('今天，芒種 🌾')
@@ -501,7 +502,10 @@ function CreateStory({ onExit, onUse, setToast }) {
 
   return (
     <div className="cam">
-      <TopBar title="建立限動" onClose={onExit} />
+      {/* 同 Review：← 是回拍攝模式，右上的 ✕ 才是離開相機。
+          兩者都要看得見，否則全螢幕的相機在手機上會變成沒有出口。 */}
+      <TopBar title="建立限動" onBack={onExit}
+        right={<button className="iconbtn tap" aria-label="離開相機" onClick={onLeave}><Icon name="x" /></button>} />
       <div className="cam-stage create" style={{ background: bgCss }}>
         <div className="cs-text"><AnimatedText text={text} fx={tfx} key={tfx + text} /></div>
         {sticker === 'poll' && (
