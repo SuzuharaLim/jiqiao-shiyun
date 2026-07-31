@@ -1,11 +1,17 @@
-# 機巧時運 — 搜尋引擎爬蟲規則
-# ⚠️ 這個檔案是公開可讀的，不要在裡面留 TODO 或內部註記。
-# ⚠️ robots.txt 不是安全機制；要保護的端點一律靠伺服器端驗證（requireAuth/requireRole）。
 User-agent: *
 Disallow: /api/
 Disallow: /admin
 Disallow: /checkout
 Disallow: /security
 Disallow: /edit-profile
+Disallow: /settings
+Disallow: /notifications
+Disallow: /messages
+Disallow: /orders
+Disallow: /wallet
+Disallow: /creator-console
+Disallow: /records
+Disallow: /projects
+Disallow: /me
 
 Sitemap: https://chengqi.tw/sitemap.xml

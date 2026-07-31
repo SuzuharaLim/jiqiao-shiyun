@@ -184,10 +184,12 @@ export function Switch({ on, onChange }) {
 }
 
 // 區段標題
-export function SectionHead({ title, extra }) {
+export function SectionHead({ title, extra, as: Tag = 'h2' }) {
   // 標題包成 span，朱紅標記才能當成標題的一部分。
   // 先前用 .sech::before 絕對定位，位置要用 padding 反推，在不同畫面會跑掉。
-  return <div className="sech"><span className="sech-t">{title}</span>{extra && <span>{extra}</span>}</div>
+  // ⚠️ 外層要是真的 <h2>：這些區塊視覺上早就是標題了，但用 <div> 包起來的話
+  //    搜尋引擎與螢幕閱讀器都看不到層級——實測整站只有 1 個 h1、零個 h2。
+  return <Tag className="sech"><span className="sech-t">{title}</span>{extra && <span>{extra}</span>}</Tag>
 }
 
 // 命理／占卜 免責聲明（上線合規）

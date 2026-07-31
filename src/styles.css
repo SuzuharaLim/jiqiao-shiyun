@@ -2991,3 +2991,22 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 @media (hover: hover) and (pointer: fine) {
   .ad-nav > button:not(:disabled):hover { background: var(--tone-1); }
 }
+
+/* SectionHead 由 <div> 改成 <h2>（語意標題層級）——瀏覽器對 h2 有預設
+   margin 與字級，要歸零才不會把既有版面推開。視覺完全維持原樣。 */
+h2.sech { margin: 0; font-size: var(--text-xs); }
+
+/* 完整曆頁的前後日連結：爬蟲用得到，使用者也常用 */
+.ad-daylinks {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0; flex: 0 0 auto;
+  font-size: var(--text-2xs);
+}
+.ad-daylinks a {
+  color: var(--cinnabar); text-decoration: none;
+  padding: 4px 8px; border: 1px solid var(--line2); border-radius: 6px;
+  min-height: 24px; display: inline-flex; align-items: center;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ad-daylinks a:hover { background: var(--tone-1); }
+}

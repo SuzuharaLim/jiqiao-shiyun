@@ -1,4 +1,4 @@
-import { TopBar, SectionHead, Disclaimer, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
+import { TopBar, SectionHead, Disclaimer, useGlossary, GlossTerm, GlossPanel, Link } from '../components/ui.jsx'
 import { dayFor, todayOffset, offsetFromDate, dateFromOffset } from '../data/almanac.js'
 import { useNav } from '../store/nav.jsx'
 
@@ -33,7 +33,10 @@ export default function AlmanacDay({ off, date }) {
 
   return (
     <>
-      <TopBar title="完整國民曆" onBack />
+      {/* ⚠️ H1 要帶關鍵字。原本是「完整國民曆」——純功能名，搜尋的人打的是
+          「2026年8月15日 農民曆」「今日宜忌」，H1 完全沒有這些字。
+          TopBar 的 title 會渲染成 <h1>（見 ui.jsx）。 */}
+      <TopBar title={`${d.solar.replace(/\s/g, '')} 國民曆｜宜忌・吉時・沖煞`} onBack />
       <div className="body ad-sheet">
         {/* 日期導覽：前後翻日＋直接選日期 */}
         <div className="ad-nav">
@@ -48,6 +51,13 @@ export default function AlmanacDay({ off, date }) {
             <button className="pill sm tap" onClick={() => goTo(T0)}>↩ 回今日</button>
           </div>
         )}
+        {/* ⚠️ 前後日必須是真的 <a href>，爬蟲才走得完這 730 天的鏈。
+            上面的 ‹ › 是 <button>（給鍵盤與觸控用），爬蟲點不到也記不住。 */}
+        <nav className="ad-daylinks" aria-label="前後日曆頁">
+          <Link screen="almanacDay" params={{ date: isoOf(cur - 1) }}>‹ 前一天（{isoOf(cur - 1)}）</Link>
+          <Link screen="almanacDay" params={{ date: isoOf(cur + 7) }}>下週同日 ›</Link>
+          <Link screen="almanacDay" params={{ date: isoOf(cur + 1) }}>後一天（{isoOf(cur + 1)}）›</Link>
+        </nav>
         {/* 頭部 */}
         <div className="ad-head">
           <div className="ad-solar">{d.solar}</div>

@@ -40,12 +40,38 @@ export default function App() {
   //   換頁了。把焦點移到新頁的 <h1>（TopBar 渲染，帶 data-screen-title）
   //   才會宣告新標題。first 用來跳過初次載入（那時焦點本來就在頁首）。
   const firstRender = useRef(true)
+  const initialSig = useRef(null)   // 進站時的路由簽章；相同時不覆寫伺服器的 <title>
   useEffect(() => {
-    if (!user) { document.title = '機巧時運 · 智慧互動國民曆'; return }
-    const t = top ? SCREEN_TITLES[top.screen] : TAB_TITLES[tab]
-    document.title = t ? `${t} · 機巧時運` : '機巧時運 · 智慧互動國民曆'
+    // ⚠️ 絕不可在「初次載入」就覆寫 <title>。
+    //    伺服器已經依路由注入了關鍵字完整的標題（server/seo.js 的 ROUTES），
+    //    例如「今日完整國民曆｜宜忌、吉時、沖煞、建除、彭祖百忌」，
+    //    但這裡原本無條件寫成「完整國民曆 · 機巧時運」把它蓋掉了——
+    //    而 Google 採用的是**渲染後的 DOM**，所以伺服器那份好標題完全白做。
+    //    現在只在「使用者於站內導覽之後」才更新標題（那時網址已經變了、
+    //    伺服器的那份也不再對應當前畫面），初次載入一律沿用伺服器的。
+    // ⚠️ 判準是「路由有沒有變」，不是「effect 跑第幾次」。
+    //    這個 effect 的相依是 [user, tab, top]，而 user 會從 null 變成訪客／登入者，
+    //    所以光是還原身分就會讓它多跑一次——只擋「第一次」的話，第二次照樣把
+    //    伺服器的好標題蓋成「完整國民曆 · 機巧時運」（實測就是這樣漏掉的）。
+    //    只要使用者還停在進站時的那個網址，就一律沿用伺服器注入的標題。
+    // 日期頁翻日時「畫面沒變、只有參數變」，也要算成一次導覽——
+    // 否則整串歷史紀錄會全部叫同一個名字，使用者在上一頁清單裡分不出哪天是哪天。
+    const sig = `${tab}|${top?.screen || ''}|${top?.props?.date || ''}`
+    if (initialSig.current === null) initialSig.current = sig
+    const navigated = sig !== initialSig.current
+    if (navigated) {
+      if (!user) document.title = '機巧時運 · 智慧互動國民曆'
+      else {
+        // 日期頁的標題要帶上該日期，與伺服器注入的格式一致
+        const t = top?.screen === 'almanacDay' && top.props?.date
+          ? `${top.props.date} 國民曆｜宜忌・吉時・沖煞`
+          : top ? SCREEN_TITLES[top.screen] : TAB_TITLES[tab]
+        document.title = t ? `${t} · 機巧時運` : '機巧時運 · 智慧互動國民曆'
+      }
+    }
 
     if (firstRender.current) { firstRender.current = false; return }
+
     // 等新畫面掛載完成再移轉焦點
     const id = requestAnimationFrame(() => {
       document.querySelector('[data-screen-title]')?.focus?.()
