@@ -1,14 +1,53 @@
 import { TopBar, SectionHead, Disclaimer, useGlossary, GlossTerm, GlossPanel } from '../components/ui.jsx'
-import { dayFor, todayOffset } from '../data/almanac.js'
+import { dayFor, todayOffset, offsetFromDate, dateFromOffset } from '../data/almanac.js'
+import { useNav } from '../store/nav.jsx'
+
+// YYYY-MM-DD ⇄ 錨點偏移。⚠️ 要用本地時間建構 Date，不可 new Date('2026-08-15')
+//    ——那會被當成 UTC 午夜，在 UTC+8 解讀成前一天早上 8 點，整頁差一天。
+const isoOf = (off) => {
+  const d = dateFromOffset(off)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const offOfIso = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '')
+  if (!m) return null
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  if (Number.isNaN(dt.getTime()) || dt.getMonth() !== Number(m[2]) - 1) return null   // 擋 2026-02-31
+  return offsetFromDate(dt)
+}
+const RANGE = 1095   // 與首頁一致：今日前後約三年
 
 // 完整國民曆日頁 —— 傳統每日曆頁的所有項目（建除、星宿、彭祖百忌、胎神、沖煞歲數、財喜貴方位、十二時辰、特殊日）。
-export default function AlmanacDay({ off }) {
-  const d = dayFor(off ?? todayOffset())
+// ⚠️ 這頁原本沒有自己的日期參數，也沒有翻日控制項：只能從首頁一天一天點過去，
+//    重新整理就跳回今天，而且「2026年8月15日 國民曆」這類長尾搜尋完全接不到。
+//    改成 /almanac/day/:date? —— 不帶日期＝今天，帶日期＝可分享的固定網址。
+export default function AlmanacDay({ off, date }) {
+  const { replace } = useNav()
+  const T0 = todayOffset()
+  // 相容舊的呼叫方式（首頁曾直接傳 off）；網址參數優先
+  const cur = offOfIso(date) ?? off ?? T0
+  const d = dayFor(Math.max(-RANGE, Math.min(RANGE, cur)))
   const gl = useGlossary()   // 宜/忌 詞彙白話解釋
+  // 翻日＝換網址（用 replace 而不是 push，否則按上一頁要一天一天倒退回去）
+  const goTo = (o) => replace('almanacDay', { date: isoOf(Math.max(-RANGE, Math.min(RANGE, o))) })
+
   return (
     <>
       <TopBar title="完整國民曆" onBack />
       <div className="body ad-sheet">
+        {/* 日期導覽：前後翻日＋直接選日期 */}
+        <div className="ad-nav">
+          <button className="tap" onClick={() => goTo(cur - 1)} disabled={cur <= -RANGE} aria-label="前一天">‹</button>
+          <input type="date" className="ad-date" value={isoOf(cur)} aria-label="選擇日期"
+            min={isoOf(-RANGE)} max={isoOf(RANGE)}
+            onChange={(e) => { const o = offOfIso(e.target.value); if (o !== null) goTo(o) }} />
+          <button className="tap" onClick={() => goTo(cur + 1)} disabled={cur >= RANGE} aria-label="後一天">›</button>
+        </div>
+        {cur !== T0 && (
+          <div className="ad-nav-today">
+            <button className="pill sm tap" onClick={() => goTo(T0)}>↩ 回今日</button>
+          </div>
+        )}
         {/* 頭部 */}
         <div className="ad-head">
           <div className="ad-solar">{d.solar}</div>

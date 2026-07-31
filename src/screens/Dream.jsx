@@ -2,46 +2,39 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
+import { DREAMS, lookupDream, dreamExtend } from '../data/dream.js'
 
-const DB = {
-  水: '夢見水多主財與情緒。清水為吉、渾水宜謹慎理財。',
-  雨: '夢雨主潤澤、財氣將至；若淋雨狼狽，提醒別把事情攬太滿。',
-  蛇: '蛇主智慧與轉變，也可能暗示暗中的貴人或壓力，宜留意人際。',
-  火: '火主熱情與名聲，旺則有喜、烈則提醒控制脾氣。',
-  飛: '夢飛主提升與渴望自由，近期有突破機會，把握之。',
-  牙: '夢見掉牙多與變動、長輩健康或壓力有關，宜多關心家人。',
-  錢: '夢見錢財，得為進財之兆，但夢失錢則提醒開源節流。',
-}
-const keys = Object.keys(DB)
+// 推薦關鍵字：取每組的第一個詞，挑常見的排前面
+const SUGGEST = ['蛇', '掉牙', '水', '火', '飛', '死人', '棺材', '撿到錢', '掉錢', '追', '考試', '懷孕', '鏡子', '房子']
 
 export default function Dream() {
-  const today = dayFor(todayOffset())   // 真實今日（節氣/干支/吉時）
+  const today = dayFor(todayOffset())   // 真實今日（節氣/干支/納音）
+  const dayWx = today.wuxing?.slice(-1) // 納音末字即五行，如「天河水」→ 水
   const [q, setQ] = useState('')
   const [res, setRes] = useState(null)
 
   const go = (kw) => {
     const term = (kw ?? q).trim()
     if (!term) return
-    const hit = keys.find(k => term.includes(k))
-    const base = hit ? DB[hit] : '這個夢境較特殊，可從「近期心境」與「未竟之事」兩方向解讀。'
-    // ⚠️ 這裡的節氣與干支曾寫死「芒種・丙午日」，大暑當天打開就自打嘴巴。
-    //    一律取真實今日（同 AIChat 的資料來源）。
-    setRes(`《周公解夢》：${base}\n\n延伸：結合今日「${today.term.replace('（交節）', '')}・${today.ganzhi}」，此夢提醒你近期宜「緩」不宜「急」，重要決定不妨放到吉時（${today.luckyHours}）再拍板。`)
+    const hit = lookupDream(term)
+    // ⚠️ 沒有比對到就誠實說沒有，**絕不可**吐一段萬用文字再署名《周公解夢》。
+    //    那等於憑空捏造出處，是內容可信度的硬傷。
+    setRes({ term, hit, extend: hit ? dreamExtend(hit.wx, dayWx) : null })
   }
 
   return (
     <>
-      <TopBar title="周公解夢" onBack />
+      <TopBar title="解夢" onBack />
       <div className="body">
         <div className="pad">
           <div className="search" style={{ margin: 0 }}>
             <Icon name="search" style={{ width: 17, height: 17, stroke: 'var(--muted)' }} />
-            <input placeholder="輸入夢境關鍵字，如：下雨、掉牙…" aria-label="夢境關鍵字" value={q}
+            <input placeholder="輸入夢境關鍵字，如：掉牙、撿到錢…" aria-label="夢境關鍵字" value={q}
               onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') go() }} />
           </div>
         </div>
         <div className="chips" style={{ paddingTop: 0 }}>
-          {keys.map(k => <button key={k} className="chip tap" onClick={() => { setQ(k); go(k) }}>{k}</button>)}
+          {SUGGEST.map(k => <button key={k} className="chip tap" onClick={() => { setQ(k); go(k) }}>{k}</button>)}
         </div>
 
         <div style={{ padding: '0 var(--space-4)' }}>
@@ -50,10 +43,42 @@ export default function Dream() {
 
         {res && (
           <div className="aicard" style={{ marginTop: 14 }}>
-            <div className="t">🌙 解夢結果</div>
-            <div className="d" style={{ whiteSpace: 'pre-wrap', color: 'var(--acard-t)' }}>{res}</div>
+            <div className="t">🌙 夢見「{res.term}」</div>
+            {!res.hit ? (
+              <div className="d" style={{ color: 'var(--acard-t)' }}>
+                詞庫裡還沒有收錄這個夢境，這裡就不替你編一個解法了。
+                <br />試試夢裡最鮮明的那一樣東西（人、動物、地點、動作），或換個說法。
+              </div>
+            ) : (
+              <>
+                {/* 只有真的有原典斷語時，才出現書名號。沒有就完全不提《周公解夢》 */}
+                {res.hit.classic && (
+                  <div className="dream-sec">
+                    <div className="dream-lbl">《周公解夢》原典</div>
+                    <blockquote className="dream-classic">{res.hit.classic}</blockquote>
+                  </div>
+                )}
+                <div className="dream-sec">
+                  <div className="dream-lbl">現代參考{res.hit.classic ? '' : '（本條無原典斷語）'}</div>
+                  <div className="d" style={{ color: 'var(--acard-t)' }}>{res.hit.modern}</div>
+                </div>
+                {res.extend && (
+                  <div className="dream-sec">
+                    <div className="dream-lbl">結合今日曆象</div>
+                    <div className="d" style={{ color: 'var(--acard-t)' }}>
+                      今日{today.ganzhi}・納音{today.wuxing}。{res.extend}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
+
+        <p className="muted" style={{ padding: '10px 16px 0', fontSize: 'var(--text-2xs)', lineHeight: 1.8 }}>
+          ＊原典斷語逐字引自《周公解夢》流傳版本；「現代參考」為白話說明，不屬古籍內容，兩者已分開標示。
+          目前收錄 {DREAMS.length} 組常見夢境。
+        </p>
         <Disclaimer />
         <div style={{ height: 16 }} />
       </div>

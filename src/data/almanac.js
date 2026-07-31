@@ -35,10 +35,32 @@ const IS_JIE = new Set(['立春', '驚蟄', '清明', '立夏', '芒種', '小�
 
 // 建除十二神（值日）+ 各自宜事
 const JIANCHU = ['建', '除', '滿', '平', '定', '執', '破', '危', '成', '收', '開', '閉']
+// 建除十二神的宜忌。⚠️ 這裡原本是一句散文（'宜出行、赴任；忌動土、開倉'），
+// 只能拿來顯示、不能拿來運算，於是宜忌欄與這段註解各走各的路：
+//   ・閉日註解寫「宜造葬」，宜欄卻從沒出現過造葬（建除的宜項根本沒被採用）
+//   ・除日註解只有「宜療病、除服、掃舍、解除」，宜欄卻冒出開市、嫁娶
+//     （多數通書的除日是忌嫁娶的）
+// 改成結構化陣列當**單一真相**，下方 reconcile 直接拿它運算，
+// 顯示用的句子則由它自動生成——兩者就不可能再對不起來。
 const JIANCHU_YI = {
-  建: '宜出行、赴任、上書；忌動土、開倉', 除: '宜療病、除服、掃舍、解除', 滿: '宜嫁娶、開市、祈福；忌葬', 平: '宜修飾垣牆、平治道塗',
-  定: '宜冠帶、納采、安床、修造', 執: '宜捕捉、造葬、結網；忌開市', 破: '宜求醫、破屋壞垣；諸事不宜', 危: '宜安床、祭祀；忌登高行船',
-  成: '宜開市、入學、結婚、修造', 收: '宜納財、進人口、捕捉', 開: '宜開市、動土、上樑、入學', 閉: '宜築堤、埋穴、造葬；忌開市',
+  建: { yi: ['出行', '赴任', '上書'], ji: ['動土', '開倉'] },
+  除: { yi: ['療病', '除服', '掃舍', '解除'], ji: ['嫁娶', '開市'] },
+  滿: { yi: ['嫁娶', '開市', '祈福'], ji: ['安葬'] },
+  平: { yi: ['修飾垣牆', '平治道塗'], ji: [] },
+  定: { yi: ['冠帶', '納采', '安床', '修造'], ji: ['訴訟'] },
+  執: { yi: ['捕捉', '造葬', '結網'], ji: ['開市'] },
+  破: { yi: ['求醫', '破屋壞垣'], ji: [], allBad: true },
+  危: { yi: ['安床', '祭祀'], ji: ['登高', '行船'] },
+  成: { yi: ['開市', '入學', '嫁娶', '修造'], ji: [] },
+  收: { yi: ['納財', '進人口', '捕捉'], ji: ['安葬'] },
+  開: { yi: ['開市', '動土', '上樑', '入學'], ji: ['安葬'] },
+  閉: { yi: ['築堤', '埋穴', '造葬'], ji: ['開市', '出行'] },
+}
+// 顯示用句子由結構自動生成，不再另外手寫一份（手寫的那份就是矛盾的來源）
+const jianchuText = (k) => {
+  const v = JIANCHU_YI[k]; if (!v) return ''
+  return [v.yi.length ? `宜${v.yi.join('、')}` : '', v.ji.length ? `忌${v.ji.join('、')}` : '',
+    v.allBad ? '諸事不宜' : ''].filter(Boolean).join('；')
 }
 // 節氣 → 月建地支索引（十二節與其中氣同一月支）
 const TERM_ZHI = {
@@ -49,7 +71,11 @@ const TERM_ZHI = {
 // 二十八星宿（連續值日）+ 值日禽 + 吉凶
 const XIU = ['角', '亢', '氐', '房', '心', '尾', '箕', '斗', '牛', '女', '虛', '危', '室', '壁', '奎', '婁', '胃', '昴', '畢', '觜', '參', '井', '鬼', '柳', '星', '張', '翼', '軫']
 const XIU_ANIMAL = ['蛟', '龍', '貉', '兔', '狐', '虎', '豹', '獬', '牛', '蝠', '鼠', '燕', '豬', '貐', '狼', '狗', '雉', '雞', '烏', '猴', '猿', '犴', '羊', '獐', '馬', '鹿', '蛇', '蚓']
-const XIU_LUCK = ['吉', '凶', '凶', '吉', '凶', '吉', '吉', '吉', '吉', '凶', '凶', '凶', '吉', '吉', '吉', '吉', '吉', '凶', '吉', '凶', '凶', '吉', '凶', '凶', '凶', '吉', '凶', '吉'] // 傳統七政吉凶（示範）
+// 二十八宿吉凶。凶宿十三：亢、氐、心、牛、女、虛、危、昴、觜、鬼、柳、星、翼；其餘十五宿為吉。
+// ⚠️ 這張表曾把「牛」標成吉、「參」標成凶，剛好兩格都反了。牛宿是凶宿——
+//    「牛星築室主悲哀」，值日不宜起造、嫁娶；參宿（參水猿）則在通行版本裡屬吉。
+//    改動這張表前先數一遍：凶必須剛好 13 個、吉 15 個，且與上方 XIU 的順序對齊。
+const XIU_LUCK = ['吉', '凶', '凶', '吉', '凶', '吉', '吉', '吉', '凶', '凶', '凶', '凶', '吉', '吉', '吉', '吉', '吉', '凶', '吉', '凶', '吉', '吉', '凶', '凶', '凶', '吉', '凶', '吉']
 
 // 彭祖百忌（以日干支起）
 const PENGZU_GAN = ['甲不開倉財物耗散', '乙不栽植千株不長', '丙不修灶必見災殃', '丁不剃頭頭必生瘡', '戊不受田田主不祥', '己不破券二比並亡', '庚不經絡織機虛張', '辛不合醬主人不嘗', '壬不決水更難提防', '癸不詞訟理弱敵強']
@@ -193,8 +219,13 @@ export function dayFor(off) {
   //    校正錨點（外部兩來源一致）：2026-07-17（壬辰日）＝鬼宿（第 22 位）。
   //    由此推 2026-07-24＝亢、2026-07-31＝牛。改動此處務必重跑下方錨點檢查。
   const xiuIdx = mod(Math.floor(jdFromDate(Y, M, D) + 0.5) + 11, 28)
+  // ⚠️ 日沖：天干進「四」位、地支進六位（丙+4=庚、午+6=子 → 丙午日沖庚子）。
+  //    這裡原本天干也寫 +6，於是丙午日算出「壬子」——錯兩位。
+  //    這個 bug 藏得很深：地支 ±6 在 mod 12 之下同值，所以「沖鼠」「沖虎」永遠對，
+  //    連帶煞方與沖煞歲數（都只看地支）也全對，畫面上只有天干那兩個字是錯的。
+  //    以六十甲子序數看，正解是 (n − 6 + 60) % 60 而不是 (n + 6) % 60。
   const chongZodiac = mod(zi + 6, 12)
-  const chongGZ = G[mod(gi + 6, 10)] + Z[chongZodiac]
+  const chongGZ = G[mod(gi + 4, 10)] + Z[chongZodiac]
   // 煞方：依日支三合組固定對應（寅午戌煞北／申子辰煞南／巳酉丑煞東／亥卯未煞西），
   // 原本用 off % 4 輪替＝與日支無關的假值。
   const SHA_DIR = { 2: '北', 6: '北', 10: '北', 8: '南', 0: '南', 4: '南', 5: '東', 9: '東', 1: '東', 11: '西', 3: '西', 7: '西' }
@@ -242,29 +273,50 @@ export function dayFor(off) {
     出行: ['出行'],
     開倉: ['開倉'],
   }
-  // 從建除註解的「忌…」把被禁的類別抓出來（註解格式：「宜…；忌動土、開倉」）
-  const jcText = JIANCHU_YI[JIANCHU[jc]] || ''
+  const jcKey = JIANCHU[jc]
+  const jcDef = JIANCHU_YI[jcKey] || { yi: [], ji: [] }
+  // 建除的「忌」展開成同義詞集合
   const jcBan = new Set()
-  const banPart = jcText.split('忌')[1] || ''
-  for (const [key, words] of Object.entries(SYN)) {
-    if (banPart.includes(key)) words.forEach(w => jcBan.add(w))
+  for (const w of jcDef.ji) {
+    jcBan.add(w)
+    for (const words of Object.values(SYN)) if (words.includes(w)) words.forEach(x => jcBan.add(x))
   }
   // 「諸事不宜」型的大凶日：受死日、楊公忌、破日、四絕/四離
   const bigBad = flags.filter(f => !f.good && ['受死日', '楊公忌', '四絕日', '四離日'].includes(f.t))
-  const allBad = bigBad.length > 0 || jcText.includes('諸事不宜')
+  const allBad = bigBad.length > 0 || jcDef.allBad
 
   if (allBad) {
-    // 受死日的傳統例外就是喪葬與畋獵，其餘一概不列——寧可少講也不要自打嘴巴
-    yi = yi.filter(t => ['祭祀', '安葬', '入殮'].includes(t))
+    // ⚠️ 可用清單要從神煞「自己的說明文字」推導，不可另外寫死一份。
+    //    先前寫死成 ['祭祀','安葬','入殮']，但受死日的說明是「惟入殮、安葬、畋獵可用」
+    //    ——祭祀不在裡面，於是同一屏又出現「宜：祭祀」對上「諸事凶，惟入殮、安葬、
+    //    畋獵可用」。只要清單和說明是兩份資料，它們遲早會分岔。
+    const note = bigBad[0]?.d || ''
+    // ⚠️ 建除的忌仍然有否決權。受死日說「安葬可用」而滿日說「忌安葬」時，
+    //    兩個來源是真的衝突——此時取交集（都不反對才留），寧可顯示「諸事不宜」，
+    //    也不要讓宜欄的「安葬」對上建除註解的「忌安葬」。
+    const allow = ['入殮', '安葬', '畋獵', '祭祀', '破屋壞垣', '求醫']
+      .filter(w => note.includes(w) && !jcBan.has(w))
+    yi = yi.filter(t => allow.includes(t))
+    // 大凶日仍可用的項目，即使原本不在候選裡也要補上（否則宜欄整個空掉）
+    for (const w of allow) if (!yi.includes(w)) yi.push(w)
     if (!yi.length) yi = ['諸事不宜']
-    const reason = bigBad[0]?.t || '破日'
+    const reason = bigBad[0]?.t || `${jcKey}日`
     if (!ji.includes(`大事勿用（${reason}）`)) ji = [`大事勿用（${reason}）`, ...ji]
   } else {
     yi = yi.filter(t => !jcBan.has(t))
+    // ⚠️ 建除的「宜」也要回填。原本只做減法不做加法，於是閉日註解寫著
+    //    「宜築堤、埋穴、造葬」，宜欄裡卻從來沒有造葬——使用者同屏看到兩段打架的字。
+    for (const w of jcDef.yi) if (!yi.includes(w) && !jcBan.has(w)) yi.push(w)
     if (!yi.length) yi = ['平常日，無特別宜忌']
   }
   // 建除明令禁止的項目，補進忌欄（使用者才知道為什麼那項不見了）
   for (const w of jcBan) if (!ji.includes(w) && !yi.includes(w)) ji.push(w)
+  // ⚠️ 最後一定要把「已經進了宜欄」的詞從忌欄剔除。宜的候選來自隨機池、
+  //    忌的候選也來自隨機池，而建除的宜與神煞的可用清單又會往宜欄補詞——
+  //    三個來源交會時同一個詞可以同時出現在兩欄（實測 400 天有 21 筆，
+  //    例如開日「宜動土」卻同時「忌動土」）。宜欄的補詞來自建除與神煞這兩個
+  //    權威來源，衝突時以宜為準。
+  ji = ji.filter(t => !yi.includes(t))
   if (!ji.length) ji = ['諸事不宜']
 
   // ── 吉日星等：由神煞推導，不可再用亂數 ──
@@ -324,7 +376,7 @@ export function dayFor(off) {
     wuxing: NAYIN[mod(gi * 2 + zi, NAYIN.length)],
     luckyHours, stars, rating, yi, ji, summary, termDay, termRange, proverb, proverbMean,
     // 傳統項目
-    jianchu: JIANCHU[jc], jianchuYi: JIANCHU_YI[JIANCHU[jc]],
+    jianchu: JIANCHU[jc], jianchuYi: jianchuText(JIANCHU[jc]),
     xiu: XIU[xiuIdx], xiuAnimal: XIU_ANIMAL[xiuIdx], xiuLuck: XIU_LUCK[xiuIdx],
     pengzu: [PENGZU_GAN[gi], PENGZU_ZHI[zi]],
     taishen: TAISHEN[gz60],

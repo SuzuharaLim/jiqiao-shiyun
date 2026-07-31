@@ -22,6 +22,11 @@ const ROUTES = [
 
   { path: '/almanac/day', title: '今日完整國民曆｜宜忌、吉時、沖煞、建除、彭祖百忌',
     desc: '完整傳統曆頁：建除十二神、二十八星宿、彭祖百忌、逐日胎神、沖煞歲數、財喜貴方位與十二時辰吉凶。' },
+  // 帶日期的完整曆頁（可分享網址）。⚠️ 沒有這一條的話，/almanac/day/2026-08-15
+  // 會被判定為未知路由而回 **404 狀態碼**——畫面仍能用，但搜尋引擎完全不收錄，
+  // 而「2026年8月15日 國民曆」正是這類產品最大宗的長尾搜尋。
+  { path: '/almanac/day/:date', title: '國民曆查詢｜指定日期的宜忌、吉時、沖煞、建除',
+    desc: '查詢任一天的完整國民曆：宜忌、黃道吉時、沖煞、建除十二神、二十八宿、胎神與彭祖百忌。' },
   { path: '/almanac/year', title: '年度總覽｜太歲、地母經、犯太歲生肖｜機巧時運',
     desc: '當年值年太歲、春牛芒神、地母經與犯太歲生肖一覽。' },
   { path: '/solarterms', title: '二十四節氣專欄｜由來、物候、養生｜機巧時運',
@@ -35,7 +40,7 @@ const ROUTES = [
   { path: '/zodiac', title: '十二生肖運勢｜今日／本週／本月', desc: '十二生肖運勢分數與建議。' },
   { path: '/match', title: '生肖・星座婚配｜三合六合與星座元素', desc: '依傳統地支三合六合沖害刑與星座元素關係推算配對，附理由。' },
   { path: '/bone', title: '袁天罡秤骨神術｜農曆四柱骨重', desc: '以農曆年月日時四柱骨重相加秤骨，可輸入國曆自動換算。' },
-  { path: '/dream', title: '周公解夢｜關鍵字查夢', desc: '常見夢境關鍵字的傳統解法。' },
+  { path: '/dream', title: '解夢｜《周公解夢》原典斷語與現代參考', desc: '常見夢境的原典斷語逐字引用，並附白話說明；兩者分開標示。' },
   { path: '/name', title: '姓名・商店命名吉凶｜筆畫查詢', desc: '姓名與店名筆畫吉凶參考。' },
   { path: '/appendix/food', title: '食物相剋對照表｜機巧時運', desc: '傳統食物相剋說法對照。' },
   { path: '/appendix/units', title: '度量衡換算｜台制與公制對照', desc: '台斤、台尺、坪等台制與公制換算。' },
@@ -80,7 +85,9 @@ const ROUTES = [
 
 const MATCHERS = ROUTES.map(r => ({
   ...r,
-  rx: new RegExp('^' + r.path.replace(/:(\w+)/g, '([^/]+)') + '/?$'),
+  rx: new RegExp('^' + r.path
+    .replace(/\/:(\w+)\?/g, '(?:/([^/]+))?')
+    .replace(/:(\w+)/g, '([^/]+)') + '/?$'),
 }))
 
 export function matchRoute(pathname) {

@@ -16,21 +16,29 @@ const SCREEN_PATH = {
   subscription: '/subscription', wallet: '/wallet', notifications: '/notifications',
   dms: '/messages', settings: '/settings', records: '/records',
   creatorConsole: '/creator-console', store: '/store', orders: '/orders',
-  scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day',
+  scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day/:date?',
   yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
   ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
   creatorPage: '/creator/:user', followList: '/creator/:handle/:rel', prePlan: '/preplan', editProfile: '/edit-profile',
   about: '/about', accountSecurity: '/security', admin: '/admin',
   privacy: '/privacy', terms: '/terms', contact: '/contact',
 }
+// 路徑樣板支援兩種參數：`:name`（必填）與 `/:name?`（選填，整段含斜線可省略）。
+// 選填參數是為了「完整國民曆」這種頁面——它既要能用 /almanac/day 代表今天，
+// 也要能用 /almanac/day/2026-08-15 指向特定一天並且可分享。
 const SCREEN_MATCHERS = Object.entries(SCREEN_PATH).map(([screen, tpl]) => {
   const names = []
-  const rx = new RegExp('^' + tpl.replace(/:(\w+)/g, (_, k) => { names.push(k); return '([^/]+)' }) + '/?$')
-  return { screen, rx, names }
+  const body = tpl
+    .replace(/\/:(\w+)\?/g, (_, k) => { names.push(k); return '(?:/([^/]+))?' })
+    .replace(/:(\w+)/g, (_, k) => { names.push(k); return '([^/]+)' })
+  return { screen, rx: new RegExp('^' + body + '/?$'), names }
 })
 function buildPath(screen, props = {}) {
   const tpl = SCREEN_PATH[screen]; if (!tpl) return null
-  return tpl.replace(/:(\w+)/g, (_, k) => encodeURIComponent(props?.[k] ?? ''))
+  return tpl
+    // 選填參數沒給值時，連同前面的斜線一起拿掉（否則會產生 /almanac/day/ 這種尾巴）
+    .replace(/\/:(\w+)\?/g, (_, k) => (props?.[k] ? '/' + encodeURIComponent(props[k]) : ''))
+    .replace(/:(\w+)/g, (_, k) => encodeURIComponent(props?.[k] ?? ''))
 }
 // 給 <Link> 產生真實 href 用（SPA 的連結必須是真的 <a href>，才能支援
 // Cmd/Ctrl+click 開新分頁、右鍵複製網址、爬蟲辨識）。
@@ -54,7 +62,12 @@ function routeFromPath(pathname) {
     const mm = m.rx.exec(p)
     if (mm) {
       const props = {}
-      m.names.forEach((n, i) => { try { props[n] = decodeURIComponent(mm[i + 1]) } catch { props[n] = mm[i + 1] } })
+      m.names.forEach((n, i) => {
+        // ⚠️ 選填參數沒被匹配時 mm[i+1] 是 undefined，decodeURIComponent(undefined)
+        //    會得到字串 'undefined'——那會被當成一個真的日期傳進畫面。
+        if (mm[i + 1] === undefined) return
+        try { props[n] = decodeURIComponent(mm[i + 1]) } catch { props[n] = mm[i + 1] }
+      })
       return { tab: 0, stack: [{ screen: m.screen, props }] }
     }
   }
@@ -244,6 +257,13 @@ export function NavProvider({ children }) {
     setStack(s => { remember(tab, s.length); return [...s, { screen, props }] })
     writeScroll(0)                                   // 新畫面 → 從頭看
   }, [tab])
+  // 就地換掉堆疊最上層（同一個畫面換參數用，例如完整曆頁翻日）。
+  // ⚠️ 不可用 push——那會讓每翻一天就多一層歷史，使用者按上一頁得一天一天倒退回去，
+  //    而且堆疊會無限長大。也不做捲動歸零：翻日時使用者多半正在看某一區，
+  //    把他拉回頁首反而礙事。
+  const replace = useCallback((screen, props = {}) => {
+    setStack(s => (s.length ? [...s.slice(0, -1), { screen, props }] : [{ screen, props }]))
+  }, [])
   const pop = useCallback(() => {
     setStack(s => { const next = s.slice(0, -1); restore(tab, next.length); return next })
   }, [tab])
@@ -256,10 +276,23 @@ export function NavProvider({ children }) {
 
   // ---- 網址同步（History API）：狀態變 → 更新網址；上一頁/下一頁 → 還原狀態 ----
   const suppressSync = useRef(false)
+  const lastSig = useRef(null)   // 上一次的「堆疊深度:畫面名」，用來分辨換頁與換參數
   useEffect(() => {
     if (suppressSync.current) { suppressSync.current = false; return }  // popstate 造成的變動不再回推
     const path = pathFromState(tab, stack)
-    try { if (path !== window.location.pathname) window.history.pushState({ tab, stack }, '', path) } catch { /* ignore */ }
+    // ⚠️ 同一個畫面只換參數（例如完整曆頁翻日）要用 replaceState 不可 pushState。
+    //    否則 replace() 雖然沒有把堆疊變長，網址同步這一層還是每次都推一筆歷史
+    //    ——實測連按三下「後一天」就多三筆，使用者得按三次上一頁才離得開這頁。
+    //    判準：堆疊深度與最上層畫面都沒變，就只是參數改了。
+    const top = stack[stack.length - 1]
+    const sig = `${stack.length}:${top?.screen ?? ''}`
+    const paramOnly = lastSig.current === sig
+    lastSig.current = sig
+    try {
+      if (path !== window.location.pathname) {
+        window.history[paramOnly ? 'replaceState' : 'pushState']({ tab, stack }, '', path)
+      }
+    } catch { /* ignore */ }
   }, [tab, stack])
   useEffect(() => {
     const onPop = (e) => {
@@ -420,7 +453,7 @@ export function NavProvider({ children }) {
     stamp, setStamp,
     user, authLoading, login, loginGuest, logout, updateProfile,
     authWall, setAuthWall, requireAccount,
-    tab, setTab, stack, push, pop, popAll,
+    tab, setTab, stack, push, replace, pop, popAll,
     liked, toggleLike, saved, toggleSave,
     reminders, toggleReminder,
     subscribed, setSubscribed,

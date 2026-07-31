@@ -2953,3 +2953,41 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
     linear-gradient(to left,  rgba(0,0,0,.14), transparent) right center / 14px 100% no-repeat scroll;
   scroll-padding-inline: var(--space-4);
 }
+
+/* ---------- 解夢：原典／現代參考分段（依 chengqi_audit 第三點）---------- */
+.dream-sec { margin-top: var(--space-3); }
+.dream-sec:first-child { margin-top: 0; }
+.dream-lbl {
+  font-size: var(--text-2xs); color: var(--muted); letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+/* 原典用引文樣式與白話明確區隔——這一段是古籍逐字引用，不可與 AI 白話混為一談 */
+.dream-classic {
+  margin: 0; padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--cinnabar); background: var(--tone-1);
+  border-radius: 0 6px 6px 0;
+  font-family: var(--serif, inherit); font-size: var(--text-sm);
+  line-height: 1.9; color: var(--ink);
+}
+
+/* ---------- 完整國民曆：日期導覽（依 chengqi_audit 第五點）---------- */
+.ad-nav {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0; flex: 0 0 auto;
+}
+.ad-nav > button {
+  min-width: 40px; min-height: 40px; border-radius: 8px;
+  background: var(--chip); color: var(--text); font-size: var(--text-lg); line-height: 1;
+}
+.ad-nav > button:disabled { opacity: .35; }
+/* ⚠️ 字級要 ≥16px，否則 iOS 聚焦 date input 時會自動放大整頁把版面推歪 */
+.ad-date {
+  flex: 1; min-height: 40px; padding: 0 var(--space-3);
+  border: 1px solid var(--line2); border-radius: 8px;
+  background: var(--card); color: var(--text);
+  font-size: max(16px, var(--text-sm)); text-align: center;
+}
+.ad-nav-today { padding: var(--space-2) var(--space-4) 0; flex: 0 0 auto; }
+@media (hover: hover) and (pointer: fine) {
+  .ad-nav > button:not(:disabled):hover { background: var(--tone-1); }
+}

@@ -13,7 +13,7 @@ const TAB_TITLES = ['今日曆頁', '探索', '建立', '占卜', '我的']
 const SCREEN_TITLES = {
   aiChat: 'AI 時光顧問', checkout: '結帳', workDetail: '作品', postDetail: '貼文', newPost: '新貼文',
   makeCalendar: '做月曆', calendarPreview: '月曆預覽', myProjects: '我的專案', deities: '臺灣神佛的生日',
-  zodiac: '生肖運勢', dream: '周公解夢', nameFortune: '命名吉凶', matchmaking: '生肖星座婚配',
+  zodiac: '生肖運勢', dream: '解夢', nameFortune: '命名吉凶', matchmaking: '生肖星座婚配',
   bone: '秤骨神術', proverbs: '台灣諺語', festivals: '臺灣特色慶典', flowers: '賞花景點',
   ingredients: '當季食材', solarterms: '24 節氣專欄', subscription: '訂閱與帳號', wallet: '錢包收益',
   notifications: '通知', dms: '聯絡我們', settings: '設定', records: '占卜紀錄',

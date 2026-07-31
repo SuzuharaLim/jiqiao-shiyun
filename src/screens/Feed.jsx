@@ -152,7 +152,7 @@ export default function Feed() {
           ＊農曆・節氣・干支依天文演算（太陽視黃經與朔望月）；宜忌神煞屬傳統民俗，各流派或有差異
         </div>
 
-        <button className="ad-more tap" onClick={() => push('almanacDay', { off })}>
+        <button className="ad-more tap" onClick={() => push('almanacDay', { date: `${dateFromOffset(off).getFullYear()}-${String(dateFromOffset(off).getMonth() + 1).padStart(2, '0')}-${String(dateFromOffset(off).getDate()).padStart(2, '0')}` })}>
           <span className="ad-more-ic"><Icon name="scroll" /></span>
             <span className="ad-more-tx">
             <b>看完整國民曆</b>
