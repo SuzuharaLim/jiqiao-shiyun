@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { TopBar, ToolRow, Switch, SectionHead } from '../components/ui.jsx'
+import { TopBar, ToolRow, Switch, SectionHead, Link, Breadcrumb } from '../components/ui.jsx'
+import { deityByName } from '../data/deityArticle.js'
 import Icon from '../components/Icon.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
@@ -45,6 +46,7 @@ export default function Deities() {
       <TopBar title="臺灣神佛的生日" onBack
         right={<button className="iconbtn tap" aria-label={allOn ? '全部關閉' : '全部開啟'} onClick={toggleAll}><Icon name="bell" /></button>} />
       <div className="body">
+        <Breadcrumb items={[{ label: '首頁', tab: 0 }, { label: '臺灣神佛誕辰' }]} />
         <SectionHead title="近期誕辰 · 開啟提醒" extra={allOn ? '全部已開' : '點鈴鐺全開'} />
         {list.map(d => (
           <ToolRow key={d.id} icon={d.icon} bg={d.bg} title={d.name}
@@ -58,6 +60,19 @@ export default function Deities() {
             onClick={() => flip(d)}
           />
         ))}
+        {/* ⚠️ 上面那排是 <button>（開關提醒用），爬蟲點不到。
+            這裡另外給真的 <a href>，讓 12 個神明的專頁走得到、也讓使用者能看由來。 */}
+        <SectionHead title="神明專頁" extra="由來・信仰・主要廟宇" />
+        <nav className="td-tags" aria-label="神明專頁">
+          {list.map(d => {
+            const art = deityByName(d.name)
+            return art ? (
+              <Link key={art.slug} screen="deityDetail" params={{ slug: art.slug }}>
+                {art.emoji} {art.name}
+              </Link>
+            ) : null
+          })}
+        </nav>
         <button className="note tap" style={{ width: '100%' }} onClick={() => { const n = (timeI + 1) % TIMES.length; setTimeI(n); setToast(`提醒時間：${TIMES[n]}`) }}>
           <span>提醒時間：{TIMES[timeI]}</span><span className="acc">變更</span>
         </button>

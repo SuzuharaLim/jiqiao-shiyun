@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, SectionHead } from '../components/ui.jsx'
+import { TopBar, SectionHead, Link, Breadcrumb } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 import { dayFor, todayOffset, TERM_ORDER, monthsForTerm, offsetFromDate } from '../data/almanac.js'
 import { PRODUCE_BY_MONTH } from '../data/produce.js'
+import { TERM_ARTICLES } from '../data/termArticle.js'
 import { lunarFromDate, lunarYearGanzhiIndex, nextLunarOccurrence } from '../data/lunisolar.js'
 import { weighBone, HOUR_LABELS } from '../data/bone.js'
 
@@ -335,8 +336,31 @@ export function SolarTerms() {
 
   return (
     <>
-      <TopBar title="24 節氣專欄" onBack />
+      <TopBar title="二十四節氣專欄｜由來、三候、養生與當令" onBack />
       <div className="body">
+        <Breadcrumb items={[{ label: '首頁', tab: 0 }, { label: '二十四節氣專欄' }]} />
+
+        {/* ⚠️ 這裡原本只有一條 24 顆 chip 的橫向捲軸：1280px 桌機下最左邊的
+            「立春」左緣座標是負值＝已被切出畫面；而且 chip 是 <button>，
+            爬蟲點不到也記不住，24 個節氣等於共用一個網址。
+            改成四季分列的網格＋真的 <a href>，使用者一眼看得到 24 個，
+            爬蟲也走得到 24 個獨立專頁。下方的 chip 列保留給「就地切換」用。 */}
+        <nav className="term-grid" aria-label="二十四節氣">
+          {['春', '夏', '秋', '冬'].map(season => (
+            <div key={season} className="term-season">
+              <div className="term-season-t">{season}</div>
+              <div className="term-season-l">
+                {TERM_ARTICLES.filter(t => t.season === season).map(t => (
+                  <Link key={t.slug} screen="termDetail" params={{ slug: t.slug }}
+                    className={`term-cell${t.term === today ? ' on' : ''}`}>
+                    {t.term}{t.term === today && <i>今</i>}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+
         <div className="chips" style={{ paddingTop: 12 }}>
           {solarTermArticles.map(t => (
             <button key={t.term} className={`chip tap ${a?.term === t.term ? 'on' : ''}`} onClick={() => setTerm(t.term)}
@@ -351,6 +375,13 @@ export function SolarTerms() {
             <h3>{a.term}{a.term === today && <span className="ty" style={{ marginLeft: 8, verticalAlign: 'middle' }}>今日節氣</span>}</h3>
             <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>{g?.date || a.sub}</p>
             {a.body.split('\n\n').map((para, k) => <p key={k}>{para}</p>)}
+            {/* 情境化內部連結：導向該節氣的完整專頁 */}
+            {TERM_ARTICLES.find(t => t.term === a.term) && (
+              <Link screen="termDetail" params={{ slug: TERM_ARTICLES.find(t => t.term === a.term).slug }}
+                className="td-more">
+                看「{a.term}」完整專頁：七十二候・台灣氣候・當令農產 ›
+              </Link>
+            )}
           </div>
 
           {/* 以下為《24節氣養生資料庫》的節氣生活層資料，逐節不同 */}

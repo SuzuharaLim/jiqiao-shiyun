@@ -183,6 +183,53 @@ export function Switch({ on, onChange }) {
   )
 }
 
+// ---------- 麵包屑 ----------
+// ⚠️ 稽核指出 /solarterms 整頁只有 14 個連結、而且全是 header/footer 的全站導覽，
+//    沒有任何情境化的內容連結，也沒有麵包屑。麵包屑同時做三件事：
+//    (1) 讓爬蟲理解站內層級 (2) 讓 SERP 顯示路徑而不是一長串網址
+//    (3) 深層頁的使用者知道自己在哪、回得去（桌機的返回鍵離內容很遠）
+//
+// 每一層都是真的 <a href>（走 Link），最後一層是當前頁不給連結。
+// 同時輸出 BreadcrumbList JSON-LD——Google 用它來畫 SERP 上的路徑。
+export function Breadcrumb({ items = [] }) {
+  if (items.length < 2) return null
+  const jsonld = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.label,
+      ...(it.tab != null || it.screen
+        ? { item: `https://chengqi.tw${it.tab != null ? hrefForTab(it.tab) : hrefForScreen(it.screen, it.params)}` }
+        : {}),
+    })),
+  }
+  return (
+    <>
+      <nav className="crumb" aria-label="麵包屑">
+        {items.map((it, i) => {
+          const last = i === items.length - 1
+          return (
+            <span key={i}>
+              {i > 0 && <i aria-hidden="true">›</i>}
+              {last
+                ? <b aria-current="page">{it.label}</b>
+                : it.tab != null
+                  ? <Link tab={it.tab}>{it.label}</Link>
+                  : <Link screen={it.screen} params={it.params}>{it.label}</Link>}
+            </span>
+          )
+        })}
+      </nav>
+      {/* ⚠️ 用 dangerouslySetInnerHTML 是 JSON-LD 的標準做法：React 會把
+          {JSON.stringify(x)} 當文字轉義，`<` 變成 &lt; 會讓 Google 解析失敗。 */}
+      <script type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />
+    </>
+  )
+}
+
 // 區段標題
 export function SectionHead({ title, extra, as: Tag = 'h2' }) {
   // 標題包成 span，朱紅標記才能當成標題的一部分。

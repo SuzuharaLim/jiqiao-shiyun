@@ -1,4 +1,15 @@
 import { dayFor, offsetFromDate } from '../src/data/almanac.js'
+import { TERM_ARTICLES, articleBySlug } from '../src/data/termArticle.js'
+import { DEITY_ARTICLES, deityBySlug } from '../src/data/deityArticle.js'
+import { DREAMS } from '../src/data/dream.js'
+import { termGuide } from '../src/data/termGuide.js'
+import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
+import { monthsForTerm } from '../src/data/almanac.js'
+import { termTable } from '../src/data/lunisolar.js'
+
+// 有獨立頁的夢境：只收「有原典斷語」者。沒有原典的條目內容太薄，
+// 做成獨立頁就是空殼，量一多反而拖累全站評價。
+const DREAM_PAGES = DREAMS.filter(d => d.classic)
 
 // 伺服器端 SEO：逐頁 meta 注入、真 404、sitemap。
 //
@@ -32,6 +43,12 @@ const ROUTES = [
   // 而「2026年8月15日 國民曆」正是這類產品最大宗的長尾搜尋。
   { path: '/almanac/day/:date', title: '國民曆查詢｜指定日期的宜忌、吉時、沖煞、建除',
     desc: '查詢任一天的完整國民曆：宜忌、黃道吉時、沖煞、建除十二神、二十八宿、胎神與彭祖百忌。' },
+  { path: '/solarterms/:slug', title: '節氣專頁｜機巧時運',
+    desc: '單一節氣的由來釋義、七十二候原典、台灣實際氣候與物候、當令農產、俗語慶典與節氣攝影建議。' },
+  { path: '/deities/:slug', title: '神明聖誕｜機巧時運',
+    desc: '神明的誕辰日期與國曆換算、由來典故、信仰內涵、台灣主要廟宇與祭祀習俗。' },
+  { path: '/dream/:slug', title: '解夢｜機巧時運',
+    desc: '單一夢境的《周公解夢》原典斷語逐字引用、現代白話參考，並結合當日干支五行給延伸提示。' },
   { path: '/almanac/year', title: '丙午年年度總覽｜值年太歲・春牛芒神・犯太歲生肖・年凶方',
     desc: '當年值年太歲與地母經、春牛圖芒神逐項推算、犯太歲的生肖（值／沖／害／破）與化解建議，以及太歲方、歲破方、三煞方、大將軍方與年五黃等動土該避開的方位。' },
   { path: '/solarterms', title: '二十四節氣專欄｜由來、三候物候、養生與開運色',
@@ -149,6 +166,36 @@ export function dateMeta(iso) {
 }
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// ── 條目頁：逐條產生真正不同的 title / description ──────────────
+const slugOf = (pathname) => decodeURIComponent(pathname.split('/').pop() || '')
+function entryMeta(pathname, route) {
+  const p = route?.path
+  if (p === '/almanac/day/:date') return dateMeta(slugOf(pathname))
+  if (p === '/solarterms/:slug') {
+    const a = articleBySlug(slugOf(pathname)); if (!a) return null
+    return {
+      title: `${a.term}｜由來、七十二候、台灣氣候與當令食材｜二十四節氣`,
+      desc: `${a.term}是什麼？${a.meaning.replace(/「[^」]*」——?/, '').slice(0, 40)}。本頁收錄七十二候原典（${a.hou.map(h => h.name).join('、')}）、${a.term}在台灣的實際氣候與物候、當令農產、節氣俗語與攝影建議。`,
+    }
+  }
+  if (p === '/deities/:slug') {
+    const d = deityBySlug(slugOf(pathname)); if (!d) return null
+    return {
+      title: `${d.name}聖誕｜農曆${d.lunarMonth}月${d.lunarDay}日｜由來與台灣主要廟宇`,
+      desc: `${d.name}${d.alias?.length ? `（又稱${d.alias.join('、')}）` : ''}誕辰為農曆${d.lunarMonth}月${d.lunarDay}日。本頁附國曆換算與倒數天數、由來典故、信仰內涵、常見祈求，以及${d.temples[0].split('（')[0]}等台灣主要廟宇與祭祀習俗。`,
+    }
+  }
+  if (p === '/dream/:slug') {
+    const k = slugOf(pathname)
+    const d = DREAMS.find(x => x.k[0] === k); if (!d) return null
+    return {
+      title: `夢見${d.k[0]}是什麼意思？《周公解夢》原典斷語與現代參考`,
+      desc: `夢見${d.k[0]}${d.classic ? `，《周公解夢》原典斷語：「${d.classic.slice(0, 24)}」。` : '。'}本頁將原典逐字引用與現代白話參考分開標示，並結合當日干支五行給出延伸提示，不拿現代說法冒充古籍。`,
+    }
+  }
+  return null
+}
+
 // ── 首屏靜態內容（治「CSR 空白頁」）──────────────────────────────
 // 實測 GET / 的 <body> 可見文字長度 = 0：所有內容都要跑完 475KB 的 JS 才出現。
 // Google 會二次渲染但要排隊且有配額；Bing 對 JS 渲染更差，而台灣的 Yahoo 奇摩
@@ -184,11 +231,120 @@ function almanacFallback(iso) {
       <p>吉日星等 ${a.stars} / 5，${esc(a.rating)}。今日一諺：「${esc(a.proverb)}」</p>`
 }
 
-// 哪些路由要注入首屏靜態內容（只做內容確定、且 SEO 價值最高的曆頁）
+// 節氣專頁的首屏內容——這是「預渲染」真正要解決的：24 個節氣頁若沒有這一層，
+// 爬蟲拿到的仍然是空白，條目化就只有網址沒有內容。
+function termFallback(slug) {
+  const a = articleBySlug(slug)
+  if (!a) return ''
+  // 當令農產與節氣生活資料也要進靜態層——不然爬蟲看到的只有典據那一半，
+  // 而畫面上明明就有這些（放畫面沒有的才是 cloaking，這裡是相反的情況）。
+  const g = termGuide.find(x => x.term === a.term)
+  const months = monthsForTerm(a.term)
+  const seen = new Set()
+  for (const m of months) for (const it of (PRODUCE_BY_MONTH[String(m)] || [])) seen.add(it.name)
+  const crops = [...seen]
+  // 前後節氣：24 頁串成一圈，爬蟲可以從任一頁走完全部
+  const idx = TERM_ARTICLES.indexOf(a)
+  const prev = TERM_ARTICLES[(idx - 1 + 24) % 24]
+  const next = TERM_ARTICLES[(idx + 1) % 24]
+  // 「大暑是幾號」是這類頁面最常見的查詢之一。逐年實算，每一頁的內容都不同。
+  const thisYear = new Date().getFullYear()
+  const years = [thisYear - 1, thisYear, thisYear + 1, thisYear + 2]
+    .map(y => { const t = termTable(y).find(x => x.name === a.term); return t && { y, m: t.m, d: t.d } })
+    .filter(Boolean)
+  return `
+      <h1>${esc(a.term)}｜由來、七十二候、台灣氣候與當令</h1>
+      <h2>節氣釋義</h2><p>${esc(a.meaning)}</p>
+      <h2>七十二候（《月令七十二候集解》）</h2>
+      <ul>${a.hou.map((h, i) => `<li>${['初候', '二候', '三候'][i]}　${esc(h.name)}——${esc(h.say)}</li>`).join('')}</ul>
+      <h2>${esc(a.term)}在台灣</h2><p>${esc(a.taiwan)}</p>
+      <h2>農事</h2><p>${esc(a.farm)}</p>
+      ${g?.tips?.length ? `<h2>生活小叮嚀</h2><ul>${g.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+      ${crops.length ? `<h2>當令農產</h2><p>${esc(months.map(m => `${m} 月`).join('・'))}盛產共 ${crops.length} 項：${esc(crops.slice(0, 24).join('、'))}${crops.length > 24 ? ' 等' : ''}。資料來源：農業部（農糧署）「每月盛產農產品產地」開放資料。</p>` : ''}
+      ${g?.sayings?.length ? `<h2>節氣俗語</h2><ul>${g.sayings.map(x => `<li>「${esc(x)}」</li>`).join('')}</ul>` : ''}
+      ${(g?.foods?.length || g?.festivals?.length || g?.flowers?.length) ? `<h2>應景與活動</h2><p>${[
+        g.foods?.length ? `應景食物：${esc(g.foods.join('、'))}` : '',
+        g.festivals?.length ? `節慶活動：${esc(g.festivals.join('、'))}` : '',
+        g.flowers?.length ? `當季花期：${esc(g.flowers.join('、'))}` : '',
+      ].filter(Boolean).join('；')}</p>` : ''}
+      ${(g?.organ || g?.luckyColor) ? `<h2>節氣養生與開運色</h2><p>${g.organ ? `養生重點：${esc(g.organ)}。` : ''}${g.luckyColor ? `開運色：${esc(g.luckyColor)}。` : ''}</p>` : ''}
+      <h2>${esc(a.term)}拍什麼</h2><p>${esc(a.photo)}</p>
+      <h2>${esc(a.term)}是幾號？近年交節日期</h2>
+      <p>節氣的交節時刻由太陽視黃經實算，每年略有不同（本站以 UTC+8 為日界）。
+      ${esc(a.term)}近年的國曆日期：${years.map(y => `${y.y} 年 ${y.m} 月 ${y.d} 日`).join('、')}。
+      交節當天起算，到下一個節氣前一天為止，都算在${esc(a.term)}的區間內。</p>
+      <h2>前後節氣</h2>
+      <p>${esc(a.term)}是二十四節氣的第 ${idx + 1} 個，屬${esc(a.season)}季${g?.date ? `，${esc(g.date)}` : ''}。
+      前一個節氣是 <a href="/solarterms/${prev.slug}">${esc(prev.term)}</a>，
+      後一個是 <a href="/solarterms/${next.slug}">${esc(next.term)}</a>。
+      也可以回<a href="/solarterms">二十四節氣專欄</a>看完整年表，
+      或看<a href="/almanac/day">今日完整國民曆</a>的宜忌與吉時。</p>`
+}
+
+function deityFallback(slug) {
+  const d = deityBySlug(slug)
+  if (!d) return ''
+  return `
+      <h1>${esc(d.name)}聖誕｜農曆 ${d.lunarMonth} 月 ${d.lunarDay} 日</h1>
+      ${d.alias?.length ? `<p>又稱${esc(d.alias.join('、'))}</p>` : ''}
+      <h2>由來</h2><p>${esc(d.origin)}</p>
+      <h2>信仰內涵</h2><p>${esc(d.belief)}</p>
+      ${d.bless?.length ? `<p>常見祈求：${esc(d.bless.join('、'))}</p>` : ''}
+      <h2>台灣主要廟宇</h2><ul>${d.temples.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+      ${d.custom ? `<h2>祭祀與習俗</h2><p>${esc(d.custom)}</p>` : ''}`
+}
+
+function dreamFallback(slug) {
+  const d = DREAMS.find(x => x.k[0] === slug)
+  if (!d) return ''
+  const related = DREAMS.filter(x => x !== d && x.wx === d.wx).slice(0, 6)
+  return `
+      <h1>夢見${esc(d.k[0])}是什麼意思？</h1>
+      ${d.classic ? `<h2>《周公解夢》原典斷語</h2><blockquote>${esc(d.classic)}</blockquote>` : ''}
+      <h2>現代參考${d.classic ? '' : '（本條無原典斷語）'}</h2><p>${esc(d.modern)}</p>
+      <h2>怎麼讀原典</h2>
+      <p>《周公解夢》原典是斷語體、直接給吉凶，與現代心理學式的解讀是兩套不同的系統，
+      本站分開標示、不混為一談。原典另有一個容易誤解的地方：大量使用「反夢」原則——
+      夢中「得」反而主失、夢中「失」反而主得（例如「拾得錢財，主失財」），
+      不可望文生義。${d.k.length > 1 ? `這一條也涵蓋「${esc(d.k.slice(1).join('、'))}」等說法。` : ''}</p>
+      <h2>夢象五行與今日曆象</h2>
+      <p>夢見${esc(d.k[0])}的夢象屬${esc(d.wx)}。本站會把它與當日日柱的納音五行做生剋比對，
+      給出「順勢而為」或「宜守不宜攻」這類提示——同一個夢在不同的日子，延伸提示並不相同。</p>
+      ${related.length ? `<h2>其他屬${esc(d.wx)}的夢境</h2><ul>${related.map(r =>
+        `<li><a href="/dream/${encodeURIComponent(r.k[0])}">夢見${esc(r.k[0])}</a></li>`).join('')}</ul>` : ''}`
+}
+
+// 哪些路由要注入首屏靜態內容。
+// ⚠️ 只放「畫面上真的會出現」的內容——放使用者看不到的字就是 cloaking。
+//    每一段都對得上對應畫面實際渲染的區塊。
 function fallbackFor(pathname, route) {
-  if (route?.path === '/' || route?.path === '/almanac/day') return almanacFallback(null)
-  if (route?.path === '/almanac/day/:date') {
-    return almanacFallback(decodeURIComponent(pathname.split('/').pop() || ''))
+  const p = route?.path
+  const slug = decodeURIComponent(pathname.split('/').pop() || '')
+  if (p === '/' || p === '/almanac/day') return almanacFallback(null)
+  if (p === '/almanac/day/:date') return almanacFallback(slug)
+  if (p === '/solarterms/:slug') return termFallback(slug)
+  if (p === '/deities/:slug') return deityFallback(slug)
+  if (p === '/dream/:slug') return dreamFallback(slug)
+  // 節氣總覽：列出 24 個節氣的真連結，爬蟲才走得到 24 個條目頁
+  if (p === '/solarterms') {
+    return `
+      <h1>二十四節氣專欄｜由來、七十二候、台灣氣候與當令</h1>
+      <ul>${TERM_ARTICLES.map(a =>
+        `<li><a href="/solarterms/${a.slug}">${esc(a.term)}</a>——${esc(a.meaning.slice(0, 30))}…</li>`).join('')}</ul>`
+  }
+  // 神佛總覽同理
+  if (p === '/deities') {
+    return `
+      <h1>臺灣神佛誕辰一覽｜農曆換算國曆與倒數天數</h1>
+      <ul>${DEITY_ARTICLES.map(d =>
+        `<li><a href="/deities/${d.slug}">${esc(d.name)}</a>——農曆 ${d.lunarMonth} 月 ${d.lunarDay} 日</li>`).join('')}</ul>`
+  }
+  // 解夢總覽：列出有原典的詞條
+  if (p === '/dream') {
+    return `
+      <h1>解夢｜《周公解夢》原典斷語與現代參考</h1>
+      <ul>${DREAM_PAGES.map(d =>
+        `<li><a href="/dream/${encodeURIComponent(d.k[0])}">夢見${esc(d.k[0])}</a>——${esc(d.classic.slice(0, 20))}</li>`).join('')}</ul>`
   }
   return ''
 }
@@ -199,10 +355,10 @@ function fallbackFor(pathname, route) {
 //    不能在這裡重寫整份 HTML。
 export function injectMeta(html, { origin, pathname, route }) {
   const url = origin + (pathname === '/' ? '/' : pathname)
-  // 日期頁的 meta 由該日的真實曆算產生，不用路由表那句通用的
-  const dm = route?.path === '/almanac/day/:date'
-    ? dateMeta(decodeURIComponent(pathname.split('/').pop() || ''))
-    : null
+  // 條目頁的 meta 由該條目的真實內容產生，不用路由表那句通用的。
+  // ⚠️ 沒有這一層的話，24 個節氣頁會共用同一句 description，
+  //    Google 會判成重複內容而只留一頁——條目化的努力就白費了。
+  const dm = entryMeta(pathname, route)
   const title = dm?.title || route?.title || ROUTES[0].title
   const desc = dm?.desc || route?.desc || DEFAULT_DESC
   let out = html
@@ -254,8 +410,28 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     days.push(item(`${origin}/almanac/day/${ds}`, ds))
   }
 
-  const body = [...statics, ...days].join('\n')
+  // 條目頁：節氣 24、神佛 12、解夢（有原典者）——每一頁都有實質內容才收錄。
+  // ⚠️ 沒有原典斷語的夢境不進 sitemap：內容太薄的頁面量一多會拖累全站評價，
+  //    寧可少幾十頁，也不要生一批空殼。
+  const entries = [
+    ...TERM_ARTICLES.map(a => item(`${origin}/solarterms/${a.slug}`, lastmod)),
+    ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
+    ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
+  ]
+
+  const body = [...statics, ...entries, ...days].join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`
+}
+
+// 條目路由的 slug 是否真的存在。
+// ⚠️ 沒有這一層的話，/solarterms/nope、/deities/nope、/dream/nope 全部回 200，
+//    而畫面顯示「找不到」——那就是 soft 404，等於告訴搜尋引擎本站有無限多個
+//    內容重複的有效頁面。條目化之後這個風險比以前大得多（三種路由 × 任意字串）。
+export function entryExists(pathname, route) {
+  const p = route?.path
+  if (p !== '/solarterms/:slug' && p !== '/deities/:slug'
+      && p !== '/dream/:slug' && p !== '/almanac/day/:date') return true
+  return entryMeta(pathname, route) !== null
 }
 
 export const SEO_ROUTES = ROUTES

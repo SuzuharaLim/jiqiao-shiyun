@@ -3010,3 +3010,82 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 @media (hover: hover) and (pointer: fine) {
   .ad-daylinks a:hover { background: var(--tone-1); }
 }
+
+/* ---------- 麵包屑（SEO 健檢：站內只有全站導覽、沒有層級指引）---------- */
+.crumb {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto;
+  font-size: var(--text-2xs); color: var(--muted);
+}
+.crumb a { color: var(--cinnabar); text-decoration: none; }
+.crumb i { font-style: normal; margin: 0 2px; color: var(--muted); }
+.crumb b { color: var(--text); font-weight: 600; }
+@media (hover: hover) and (pointer: fine) { .crumb a:hover { text-decoration: underline; } }
+
+/* ---------- 條目頁（節氣／神佛／解夢）通用 ---------- */
+.td-head { padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
+.td-term { font-size: var(--text-2xl); font-weight: 800; letter-spacing: .04em; }
+.td-now {
+  margin-left: 8px; font-size: var(--text-2xs); font-weight: 600;
+  background: var(--primary); color: var(--pfg); border-radius: 2px; padding: 2px 6px;
+  vertical-align: middle;
+}
+.td-meta { font-size: var(--text-2xs); color: var(--muted); margin-top: 2px; }
+.td-hou { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.td-hou:last-of-type { border-bottom: none; }
+.td-hou b { display: block; font-size: var(--text-sm); }
+.td-hou span { font-size: var(--text-xs); line-height: 1.8; }
+.td-list { margin: 0; padding-left: 1.2em; line-height: 1.9; }
+.td-list li { margin-bottom: 4px; }
+.td-note { font-size: var(--text-2xs); line-height: 1.8; margin-top: 8px; }
+.td-crops { line-height: 1.9; }
+.td-saying { font-size: var(--text-sm); line-height: 1.9; margin: 0 0 4px; }
+.td-more {
+  display: inline-block; margin-top: 8px; color: var(--cinnabar);
+  text-decoration: none; font-size: var(--text-xs); min-height: 24px;
+}
+@media (hover: hover) and (pointer: fine) { .td-more:hover { text-decoration: underline; } }
+
+/* 前後條目導覽（爬蟲靠這條鏈走完全部條目頁） */
+.td-nav {
+  display: flex; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto;
+}
+.td-nav a {
+  flex: 1; text-align: center; padding: 8px; border: 1px solid var(--line2);
+  border-radius: 6px; color: var(--cinnabar); text-decoration: none;
+  font-size: var(--text-2xs); min-height: 24px;
+}
+.td-tags {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 var(--space-4); flex: 0 0 auto;
+}
+.td-tags a {
+  padding: 6px 10px; background: var(--chip); border-radius: 2px;
+  color: var(--text); text-decoration: none; font-size: var(--text-2xs); min-height: 24px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .td-nav a:hover, .td-tags a:hover { background: var(--tone-1); }
+}
+
+/* ---------- 節氣總覽：四季網格（取代會被切掉的橫向捲軸）---------- */
+.term-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto;
+}
+@media (min-width: 900px) { .term-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.term-season-t {
+  font-size: var(--text-2xs); font-weight: 800; color: var(--season-hue);
+  margin-bottom: 4px; letter-spacing: .1em;
+}
+.term-season-l { display: flex; flex-wrap: wrap; gap: 4px; }
+.term-cell {
+  padding: 6px 8px; border: 1px solid var(--line2); border-radius: 4px;
+  color: var(--text); text-decoration: none; font-size: var(--text-2xs);
+  min-height: 24px; display: inline-flex; align-items: center;
+}
+.term-cell.on { background: var(--primary); color: var(--pfg); border-color: var(--primary); }
+.term-cell i { font-style: normal; margin-left: 3px; font-size: var(--text-2xs); }
+@media (hover: hover) and (pointer: fine) {
+  .term-cell:not(.on):hover { background: var(--tone-1); }
+}

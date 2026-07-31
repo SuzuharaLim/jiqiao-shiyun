@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
-import { matchRoute, injectMeta, buildSitemap } from './seo.js'
+import { matchRoute, injectMeta, entryExists, buildSitemap } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
@@ -1572,8 +1572,11 @@ if (existsSync(distDir)) {
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next()
     const route = matchRoute(req.path)
-    const html = injectMeta(indexHtml, { origin: originOf(req), pathname: req.path, route })
-    res.status(route ? 200 : 404).type('html').set('Cache-Control', 'no-cache').send(html)
+    // ⚠️ 路由樣板對得上還不夠——條目頁的 slug 也要真的存在，
+    //    否則 /solarterms/nope 這種網址會回 200＋「找不到」畫面＝soft 404。
+    const ok = route && entryExists(req.path, route)
+    const html = injectMeta(indexHtml, { origin: originOf(req), pathname: req.path, route: ok ? route : null })
+    res.status(ok ? 200 : 404).type('html').set('Cache-Control', 'no-cache').send(html)
   })
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { TopBar, Disclaimer, Link, Breadcrumb } from '../components/ui.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
 import { DREAMS, lookupDream, dreamExtend } from '../data/dream.js'
 
@@ -26,6 +26,7 @@ export default function Dream() {
     <>
       <TopBar title="解夢" onBack />
       <div className="body">
+        <Breadcrumb items={[{ label: '首頁', tab: 0 }, { label: '解夢' }]} />
         <div className="pad">
           <div className="search" style={{ margin: 0 }}>
             <Icon name="search" style={{ width: 17, height: 17, stroke: 'var(--muted)' }} />
@@ -74,6 +75,15 @@ export default function Dream() {
             )}
           </div>
         )}
+
+        {/* ⚠️ 上面的 chip 是 <button>，爬蟲點不到。有原典斷語的詞條另外給真連結，
+            讓「夢見掉牙」這類長尾查詢有獨立網址可以落地。 */}
+        <div className="sech" style={{ display: 'block' }}><span className="sech-t">有原典斷語的夢境</span></div>
+        <nav className="td-tags" aria-label="夢境專頁">
+          {DREAMS.filter(x => x.classic).map(x => (
+            <Link key={x.k[0]} screen="dreamDetail" params={{ slug: x.k[0] }}>夢見{x.k[0]}</Link>
+          ))}
+        </nav>
 
         <p className="muted" style={{ padding: '10px 16px 0', fontSize: 'var(--text-2xs)', lineHeight: 1.8 }}>
           ＊原典斷語逐字引自《周公解夢》流傳版本；「現代參考」為白話說明，不屬古籍內容，兩者已分開標示。

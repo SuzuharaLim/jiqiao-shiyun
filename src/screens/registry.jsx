@@ -45,10 +45,13 @@ import AccountSecurity from './AccountSecurity.jsx'
 import Admin from './Admin.jsx'
 import { Privacy, Terms, Contact } from './LegalScreens.jsx'
 import { Proverbs, Festivals, Flowers, Ingredients, SolarTerms, Bone } from './InfoScreens.jsx'
+import TermDetail from './TermDetail.jsx'
+import { DeityDetail, DreamDetail } from './EntryDetail.jsx'
 
 export const ROOTS = [Feed, Explore, Create, Almanac, Profile]
 
 export const SCREENS = {
+  termDetail: TermDetail, deityDetail: DeityDetail, dreamDetail: DreamDetail,
   aiChat: AIChat,
   checkout: Checkout,
   workDetail: WorkDetail,
