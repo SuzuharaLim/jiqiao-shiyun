@@ -26,6 +26,7 @@ const SCREEN_TITLES = {
   termDetail: '節氣專頁', deityDetail: '神明誕辰', dreamDetail: '解夢',
   auspiciousIndex: '擇日工具', auspicious: '吉日查詢',
   glossary: '術語解釋', glossaryDetail: '術語', editorial: '編輯政策', myths: '常見誤解',
+  sunIndex: '攝影時刻', sunTimes: '日出日落',
 }
 
 export default function App() {

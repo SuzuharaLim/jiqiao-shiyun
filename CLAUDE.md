@@ -327,6 +327,13 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **IndexNow 需設 `INDEXNOW_KEY` 環境變數**（任意 8–128 位十六進位字串），未設就跳過不報錯。Bing／Yandex 支援而台灣 Yahoo 奇摩吃 Bing。**Google 不支援 IndexNow**，其 Indexing API 只開放徵才與直播內容，不要浪費時間去接。
 - **公開 API `GET /api/v1/almanac/:date` 免金鑰但有速率限制**（以 IP 計，每小時 600 次）。回應帶 `_source` / `_license`，目的是換取開發者在 README 與技術文章裡的外連。`/widget/today` 是可嵌入的今日宜忌卡，**本身要 noindex**（避免與曆頁重複），底部的來源連結是 do-follow。
 - **`manifest.webmanifest` 的 `screenshots` 刻意沒放**：那需要真實截圖檔，寫一個不存在的路徑會讓安裝介面壞掉，比不寫更糟。有實際截圖再補。
+- **這三項已證實無效，不要再加回來**：`FAQPage`（2026-05-07 起 rich results 完全停止顯示）、`HowTo`（2023-09 起）、`WebSite`+`SearchAction` sitelinks 搜尋框（2024-11-21 起）、`llms.txt`（Ahrefs 掃 137,000 個網域：97% 收到零次請求，AI 檢索 bot 僅佔 1.1%；Google 2026-06-15 明說無效果）。**FAQ 型的「內容」仍值得寫**（對 passage ranking 與 AI 引用有價值），只是不要為了 rich result 去加 schema。`BreadcrumbList` 2025-01 起行動結果不顯示但**桌機仍有**且 Google 仍用它理解結構，保留。
+- **日期頁是滾動視窗（過去 30 ＋ 未來 60）不是全量**：洩露文件的 `hostAge` 逐字說明是「used in twiddler to **sandbox fresh spam**」——新網域一次噴出 731 個程式產生的頁面，訊號上與 fresh spam 難以區分；`siteQualityStddev` 又會量測站內品質的**離散程度**，少數好頁＋大量薄頁反而拖累整站。擴充規則：GSC 的「已建立索引 ÷ 已提交」高於 70% 才往外擴，低於 50% 要先修內容而不是加量。
+- **`server/compress.js` 是緩衝式不是串流式**：第一版用「攔截 res.write 轉送到壓縮 stream」整個卡死——`express.static` 把檔案 pipe 到 res，遇到 backpressure 時等 res 發 `'drain'`，但資料被轉走了，res 永遠不會 drain。改成緩衝完整回應再一次壓縮。**SSE 必須放行**（`text/event-stream`），緩衝起來等於 AI 對話整個壞掉。實測 JS 省 74%、CSS 省 81%。
+- **SERP 面的 title 用「農民曆」，介面文案維持「國民曆」**：依據是洩露文件的 `titlematchScore` 為**站台層級**訊號——一批對不上使用者實際用詞的標題會拖累整站，而台灣人搜的是農民曆。description 裡寫「國民曆（俗稱農民曆、黃曆）」是正確的同義說明。
+- **`sunTimes.js` 的兩個坑**：(1) `n` 必須是「自 2000-01-01 **正午**起的**整數**天數」，`julianDay()` 回傳的是 0h 的 JD（尾數 .5），不 `Math.round` 的話那個 .5 會讓所有時刻**整整差 12 小時**，看起來像日出日落被對調；(2) JD → 當地時間要 `(J + 0.5)` 取小數，因為 JD 從正午起算。精度已對照中央氣象署台北全年五個日期：**最大誤差 7 分**（春分秋分最差、夏至冬至最準），頁面必須標明誤差。
+- **`clutterScore` 是站台級**：「penalizing sites with a large number of distracting/annoying resources」。目前首頁只有 16 個請求、沒有廣告聯播網——**維持住**。前 12 個月把第三方腳本壓到最低，靠 `/store` 與 `/subscription` 變現而不是靠廣告。
+- **不要為了字數灌水**：Google 官方逐字「Are you writing to a particular word count because you've heard Google has a preferred word count? (No, we don't.)」。內容的目標是回答完問題，不是湊字數。
 - **秤骨用真表（`src/data/bone.js`）**：農曆年（六十甲子）/月/日/時辰四項骨重相加，來源註明於檔頭。原本是 `(年+月+日)%5` 自創公式，與任何參考網站都對不上。輸入需明示國曆/農曆（國曆會自動轉換）。**完整《稱骨歌》51 首批語未收錄，不可用自撰詩句冒充原文。**
 - **犯太歲的分類名稱各家不一**：同一生肖有寫「刑太歲」有寫「偏沖」（查證：商周良醫健康網明確寫「刑太歲又稱偏沖」）。故並列標示，避免使用者對照別站以為算錯。丙午年：午值／子沖／丑害／卯破／酉刑（偏沖）。
 - **神明誕辰要分清誕辰與成道/飛昇日**：土地公曾誤填農曆 8/15（那是成道日），誕辰為二月初二。已依台灣省城隍廟誕辰表（sim.org.tw）核對 12 位。倒數天數由 `nextLunarOccurrence` 實算，不可寫死。

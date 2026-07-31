@@ -39,6 +39,7 @@ export default function Almanac() {
         <ToolRow iconName="dragon" title={`${yearOverview.ganzhi} 年度總覽`} sub="值年太歲・地母經・犯太歲・年度凶方" onClick={() => push('yearAlmanac')} />
         <ToolRow iconName="scroll" title="擇日工具" sub="搬家・結婚・開市・安床・動土 吉日查詢" onClick={() => push('auspiciousIndex')} />
         <ToolRow iconName="book" title="術語解釋" sub="建除・彭祖百忌・受死日・黃道吉時 是什麼意思" onClick={() => push('glossary')} />
+        <ToolRow iconName="branch" title="攝影時刻表" sub="日出日落・黃金時刻・藍調時刻｜台灣 14 個拍攝點" onClick={() => push('sunIndex')} />
 
         <SectionHead title="算命 · 命理" extra="全部" />
         {fortuneTools.map(t => (

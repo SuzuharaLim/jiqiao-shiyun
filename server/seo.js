@@ -4,6 +4,7 @@ import { DEITY_ARTICLES, deityBySlug } from '../src/data/deityArticle.js'
 import { DREAMS } from '../src/data/dream.js'
 import { PURPOSES, purposeBySlug, goodDaysInMonth } from '../src/data/auspicious.js'
 import { GLOSSARY, glossaryBySlug } from '../src/data/glossary.js'
+import { SPOTS, spotBySlug, sunTimes } from '../src/data/sunTimes.js'
 import { termGuide } from '../src/data/termGuide.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
@@ -27,23 +28,29 @@ const DREAM_PAGES = DREAMS.filter(d => d.classic)
 
 // ── 路由表：路徑樣板 → 該頁的 SEO 文案 ─────────────────────────
 // desc 省略時沿用首頁描述。noindex 的頁面不進 sitemap 也會加 robots meta。
+// ⚠️ **SERP 面的 title 一律用「農民曆」，介面文案維持「國民曆」**（品牌決定）。
+//    依據不是喜好，是機制：洩露文件的 `titlematchScore` 是**站台層級**訊號——
+//    「Titlematch score of the site, a signal that tells how well titles are
+//     matching user queries.」一批對不上使用者實際用詞的標題會拖累整站，
+//    而台灣人在搜尋框打的是「農民曆」，「國民曆」的搜尋量差一個數量級。
+//    description 裡寫「國民曆（俗稱農民曆、黃曆）」是正確的同義說明，不要拿掉。
 const ROUTES = [
-  { path: '/', title: '機巧時運｜今日國民曆．AI 白話解讀宜忌吉時',
+  { path: '/', title: '機巧時運｜今日農民曆．AI 白話解讀宜忌吉時',
     desc: '今天宜什麼、忌什麼？機巧時運把國民曆（俗稱農民曆、黃曆）用 AI 讀成人話：每日宜忌、黃道吉時、沖煞生肖與歲數、建除十二神一次看懂，還有二十四節氣攝影社群與當令食材。' },
   { path: '/explore', title: '探索節氣攝影作品｜二十四節氣的台灣｜機巧時運',
     desc: '依二十四節氣瀏覽台灣各地的攝影作品，看看立春、大暑、霜降此刻長什麼樣子。可依節氣篩選、追蹤創作者，也能參加當期節氣攝影挑戰。' },
   { path: '/create', title: '節氣工作室｜拍照發布・做月曆・上架市集｜機巧時運',
     desc: '拍下屬於你的節氣：內建濾鏡與節氣標記，一鍵發布到社群，也能排成專屬月曆或上架市集販售授權。相機、拼貼、限動與動態文字全在瀏覽器完成。' },
-  { path: '/almanac', title: '國民曆工具箱｜曆頁・生肖・婚配・解夢・神佛誕辰｜機巧時運',
+  { path: '/almanac', title: '農民曆工具箱｜曆頁・生肖・婚配・解夢・神佛誕辰｜機巧時運',
     desc: '國民曆（農民曆）完整曆頁、十二生肖每日運勢、生肖星座婚配、袁天罡秤骨、周公解夢原典、臺灣神佛誕辰倒數、台灣諺語與二十四節氣專欄，都在這一頁。' },
   { path: '/me', title: '我的｜機巧時運', noindex: true },
 
-  { path: '/almanac/day', title: '今日國民曆｜宜忌、黃道吉時、沖煞、建除、彭祖百忌',
+  { path: '/almanac/day', title: '今日農民曆｜宜忌、黃道吉時、沖煞、建除、彭祖百忌',
     desc: '今日完整國民曆（農民曆）曆頁：宜忌白話解釋、黃道黑道十二神吉時、沖煞生肖與虛歲、建除十二神、二十八星宿、逐日胎神、彭祖百忌與財喜貴神方位。' },
   // 帶日期的完整曆頁（可分享網址）。⚠️ 沒有這一條的話，/almanac/day/2026-08-15
   // 會被判定為未知路由而回 **404 狀態碼**——畫面仍能用，但搜尋引擎完全不收錄，
   // 而「2026年8月15日 國民曆」正是這類產品最大宗的長尾搜尋。
-  { path: '/almanac/day/:date', title: '國民曆查詢｜指定日期的宜忌、吉時、沖煞、建除',
+  { path: '/almanac/day/:date', title: '農民曆查詢｜指定日期的宜忌、吉時、沖煞、建除',
     desc: '查詢任一天的完整國民曆：宜忌、黃道吉時、沖煞、建除十二神、二十八宿、胎神與彭祖百忌。' },
   { path: '/auspicious', title: '擇日工具｜搬家、結婚、開市吉日查詢｜機巧時運',
     desc: '依傳統擇日的宜忌推算搬家、入宅、結婚、開市、安床、動土、出行、祭祀、安葬等用途的吉日，附每日沖煞與白話說明，可標出沖到自己生肖的日子。' },
@@ -51,13 +58,17 @@ const ROUTES = [
     desc: '該用途全年的吉日一覽，附農曆、干支、沖煞與宜忌說明。' },
   { path: '/auspicious/:kind/:ym', title: '吉日查詢｜機巧時運',
     desc: '該用途該月份的吉日一覽，附農曆、干支、沖煞與宜忌說明。' },
-  { path: '/glossary', title: '國民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時',
+  { path: '/sun', title: '台灣攝影時刻表｜日出日落、黃金時刻與藍調時刻',
+    desc: '台灣 14 個熱門拍攝地點的日出、日落、黃金時刻與藍調時刻，由太陽位置實算，可查任一天，並一併顯示當天的節氣與干支。' },
+  { path: '/sun/:spot', title: '日出日落時間｜機巧時運',
+    desc: '該地點的日出、日落、晨昏黃金時刻與藍調時刻，附當天節氣與農曆干支。' },
+  { path: '/glossary', title: '農民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時',
     desc: '曆頁上那些看不懂的名詞逐一解釋：建除十二神、彭祖百忌、受死日、三娘煞、黃道吉時、二十八星宿、沖煞、胎神、天干地支、犯太歲，每則標明典據與常見誤解。' },
   { path: '/glossary/:slug', title: '術語解釋｜機巧時運',
     desc: '傳統曆法與擇日名詞的定義、詳細說明、典據出處與常見誤解。' },
   { path: '/editorial', title: '編輯政策｜資料來源、校對流程與 AI 的角色',
     desc: '機巧時運的內容分成天文演算、傳統擇日、原典引用三層，本頁說明各層的來源與校對方式，以及 AI 只做白話翻譯、不參與曆算與原典整理的界線。' },
-  { path: '/myths', title: '國民曆的常見誤解｜逐項澄清',
+  { path: '/myths', title: '農民曆的常見誤解｜逐項澄清',
     desc: '傳統曆法容易被誤讀的地方逐項澄清：干支年不等於農曆年、沖煞歲數是虛歲、二十八宿差七天看不出來、午年沒有刑太歲屬雞等，包含我們自己曾經算錯又修正的部分。' },
   { path: '/solarterms/:slug', title: '節氣專頁｜機巧時運',
     desc: '單一節氣的由來釋義、七十二候原典、台灣實際氣候與物候、當令農產、俗語慶典與節氣攝影建議。' },
@@ -105,7 +116,7 @@ const ROUTES = [
     desc: '機巧時運的實體商品與方案：會說話的植物月曆手帳、掃描即可看到當日曆頁的節氣明信片，以及個人訂閱方案與企業客製合作，把國民曆帶回桌上。' },
   { path: '/subscription', title: '訂閱方案比較｜Free 與 Premium｜機巧時運',
     desc: '機巧時運的方案比較：免費版可看每日國民曆與節氣社群，Premium 另有 AI 時光顧問額度、月曆匯出與市集授權等功能。' },
-  { path: '/about', title: '關於機巧時運｜把國民曆讀成人話的文化科技團隊',
+  { path: '/about', title: '關於機巧時運｜把農民曆讀成人話的文化科技團隊',
     desc: '機巧時運由承氣有限公司打造，把國民曆（又稱農民曆、黃曆、老皇曆）的曆算與宜忌用現代語言重寫，結合二十四節氣攝影社群與 AI 顧問，做成一本會說話的文化手帳。' },
   { path: '/privacy', title: '隱私權政策｜機巧時運',
     desc: '機巧時運如何蒐集、使用與保護你的個人資料：帳號資訊、上傳作品、瀏覽紀錄的處理方式，以及你可以行使的查閱、更正、匯出與刪除帳號等權利。' },
@@ -158,6 +169,21 @@ export function matchRoute(pathname) {
 // Google 認定 lastmod 不可信之後會整份忽略，連日期頁的真實 lastmod 一起賠掉。
 const SITE_LASTMOD = '2026-07-31'
 
+// ── 日期頁的滾動視窗 ────────────────────────────────────────────
+// ⚠️ 原本一次送出前後各一年共 731 頁。改成滾動視窗的理由有三，都是機制層面的：
+//   1. 洩露文件的 `hostAge` 逐字說明：「used in twiddler to sandbox fresh spam
+//      at serving time」——用途是隔離「新出現的大量內容」。一個新網域一次噴出
+//      731 個程式產生的頁面，在訊號上與 fresh spam 難以區分。
+//   2. `siteQualityStddev`：站內品質的**離散程度**會被量測。少數好頁 ＋ 大量薄頁
+//      會拉大離散度，反而拖累整站。
+//   3. helpful content 自評的反面清單第一條就是「Are you using extensive
+//      automation to produce content on many topics?」
+// 也符合真實需求——沒有人在查 2025 年 3 月的宜忌。
+// 擴充規則：看 GSC 的「已建立索引 ÷ 已提交」，高於 70% 才往外擴，
+// 低於 50% 表示品質訊號有問題，要先修內容而不是加量。
+const DAILY_PAST = 30
+const DAILY_FUTURE = 60
+
 const DEFAULT_DESC = ROUTES[0].desc
 
 // ── 日期頁：逐日產生真正不同的 title / description ────────────────
@@ -176,7 +202,7 @@ export function dateMeta(iso) {
   const yi = a.yi.slice(0, 3).join('、')
   const ji = a.ji.filter(t => !t.startsWith('大事勿用')).slice(0, 3).join('、')
   return {
-    title: `${y}年${mo}月${d}日（週${WD[dt.getDay()]}）國民曆｜${a.lunar} ${a.ganzhi}宜忌吉時沖煞`,
+    title: `${y}年${mo}月${d}日（週${WD[dt.getDay()]}）農民曆｜${a.lunar} ${a.ganzhi}宜忌吉時沖煞`,
     desc: `${y}年${mo}月${d}日國民曆（農民曆）：宜${yi || '諸事不宜'}，忌${ji || '無'}。${a.lunar}、${a.ganzhi}、${a.term}第${a.termDay}天，${a.zheng}。附黃道吉時、財喜貴神方位、建除十二神與彭祖百忌。`,
   }
 }
@@ -223,10 +249,18 @@ function entryMeta(pathname, route) {
       desc: `${y} 年適合${kd.name}的日子全年共 ${total} 天，依月份列出。${kd.intro}每一天都附農曆、干支、當日沖煞與宜忌，並可標出沖到自己生肖的日子。`,
     }
   }
+  if (p === '/sun/:spot') {
+    const sp = spotBySlug(slugOf(pathname)); if (!sp) return null
+    const t = sunTimes(new Date(), sp.lat, sp.lng)
+    return {
+      title: `${sp.name}日出日落時間｜黃金時刻與藍調時刻查詢`,
+      desc: `${sp.name}今日日出 ${t.sunrise}、日落 ${t.sunset}，晨黃金時刻 ${t.morningGolden}、昏黃金時刻 ${t.eveningGolden}。可查任一天，並顯示當天節氣與干支。${sp.note}。`,
+    }
+  }
   if (p === '/glossary/:slug') {
     const g = glossaryBySlug(slugOf(pathname)); if (!g) return null
     return {
-      title: `${g.term}是什麼意思？定義、典據與常見誤解｜國民曆術語`,
+      title: `${g.term}是什麼意思？定義、典據與常見誤解｜農民曆術語`,
       desc: `${g.answer.slice(0, 62)}${g.source ? `　典據：${g.source.slice(0, 24)}` : ''}`,
     }
   }
@@ -240,6 +274,15 @@ function entryMeta(pathname, route) {
   }
   return null
 }
+
+// ⚠️ llms.txt 已於 2026-08 移除，不要再加回來。
+//    Ahrefs 分析 137,000 個網域的 server log：97% 的 llms.txt 收到「零」次請求，
+//    有請求的來源中 AI 檢索 bot 合計僅 1.1%（其餘是 SEO 稽核工具與不明 bot）；
+//    Google 2026-06-15 也明確澄清它對 Search 曝光「no positive or negative effect」。
+//    常見的混淆是：OpenAI/Anthropic 確實在自家「開發者文件站」放 llms.txt，
+//    但那是給 coding agent 讀 API 文件用的，與「引導 AI 搜尋爬蟲」是兩回事。
+//    要讓 AI 讀到你，唯一有效的是把內容放進靜態 HTML（AI 爬蟲不執行 JS）
+//    ——也就是下面這一段在做的事。資料可信度的說明改放在 /editorial 這個真頁面。
 
 // ── 首屏靜態內容（治「CSR 空白頁」）──────────────────────────────
 // 實測 GET / 的 <body> 可見文字長度 = 0：所有內容都要跑完 475KB 的 JS 才出現。
@@ -260,6 +303,11 @@ function almanacFallback(iso) {
   } catch { return '' }
   const li = (arr) => arr.map(t => `<li>${esc(t)}</li>`).join('')
   const hours = a.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時（${h.range}）`).join('、')
+  // ⚠️ 日期頁不能只是資料表格——那是薄頁（洩露文件的 originalContentScore：
+  //    「Only pages with little content have this field」）。補上節氣脈絡與
+  //    情境化的內部連結，讓每一頁都有非模板的實質內容，也把使用者的下一個問題接住
+  //    （NavBoost 的 lastLongestClicks：目標是成為那個查詢序列的最後一次點擊）。
+  const termSlug = TERM_ARTICLES.find(t => t.term === a.term)?.slug || ''
   return `
       <h1>${esc(a.solar.replace(/\s/g, ''))} ${esc(a.weekday)}　今日國民曆（農民曆）宜忌吉時</h1>
       <p>${esc(a.lunar)}・${esc(a.ganzhi)}・${esc(a.term)}第 ${a.termDay} 天（${esc(a.termRange || '')}）・納音${esc(a.wuxing)}</p>
@@ -273,7 +321,18 @@ function almanacFallback(iso) {
       <p>彭祖百忌：${esc(a.pengzu[0])}　${esc(a.pengzu[1])}</p>
       <h2>今日吉神方位</h2>
       <p>喜神${esc(a.xishen)}／財神${esc(a.caishen)}／陽貴神${esc(a.yanggui)}／陰貴神${esc(a.yingui)}；天乙貴人生肖：${esc(a.guiren)}</p>
-      <p>吉日星等 ${a.stars} / 5，${esc(a.rating)}。今日一諺：「${esc(a.proverb)}」</p>`
+      <p>吉日星等 ${a.stars} / 5，${esc(a.rating)}。今日一諺：「${esc(a.proverb)}」</p>
+      <h2>今天是什麼節氣？</h2>
+      <p>${esc(a.term)}（${esc(a.termRange || '')}）第 ${a.termDay} 天。
+      ${termSlug ? `<a href="/solarterms/${termSlug}">看${esc(a.term)}的完整介紹</a>——七十二候、台灣氣候、當令農產。` : ''}
+      ${a.festival ? `今天也是${esc(a.festival)}。` : ''}</p>
+      <h2>想挑日子做某件事？</h2>
+      <p>今天的宜忌只回答「今天適不適合」。如果你要挑的是未來某一天，可以直接看
+      <a href="/auspicious/moving">搬家吉日</a>、<a href="/auspicious/wedding">結婚好日子</a>、
+      <a href="/auspicious/opening">開市吉日</a>、<a href="/auspicious/bed">安床吉日</a>的整年一覽，
+      每一天都附沖煞與宜忌說明。看不懂上面的名詞可以查
+      <a href="/glossary/jianchu">建除十二神</a>、<a href="/glossary/chongsha">沖煞</a>、
+      <a href="/glossary/huangdao">黃道吉時</a>的解釋。</p>`
 }
 
 // 節氣專頁的首屏內容——這是「預渲染」真正要解決的：24 個節氣頁若沒有這一層，
@@ -381,9 +440,43 @@ function fallbackFor(pathname, route) {
       ${g.source ? `<h2>典據</h2><p>${esc(g.source)}</p>` : ''}
       ${g.caveat ? `<h2>常見誤解</h2><p>${esc(g.caveat)}</p>` : ''}`
   }
+  if (p === '/sun/:spot') {
+    const sp = spotBySlug(slug)
+    if (!sp) return ''
+    const t = sunTimes(new Date(), sp.lat, sp.lng)
+    return `
+      <h1>${esc(sp.name)}日出日落時間與攝影黃金時刻</h1>
+      <p>${esc(sp.name)}（北緯 ${sp.lat}°、東經 ${sp.lng}°）常見拍攝點：${esc(sp.note)}。</p>
+      <h2>今日時刻</h2>
+      <ul>
+        <li>晨藍調　${esc(t.morningBlue || '—')}</li>
+        <li>日出　　${esc(t.sunrise || '—')}</li>
+        <li>晨黃金　${esc(t.morningGolden || '—')}</li>
+        <li>昏黃金　${esc(t.eveningGolden || '—')}</li>
+        <li>日落　　${esc(t.sunset || '—')}</li>
+        <li>昏藍調　${esc(t.eveningBlue || '—')}</li>
+        <li>白晝長度${esc(t.dayLength || '—')}</li>
+      </ul>
+      <h2>黃金時刻與藍調時刻是什麼</h2>
+      <p>黃金時刻是太陽高度 0–6 度的那段時間，光線偏暖、影子長、反差低，是人像與風景最好拍的時候；
+      藍調時刻是太陽落到地平線下 0–6 度，天空呈飽和的深藍，適合拍城市夜景與有燈光的建築。
+      時刻由太陽位置實算，誤差約 ±7 分鐘（春分秋分前後最大、夏至冬至最準），建議提早到現場。</p>
+      <h2>其他拍攝地點</h2>
+      <ul>${SPOTS.filter(x => x.slug !== sp.slug).map(x =>
+        `<li><a href="/sun/${x.slug}">${esc(x.name)}</a>——${esc(x.note)}</li>`).join('')}</ul>`
+  }
+  if (p === '/sun') {
+    const today = new Date()
+    return `
+      <h1>台灣攝影時刻表｜日出日落、黃金時刻與藍調時刻</h1>
+      <ul>${SPOTS.map(x => {
+        const t = sunTimes(today, x.lat, x.lng)
+        return `<li><a href="/sun/${x.slug}">${esc(x.name)}</a>　日出 ${esc(t.sunrise)}　日落 ${esc(t.sunset)}——${esc(x.note)}</li>`
+      }).join('')}</ul>`
+  }
   if (p === '/glossary') {
     return `
-      <h1>國民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時</h1>
+      <h1>農民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時</h1>
       <ul>${GLOSSARY.map(g =>
         `<li><a href="/glossary/${g.slug}">${esc(g.term)}</a>——${esc(g.answer.slice(0, 40))}…</li>`).join('')}</ul>`
   }
@@ -502,7 +595,7 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
     const rows = []
     const now = new Date()
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    for (let i = -365; i <= 365; i++) {
+    for (let i = -DAILY_PAST; i <= DAILY_FUTURE; i++) {
       const d = new Date(base); d.setDate(d.getDate() + i)
       const ds = iso(d)
       rows.push(item(`${origin}/almanac/day/${ds}`, ds))
@@ -531,6 +624,7 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
       ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
       ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
       ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
+      ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
     ])
   }
   return wrap([])
@@ -553,7 +647,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
   const days = []
   const now = new Date()
   const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  for (let i = -365; i <= 365; i++) {
+  for (let i = -DAILY_PAST; i <= DAILY_FUTURE; i++) {
     const d = new Date(base)
     d.setDate(d.getDate() + i)
     const ds = iso(d)
@@ -568,6 +662,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
     ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
     ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
+    ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
     ...PURPOSES.flatMap(p => [
       item(`${origin}/auspicious/${p.slug}`, lastmod),
       ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
@@ -587,7 +682,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
 export function entryExists(pathname, route) {
   const p = route?.path
   const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
-    '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym']
+    '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot']
   if (!ENTRY.includes(p)) return true
   return entryMeta(pathname, route) !== null
 }

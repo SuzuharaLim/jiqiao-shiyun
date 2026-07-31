@@ -23,6 +23,7 @@ const SCREEN_PATH = {
   auspiciousIndex: '/auspicious', auspicious: '/auspicious/:kind/:ym?',
   glossary: '/glossary', glossaryDetail: '/glossary/:slug',
   editorial: '/editorial', myths: '/myths',
+  sunIndex: '/sun', sunTimes: '/sun/:spot',
   yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
   ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
   creatorPage: '/creator/:user', followList: '/creator/:handle/:rel', prePlan: '/preplan', editProfile: '/edit-profile',

@@ -230,6 +230,53 @@ export function Breadcrumb({ items = [] }) {
   )
 }
 
+// ---------- JSON-LD 結構化資料 ----------
+// ⚠️ 只放「Google 現在還會用」的類型。已確認失效的不要再投入：
+//   FAQPage      2026-05-07 起 rich results 完全停止顯示
+//   HowTo        2023-09 起不再顯示
+//   SearchAction 2024-11-21 起 sitelinks 搜尋框已停止
+//   BreadcrumbList 2025-01 起行動結果不顯示，但**桌機仍有**且 Google 仍用它
+//                  理解站台結構，所以保留。
+// 仍在官方 Search Gallery 的：Article、Event、Product/Offer、Organization、
+// ImageObject、Profile page、Video、Q&A、Local business。
+//
+// ⚠️ 必須用 dangerouslySetInnerHTML：React 會把 {JSON.stringify(x)} 當文字轉義，
+//    `<` 變成 &lt; 會讓 Google 解析失敗。
+export function JsonLd({ data }) {
+  if (!data) return null
+  return <script type="application/ld+json"
+    dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />
+}
+
+// 文章類頁面（節氣、術語、神佛、編輯政策）
+export const articleLd = ({ headline, description, url, section, modified }) => ({
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline,
+  ...(description ? { description } : {}),
+  ...(url ? { mainEntityOfPage: { '@type': 'WebPage', '@id': url } } : {}),
+  ...(section ? { articleSection: section } : {}),
+  // ⚠️ 日期要誠實。Google 明文把「改日期讓內容看起來很新」列為 helpful content
+  //    自評的反面例子，寫一個假的 dateModified 是負分不是加分。
+  ...(modified ? { dateModified: modified } : {}),
+  inLanguage: 'zh-Hant-TW',
+  isAccessibleForFree: true,
+  publisher: { '@type': 'Organization', name: '機巧時運', '@id': 'https://chengqi.tw/#org' },
+})
+
+// 慶典（Event 仍有 rich result，且有日期地點時特別吃香）
+export const eventLd = ({ name, startDate, place, description, url }) => ({
+  '@context': 'https://schema.org',
+  '@type': 'Event',
+  name,
+  startDate,
+  eventStatus: 'https://schema.org/EventScheduled',
+  eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+  ...(place ? { location: { '@type': 'Place', name: place, address: { '@type': 'PostalAddress', addressCountry: 'TW' } } } : {}),
+  ...(description ? { description } : {}),
+  ...(url ? { url } : {}),
+})
+
 // 區段標題
 export function SectionHead({ title, extra, as: Tag = 'h2' }) {
   // 標題包成 span，朱紅標記才能當成標題的一部分。

@@ -13,6 +13,7 @@ export default function WebFooter() {
           <Link screen="solarterms" className="tap">二十四節氣</Link>
           <Link screen="auspiciousIndex" className="tap">擇日工具</Link>
           <Link screen="glossary" className="tap">術語解釋</Link>
+          <Link screen="sunIndex" className="tap">攝影時刻</Link>
           <Link screen="myths" className="tap">常見誤解</Link>
           <Link screen="editorial" className="tap">編輯政策</Link>
           <Link screen="about" className="tap">品牌故事</Link>

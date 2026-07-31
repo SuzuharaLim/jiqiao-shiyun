@@ -1,4 +1,4 @@
-import { TopBar, SectionHead, Breadcrumb, Link, Disclaimer } from '../components/ui.jsx'
+import { TopBar, SectionHead, Breadcrumb, Link, Disclaimer, JsonLd, articleLd } from '../components/ui.jsx'
 import { GLOSSARY, glossaryBySlug } from '../data/glossary.js'
 
 // ---------- 術語總覽 /glossary ----------
@@ -50,6 +50,12 @@ export default function GlossaryDetail({ slug }) {
           { label: g.term },
         ]} />
 
+        <JsonLd data={articleLd({
+          headline: `${g.term}是什麼意思？`,
+          description: g.answer,
+          url: `https://chengqi.tw/glossary/${g.slug}`,
+          section: '農民曆術語',
+        })} />
         <div className="td-head">
           <div className="td-term">{g.term}</div>
           {g.aka?.length > 0 && <div className="td-meta">又稱 {g.aka.join('、')}</div>}

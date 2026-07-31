@@ -90,6 +90,28 @@ export function Editorial() {
           </p>
         </div>
 
+        {/* Preferred sources：Google 2026 推出，使用者可自己指定偏好來源，
+            被指定的網站更容易出現在 Top Stories，且 2026-05-27 起擴展到
+            AI Overviews 與 AI Mode。農民曆是每日回訪型產品——有一批天天會打開
+            的使用者，這在新聞媒體以外極少見，設定意願遠高於一般內容站。 */}
+        <SectionHead title="把機巧時運設為偏好來源" extra="Google" />
+        <div className="card">
+          <p>
+            如果你每天都會來看曆頁，可以在 Google 把「機巧時運」設為偏好來源——
+            之後在 Google 搜尋相關內容時，我們的頁面會更容易出現，也會標上
+            「偏好」標記。
+          </p>
+          <ol className="td-list">
+            <li>在 Google 搜尋任一關鍵字（例如「今日宜忌」）</li>
+            <li>點搜尋結果上方「Top Stories」區塊右上角的圖示</li>
+            <li>搜尋並勾選「chengqi.tw」</li>
+          </ol>
+          <p className="muted td-note">
+            ＊此功能由 Google 提供，僅支援網域層級，且各地區推出時程不同；
+            設定與否不影響你在本站的使用。
+          </p>
+        </div>
+
         <SectionHead title="免責" />
         <div className="card">
           <p>

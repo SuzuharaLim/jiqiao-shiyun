@@ -6,6 +6,7 @@ import express from 'express'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
+import { compression } from './compress.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -108,6 +109,12 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false,
 }))
+
+// ⚠️ 壓縮要盡量早掛（所有回應都要經過），但在 helmet 之後——
+//    helmet 設的是標頭，順序上要先有標頭才輪到壓縮改寫 Content-Encoding。
+//    實測改前 index.js 475KB / react.js 138KB / index.css 115KB 完全沒壓縮，
+//    Cloud Run 不會自動幫你壓。Core Web Vitals 是排名訊號，這是十分鐘的事。
+app.use(compression())
 // 圖片上傳（base64 JSON）需要較大 body；其餘 API 維持 32kb 上限
 const jsonSmall = express.json({ limit: '32kb' })
 const jsonImage = express.json({ limit: '4mb' })

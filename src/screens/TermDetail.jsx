@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { TopBar, SectionHead, Breadcrumb, Link } from '../components/ui.jsx'
+import { TopBar, SectionHead, Breadcrumb, Link, JsonLd, articleLd } from '../components/ui.jsx'
 import { useContent } from '../hooks/useApi.js'
 import { dayFor, todayOffset, monthsForTerm } from '../data/almanac.js'
 import { termTable } from '../data/lunisolar.js'
@@ -58,6 +58,12 @@ export default function TermDetail({ slug }) {
           { label: a.term },
         ]} />
 
+        <JsonLd data={articleLd({
+          headline: `${a.term}｜由來、七十二候、台灣氣候與當令`,
+          description: a.meaning,
+          url: `https://chengqi.tw/solarterms/${a.slug}`,
+          section: '二十四節氣',
+        })} />
         <div className="td-head">
           <div className="td-term">{a.term}{a.term === today && <span className="td-now">今</span>}</div>
           <div className="td-meta">{a.season}季　{g?.date || ''}</div>

@@ -50,6 +50,7 @@ import { DeityDetail, DreamDetail } from './EntryDetail.jsx'
 import Auspicious, { AuspiciousIndex } from './Auspicious.jsx'
 import GlossaryDetail, { GlossaryIndex } from './Glossary.jsx'
 import { Editorial, Myths } from './Editorial.jsx'
+import SunTimesScreen, { SunIndex } from './SunTimes.jsx'
 
 export const ROOTS = [Feed, Explore, Create, Almanac, Profile]
 
@@ -58,6 +59,7 @@ export const SCREENS = {
   auspiciousIndex: AuspiciousIndex, auspicious: Auspicious,
   glossary: GlossaryIndex, glossaryDetail: GlossaryDetail,
   editorial: Editorial, myths: Myths,
+  sunIndex: SunIndex, sunTimes: SunTimesScreen,
   aiChat: AIChat,
   checkout: Checkout,
   workDetail: WorkDetail,
