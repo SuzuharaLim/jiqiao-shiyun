@@ -139,6 +139,13 @@ a { color:inherit; text-decoration:none; }
      改用與分頁一致的 260ms 淡入上浮。 */
   .stage.signed-in .screen { position:static; inset:auto; z-index:auto;
     animation:paneIn var(--m-base) var(--e-out); }
+  /* ⚠️ 相機／掃描是「取景器」不是文件：`.cam` 靠 `flex:1` 撐開，而桌機的
+     `.screen` 是 position:static、高度由內容決定——沒有可填的空間，`flex:1`
+     等於 0，`.cam-stage` 的 `min-height:0` 再把它壓到最小（實測 1180px 高的
+     平板上整個相機只有 277px，取景畫面是一條細縫，看起來就是壞掉）。
+     這兩頁要明確給高度，其餘堆疊畫面維持內容高。 */
+  .stage.signed-in .screen-camera,
+  .stage.signed-in .screen-scan { min-height:calc(100dvh - 62px); }
   /* 桌機隱藏各根分頁自帶頂列（通知/私訊/設定已移到網站導覽列），內容直接貼齊導覽列下方 */
   .stage.signed-in .rootpane .topbar { display:none; }
   /* 堆疊（詳情）畫面頂列黏在網站導覽列下方，捲動時仍可返回；與頁面同底、不做成獨立卡片。
