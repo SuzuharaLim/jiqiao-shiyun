@@ -154,13 +154,24 @@ export default function App() {
             {/* key={tab} 讓 React 在切分頁時重新掛載 → paneIn 進場動畫才會重播。
                 ⚠️ 只做極短的淡入上浮，不要做左右滑動：setTab 同時呼叫 window.scrollTo(0,0)，
                    橫向滑動配上垂直瞬跳會互相打架。 */}
-            <div key={tab} className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
+            {/* ⚠️ key 一定要加前綴，不可寫成 key={tab}。
+                這個 div 與下面的 .screen 是**同一層的兄弟**，而 .screen 的 key 是
+                堆疊深度——tab 與深度都是小整數，只要撞在一起（探索 tab=1 開一層
+                堆疊＝深度 1，兩個 key 都是 "1"）React 就會把兩個兄弟當成同一個
+                節點來配對，刪錯人：舊的 rootpane 留在 DOM 裡沒被卸載，新的接在
+                它後面，於是「探索」與「我的」整頁疊在一起（實測 .device 高度
+                766 → 2053）。**production build 不會有任何警告**（重複 key 的
+                警告只在 dev 版），只有畫面上看得出來。 */}
+            <div key={`root-${tab}`} className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
               <RootScreen />
             </div>
 
             {/* 堆疊（詳情）畫面 —— 手機覆蓋在上方，桌機整頁流動；screen-<key> 供桌機各畫面微調版面 */}
+            {/* key 帶畫面名稱：同深度換不同畫面要重新掛載（進場動畫、內部 state
+                都該重置）；replace() 翻日是同名同深度，key 不變＝不重掛，正是我們
+                要的。前綴同 rootpane，避免兩個兄弟的 key 互撞。 */}
             {TopScreen && (
-              <div className={`screen screen-${top.screen}`} key={stack.length}>
+              <div className={`screen screen-${top.screen}`} key={`screen-${stack.length}-${top.screen}`}>
                 <TopScreen {...top.props} />
               </div>
             )}
