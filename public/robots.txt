@@ -46,4 +46,9 @@ Disallow: /records
 Disallow: /projects
 Disallow: /me
 
-Sitemap: https://chengqi.tw/sitemap.xml
+# ⚠️ 要宣告的是 sitemap-index，不是扁平的 sitemap.xml。
+# 分檔（core／daily／solarterms／auspicious／entries）的整個用意是讓 GSC
+# 對每一類分別統計「已建立索引 ÷ 已提交」——只宣告扁平版的話，
+# GSC 只會給一個總數，出問題時不知道是哪一類沒被收，分檔等於白做。
+# 扁平版仍然保留供相容，但不主動宣告（宣告兩份會讓同一批網址重複提交）。
+Sitemap: https://chengqi.tw/sitemap-index.xml

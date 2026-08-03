@@ -90,6 +90,24 @@ const ROLES = ['user', 'creator', 'moderator', 'admin']
 const roleRank = (r) => { const i = ROLES.indexOf(r); return i < 0 ? 0 : i }
 const handleOk = (h) => /^[a-z0-9_.]{3,20}$/.test(h || '')
 
+// ---------- 分析工具（全部走環境變數，未設就完全不注入）----------
+//
+// ⚠️ 為什麼做成可設定而不是寫死：目前站上**一個分析工具都沒有**，所以每一個
+//    優先順序都是從外部觀察推的。接上之後排序一定會變——GSC 尤其重要，
+//    「已有曝光但排在第 11–20 名」的那批頁面只有它看得到，推一下投報率最高。
+// ⚠️ 未設金鑰＝一行 script 都不注入。洩露文件的 `clutterScore` 是**站台級**訊號
+//    （「penalizing sites with a large number of distracting/annoying resources」），
+//    目前首頁只有 16 個請求、沒有廣告聯播網，這個優勢要守住——不可為了「先放著」
+//    而載入沒在用的追蹤碼。
+// ⚠️ CSP 也是條件式放行：沒設 ID 就不開對應網域，攻擊面不會白白變大。
+const GA4_ID = process.env.GA4_MEASUREMENT_ID || ''          // 例：G-XXXXXXXXXX
+const CLARITY_ID = process.env.CLARITY_PROJECT_ID || ''      // Microsoft Clarity 專案 ID
+const GSC_VERIFY = process.env.GSC_VERIFICATION || ''        // Search Console HTML 標籤的 content 值
+const ANALYTICS_HOSTS = [
+  ...(GA4_ID ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
+  ...(CLARITY_ID ? ['https://www.clarity.ms'] : []),
+]
+
 // ---------- App ----------
 const app = express()
 app.set('trust proxy', 1)
@@ -97,11 +115,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      // ⚠️ 分析工具的載入器是 inline script，需要 'unsafe-inline'。只在真的設了 ID
+      //    時才放行——沒設分析工具時 scriptSrc 維持最嚴格的 'self'。
+      scriptSrc: ["'self'", ...(ANALYTICS_HOSTS.length ? ["'unsafe-inline'", ...ANALYTICS_HOSTS] : [])],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'blob:'],       // blob:＝相機拍照/錄影預覽；data:＝縮圖
+      imgSrc: ["'self'", 'data:', 'blob:', ...ANALYTICS_HOSTS],  // blob:＝相機拍照/錄影預覽；data:＝縮圖
       mediaSrc: ["'self'", 'blob:', 'data:'],      // 錄影 blob 播放
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", ...ANALYTICS_HOSTS],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'self'"],
@@ -1508,7 +1528,12 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
 // 健康檢查（含 DB 驅動別、金流、AI、寄信是否已接）
 app.get('/api/health', ah(async (req, res) => {
   await db.get('SELECT 1 AS ok')
-  res.json({ ok: true, db: db.kind, pay: PAY_PROVIDER, ai: OPENAI_KEY ? 'on' : 'off', mail: mailStatus().provider, push: pushEnabled() ? 'on' : 'off' })
+  res.json({
+    ok: true, db: db.kind, pay: PAY_PROVIDER, ai: OPENAI_KEY ? 'on' : 'off',
+    mail: mailStatus().provider, push: pushEnabled() ? 'on' : 'off',
+    // 只回「有沒有設」不回 ID 本身——健康檢查是公開端點
+    analytics: { ga4: !!GA4_ID, clarity: !!CLARITY_ID, gscVerify: !!GSC_VERIFY },
+  })
 }))
 
 // 寄測試信（僅管理者）：正式站設完金鑰後，用這支確認真的收得到
@@ -1725,7 +1750,10 @@ if (existsSync(distDir)) {
     // ⚠️ 路由樣板對得上還不夠——條目頁的 slug 也要真的存在，
     //    否則 /solarterms/nope 這種網址會回 200＋「找不到」畫面＝soft 404。
     const ok = route && entryExists(req.path, route)
-    const html = injectMeta(indexHtml, { origin: originOf(req), pathname: req.path, route: ok ? route : null })
+    const html = injectMeta(indexHtml, {
+      origin: originOf(req), pathname: req.path, route: ok ? route : null,
+      analytics: { ga4: GA4_ID, clarity: CLARITY_ID, verify: GSC_VERIFY },
+    })
     res.status(ok ? 200 : 404).type('html').set('Cache-Control', 'no-cache').send(html)
   })
 }

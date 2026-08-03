@@ -1,4 +1,4 @@
-import { dayFor, offsetFromDate } from '../src/data/almanac.js'
+import { dayFor, offsetFromDate, todayOffset } from '../src/data/almanac.js'
 import { TERM_ARTICLES, articleBySlug } from '../src/data/termArticle.js'
 import { DEITY_ARTICLES, deityBySlug } from '../src/data/deityArticle.js'
 import { DREAMS } from '../src/data/dream.js'
@@ -169,6 +169,15 @@ export function matchRoute(pathname) {
 // Google 認定 lastmod 不可信之後會整份忽略，連日期頁的真實 lastmod 一起賠掉。
 const SITE_LASTMOD = '2026-07-31'
 
+// ⚠️ ……但「每天真的都在變」的那兩頁是例外，不可沿用上面那個固定值。
+//    首頁與 /almanac/day 顯示的是**今天**的宜忌，內容天天不同；宣告成三天前更新，
+//    等於自己壓抑爬取頻率——而「今日」正是這個站要賣的東西。
+//    這與上面那條規則不衝突：上面反對的是「全站一律填今天」（那會讓整份 lastmod
+//    失去可信度而被整份忽略），這裡是「內容確實每天變的頁面才填今天」。
+const DAILY_PATHS = new Set(['/', '/almanac/day'])
+const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const lastmodFor = (path, fallback) => (DAILY_PATHS.has(path) ? isoOf(new Date()) : fallback)
+
 // ── 日期頁的滾動視窗 ────────────────────────────────────────────
 // ⚠️ 原本一次送出前後各一年共 731 頁。改成滾動視窗的理由有三，都是機制層面的：
 //   1. 洩露文件的 `hostAge` 逐字說明：「used in twiddler to sandbox fresh spam
@@ -335,6 +344,59 @@ function almanacFallback(iso) {
       <a href="/glossary/huangdao">黃道吉時</a>的解釋。</p>`
 }
 
+// 首頁的首屏內容。
+//
+// ⚠️ 首頁與 /almanac/day 原本共用 almanacFallback，兩頁的靜態文字**字元重疊率 96%**
+//    （583 字 vs 594 字），而且兩頁都自我 canonical——等於同一份內容用兩個網址參賽，
+//    Google 只會挑一個，另一個被稀釋。更糟的是首頁是全站權重最高的頁，卻長得跟一個
+//    每天輪替的曆頁一樣。
+//
+//    現在分工：首頁＝「農民曆入口」，只給今日摘要（宜忌／吉時／星等）＋各工具的導覽，
+//    打「農民曆」「農民曆查詢」這種大詞；完整的神煞、胎神、彭祖、方位、星宿只留在
+//    /almanac/day，打日期型查詢。兩頁不再重疊。
+//
+// ⚠️ 這裡列出的每一個連結，Feed.jsx 都要真的渲染得出來（`.home-portal`）——
+//    靜態層放畫面上沒有的東西就是 cloaking。改這一段時務必同步改 Feed.jsx。
+function homeFallback() {
+  let a
+  try { a = dayFor(todayOffset()) } catch { return '' }
+  const hours = a.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時（${h.range}）`).join('、')
+  const termSlug = TERM_ARTICLES.find(t => t.term === a.term)?.slug || ''
+  return `
+      <h1>機巧時運｜農民曆查詢．今日宜忌與黃道吉時</h1>
+      <p>機巧時運是把國民曆（俗稱農民曆、黃曆）讀成人話的線上工具。
+      農曆、二十四節氣與干支由天文演算實算，擇日的宜忌與神煞依傳統規則推導，
+      每一項都標明依據與流派。</p>
+      <h2>今天（${esc(a.solar.replace(/\s/g, ''))} ${esc(a.weekday)}）宜什麼？</h2>
+      <p>${esc(a.lunar)}・${esc(a.ganzhi)}・${esc(a.term)}第 ${a.termDay} 天。
+      宜${esc(a.yi.join('、') || '諸事不宜')}；忌${esc(a.ji.join('、') || '無')}。
+      黃道吉時${esc(hours || '無')}。吉日星等 ${a.stars} / 5，${esc(a.rating)}。</p>
+      ${a.summary ? `<p>${esc(a.summary)}</p>` : ''}
+      <p><a href="/almanac/day">看今日完整曆頁</a>——沖煞生肖與虛歲、建除十二神、二十八星宿、
+      逐日胎神、彭祖百忌、財喜貴神方位與十二時辰吉凶。</p>
+      <h2>要挑未來某一天怎麼查？</h2>
+      <p>今天的宜忌只回答「今天適不適合」。挑日子請用擇日工具：
+      <a href="/auspicious/moving">搬家吉日</a>、<a href="/auspicious/wedding">結婚好日子</a>、
+      <a href="/auspicious/opening">開市吉日</a>、<a href="/auspicious/bed">安床吉日</a>，
+      或看<a href="/auspicious">全部用途</a>的整年一覽。
+      指定日期也可以直接查：<a href="/almanac/day">農民曆查詢</a>。</p>
+      <h2>看不懂曆頁上的名詞？</h2>
+      <p>建除、彭祖百忌、受死日、黃道吉時、沖煞這些名詞在
+      <a href="/glossary">術語解釋</a>都有逐條說明，每則標明典據，
+      沒有明確出處的就誠實說沒有，並附上該項最常見的誤解（見<a href="/myths">常見誤解</a>）。
+      資料怎麼來、怎麼校對，寫在<a href="/editorial">編輯政策</a>。</p>
+      <h2>二十四節氣與節氣攝影</h2>
+      <p>現在是${esc(a.term)}${a.termRange ? `（${esc(a.termRange)}）` : ''}。
+      ${termSlug ? `<a href="/solarterms/${termSlug}">${esc(a.term)}專頁</a>有七十二候、台灣氣候實況與當令農產；` : ''}
+      <a href="/solarterms">二十四節氣專欄</a>是完整年表。
+      機巧時運同時是節氣攝影社群——到<a href="/explore">探索</a>看大家拍下的此刻，
+      或用<a href="/sun">攝影時刻表</a>查各地的日出日落與黃金時刻。</p>
+      <h2>還有什麼可以查？</h2>
+      <p><a href="/almanac">農民曆工具箱</a>收了生肖每日運勢、生肖星座婚配、袁天罡秤骨、
+      周公解夢原典、臺灣神佛誕辰倒數與台灣諺語；
+      <a href="/almanac/year">年度總覽</a>則是當年的太歲、犯太歲生肖與地母經。</p>`
+}
+
 // 節氣專頁的首屏內容——這是「預渲染」真正要解決的：24 個節氣頁若沒有這一層，
 // 爬蟲拿到的仍然是空白，條目化就只有網址沒有內容。
 function termFallback(slug) {
@@ -424,7 +486,8 @@ function dreamFallback(slug) {
 function fallbackFor(pathname, route) {
   const p = route?.path
   const slug = decodeURIComponent(pathname.split('/').pop() || '')
-  if (p === '/' || p === '/almanac/day') return almanacFallback(null)
+  if (p === '/') return homeFallback()
+  if (p === '/almanac/day') return almanacFallback(null)
   if (p === '/almanac/day/:date') return almanacFallback(slug)
   if (p === '/solarterms/:slug') return termFallback(slug)
   if (p === '/deities/:slug') return deityFallback(slug)
@@ -535,7 +598,23 @@ function fallbackFor(pathname, route) {
 // 把逐頁的 title/description/og/canonical 換進 index.html。
 // ⚠️ 用字串取代而非樣板重組——index.html 由 Vite 產生（含 hash 過的資產路徑），
 //    不能在這裡重寫整份 HTML。
-export function injectMeta(html, { origin, pathname, route }) {
+// 分析工具的標記。⚠️ 三個 ID 都是選填，沒設就回空字串——一行 script 都不注入。
+//    也刻意用 async 載入並放在 </head> 之前：追蹤碼不該擋 LCP，而 Core Web Vitals
+//    是排名訊號。GA4 設 `anonymize_ip`（GDPR 的最低要求，站上有歐盟可見的隱私權政策）。
+export function analyticsTags({ ga4 = '', clarity = '', verify = '' } = {}) {
+  const out = []
+  if (verify) out.push(`<meta name="google-site-verification" content="${esc(verify)}" />`)
+  if (ga4) {
+    out.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga4)}"></script>`)
+    out.push(`<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${esc(ga4)}',{anonymize_ip:true});</script>`)
+  }
+  if (clarity) {
+    out.push(`<script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","${esc(clarity)}");</script>`)
+  }
+  return out.join(String.fromCharCode(10))
+}
+
+export function injectMeta(html, { origin, pathname, route, analytics }) {
   const url = origin + (pathname === '/' ? '/' : pathname)
   // 條目頁的 meta 由該條目的真實內容產生，不用路由表那句通用的。
   // ⚠️ 沒有這一層的話，24 個節氣頁會共用同一句 description，
@@ -555,6 +634,10 @@ export function injectMeta(html, { origin, pathname, route }) {
   if (route?.noindex) {
     out = out.replace('</title>', '</title>\n    <meta name="robots" content="noindex, follow" />')
   }
+  // 分析工具（未設 ID 就完全不注入，見 analyticsTags 的說明）
+  const an = analytics ? analyticsTags(analytics) : ''
+  if (an) out = out.replace('</head>', `  ${an}\n  </head>`)
+
   // 首屏靜態內容：放在 #root 之後，React 掛載時由 main.jsx 移除
   const fb = fallbackFor(pathname, route)
   if (fb) {
@@ -589,7 +672,7 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
 
   if (kind === 'core') {
     return wrap(ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
-      .map(r => item(origin + r.path, r.lastmod || lastmod)))
+      .map(r => item(origin + r.path, lastmodFor(r.path, r.lastmod || lastmod))))
   }
   if (kind === 'daily') {
     const rows = []
@@ -638,7 +721,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
   //    Google 判定這份 lastmod 不可信之後會**整份忽略**。用內容真正的版本日期。
   const statics = ROUTES
     .filter(r => !r.noindex && !r.path.includes(':'))
-    .map(r => item(origin + r.path, r.lastmod || lastmod))
+    .map(r => item(origin + r.path, lastmodFor(r.path, r.lastmod || lastmod)))
 
   // 日期頁：過去一年 + 未來一年，每天一個網址。
   // 這是這類產品最大的單一流量來源——「2026年8月1日農民曆」一年 365 天都有人搜，

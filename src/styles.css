@@ -3116,6 +3116,25 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   .td-nav a:hover, .td-tags a:hover { background: var(--tone-1); }
 }
 
+/* ---------- 首頁「農民曆入口」：擇日／術語／節氣的真連結列 ----------
+   ⚠️ 這是首頁與 /almanac/day 的分工線：首頁＝入口（今日摘要＋導覽），
+      曆頁＝完整神煞表。兩頁的內容原本 96% 相同、又都自我 canonical。
+   ⚠️ 一定是 <a>（ui.jsx 的 Link）不是 <button>——爬蟲點不到按鈕，
+      而這幾條正是要讓爬蟲走進擇日／術語／節氣三群條目頁的路。 */
+.home-portal {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 var(--space-4) 4px; flex: 0 0 auto;
+}
+.home-portal a {
+  padding: 8px 12px; background: var(--chip); border: 1px solid var(--line);
+  border-radius: 2px; color: var(--text); text-decoration: none;
+  font-size: var(--text-xs); min-height: 24px;
+  transition: background var(--m-fast), border-color var(--m-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .home-portal a:hover { background: var(--tone-1); border-color: var(--primary); }
+}
+
 /* ---------- 節氣總覽：四季網格（取代會被切掉的橫向捲軸）---------- */
 .term-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));

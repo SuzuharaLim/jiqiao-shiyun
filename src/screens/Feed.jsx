@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask } from '../components/ui.jsx'
+import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask, SectionHead, Link } from '../components/ui.jsx'
+import { TERM_ARTICLES } from '../data/termArticle.js'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
 import { usePosts } from '../hooks/useApi.js'
@@ -19,6 +20,8 @@ export default function Feed() {
 
   const d = dayFor(off)
   const gzZi = d.ganzhi.replace(/日$/, '')
+  // 當前節氣的專頁 slug（首頁「農民曆入口」用；沒有對應條目就不渲染那顆連結）
+  const termSlug = TERM_ARTICLES.find(t => t.term === d.term)?.slug || ''
   // 社群貼文（嚴格來自資料庫）。依節氣排前，開啟貼文詳情＋留言
   const allPosts = usePosts(null)
   const shots = allPosts.filter(p => p.term === d.term).concat(allPosts).slice(0, 6)
@@ -165,6 +168,38 @@ export default function Feed() {
           <button className="b dark tap" onClick={() => push('aiChat')}><Icon name="sparkle" style={{ width: 15, height: 15, marginRight: 5, verticalAlign: -2 }} />問 AI 時光顧問</button>
           <button className="b tap" onClick={() => push('makeCalendar')}>＋ 做月曆</button>
         </div>
+
+        {/* 農民曆入口 —— 首頁與完整曆頁的分工線。
+            ⚠️ 首頁與 /almanac/day 的伺服器端靜態層原本是同一份，字元重疊率 96%，
+               兩頁又都自我 canonical＝同一份內容用兩個網址參賽。現在首頁改成
+               「入口頁」（今日摘要＋導覽），完整神煞表只留在曆頁。
+            ⚠️ 這一區必須與 server/seo.js 的 homeFallback() 列出的連結一致——
+               靜態層放畫面上沒有的東西就是 cloaking，改一邊要改兩邊。
+            ⚠️ 用 <Link>（真 <a href>）不可用 <button>：爬蟲點不到按鈕，
+               中鍵／Cmd+點擊開新分頁也會失效。 */}
+        <SectionHead title="要挑未來某一天？" extra="擇日工具" />
+        <nav className="home-portal" aria-label="擇日工具">
+          <Link screen="auspicious" params={{ kind: 'moving' }}>搬家吉日</Link>
+          <Link screen="auspicious" params={{ kind: 'wedding' }}>結婚好日子</Link>
+          <Link screen="auspicious" params={{ kind: 'opening' }}>開市吉日</Link>
+          <Link screen="auspicious" params={{ kind: 'bed' }}>安床吉日</Link>
+          <Link screen="auspiciousIndex">全部用途 ›</Link>
+        </nav>
+
+        <SectionHead title="看不懂曆頁上的名詞？" extra="術語" />
+        <nav className="home-portal" aria-label="術語與編輯政策">
+          <Link screen="glossary">術語解釋</Link>
+          <Link screen="myths">常見誤解</Link>
+          <Link screen="editorial">編輯政策</Link>
+        </nav>
+
+        <SectionHead title="節氣與其他工具" extra={d.term} />
+        <nav className="home-portal" aria-label="節氣與其他工具">
+          {termSlug && <Link screen="termDetail" params={{ slug: termSlug }}>{d.term}專頁</Link>}
+          <Link screen="solarterms">二十四節氣專欄</Link>
+          <Link screen="sunIndex">攝影時刻表</Link>
+          <Link screen="yearAlmanac">年度總覽</Link>
+        </nav>
 
         </div>{/* /feed-main */}
 
