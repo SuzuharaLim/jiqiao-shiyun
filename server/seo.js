@@ -5,6 +5,7 @@ import { DREAMS } from '../src/data/dream.js'
 import { PURPOSES, purposeBySlug, goodDaysInMonth } from '../src/data/auspicious.js'
 import { GLOSSARY, glossaryBySlug } from '../src/data/glossary.js'
 import { SPOTS, spotBySlug, sunTimes } from '../src/data/sunTimes.js'
+import { PRODUCTS, productBySlug, SHIPPING_NOTE } from '../src/data/products.js'
 import { termGuide } from '../src/data/termGuide.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
@@ -114,6 +115,10 @@ const ROUTES = [
     desc: '依真實按讚數即時計算的作品排行榜，看看這個節氣最受歡迎的照片是哪幾張、誰是目前最活躍的節氣攝影創作者，排名隨社群互動即時更新。' },
   { path: '/store', title: '商店｜植物月曆手帳・訂閱方案・企業版｜機巧時運',
     desc: '機巧時運的實體商品與方案：會說話的植物月曆手帳、掃描即可看到當日曆頁的節氣明信片，以及個人訂閱方案與企業客製合作，把國民曆帶回桌上。' },
+  // 單一商品頁。⚠️ 沒有這一條的話 /store/planner 會被判成未知路由而回 404 狀態碼，
+  //    「節氣手帳」「客製化企業月曆」這類高意圖查詢就沒有落地頁可以排。
+  { path: '/store/:slug', title: '商品｜機巧時運選物',
+    desc: '機巧時運選物的商品說明、規格與購買方式。' },
   { path: '/subscription', title: '訂閱方案比較｜Free 與 Premium｜機巧時運',
     desc: '機巧時運的方案比較：免費版可看每日國民曆與節氣社群，Premium 另有 AI 時光顧問額度、月曆匯出與市集授權等功能。' },
   { path: '/about', title: '關於機巧時運｜把農民曆讀成人話的文化科技團隊',
@@ -222,6 +227,15 @@ const slugOf = (pathname) => decodeURIComponent(pathname.split('/').pop() || '')
 function entryMeta(pathname, route) {
   const p = route?.path
   if (p === '/almanac/day/:date') return dateMeta(slugOf(pathname))
+  if (p === '/store/:slug') {
+    const pr = productBySlug(slugOf(pathname)); if (!pr) return null
+    return {
+      title: `${pr.title}｜機巧時運選物`,
+      // 價格寫進 description：商品類查詢的使用者在 SERP 上就是在比價，
+      // 看得到價格的那一筆點擊率明顯較高。洽詢報價的就誠實寫洽詢報價。
+      desc: `${pr.lead.slice(0, 78)} ${pr.price != null ? `售價 NT$${pr.price}。` : '企業客製，洽詢報價。'}`,
+    }
+  }
   if (p === '/solarterms/:slug') {
     const a = articleBySlug(slugOf(pathname)); if (!a) return null
     return {
@@ -447,6 +461,30 @@ function termFallback(slug) {
       或看<a href="/almanac/day">今日完整國民曆</a>的宜忌與吉時。</p>`
 }
 
+// 商品頁的首屏內容。⚠️ 每一段都對得上 ProductDetail.jsx 實際渲染的區塊。
+function productFallback(slug) {
+  const p = productBySlug(slug)
+  if (!p) return ''
+  const rows = (arr) => `<ul>${arr.map(([k, v]) => `<li>${esc(k)}——${esc(v)}</li>`).join('')}</ul>`
+  return `
+      <h1>${esc(p.name)}</h1>
+      <p>${esc(p.tagline)}　${p.price != null ? `售價 NT$${p.price}` : '企業客製，洽詢報價'}</p>
+      <p>${esc(p.lead)}</p>
+      ${p.b2b ? `
+      <h2>適合什麼場合？</h2>${rows(p.scenes)}
+      <h2>可以客製哪些部分？</h2>${rows(p.custom)}
+      <h2>怎麼詢價？</h2><p>${esc(p.ask)}</p>
+      <p>最低訂量、單價與交期依客製項目與數量而定，回覆詢價時一併提供。</p>` : `
+      <h2>規格</h2>${rows(p.specs)}
+      <h2>購買說明</h2><p>${esc(p.digital
+        ? '本商品為數位下載，購買後於「我的訂單」取得下載連結。數位內容一經提供即完成交付，依《消費者保護法》第 19 條之合理例外情形，不適用七日猶豫期解除契約。'
+        : SHIPPING_NOTE)}</p>`}
+      <h2>為什麼做這個</h2><p>${esc(p.why)}</p>
+      <h2>其他商品</h2>
+      <ul>${PRODUCTS.filter(x => x.slug !== p.slug).map(o =>
+        `<li><a href="/store/${o.slug}">${esc(o.name)}</a></li>`).join('')}</ul>`
+}
+
 function deityFallback(slug) {
   const d = deityBySlug(slug)
   if (!d) return ''
@@ -489,6 +527,7 @@ function fallbackFor(pathname, route) {
   if (p === '/') return homeFallback()
   if (p === '/almanac/day') return almanacFallback(null)
   if (p === '/almanac/day/:date') return almanacFallback(slug)
+  if (p === '/store/:slug') return productFallback(slug)
   if (p === '/solarterms/:slug') return termFallback(slug)
   if (p === '/deities/:slug') return deityFallback(slug)
   if (p === '/dream/:slug') return dreamFallback(slug)
@@ -536,6 +575,13 @@ function fallbackFor(pathname, route) {
         const t = sunTimes(today, x.lat, x.lng)
         return `<li><a href="/sun/${x.slug}">${esc(x.name)}</a>　日出 ${esc(t.sunrise)}　日落 ${esc(t.sunset)}——${esc(x.note)}</li>`
       }).join('')}</ul>`
+  }
+  // 商店總覽：列出商品的真連結，爬蟲才走得到四個商品頁
+  if (p === '/store') {
+    return `
+      <h1>機巧時運選物｜節氣手帳、企業客製月曆與數位素材</h1>
+      <ul>${PRODUCTS.map(x =>
+        `<li><a href="/store/${x.slug}">${esc(x.name)}</a>——${esc(x.tagline)}　${x.price != null ? `NT$${x.price}` : '洽詢報價'}</li>`).join('')}</ul>`
   }
   if (p === '/glossary') {
     return `
@@ -708,6 +754,7 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
       ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
       ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
       ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
+      ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
     ])
   }
   return wrap([])
@@ -746,6 +793,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
     ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
     ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
+    ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
     ...PURPOSES.flatMap(p => [
       item(`${origin}/auspicious/${p.slug}`, lastmod),
       ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
@@ -765,7 +813,8 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
 export function entryExists(pathname, route) {
   const p = route?.path
   const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
-    '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot']
+    '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot',
+    '/store/:slug']
   if (!ENTRY.includes(p)) return true
   return entryMeta(pathname, route) !== null
 }

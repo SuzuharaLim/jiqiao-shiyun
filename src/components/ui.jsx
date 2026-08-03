@@ -264,6 +264,31 @@ export const articleLd = ({ headline, description, url, section, modified }) => 
   publisher: { '@type': 'Organization', name: '機巧時運', '@id': 'https://chengqi.tw/#org' },
 })
 
+// 商品。⚠️ 沒有 Product schema 就不會有商品類的豐富結果（價格、庫存、評價）。
+//    price 為 null＝洽詢報價：這種情況**不可填 price: 0**（那會被判成免費商品），
+//    改用 Offer.availability + priceSpecification 只給幣別，讓 Google 知道
+//    「有在賣但價格需洽詢」。
+//    ⚠️ 也**不可捏造 aggregateRating／review**——虛構評價是明確違規，
+//    真的有評價資料再加。
+export const productLd = ({ name, description, url, price, image, sku, brand = '機巧時運' }) => ({
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name,
+  ...(description ? { description } : {}),
+  ...(image ? { image } : {}),
+  ...(sku ? { sku } : {}),
+  brand: { '@type': 'Brand', name: brand },
+  offers: {
+    '@type': 'Offer',
+    url,
+    priceCurrency: 'TWD',
+    ...(price != null
+      ? { price: String(price), availability: 'https://schema.org/InStock' }
+      : { availability: 'https://schema.org/InStock', priceSpecification: { '@type': 'PriceSpecification', priceCurrency: 'TWD' } }),
+    seller: { '@type': 'Organization', name: '機巧時運', '@id': 'https://chengqi.tw/#org' },
+  },
+})
+
 // 慶典（Event 仍有 rich result，且有日期地點時特別吃香）
 export const eventLd = ({ name, startDate, place, description, url }) => ({
   '@context': 'https://schema.org',

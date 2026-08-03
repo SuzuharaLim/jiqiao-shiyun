@@ -17,7 +17,7 @@ const SCREEN_TITLES = {
   bone: '秤骨神術', proverbs: '台灣諺語', festivals: '臺灣特色慶典', flowers: '賞花景點',
   ingredients: '當季食材', solarterms: '24 節氣專欄', subscription: '訂閱與帳號', wallet: '錢包收益',
   notifications: '通知', dms: '聯絡我們', settings: '設定', records: '占卜紀錄',
-  creatorConsole: '創作者後台', store: '商店', orders: '我的訂單', scan: '掃描明信片', camera: '相機',
+  creatorConsole: '創作者後台', store: '商店', productDetail: '商品', orders: '我的訂單', scan: '掃描明信片', camera: '相機',
   todayShots: '今日大家拍的', challenges: '節氣挑戰', challengesBoard: '挑戰排行榜',
   creatorPage: '創作者', followList: '粉絲／追蹤中', prePlan: '明年預拍', almanacDay: '完整國民曆', yearAlmanac: '年度總覽',
   foodTaboo: '食物相剋', units: '度量衡換算', ganzhiTable: '干支對照',

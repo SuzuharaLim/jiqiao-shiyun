@@ -27,6 +27,7 @@ import Settings from './Settings.jsx'
 import Records from './Records.jsx'
 import CreatorConsole from './CreatorConsole.jsx'
 import Store from './Store.jsx'
+import ProductDetail from './ProductDetail.jsx'
 import Orders from './Orders.jsx'
 import Scan from './Scan.jsx'
 import Camera from './Camera.jsx'
@@ -86,7 +87,7 @@ export const SCREENS = {
   settings: Settings,
   records: Records,
   creatorConsole: CreatorConsole,
-  store: Store,
+  store: Store, productDetail: ProductDetail,
   orders: Orders,
   scan: Scan,
   camera: Camera,

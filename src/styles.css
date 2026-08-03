@@ -2387,6 +2387,22 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 }
 .st-item .st-price { font-family: var(--serif); font-size:var(--text-base); }
 .st-item .pill { padding: 8px 16px; font-size:var(--text-xs); }
+/* 商品名稱與「看詳細」是真連結（<a href="/store/:slug">），不是按鈕——
+   商品各有獨立網址之後，爬蟲要從這裡走進去。 */
+.st-item .st-name { color: inherit; text-decoration: none; }
+.st-item .st-more { color: var(--cinnabar); text-decoration: none; font-size: var(--text-2xs); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
+  .st-item .st-name:hover { text-decoration: underline; }
+}
+
+/* 商品頁 /store/:slug */
+.pd-hero { display: flex; gap: 14px; align-items: flex-start; padding: 4px var(--space-4) 0; flex: 0 0 auto; }
+.pd-ph { width: 84px; height: 84px; border-radius: 2px; display: flex; align-items: center;
+  justify-content: center; font-size: var(--text-3xl); flex: 0 0 auto; }
+.pd-head { min-width: 0; flex: 1 1 auto; }
+.pd-name { font-family: var(--serif); font-size: var(--text-xl); font-weight: 800; margin: 0 0 4px; }
+.pd-tag { color: var(--muted); font-size: var(--text-xs); margin: 0 0 10px; }
+.pd-buy { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 @media (min-width: 900px) {
   .stage.signed-in .screen-store .st-item { padding: 16px 18px; }
   .stage.signed-in .screen-store .st-item .ti { width: 64px; height: 64px; font-size:var(--text-2xl); }
