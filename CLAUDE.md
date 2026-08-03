@@ -325,7 +325,17 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **術語頁（`src/data/glossary.js`）的 `answer` 欄位是給 AI 摘的**：開頭 40–60 字直接給完整定義、不鋪陳。`source` 沒有明確典據就留空，不可掰一個書名充數。`caveat`（常見誤解）是本站相對於一般命理站的實質差異，也最容易被引用。
 - **`robots.txt` 對 AI 爬蟲的立場是「明確 Allow」**：GPTBot、PerplexityBot、ClaudeBot 等逐一列出並允許索引公開內容，個人頁與交易流程仍一律擋掉。要改變立場（不希望被 AI 引用）就把那一段改成 `Disallow: /`。搭配 `public/llms.txt` 說明資料的三層可信度與引用方式。
 - **`max-image-preview:large` 不可拿掉**（`index.html` 的 robots meta）：沒有這行，Google 在 Discover 與搜尋只給小縮圖，Discover 幾乎進不去。這個站有節氣攝影社群＝獨家高畫質圖，是競品沒有的資產。
-- **sitemap 分成 index + 五類**（core／daily／solarterms／auspicious／entries）：GSC 對每一份分別統計「已建立索引 ÷ 提交數」，拆開才知道是哪一類沒被收（低於 60% 代表那一類有品質問題）。主 `sitemap.xml` 仍保留完整版供相容。
+- **sitemap 分成 index + 五類**（core／daily／solarterms／auspicious／entries）：GSC 對每一份分別統計「已建立索引 ÷ 提交數」，拆開才知道是哪一類沒被收（低於 60% 代表那一類有品質問題）。主 `sitemap.xml` 仍保留完整版供相容。**`robots.txt` 要宣告的是 `sitemap-index.xml` 不是扁平的 `sitemap.xml`**——只宣告扁平版的話 GSC 只給一個總數，分檔等於白做；也不要兩份都宣告（同一批網址重複提交）。
+- **首頁與 `/almanac/day` 的靜態層必須不同**：兩者原本共用 `almanacFallback`，字元重疊率 **96%**（583 vs 594 字）且都自我 canonical＝同一份內容用兩個網址參賽，而首頁是全站權重最高的頁卻長得像一個每天輪替的曆頁。現在 `homeFallback()` 是「農民曆入口」（今日摘要＋擇日／術語／節氣／年度導覽，打「農民曆」大詞），完整神煞表只留在曆頁（打日期型查詢），相似度降到 25.9%。**`homeFallback()` 列出的每一個連結，`Feed.jsx` 的 `.home-portal` 都要真的渲染得出來**——改一邊要改兩邊，放畫面上沒有的東西就是 cloaking。
+- **`lastmod` 的例外只有「內容真的每天變」的兩頁**：`/` 與 `/almanac/day` 用今天（`lastmodFor()`），其餘沿用手動維護的 `SITE_LASTMOD`。這與「不可全站一律填今天」不衝突——反對的是讓整份 lastmod 失去可信度而被 Google 整份忽略，不是反對誠實標註。
+- **曆頁靜態層是寫給 AI 摘要看的**：開頭 40–60 字**直接回答**（日期＋農曆干支＋節氣第幾天＋宜忌前三＋吉時＋沖煞）、小標一律**問句**（「今天幾點是吉時？」不是「今日吉時」）、對照資料用真的 `<table>`／`<ol>`（AI 抽不出圖裡的字，也抽不出沒有語意的 div）、並標明計算依據與流派差異。依據：實查台灣 Google「農民曆的宜忌怎麼算出來」，AI 摘要引用的是 Threads 貼文與一家婚宴會館的部落格，排名前段的命理大站一個都沒被引用——這個利基的引用位幾乎空著，門檻不是網域權重而是「有沒有把問題直接回答清楚」。
+- **分析工具全部走環境變數，未設就一行 script 都不注入**（`GA4_MEASUREMENT_ID`／`CLARITY_PROJECT_ID`／`GSC_VERIFICATION`；CSP 也是條件式放行，`GET /api/health` 回三個布林值）。`clutterScore` 是**站台級**訊號，目前首頁只有 16 個請求、沒有廣告聯播網，不可為了「先放著」而載入沒在用的追蹤碼。
+- **文章型內容走靜態模組，清單型內容走 `ref_items`**：`termArticle.js`／`deityArticle.js`／`glossary.js`／**`products.js`** 是前者。判準是「有沒有獨立網址」——有獨立網址的頁需要伺服器端**同步**取得 slug 與描述，而 `server/seo.js` 的 `injectMeta`／`entryExists`／sitemap 全是同步函式，不能 `await` 資料庫。商品目錄因此由 `ref_items('storeProducts')` 改為 `src/data/products.js`（正式站 ref_items 的殘留該類可在管理後台刪除）。
+- **商品的 Product schema：洽詢報價不可填 `price: 0`**（會被判成免費商品），要用 `priceSpecification` 只給幣別。**也不可捏造 `aggregateRating`／`review`**——虛構評價是明確違規。
+- **不要在商品頁編造運費、出貨天數、最低訂量、交期、退換貨天數**：那些是營運決定，寫死的數字一旦與實際政策不符就是履約糾紛。目前只寫《消費者保護法》第 19 條的七日猶豫期（**法定**權利，不是自訂政策，不會有出入），數位商品標明屬該條的合理例外。實際政策定案後再補 `SHIPPING_NOTE`。
+- **`og:image` 逐頁用真實作品**（`server/index.js` 的 `ogImageFor()`）：貼文頁用該貼文的圖、作品頁用該作品的圖、節氣頁與曆頁用該節氣底下最多讚的作品，查無圖才回退品牌圖。**注入時要把寫死的 `og:image:width/height` 移除**——使用者上傳的圖不是固定 1200×630，留著會讓 FB 照錯的比例裁。只放「這一頁真的在講的那張照片」，隨便配圖等於把預覽卡當廣告版位。
+- **`PhotoImg` 的 `alt` 一定要傳真敘述**：原本寫死 `alt=""`＝宣告「裝飾圖可跳過」，但那是本站唯一的原創視覺資產，空 alt 等於自願退出 Google 圖片搜尋（「立春 台灣」「大暑 稻田」的圖片結果幾乎沒有競爭），讀屏使用者也會整頁作品全被跳過。
+- **RSS 的圖用 `media:content` 不用 `enclosure`**：後者的 `length` 是必填的位元組數，不值得為了產一份 feed 去把每張圖讀出來量長度。
 - **IndexNow 需設 `INDEXNOW_KEY` 環境變數**（任意 8–128 位十六進位字串），未設就跳過不報錯。Bing／Yandex 支援而台灣 Yahoo 奇摩吃 Bing。**Google 不支援 IndexNow**，其 Indexing API 只開放徵才與直播內容，不要浪費時間去接。
 - **公開 API `GET /api/v1/almanac/:date` 免金鑰但有速率限制**（以 IP 計，每小時 600 次）。回應帶 `_source` / `_license`，目的是換取開發者在 README 與技術文章裡的外連。`/widget/today` 是可嵌入的今日宜忌卡，**本身要 noindex**（避免與曆頁重複），底部的來源連結是 do-follow。
 - **`manifest.webmanifest` 的 `screenshots` 刻意沒放**：那需要真實截圖檔，寫一個不存在的路徑會讓安裝介面壞掉，比不寫更糟。有實際截圖再補。
