@@ -85,7 +85,7 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'va
             {gallery.map(it => (
               <button key={`${it.kind}-${it.id}`} className="gimg tap" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}
                 onClick={() => push(it.kind === 'work' ? 'workDetail' : 'postDetail', { id: it.id })}>
-                {it.image ? <PhotoImg src={it.image} /> : it.emoji}
+                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} /> : it.emoji}
                 {it.price ? <div className="gbadge">${it.price}</div> : null}
               </button>
             ))}

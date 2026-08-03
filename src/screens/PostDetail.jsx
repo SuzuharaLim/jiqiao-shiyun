@@ -129,7 +129,7 @@ export default function PostDetail({ id }) {
           </button>
         </div>
         <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {post.image ? <PhotoImg src={post.image} /> : post.emoji}
+          {post.image ? <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} /> : post.emoji}
         </div>
 
         <div className="acts">

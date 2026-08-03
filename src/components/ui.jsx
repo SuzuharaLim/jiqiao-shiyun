@@ -367,7 +367,12 @@ export function GlossPanel({ gl }) {
 // ⚠️ 必須處理「圖片已在快取」的情況：那時 onLoad 可能在 React 掛上
 //    handler 之前就觸發過了，只靠 onLoad 會永遠停在透明。用 ref 補查
 //    img.complete。
-export function PhotoImg({ src, style }) {
+// ⚠️ alt 一定要傳真的敘述。這裡原本寫死 alt=""（＝宣告「這是裝飾圖，螢幕閱讀器
+//    可以跳過」），但這些正是本站唯一的原創視覺資產——節氣攝影作品。alt 空白等於
+//    自願退出 Google 圖片搜尋，而「立春 台灣」「大暑 稻田」這類查詢的圖片結果
+//    幾乎沒有競爭。對讀屏使用者也是：整頁作品全部被跳過，等於這一頁沒有內容。
+//    真的沒有敘述可用時才留空（例如純色佔位）。
+export function PhotoImg({ src, alt = '', style }) {
   const [loaded, setLoaded] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
@@ -378,7 +383,7 @@ export function PhotoImg({ src, style }) {
     <img
       ref={ref}
       src={src}
-      alt=""
+      alt={alt}
       loading="lazy"
       decoding="async"
       onLoad={() => setLoaded(true)}

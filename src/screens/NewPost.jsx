@@ -96,7 +96,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         right={<button className="acc tap" onClick={publish}>發佈</button>} />
       <div className="body">
         <div className="img" style={{ background: photo ? '#000' : COVERS[sel].bg, height: 260, fontSize: 56, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {photo ? <PhotoImg src={photo} /> : COVERS[sel].e}
+          {photo ? <PhotoImg src={photo} alt="剛拍好、待發布的照片預覽" /> : COVERS[sel].e}
         </div>
 
         {/* 從相機帶照片進來時，就不再顯示選圖選項（照片已定案，要重拍請返回相機）*/}

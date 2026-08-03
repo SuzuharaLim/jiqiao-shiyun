@@ -30,7 +30,7 @@ export default function Leaderboard() {
               {medal[r.rank - 1] || r.rank}
             </div>
             <div className="ti" style={{ background: r.bg, width: 44, height: 44, fontSize: 'var(--text-xl)', position: 'relative', overflow: 'hidden' }}>
-              {r.image ? <PhotoImg src={r.image} /> : r.emoji}
+              {r.image ? <PhotoImg src={r.image} alt={`${r.title}｜${r.term || "節氣"}攝影作品`} /> : r.emoji}
             </div>
             <div className="tn2">
               <b>{r.title}</b>

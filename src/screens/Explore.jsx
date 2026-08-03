@@ -159,7 +159,7 @@ export default function Explore() {
             {list.map(w => (
               <button key={w.id} className="it tap" onClick={() => push('workDetail', { id: w.id })}>
                 <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
-                  {w.image ? <PhotoImg src={w.image} /> : w.emoji}
+                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品，攝影者 @${w.user}`} /> : w.emoji}
                   {w.price && <div className="gbadge">NT${w.price}</div>}
                 </div>
                 <div className="cap">{w.title}<small>@{w.author} · {w.term}</small></div>

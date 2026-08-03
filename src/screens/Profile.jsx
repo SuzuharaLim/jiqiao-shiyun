@@ -106,7 +106,7 @@ export default function Profile() {
             {shown.map(w => (
               <button key={w.id} className="it tap" onClick={() => openItem(w)}>
                 <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
-                  {w.image ? <PhotoImg src={w.image} /> : w.emoji}
+                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品`} /> : w.emoji}
                   {w.price ? <div className="gbadge">NT${w.price}</div> : null}
                 </div>
                 <div className="cap">{w.title}<small>{w.term}{w.price ? ' · 市集上架' : ''}</small></div>

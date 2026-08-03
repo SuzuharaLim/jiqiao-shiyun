@@ -47,7 +47,7 @@ export default function WorkDetail({ id }) {
       <div className="body wd-body">
         <div className="wd-media">
           <div className="img" style={{ background: w.bg, height: 320, fontSize: 60, padding: 0, position: 'relative', overflow: 'hidden' }}>
-            {w.image ? <PhotoImg src={w.image} /> : w.emoji}
+            {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品，攝影者 @${w.user}`} /> : w.emoji}
           </div>
         </div>
 

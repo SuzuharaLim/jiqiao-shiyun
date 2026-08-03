@@ -660,7 +660,7 @@ export function analyticsTags({ ga4 = '', clarity = '', verify = '' } = {}) {
   return out.join(String.fromCharCode(10))
 }
 
-export function injectMeta(html, { origin, pathname, route, analytics }) {
+export function injectMeta(html, { origin, pathname, route, analytics, image, imageAlt }) {
   const url = origin + (pathname === '/' ? '/' : pathname)
   // 條目頁的 meta 由該條目的真實內容產生，不用路由表那句通用的。
   // ⚠️ 沒有這一層的話，24 個節氣頁會共用同一句 description，
@@ -680,6 +680,25 @@ export function injectMeta(html, { origin, pathname, route, analytics }) {
   if (route?.noindex) {
     out = out.replace('</title>', '</title>\n    <meta name="robots" content="noindex, follow" />')
   }
+  // 逐頁 og:image。
+  // ⚠️ 原本全站共用 og-default.jpg——分享到 LINE／FB／Threads 每一頁長得一模一樣，
+  //    而這個站最大的視覺資產（使用者拍的節氣攝影）完全沒被用到。
+  // ⚠️ Google Discover 的門檻是**寬度至少 1200px、總像素超過 30 萬**。
+  //    上傳流程已把照片壓到 ≤1600px，所以真實作品都過得了門檻，og-default 也是 1200×630。
+  // ⚠️ 只放「這一頁真的在講的那張照片」——貼文放該貼文的圖、節氣頁放該節氣的作品。
+  //    隨便配一張不相干的圖是把預覽卡當廣告版位用，點進來會落差。
+  if (image) {
+    const abs = image.startsWith('http') ? image : origin + image
+    out = out
+      .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${esc(abs)}$2`)
+      .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${esc(abs)}$2`)
+    if (imageAlt) out = out.replace(/(<meta property="og:image:alt" content=")[^"]*(")/, `$1${esc(imageAlt)}$2`)
+    // 使用者上傳的圖不是固定的 1200×630，寫死的尺寸會讓 FB 裁錯——直接移除尺寸宣告。
+    out = out
+      .replace(/\s*<meta property="og:image:width" content="[^"]*" \/>/, '')
+      .replace(/\s*<meta property="og:image:height" content="[^"]*" \/>/, '')
+  }
+
   // 分析工具（未設 ID 就完全不注入，見 analyticsTags 的說明）
   const an = analytics ? analyticsTags(analytics) : ''
   if (an) out = out.replace('</head>', `  ${an}\n  </head>`)

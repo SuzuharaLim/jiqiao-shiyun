@@ -91,7 +91,7 @@ export default function MakeCalendar() {
             const on = sel.has(p.key)
             return (
               <button key={p.key} className="gimg tap" style={{ background: p.bg, position: 'relative', overflow: 'hidden' }} onClick={() => toggle(p.key)}>
-                {p.image ? <PhotoImg src={p.image} /> : p.emoji}
+                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜可放進月曆的節氣照片`} /> : p.emoji}
                 {on && <><div className="selo" /><div className="chk">✓</div></>}
               </button>
             )

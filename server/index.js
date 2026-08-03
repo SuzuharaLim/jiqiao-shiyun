@@ -21,6 +21,7 @@ import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, b
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
 import { dayFor, todayOffset, dateFromOffset, offsetFromDate } from '../src/data/almanac.js'
+import { TERM_ARTICLES } from '../src/data/termArticle.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1654,7 +1655,7 @@ if (existsSync(distDir)) {
   // ── RSS feed ───────────────────────────────────────────────
   // 聚合器、電子報服務、Slack/Discord bot、第三方 App 都會來訂，
   // 是被動的曝光與外連來源。內容用「每日曆頁」——它天天更新，最適合做 feed。
-  app.get('/feed.xml', (req, res) => {
+  app.get('/feed.xml', ah(async (req, res) => {
     const origin = originOf(req)
     const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -1665,6 +1666,11 @@ if (existsSync(distDir)) {
       const d = dayFor(off)
       const dt = dateFromOffset(off)
       const link = `${origin}/almanac/day/${iso(dt)}`
+      // ⚠️ RSS 原本 14 則一張圖都沒有。feed 是 Discover 與訂閱工具的入口，
+      //    純文字的條目在任何有縮圖的清單裡都會被略過。
+      //    用 media:content 不用 enclosure——enclosure 的 length 屬性是必填的
+      //    位元組數，而我們不想為了產一份 feed 去把每張圖讀出來量長度。
+      const shot = await bestShotForTerm(d.term)
       items.push([
         '  <item>',
         `    <title>${esc(`${dt.getMonth() + 1}/${dt.getDate()}（${d.weekday}）${d.lunar}・${d.ganzhi}`)}</title>`,
@@ -1672,12 +1678,13 @@ if (existsSync(distDir)) {
         `    <guid isPermaLink="true">${link}</guid>`,
         `    <pubDate>${dt.toUTCString()}</pubDate>`,
         `    <description>${esc(`宜：${d.yi.join('、')}／忌：${d.ji.join('、')}。${d.term}第 ${d.termDay} 天，${d.zheng}，吉時 ${d.luckyHours}。${d.summary || ''}`)}</description>`,
+        ...(shot ? [`    <media:content url="${esc(origin + shot.url)}" medium="image"><media:description>${esc(shot.alt)}</media:description></media:content>`] : []),
         '  </item>',
       ].join(NEWLINE))
     }
     res.type('application/rss+xml').set('Cache-Control', 'public, max-age=3600').send([
       '<?xml version="1.0" encoding="UTF-8"?>',
-      '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+      '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">',
       '<channel>',
       '  <title>機巧時運｜每日國民曆</title>',
       `  <link>${origin}/</link>`,
@@ -1689,7 +1696,63 @@ if (existsSync(distDir)) {
       '</rss>',
       '',
     ].join(NEWLINE))
-  })
+  }))
+
+  // ── 逐頁 og:image ────────────────────────────────────────────────
+  //
+  // ⚠️ 為什麼要做：全站原本共用 og-default.jpg，分享到 LINE／FB／Threads 每一頁
+  //    長得一模一樣，而這個站最大的視覺資產——使用者拍的節氣攝影——完全沒被用到。
+  //    Google Discover 又特別吃圖（門檻：寬度 ≥1200px、總像素 >30 萬），
+  //    而節氣、鬼月、過年正是 Discover 最愛推的題材。
+  // ⚠️ 只回「這一頁真的在講的那張照片」：貼文頁用該貼文的圖、作品頁用該作品的圖、
+  //    節氣頁與曆頁用該節氣底下最多讚的作品。隨便配一張不相干的圖等於把預覽卡
+  //    當廣告版位，點進來會落差。查無圖就回 null，沿用預設的品牌圖。
+  // ⚠️ 這支只在 SPA fallback 那一條路徑上跑，且只做一次 indexed 查詢；
+  //    查詢失敗一律吞掉回 null——og:image 不值得讓整頁掛掉。
+  const ogTermCache = new Map()   // term -> {url, alt} | null（單次進程內快取，避免每次請求都查）
+  async function bestShotForTerm(term) {
+    if (!term) return null
+    if (ogTermCache.has(term)) return ogTermCache.get(term)
+    let out = null
+    try {
+      const r = await db.get(
+        `SELECT title, image_id FROM works WHERE term=? AND image_id IS NOT NULL
+         ORDER BY like_count DESC LIMIT 1`, [term])
+      const r2 = r || await db.get(
+        `SELECT title, image_id FROM posts WHERE term=? AND image_id IS NOT NULL
+         ORDER BY like_count DESC LIMIT 1`, [term])
+      if (r2) out = { url: `/api/images/${r2.image_id}`, alt: `${term}．${r2.title}｜機巧時運節氣攝影` }
+    } catch { out = null }
+    ogTermCache.set(term, out)
+    return out
+  }
+  async function ogImageFor(pathname, route) {
+    const p = route?.path
+    const slug = decodeURIComponent(pathname.split('/').pop() || '')
+    try {
+      if (p === '/post/:id') {
+        const r = await db.get('SELECT title, term, image_id FROM posts WHERE id=?', [slug])
+        return r?.image_id ? { url: `/api/images/${r.image_id}`, alt: `${r.title}｜${r.term || '節氣'}攝影` } : null
+      }
+      if (p === '/work/:id') {
+        const r = await db.get('SELECT title, term, image_id FROM works WHERE id=?', [slug])
+        return r?.image_id ? { url: `/api/images/${r.image_id}`, alt: `${r.title}｜${r.term || '節氣'}攝影` } : null
+      }
+      if (p === '/solarterms/:slug') {
+        const a = TERM_ARTICLES.find(x => x.slug === slug)
+        return a ? await bestShotForTerm(a.term) : null
+      }
+      // 曆頁與首頁：用「當前節氣」底下最好的一張。畫面上本來就有「今日大家拍的〈節氣〉」，
+      // 不是憑空配圖。
+      if (p === '/' || p === '/almanac/day') return await bestShotForTerm(dayFor(todayOffset()).term)
+      if (p === '/almanac/day/:date') {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(slug)
+        if (!m) return null
+        return await bestShotForTerm(dayFor(offsetFromDate(new Date(+m[1], +m[2] - 1, +m[3]))).term)
+      }
+    } catch { /* og:image 不值得讓整頁掛掉 */ }
+    return null
+  }
 
   // ── 公開 API：讓開發者引用，換取持續的高品質外連 ──────────────
   // ⚠️ 刻意做成免金鑰但有速率限制。回應帶 _source / _license，
@@ -1744,18 +1807,20 @@ if (existsSync(distDir)) {
   // ⚠️ 未知路由必須回 404 狀態碼。原本一律回 index.html + 200，等於告訴搜尋引擎
   //    「本站有無限多個內容一樣的有效頁面」＝soft 404，會稀釋權重、浪費爬取配額。
   //    但 body 仍要送 SPA 的 HTML，使用者才會看到 App 內設計過的找不到頁面。
-  app.get('*', (req, res, next) => {
+  app.get('*', ah(async (req, res, next) => {
     if (req.path.startsWith('/api/')) return next()
     const route = matchRoute(req.path)
     // ⚠️ 路由樣板對得上還不夠——條目頁的 slug 也要真的存在，
     //    否則 /solarterms/nope 這種網址會回 200＋「找不到」畫面＝soft 404。
     const ok = route && entryExists(req.path, route)
+    const og = ok ? await ogImageFor(req.path, route) : null
     const html = injectMeta(indexHtml, {
       origin: originOf(req), pathname: req.path, route: ok ? route : null,
       analytics: { ga4: GA4_ID, clarity: CLARITY_ID, verify: GSC_VERIFY },
+      image: og?.url, imageAlt: og?.alt,
     })
     res.status(ok ? 200 : 404).type('html').set('Cache-Control', 'no-cache').send(html)
-  })
+  }))
 }
 
 // ---------- 錯誤處理 ----------
