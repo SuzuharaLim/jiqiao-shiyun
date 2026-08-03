@@ -331,20 +331,54 @@ function almanacFallback(iso) {
   //    情境化的內部連結，讓每一頁都有非模板的實質內容，也把使用者的下一個問題接住
   //    （NavBoost 的 lastLongestClicks：目標是成為那個查詢序列的最後一次點擊）。
   const termSlug = TERM_ARTICLES.find(t => t.term === a.term)?.slug || ''
+  // ⚠️ 開頭這一段是「直接回答」：40–60 字給完整答案、不鋪陳。AI 摘要／AI Overviews
+  //    與 Perplexity 抽的就是這一段。實查台灣 Google「農民曆的宜忌怎麼算出來」，
+  //    AI 摘要引用的是 Threads 貼文與一家婚宴會館的部落格——排名前段的命理大站
+  //    一個都沒被引用。也就是說這個利基的引用位幾乎空著，而門檻不是網域權重，
+  //    是「有沒有把問題直接回答清楚」。
+  // ⚠️ 小標一律用問句：使用者是這樣問的，AI 也是照問題找段落。
+  // ⚠️ 對照資料用真的 <table>／<ol>，不要用 div 排版或圖片——AI 抽不出圖裡的字，
+  //    也抽不出沒有語意的 div。
+  const hourRows = a.hours12.map(h =>
+    `<tr><td>${esc(h.zhi)}時</td><td>${esc(h.range)}</td><td>${esc(h.shen)}</td><td>${esc(h.luck)}</td></tr>`).join('')
   return `
       <h1>${esc(a.solar.replace(/\s/g, ''))} ${esc(a.weekday)}　今日國民曆（農民曆）宜忌吉時</h1>
+      <p>${esc(a.solar.replace(/\s/g, ''))}是${esc(a.lunar)}、${esc(a.ganzhi)}，${esc(a.term)}第 ${a.termDay} 天。
+      今日宜${esc(a.yi.slice(0, 3).join('、') || '諸事不宜')}，忌${esc(a.ji.filter(t => !t.startsWith('大事勿用')).slice(0, 3).join('、') || '無')}；
+      黃道吉時${esc(hours || '無')}，${esc(a.zheng)}。</p>
       <p>${esc(a.lunar)}・${esc(a.ganzhi)}・${esc(a.term)}第 ${a.termDay} 天（${esc(a.termRange || '')}）・納音${esc(a.wuxing)}</p>
       ${a.summary ? `<p>${esc(a.summary)}</p>` : ''}
-      <h2>今日宜</h2><ul>${li(a.yi)}</ul>
-      <h2>今日忌</h2><ul>${li(a.ji)}</ul>
-      <h2>今日吉時</h2><p>${esc(hours || '無特別吉時')}</p>
-      <h2>今日沖煞</h2><p>${esc(a.zheng)}，沖煞歲數（虛歲）${esc(a.chong.ages.join('、'))} 歲</p>
-      <h2>值日神煞</h2><p>建除十二神：${esc(a.jianchu)}日。${esc(a.jianchuYi)}</p>
+      <h2>今天適合做什麼？（宜）</h2><ul>${li(a.yi)}</ul>
+      <h2>今天不適合做什麼？（忌）</h2><ul>${li(a.ji)}</ul>
+      <h2>今天幾點是吉時？</h2>
+      <p>吉時：${esc(hours || '無特別吉時')}。十二時辰的吉凶依黃道黑道十二神推算，起神位置由當日地支決定：</p>
+      <table>
+        <thead><tr><th>時辰</th><th>時間</th><th>值神</th><th>吉凶</th></tr></thead>
+        <tbody>${hourRows}</tbody>
+      </table>
+      <h2>今天沖到誰？（沖煞）</h2><p>${esc(a.zheng)}，沖煞歲數（虛歲）${esc(a.chong.ages.join('、'))} 歲。
+      沖煞是指當日地支與某生肖相沖，傳統認為該生肖者當天不宜參與重要儀式；本站只標出來，不代為刪除該日。</p>
+      <h2>今天的值日神煞是什麼？</h2><p>建除十二神：${esc(a.jianchu)}日。${esc(a.jianchuYi)}</p>
       <p>二十八星宿：${esc(a.xiu)}宿・${esc(a.xiuAnimal)}（${esc(a.xiuLuck)}）／每日胎神：${esc(a.taishen)}</p>
       <p>彭祖百忌：${esc(a.pengzu[0])}　${esc(a.pengzu[1])}</p>
-      <h2>今日吉神方位</h2>
-      <p>喜神${esc(a.xishen)}／財神${esc(a.caishen)}／陽貴神${esc(a.yanggui)}／陰貴神${esc(a.yingui)}；天乙貴人生肖：${esc(a.guiren)}</p>
+      <h2>今天的吉神在哪個方位？</h2>
+      <table>
+        <thead><tr><th>吉神</th><th>方位</th></tr></thead>
+        <tbody>
+          <tr><td>喜神</td><td>${esc(a.xishen)}</td></tr>
+          <tr><td>財神</td><td>${esc(a.caishen)}</td></tr>
+          <tr><td>陽貴神</td><td>${esc(a.yanggui)}</td></tr>
+          <tr><td>陰貴神</td><td>${esc(a.yingui)}</td></tr>
+        </tbody>
+      </table>
+      <p>天乙貴人生肖：${esc(a.guiren)}（這一項給的是生肖，不是方位）。</p>
       <p>吉日星等 ${a.stars} / 5，${esc(a.rating)}。今日一諺：「${esc(a.proverb)}」</p>
+      <h2>這些數字是怎麼算出來的？</h2>
+      <p>農曆月日、二十四節氣交節與年月日干支以 Meeus 演算法實算（朔望月與太陽視黃經，UTC+8 為日界），
+      屬確定性計算、可與中央氣象署的天文資料交叉驗證。建除十二神、二十八星宿、黃道黑道十二神、
+      宜忌、沖煞、胎神、彭祖百忌與吉神方位屬傳統擇日，規則有典據且可逐步推導，
+      但不同通書流派的判定可能相異——凡有流派差異之處本站都在頁面標明採用的版本。
+      詳細來源與校對流程見<a href="/editorial">編輯政策</a>，名詞解釋見<a href="/glossary">術語解釋</a>。</p>
       <h2>今天是什麼節氣？</h2>
       <p>${esc(a.term)}（${esc(a.termRange || '')}）第 ${a.termDay} 天。
       ${termSlug ? `<a href="/solarterms/${termSlug}">看${esc(a.term)}的完整介紹</a>——七十二候、台灣氣候、當令農產。` : ''}
