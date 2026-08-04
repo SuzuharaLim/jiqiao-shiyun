@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 
 const NAV = [
   { i: 0, label: '今日曆頁' }, { i: 1, label: '探索' }, { i: 2, label: '建立' },
-  { i: 3, label: '占卜' }, { i: 4, label: '我的' },
+  { i: 3, label: '曆書' }, { i: 4, label: '我的' },
 ]
 
 export default function WebNav() {

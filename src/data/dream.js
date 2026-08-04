@@ -152,16 +152,24 @@ export const DREAMS = [
 // 而那兩條的斷語剛好相反（反夢），配錯就是給出完全顛倒的答案。
 // ⚠️ k[0] 同時是網址 slug 與頁面標題，必須放「使用者實際會搜的詞」——
 //    「夢見掉牙」的搜尋量遠大於「夢見牙」。比對本身會掃過 k 的所有詞，不受順序影響。
+// ⚠️ 一定要回傳「比對到哪個關鍵字」。輸入「我夢到我變成一台冰箱而且會飛」時
+//    其實只比對到「飛」，畫面卻原封不動印出整句加上「《周公解夢》原典：身在空中飛，
+//    主大吉」——看起來像古書真的針對「變成冰箱」講了這句話。
+//    同時回傳其他有比對到的詞，讓使用者可以改選（一句話裡常有好幾個夢象）。
 export function lookupDream(input) {
   const q = (input || '').trim()
   if (!q) return null
-  let best = null, bestLen = 0
+  const hits = []
   for (const d of DREAMS) {
-    for (const k of d.k) {
-      if (q.includes(k) && k.length > bestLen) { best = d; bestLen = k.length }
-    }
+    let kw = '', len = 0
+    for (const k of d.k) if (q.includes(k) && k.length > len) { kw = k; len = k.length }
+    if (kw) hits.push({ d, kw, len })
   }
-  return best
+  if (!hits.length) return null
+  hits.sort((a, b) => b.len - a.len)
+  const best = hits[0]
+  // 附上「命中的關鍵字」與其他候選（去掉同一條）
+  return { ...best.d, matchedKeyword: best.kw, alsoMatched: hits.slice(1).map(h => ({ kw: h.kw, term: h.d.k[0] })) }
 }
 
 // 夢的五行 vs 當日日干支五行 → 延伸提示。

@@ -1,3 +1,4 @@
+import { termTable } from './lunisolar.js'
 // 生肖運勢：由當日干支推導，不可再用資料庫裡的靜態分數
 //
 // ⚠️ 這支模組取代的舊實作與本站自己的曆頁直接對打：
@@ -15,6 +16,36 @@ import { dayFor, todayOffset } from './almanac.js'
 //                馬午6、羊未7、猴申8、雞酉9、狗戌10、豬亥11
 export const ZODIAC_ORDER = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬']
 const idxOf = (sign) => ZODIAC_ORDER.indexOf(sign)
+
+// 出生年（國曆）→ 生肖。
+// ⚠️ 很多人不知道自己的生肖（尤其只記得民國年、或不確定年初出生算哪一年），
+//    「標出沖到我的日子」只給 12 顆生肖按鈕就等於把門檻丟給使用者。
+// ⚠️ 生肖以**立春**換年，不是元旦也不是農曆春節：1998-01-20 出生的人屬牛不是虎。
+//    這與 almanac.js 的年柱同一個判準（lunarYearGanzhiIndex 用正月初一是另一套，
+//    只給秤骨用，不可混用）。沒給月日時保守以整年論並在畫面上提醒。
+// 支援民國年輸入（1–200 視為民國年）。
+export function zodiacOfBirth(year, month, day) {
+  let y = Number(year)
+  if (!Number.isFinite(y)) return null
+  if (y >= 1 && y <= 200) y += 1911            // 民國年
+  if (y < 1900 || y > 2100) return null
+  let effY = y
+  // ⚠️ 一定要先擋空字串。畫面上的月／日是選填的 <input>，沒填時是 ''，
+  //    而 `Number('')` 是 **0**（不是 NaN），`Number.isFinite(0)` 為真——
+  //    於是「月 0 日 0」永遠小於立春，每個人都被算成前一年的生肖
+  //    （實測民國 87 年沒填月日時顯示「牛」，正解是虎）。
+  const hasMD = String(month ?? '').trim() !== '' && String(day ?? '').trim() !== ''
+  if (hasMD && Number.isFinite(Number(month)) && Number.isFinite(Number(day))) {
+    // ⚠️ termLocalDay 回的是**儒略日**不是 {m,d}——直接讀 .m/.d 會拿到 undefined，
+    //    比較永遠成立不了，立春分界整個失效（實測 1998-01-20 被算成虎，正解是牛）。
+    //    用 termTable 取當年立春的月日。
+    const li = termTable(y).find(t => t.name === '立春')
+    const m = Number(month), d = Number(day)
+    if (li && (m < li.m || (m === li.m && d < li.d))) effY = y - 1   // 立春前算前一年
+  }
+  // 1900 是鼠年（庚子）；ZODIAC_ORDER 以鼠為首
+  return { zodiac: ZODIAC_ORDER[((effY - 1900) % 12 + 12) % 12], year: y, effYear: effY }
+}
 
 const LIUHE = { 0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3, 4: 9, 9: 4, 5: 8, 8: 5, 6: 7, 7: 6 }
 const SANHE = [[8, 0, 4], [11, 3, 7], [2, 6, 10], [5, 9, 1]]

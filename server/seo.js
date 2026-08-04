@@ -700,8 +700,13 @@ export function injectMeta(html, { origin, pathname, route, analytics, image, im
   // ⚠️ 沒有這一層的話，24 個節氣頁會共用同一句 description，
   //    Google 會判成重複內容而只留一頁——條目化的努力就白費了。
   const dm = entryMeta(pathname, route)
-  const title = dm?.title || route?.title || ROUTES[0].title
-  const desc = dm?.desc || route?.desc || DEFAULT_DESC
+  // ⚠️ route === null 代表這是未知路徑（伺服器已回 404 狀態碼）。標題不可沿用首頁的
+  //    ——實測亂打 /divination，畫面正確顯示「找不到這個頁面」，瀏覽器分頁標題卻仍是
+  //    「機巧時運｜今日農民曆．AI 白話解讀宜忌吉時」，使用者在一堆分頁裡分不出
+  //    哪個是壞掉的。404 也一律 noindex（下面的 route?.noindex 碰不到 null）。
+  const notFound = !route
+  const title = notFound ? '找不到頁面 · 機巧時運' : (dm?.title || route.title || ROUTES[0].title)
+  const desc = notFound ? '這個網址在機巧時運上不存在，可能是連結過期或打錯了。' : (dm?.desc || route.desc || DEFAULT_DESC)
   let out = html
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
     .replace(/(<meta name="description" content=")[^"]*(")/, `$1${esc(desc)}$2`)
@@ -711,7 +716,7 @@ export function injectMeta(html, { origin, pathname, route, analytics, image, im
     .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${esc(desc)}$2`)
     .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${esc(url)}$2`)
     .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${esc(url)}$2`)
-  if (route?.noindex) {
+  if (notFound || route?.noindex) {
     out = out.replace('</title>', '</title>\n    <meta name="robots" content="noindex, follow" />')
   }
   // 逐頁 og:image。

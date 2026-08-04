@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { nayinOf } from '../data/almanac.js'
 import { TopBar, SectionHead, Disclaimer } from '../components/ui.jsx'
 
@@ -20,6 +21,18 @@ const UNITS = [
   { g: '長度', rows: [['1 台尺', '＝ 30.3 公分'], ['1 台寸', '＝ 3.03 公分'], ['1 公尺', '＝ 3.3 台尺']] },
   { g: '面積', rows: [['1 坪', '＝ 3.306 平方公尺（約 1.8×1.8m）'], ['1 甲', '＝ 2934 坪 ＝ 0.97 公頃'], ['1 分地', '＝ 293.4 坪']] },
   { g: '容量', rows: [['1 斗', '＝ 10 升'], ['1 石', '＝ 10 斗 ＝ 100 升'], ['1 台升', '＝ 1.8 公升']] },
+]
+
+// 即時換算用的係數表（一律換算成該類的基準單位）。
+// ⚠️ 頁面叫「度量衡**換算**」卻只有一張靜態對照表、連一個輸入框都沒有——
+//    使用者想算「7.5 台斤是幾公斤」還是得自己心算，名字與功能對不上。
+//    數值與上面的對照表同源，改一邊要改兩邊（刻意不合併：對照表是給人看的
+//    整數關係，係數表是給程式算的）。
+const CONVERT = [
+  { g: '重量', base: '公克', units: [['台斤', 600], ['兩', 37.5], ['公斤', 1000], ['公克', 1], ['台錢', 3.75]] },
+  { g: '長度', base: '公分', units: [['台尺', 30.3], ['台寸', 3.03], ['公尺', 100], ['公分', 1], ['公里', 100000]] },
+  { g: '面積', base: '平方公尺', units: [['坪', 3.30579], ['甲', 9699.17], ['分地', 969.917], ['公頃', 10000], ['平方公尺', 1]] },
+  { g: '容量', base: '公升', units: [['台升', 1.8039], ['斗', 18.039], ['石', 180.39], ['公升', 1], ['毫升', 0.001]] },
 ]
 
 const GAN = '甲 乙 丙 丁 戊 己 庚 辛 壬 癸'
@@ -53,11 +66,57 @@ export function FoodTaboo() {
   )
 }
 
+// 有效數字：台制換算幾乎都是無理小數，全部印出來反而看不懂。
+// 取 6 位有效數字後把尾巴的 0 去掉（7.5 台斤 → 4.5 公斤，不是 4.50000）。
+const fmtNum = (n) => {
+  if (!Number.isFinite(n)) return ''
+  if (n === 0) return '0'
+  const abs = Math.abs(n)
+  const s = (abs >= 1e7 || abs < 1e-4) ? n.toExponential(4) : String(Number(n.toPrecision(6)))
+  return s
+}
+
 export function Units() {
+  const [gi, setGi] = useState(0)
+  const [val, setVal] = useState('1')
+  const grp = CONVERT[gi]
+  const [from, setFrom] = useState(grp.units[0][0])
+  // 換類別時把來源單位重設成該類第一個（否則會留著上一類的單位名稱）
+  const pickGroup = (i) => { setGi(i); setFrom(CONVERT[i].units[0][0]) }
+  const fromFactor = grp.units.find(([u]) => u === from)?.[1] ?? 1
+  const num = Number(String(val).replace(/[,\s]/g, ''))
+  const valid = val.trim() !== '' && Number.isFinite(num)
+
   return (
     <>
-      <TopBar title="度量衡換算" onBack />
+      <TopBar title="度量衡換算｜台斤、台尺、坪、甲即時換算" onBack />
       <div className="body">
+        <SectionHead title="即時換算" />
+        <div className="card uc">
+          <div className="uc-tabs">
+            {CONVERT.map((c, i) => (
+              <button key={c.g} className={`chip tap ${i === gi ? 'on' : ''}`} onClick={() => pickGroup(i)}>{c.g}</button>
+            ))}
+          </div>
+          <div className="uc-in">
+            <input className="uc-num" type="text" inputMode="decimal" value={val}
+              onChange={e => setVal(e.target.value)} aria-label="要換算的數值" placeholder="輸入數值" />
+            <select className="uc-unit" value={from} onChange={e => setFrom(e.target.value)} aria-label="來源單位">
+              {grp.units.map(([u]) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          {!valid ? (
+            <p className="muted uc-hint">輸入一個數字就會即時換算成同類的其他單位。</p>
+          ) : (
+            <div className="uc-out">
+              {grp.units.filter(([u]) => u !== from).map(([u, f]) => (
+                <div key={u} className="kv"><span>{u}</span><b>{fmtNum(num * fromFactor / f)}</b></div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <SectionHead title="對照表" />
         {UNITS.map(u => (
           <div key={u.g}>
             <SectionHead title={u.g} />

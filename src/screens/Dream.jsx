@@ -44,7 +44,19 @@ export default function Dream() {
 
         {res && (
           <div className="aicard" style={{ marginTop: 14 }}>
-            <div className="t">🌙 夢見「{res.term}」</div>
+            {/* ⚠️ 標題要顯示「實際比對到的那個詞」，不是使用者輸入的整句。
+                原本原封不動印出整句，看起來像古書針對那一整句話下了斷語。 */}
+            <div className="t">🌙 夢見「{res.hit?.matchedKeyword || res.term}」</div>
+            {res.hit?.matchedKeyword && res.hit.matchedKeyword !== res.term && (
+              <div className="dream-kw">
+                從你寫的「{res.term}」比對到關鍵字：<b>{res.hit.matchedKeyword}</b>
+                {res.hit.alsoMatched?.length > 0 && (
+                  <>　也可以看：{res.hit.alsoMatched.slice(0, 4).map(a => (
+                    <button key={a.kw} className="dream-alt tap" onClick={() => go(a.kw)}>{a.kw}</button>
+                  ))}</>
+                )}
+              </div>
+            )}
             {!res.hit ? (
               <div className="d" style={{ color: 'var(--acard-t)' }}>
                 詞庫裡還沒有收錄這個夢境，這裡就不替你編一個解法了。
@@ -87,7 +99,11 @@ export default function Dream() {
 
         <p className="muted" style={{ padding: '10px 16px 0', fontSize: 'var(--text-2xs)', lineHeight: 1.8 }}>
           ＊原典斷語逐字引自《周公解夢》流傳版本；「現代參考」為白話說明，不屬古籍內容，兩者已分開標示。
-          目前收錄 {DREAMS.length} 組常見夢境。
+          {/* ⚠️ 數字要與上面那份清單對得起來。原本寫「收錄 43 組」但清單只列 27 個
+              （只有有原典斷語的才做獨立頁），另外 16 組使用者無從找起。 */}
+          詞庫共收錄 {DREAMS.length} 組常見夢境，其中 {DREAMS.filter(x => x.classic).length} 組有原典斷語、
+          做成上方的獨立頁；其餘 {DREAMS.filter(x => !x.classic).length} 組沒有原典，只提供現代參考，
+          直接在上面的輸入框查詢即可。
         </p>
         <Disclaimer />
         <div style={{ height: 16 }} />

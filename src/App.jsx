@@ -9,7 +9,7 @@ import { ROOTS, SCREENS } from './screens/registry.jsx'
 import Auth from './screens/Auth.jsx'
 
 // 每頁獨立 <title>（SEO/分頁辨識：SPA 單一 URL，至少讓瀏覽器分頁與歷史紀錄有意義）
-const TAB_TITLES = ['今日曆頁', '探索', '建立', '占卜', '我的']
+const TAB_TITLES = ['今日曆頁', '探索', '建立', '曆書工具箱', '我的']
 const SCREEN_TITLES = {
   aiChat: 'AI 時光顧問', checkout: '結帳', workDetail: '作品', postDetail: '貼文', newPost: '新貼文',
   makeCalendar: '做月曆', calendarPreview: '月曆預覽', myProjects: '我的專案', deities: '臺灣神佛的生日',
@@ -67,6 +67,8 @@ export default function App() {
       if (!user) document.title = '機巧時運 · 智慧互動國民曆'
       else {
         // 日期頁的標題要帶上該日期，與伺服器注入的格式一致
+        // 找不到頁面：站內與伺服器端要用同一句，否則同一個畫面兩種標題
+        if (top?.screen === 'notFound') { document.title = '找不到頁面 · 機巧時運'; return }
         const t = top?.screen === 'almanacDay' && top.props?.date
           ? `${top.props.date} 國民曆｜宜忌・吉時・沖煞`
           : top ? SCREEN_TITLES[top.screen] : TAB_TITLES[tab]
@@ -162,7 +164,16 @@ export default function App() {
                 它後面，於是「探索」與「我的」整頁疊在一起（實測 .device 高度
                 766 → 2053）。**production build 不會有任何警告**（重複 key 的
                 警告只在 dev 版），只有畫面上看得出來。 */}
-            <div key={`root-${tab}`} className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
+            {/* ⚠️ 有堆疊畫面時，底下這層要 inert。手機上 `.screen` 是蓋在上面的浮層，
+                背景這層看不見卻仍然吃 Tab：實測直接開 /auspicious 之後一直按 Tab，
+                焦點會跑進看不見的首頁（通知、私訊、‹ 8/4 ›、底部分頁列），
+                按 Enter 還會去改一個使用者看不到的頁面的日期。
+                inert 同時處理焦點與螢幕閱讀器（等同 aria-hidden ＋ 移除 tabindex），
+                也順便讓 /auspicious 的純文字內容不再包含整份首頁文案。
+                ⚠️ 桌機這層本來就 `display:none`（.device.has-stack .rootpane），
+                   但手機不是——所以不能只靠 CSS。 */}
+            <div key={`root-${tab}`} inert={TopScreen ? '' : undefined}
+              className={`rootpane tab-${tab} ${[2, 3, 4].includes(tab) ? 'grid2' : ''}`}>
               <RootScreen />
             </div>
 

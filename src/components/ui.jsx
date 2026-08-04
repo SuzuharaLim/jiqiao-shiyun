@@ -44,7 +44,7 @@ export function TopBar({ title, brand, left, right, onBack, onClose }) {
 // 底部分頁列（Tab bar）—— 加中文標籤，去 IG 純圖示化
 const TABS = [
   { i: 0, name: 'home', label: '首頁' }, { i: 1, name: 'search', label: '探索' },
-  { i: 2, name: 'plus', label: '建立' }, { i: 3, name: 'fortune', label: '占卜' },
+  { i: 2, name: 'plus', label: '建立' }, { i: 3, name: 'fortune', label: '曆書' },
   { i: 4, name: 'user', label: '我的' },
 ]
 export function TabBar() {
@@ -156,9 +156,15 @@ export function Meter({ score = 0 }) {
 // icon 可傳 emoji 字串（舊）或 Icon 名稱（新，優先）。
 // ⚠️ 彩色 emoji 與紙感氣質斷層（Windows 上是 Segoe UI 彩色卡通圖），
 // 新程式碼一律傳 iconName；bg 也不再需要（線條圖示用墨色描邊即可）。
-export function ToolRow({ icon, iconName, bg, title, sub, onClick, right }) {
-  return (
-    <button className="tool tap" onClick={onClick}>
+// ⚠️ 給了 screen 就渲染成真的 <a href>，只有純動作（登出、切換）才留 <button>。
+//    /almanac 的 20 幾張卡片原本全是 <button>，於是不能 Ctrl／中鍵開新分頁、
+//    不能右鍵複製連結、滑過去左下角看不到網址、螢幕閱讀器唸成「按鈕」而不是
+//    「連結」，搜尋引擎也爬不到這些內部連結——而同一個站的 /auspicious、/dream
+//    早就是正確的 <a href>，所以不是做不到，是漏了。
+//    href 一律由 nav.jsx 的 hrefForScreen 產生（路徑的唯一真相），不可自己拼。
+export function ToolRow({ icon, iconName, bg, title, sub, onClick, right, screen, params }) {
+  const inner = (
+    <>
       {iconName
         ? <div className="ti ti-line"><Icon name={iconName} /></div>
         : icon && <div className="ti" style={{ background: bg }}>{icon}</div>}
@@ -167,8 +173,12 @@ export function ToolRow({ icon, iconName, bg, title, sub, onClick, right }) {
         {sub && <span>{sub}</span>}
       </div>
       {right !== undefined ? right : <Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />}
-    </button>
+    </>
   )
+  if (screen) {
+    return <Link screen={screen} params={params} className="tool tap" onNavigate={onClick}>{inner}</Link>
+  }
+  return <button className="tool tap" onClick={onClick}>{inner}</button>
 }
 
 // 開關（Switch）—— 用 span（非 button），避免巢狀在 ToolRow 的 <button> 內造成 DOM 穿模

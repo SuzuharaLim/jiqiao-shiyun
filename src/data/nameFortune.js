@@ -23,8 +23,12 @@ const COMPOUND_SURNAMES = [
 const AUSPICIOUS = new Set([1, 3, 5, 6, 7, 8, 11, 13, 15, 16, 17, 18, 21, 23, 24, 25,
   31, 32, 33, 35, 37, 39, 41, 45, 47, 48, 52, 57, 63, 65, 67, 68, 81])
 const HALF = new Set([27, 29, 30, 38, 40, 51, 55, 58, 61, 71, 73, 75, 77, 78])
+export const MAX_NAME_CHARS = 8
+// 81 以上取循環數。⚠️ 循環後的數字要能被畫面顯示出來，否則使用者看到
+//    「總格 95　吉」會不知道 95 憑什麼是吉（81 數理裡根本沒有 95）。
+export const reduce81 = (n) => ((n - 1) % 81) + 1
 export const numberLuck = (n) => {
-  const k = ((n - 1) % 81) + 1        // 81 以上循環
+  const k = reduce81(n)
   return AUSPICIOUS.has(k) ? '吉' : HALF.has(k) ? '半吉' : '凶'
 }
 
@@ -62,6 +66,11 @@ export function analyzeName(input) {
   const unknown = chars.filter(c => strokesOf(c) === null)
   if (unknown.length) return { ok: false, reason: 'unknown', unknown: [...new Set(unknown)] }
   if (chars.length < 2) return { ok: false, reason: 'tooShort' }
+  // ⚠️ 一定要有長度上限。先前貼 45 個字進去照樣算，給出「地格 221（木）吉、
+  //    總格 225（土）吉 → 87 分」——熊崎式 81 數理只定義 1–81，超過的數字
+  //    沒有對應的意義，卻仍給出權威感十足的吉凶與分數。
+  //    8 字已足以涵蓋複姓＋三字名與音譯的原住民漢字姓名。
+  if (chars.length > MAX_NAME_CHARS) return { ok: false, reason: 'tooLong', max: MAX_NAME_CHARS, got: chars.length }
 
   const { sur, given } = splitName(chars)
   const s = (arr) => arr.reduce((n, c) => n + strokesOf(c), 0)

@@ -3252,3 +3252,49 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 
 /* 首頁「今日大家拍的」空狀態：原本是一整塊 90px 的空白，使用者會以為圖沒載出來 */
 .rail-empty { padding:22px 24px; }
+
+/* ---------- 解夢：顯示實際比對到的關鍵字 ----------
+   ⚠️ 輸入「我夢到我變成一台冰箱而且會飛」其實只比對到「飛」，原本畫面卻原封不動
+      印出整句加上原典斷語，看起來像古書真的針對「變成冰箱」講了那句話。 */
+.dream-kw {
+  font-size: var(--text-2xs); color: var(--acard-t); opacity: .82;
+  margin: -4px 0 8px; line-height: 1.9;
+}
+.dream-kw b { color: var(--gold-hi); }
+.dream-alt {
+  background: rgba(255,255,255,.12); border: none; color: inherit; font: inherit;
+  border-radius: 2px; padding: 2px 8px; margin: 0 4px 2px 0; cursor: pointer;
+  min-height: 24px;
+}
+
+/* ---------- 度量衡即時換算 ----------
+   ⚠️ 這頁原本叫「換算」卻只有一張靜態對照表、連輸入框都沒有。 */
+.uc-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.uc-in { display: flex; gap: 8px; align-items: stretch; }
+.uc-num {
+  flex: 1 1 auto; min-width: 0; padding: 10px 12px; border: 1px solid var(--line2);
+  border-radius: 2px; background: var(--field); color: var(--text);
+  font-family: var(--serif); font-size: max(16px, var(--text-lg));
+}
+.uc-unit {
+  flex: 0 0 auto; padding: 10px 8px; border: 1px solid var(--line2); border-radius: 2px;
+  background: var(--field); color: var(--text); font-size: max(16px, var(--text-sm));
+}
+.uc-out { margin-top: 12px; border-top: 1px solid var(--line); }
+.uc-out .kv b { font-family: var(--serif); font-size: var(--text-lg); }
+.uc-hint { margin-top: 12px; font-size: var(--text-2xs); }
+
+/* ---------- 擇日：出生年 → 生肖 ----------
+   ⚠️ 只給 12 顆生肖按鈕等於把門檻丟給使用者——很多人不知道自己的生肖，
+      或只記得民國年、又不確定年初出生算哪一年（生肖以立春換年）。 */
+.zy { padding: 0 var(--space-4) 10px; flex: 0 0 auto; }
+.zy-lbl { display: block; font-size: var(--text-2xs); color: var(--muted); margin-bottom: 6px; }
+.zy-in { display: flex; gap: 6px; }
+.zy-num {
+  flex: 1 1 auto; min-width: 0; padding: 9px 10px; border: 1px solid var(--line2);
+  border-radius: 2px; background: var(--field); color: var(--text);
+  font-size: max(16px, var(--text-sm));
+}
+.zy-num.sm { flex: 0 0 68px; }
+.zy-out { font-size: var(--text-2xs); margin: 8px 0 0; line-height: 1.8; }
+.zy-out b { color: var(--cinnabar); font-size: var(--text-sm); }
