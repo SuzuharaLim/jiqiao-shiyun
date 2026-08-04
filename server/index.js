@@ -20,7 +20,7 @@ import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, b
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
-import { dayFor, todayOffset, dateFromOffset, offsetFromDate } from '../src/data/almanac.js'
+import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS } from '../src/data/almanac.js'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
@@ -1408,7 +1408,7 @@ function buildAlmanacContext(user, iso) {
     if (!Number.isNaN(dt.getTime()) && dt.getMonth() === Number(m[2]) - 1) {
       const o = offsetFromDate(dt)
       // 只接受本站可翻閱的範圍（今日前後約三年），超出就退回今天
-      if (Math.abs(o - todayOffset()) <= 1095) off = o
+      if (Math.abs(o - todayOffset()) <= BROWSE_RANGE_DAYS) off = o
     }
   }
   const isToday = off === todayOffset()

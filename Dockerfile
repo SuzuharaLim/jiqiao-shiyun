@@ -19,7 +19,11 @@ RUN npm run build \
 # ---------- 2) 執行：只帶 prod 依賴 + dist + server（+ 種子資料）----------
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
+# ⚠️ TZ 一定要設。Cloud Run 的預設時區是 UTC，比台北慢 8 小時——曆算層已經改成
+#    一律取台北的日曆日（almanac.js 的 taipeiToday），所以功能上不依賴這一行，
+#    但 log 時間戳與 audit_log 的可讀性仍然需要它，也少一層「為什麼時間對不上」的困惑。
 ENV NODE_ENV=production \
+    TZ=Asia/Taipei \
     PORT=8080
 # 連線資訊（Cloud SQL）於部署時以環境變數/Secret 帶入：
 #   INSTANCE_CONNECTION_NAME, DB_USER, DB_PASS, DB_NAME, APP_URL

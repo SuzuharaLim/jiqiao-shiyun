@@ -159,8 +159,65 @@ export function offsetFromDate(d) {
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate())
   return Math.round((a - ANCHOR) / 86400000)
 }
-// 真實「今日」相對錨點的偏移（讓 App 一開就停在系統當前日期，而非錨點 6/6）
-export function todayOffset() { return offsetFromDate(new Date()) }
+// 「今天」一律以**台北時間**的日曆日為準。
+//
+// ⚠️ 原本是 `offsetFromDate(new Date())`，也就是跟著執行環境的時區走。這在兩邊都錯：
+//   · **伺服器**：Cloud Run 的預設時區是 **UTC**，比台北慢 8 小時。於是每天台灣時間
+//     00:00–08:00 這八個小時，伺服器注入的首屏靜態層、sitemap 的 lastmod、RSS、
+//     逐頁 og:image 取的節氣、以及 AI 的曆訊 context，**全部是前一天的**。
+//     一個賣「今日宜忌」的網站，每天有三分之一的時間在講昨天。
+//   · **瀏覽器**：跟著使用者所在時區。人在美國／歐洲的華人使用者會看到前一天
+//     （或後一天）的宜忌——而農民曆的使用情境幾乎都是「台灣的今天」。
+//
+// 作法：用 Intl 取台北的日曆日（en-CA 直接給 YYYY-MM-DD），再以本地時間建構
+// 一個「只當日曆日用」的 Date。這樣不論執行環境的 TZ 設成什麼都得到同一天。
+// ⚠️ 不可用 `new Date(Date.now() + 8*3600e3)` 這種手動加時差的寫法——那在
+//    本身就是 UTC+8 的環境會多加八小時。要交給 Intl 判斷。
+const TZ = 'Asia/Taipei'
+let _tzFmt = null
+export function taipeiToday() {
+  try {
+    if (!_tzFmt) _tzFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+    const [y, m, d] = _tzFmt.format(new Date()).split('-').map(Number)
+    if (y && m && d) return new Date(y, m - 1, d)
+  } catch { /* 極少數環境沒有完整 Intl 資料 → 退回本地時間 */ }
+  return new Date()
+}
+// 可翻閱／可查詢的範圍：今日前後約三年。
+// ⚠️ 這是**唯一真相**，UI 的箭頭停用、網址參數驗證、AI 的曆訊 context 都要用同一個常數。
+//    先前 UI 寫死在 Feed.jsx、網址參數完全沒驗，於是日期選擇器明明寫著
+//    「可查詢範圍 2023–2029」、2028 之後箭頭也 disabled，但直接改網址打
+//    `?date=9999-12-31` 照樣算出一整頁煞有介事的宜忌神煞——同一個限制在
+//    兩條路徑上不一致，而使用者（與 AI 爬蟲）沒辦法分辨哪些是真的。
+export const BROWSE_RANGE_DAYS = 1095
+
+// 真實「今日」相對錨點的偏移（讓 App 一開就停在當前日期，而非錨點 6/6）
+export function todayOffset() { return offsetFromDate(taipeiToday()) }
+
+/**
+ * 解析網址／使用者輸入的日期字串，並夾在可查詢範圍內。
+ * 回傳 { iso, off } 或 null（無效）。
+ *
+ * ⚠️ **一定要檢查 JS 的自動進位**。`new Date(2026, 1, 30)` 不會報錯，它會滾成 3/2；
+ *    `new Date(2026, 98, 98)` 會滾到 2034 年。原本直接把字串丟進去，於是：
+ *      ?date=2026-02-30 → 顯示 3/2      ?date=2026-99-99 → 顯示 2034/6/7
+ *    而網址列還留著原本那個不存在的日期，使用者不會知道自己看的是別天。
+ * ⚠️ **兩位數年份不可交給 Date 補**：`new Date(50, 5, 15)` 會被當成 1950 年。
+ *    這裡要求四位數年份，`0001-01-01` 直接判為無效而不是變成 1901。
+ * ⚠️ 月／日接受一到兩位（`2026-8-4` 是合理輸入，不該被當成無效）。
+ */
+export function parseDateParam(input) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(input ?? '').trim())
+  if (!m) return null
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3])
+  const dt = new Date(y, mo - 1, d)
+  // 被自動進位就代表那一天不存在（2 月 30 日、13 月、第 32 日…）
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null
+  const off = offsetFromDate(dt)
+  if (Math.abs(off - todayOffset()) > BROWSE_RANGE_DAYS) return null
+  const pad = (n) => String(n).padStart(2, '0')
+  return { iso: `${y}-${pad(mo)}-${pad(d)}`, off }
+}
 
 function seasonOf(term) {
   if (['立春', '雨水', '驚蟄', '春分', '清明', '穀雨'].includes(term)) return '春'

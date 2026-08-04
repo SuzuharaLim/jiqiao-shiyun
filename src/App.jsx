@@ -85,6 +85,60 @@ export default function App() {
     return () => cancelAnimationFrame(id)
   }, [user, tab, top])
 
+  // ---------- 鍵盤捲動（手機／矮視窗版面必要）----------
+  //
+  // ⚠️ 手機版面（含 1280×545 這種矮視窗）捲的是內層的 `.device .body`，而
+  //    `<html>`／`<body>` 的高度剛好被鎖成一個視窗——瀏覽器的鍵盤捲動是作用在
+  //    「有焦點的捲動容器」上，`.body` 從來沒拿到焦點，所以空白鍵、PageDown、
+  //    End、方向鍵**全部落空**（實測 scrollTop 0 → 0），只有滑鼠滾輪能捲。
+  //    這同時是 WCAG 2.1.1 Keyboard 的違反：只能用鍵盤的人根本看不到第一屏以下。
+  // ⚠️ 桌機（≥600px 且 ≥600px 高）是整頁捲動，瀏覽器原生就會處理——那時
+  //    `scroller()` 找不到內層容器（`.body` 的 overflow 是 visible），直接不攔。
+  // ⚠️ 在輸入框／可編輯區內打字時絕不可攔（空白鍵要能打空格）。
+  //    也不攔 Ctrl/Cmd/Alt 組合鍵，那些是瀏覽器自己的快捷鍵。
+  // ⚠️ 不可用 `if (!user) return` 擋掉——登入頁本身也是同一個內層捲動容器，
+  //    只能用鍵盤的人連登入畫面都捲不動。沒有可捲容器時 scroller() 自然回 null。
+  useEffect(() => {
+    const scroller = () => {
+      const el = document.querySelector('.device .body')
+      if (!el) return null
+      const st = getComputedStyle(el)
+      const scrollable = /(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 4
+      return scrollable ? el : null
+    }
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target
+      if (t && t.closest?.('input, textarea, select, [contenteditable="true"]')) return
+      // 浮層開著時交給 SheetMask 處理（它自己有 Esc 與焦點鎖）
+      if (document.querySelector('.sheet-mask')) return
+      const sc = scroller()
+      if (!sc) return
+      const page = Math.max(120, sc.clientHeight * 0.9)
+      const step = 60
+      let dy = null
+      switch (e.key) {
+        case ' ': case 'Spacebar': dy = e.shiftKey ? -page : page; break
+        case 'PageDown': dy = page; break
+        case 'PageUp': dy = -page; break
+        case 'ArrowDown': dy = step; break
+        case 'ArrowUp': dy = -step; break
+        case 'End': dy = sc.scrollHeight; break
+        case 'Home': dy = -sc.scrollHeight; break
+        default: return
+      }
+      e.preventDefault()
+      // ⚠️ 不要用 `scrollBy({behavior:'smooth'})`——實測在真的 Chromium 上，對這個
+      //    內層容器呼叫 smooth 版**完全沒有作用**（scrollTop 停在 0），同一行改成
+      //    直接指定 scrollTop 就正常。平滑捲動需要合成器參與，容器在某些情況下
+      //    拿不到那一幀，而且失敗是靜默的。能捲動比捲得漂亮重要。
+      const max = sc.scrollHeight - sc.clientHeight
+      sc.scrollTop = Math.max(0, Math.min(max, sc.scrollTop + dy))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [user])
+
   // 分頁切到背景時暫停所有循環動畫（seasonGlow 這類 9 秒的呼吸在
   // 看不見的分頁裡白燒 CPU 與電池；回到前景就恢復）。CSS 一條規則全暫停。
   useEffect(() => {
@@ -130,8 +184,22 @@ export default function App() {
 
   return (
     <div className={`stage ${user ? 'signed-in' : ''}`}>
-      {/* 跳至主要內容：鍵盤使用者 Tab 第一下就能跳過導覽（規格要求項目） */}
-      <a className="skip-link" href="#main">跳至主要內容</a>
+      {/* 跳至主要內容：鍵盤使用者 Tab 第一下就能跳過導覽（規格要求項目）
+          ⚠️ 不能只靠原生的 anchor jump。手機／矮視窗版面真正在捲的是內層的
+             `.device .body`，而原生跳錨動不了它——實測按下去網址變成 /#main、
+             畫面卻完全沒動（scrollTop 0 → 0），焦點也掉回 <body> 而不是 <main>。
+             這個無障礙功能等於只是裝飾。改成自己捲內層容器並把焦點送進 main。 */}
+      <a className="skip-link" href="#main" onClick={(e) => {
+        const main = document.getElementById('main')
+        if (!main) return
+        e.preventDefault()
+        const sc = document.querySelector('.device .body')
+        const canScroll = sc && /(auto|scroll)/.test(getComputedStyle(sc).overflowY)
+        if (canScroll) sc.scrollTo({ top: 0 })
+        else main.scrollIntoView({ block: 'start' })
+        // main 已有 tabIndex={-1}，可直接聚焦——螢幕閱讀器才會宣告新的區域
+        main.focus?.({ preventScroll: true })
+      }}>跳至主要內容</a>
 
       {/* ⚠️ 要把事件物件傳進去——圓形擴散的圓心就是這顆按鈕被按到的位置 */}
       <button className="theme-fab tap" onClick={(e) => toggleTheme(e)} aria-label="切換主題">
@@ -141,7 +209,8 @@ export default function App() {
       {/* 桌機頂部網站式導覽列（≥900px；登入後才出現，取代底部分頁列） */}
       {user && !authLoading && <WebNav />}
 
-      <main id="main" className={`device ${TopScreen ? 'has-stack' : ''}`}>
+      {/* tabIndex={-1}：讓「跳至主要內容」可以把焦點真的送進來（報告實測焦點只掉到 <body>） */}
+      <main id="main" tabIndex={-1} className={`device ${TopScreen ? 'has-stack' : ''}`}>
         {authLoading ? (
           /* 還原登入狀態中（打 /api/me） */
           <div className="auth-splash"><Seal className="ba-seal" alt="" /><div className="muted">機巧時運載入中…</div></div>

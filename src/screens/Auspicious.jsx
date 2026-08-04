@@ -60,8 +60,16 @@ export default function Auspicious({ kind, ym }) {
   const [bm, setBm] = useState('')
   const [bd, setBd] = useState('')
   const born = useMemo(() => (by.trim() ? zodiacOfBirth(by, bm, bd) : null), [by, bm, bd])
-  // 換算出結果就直接套用到篩選，使用者不必再回去按一次生肖
-  useEffect(() => { if (born?.zodiac) setZodiac(born.zodiac) }, [born?.zodiac])
+  // 換算出結果就直接套用到篩選，使用者不必再回去按一次生肖。
+  // ⚠️ 解析失敗時**一定要把生肖清掉**。原本只在成功時 setZodiac，於是先輸入 38
+  //    （正確判成民國 38 年→牛）再改成 abc，畫面會同時出現兩個互相矛盾的訊息：
+  //    欄位下方寫「看不懂這個年份」，正下方的「牛」卻還被選著、日期清單也還在
+  //    用牛篩選。更容易踩到的版本是打長數字——maxlength=4 只留下 9999（無效），
+  //    但打字過程中經過的 99 已經先把生肖設成虎了。
+  useEffect(() => {
+    if (by.trim() === '') return          // 沒填就不干涉使用者手動選的生肖
+    setZodiac(born?.zodiac || '')
+  }, [by, born?.zodiac])
   const isThisYear = year === now.getFullYear()
 
   const months = useMemo(() => {
@@ -133,7 +141,11 @@ export default function Auspicious({ kind, ym }) {
             born
               ? <p className="zy-out">
                   {born.year} 年出生 → 生肖<b>{born.zodiac}</b>
-                  {(!bm.trim() || !bd.trim()) && <span className="muted">　＊生肖以立春換年，年初出生的人請補上月日</span>}
+                  {/* ⚠️ 月／日填錯不可靜默忽略——這兩格存在的意義就是處理立春換年，
+                      填錯＝拿到錯的生肖＝挑到錯的日子，而使用者不會發現。 */}
+                  {born.mdInvalid
+                    ? <span className="zy-warn">　⚠ 月／日看起來不對（月填 1–12、日填該月實際天數），這次沒有採用，先以整年計算</span>
+                    : !born.usedMD && <span className="muted">　＊生肖以立春換年，年初出生的人請補上月日</span>}
                 </p>
               : <p className="zy-out muted">看不懂這個年份（可輸入西元 1900–2100，或民國 1–200）。</p>
           )}

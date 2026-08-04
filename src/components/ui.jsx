@@ -348,10 +348,16 @@ export function useGlossary() {
 }
 
 export function GlossTerm({ term, cls = '', gl }) {
-  if (!gl?.map[term]) return <span className={cls}>{term}</span>   // 無解釋 → 純文字
+  // ⚠️ 沒有詞條的詞也要有 `.gterm`。原本只回一個裸 <span>，它是 inline、沒有右邊距、
+  //    也沒有 nowrap，而有詞條的 `.glossable` 兩者都有——於是只要連續出現兩個沒詞條的
+  //    詞（例如平日的「修飾垣牆」「平治道塗」）就會**黏成一坨八個字**，
+  //    在 356px 手機寬度下還會從詞的中間硬切成「修／飾垣牆平治道塗」。
+  // ⚠️ 同時要讓「不可點」看得出來：使用者會直覺去點這些罕見詞，發現沒反應。
+  //    有詞條的是虛線底線（暗示可點），沒詞條的就不畫底線。
+  if (!gl?.map[term]) return <span className={`${cls} gterm`}>{term}</span>
   const on = gl.open === term
   return (
-    <button type="button" className={`${cls} glossable tap${on ? ' on' : ''}`}
+    <button type="button" className={`${cls} gterm glossable tap${on ? ' on' : ''}`}
       aria-expanded={on} aria-label={`${term}，查看說明`}
       onClick={() => gl.toggle(term)}>{term}</button>
   )
@@ -449,9 +455,11 @@ export function StampMark() {
 //    這裡用 render prop 把「開始關閉」的函式交給內容，內部的 ✕ 鈕才能一起播動畫。
 //
 // 用法：<SheetMask onClose={() => setOpen(false)}>{close => <div className="sheet">…</div>}</SheetMask>
-export function SheetMask({ onClose, children }) {
+export function SheetMask({ onClose, children, label = '對話框' }) {
   const [leaving, setLeaving] = useState(false)
   const timer = useRef(null)
+  const boxRef = useRef(null)
+  const opener = useRef(null)
   // ⚠️ 不能只靠 animationend：分頁切到背景時瀏覽器會暫停動畫，事件遲遲不觸發，
   //    面板就會一直掛在那裡（雖然已經 pointer-events:none，但仍是殘留節點）。
   //    補一個硬性上限（動畫 240ms + 60ms 緩衝），先到的那個生效。
@@ -461,12 +469,48 @@ export function SheetMask({ onClose, children }) {
     timer.current = setTimeout(() => { timer.current = null; onClose() }, 300)
   }
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+
+  // ⚠️ 浮層的三件基本功，原本一件都沒有：
+  //   · **Esc 關不掉**——實測按 Esc 完全沒反應，面板還在。使用者的第一反應就是按 Esc。
+  //   · **焦點沒有移進來也沒有鎖住**——開啟後焦點還停在頁首的 <h1>，連按三下 Tab
+  //     就跑到面板外、遮罩底下看不見的「›下一天」按鈕上；按 Enter 會去動一個
+  //     使用者看不到的東西。
+  //   · **沒有 role="dialog" / aria-modal**——讀螢幕的人不會知道跳出了東西。
+  //   關閉時要把焦點還給原本那顆觸發按鈕，否則焦點掉回 <body>，鍵盤使用者要
+  //   從頭 Tab 一次。
+  useEffect(() => {
+    opener.current = document.activeElement
+    const el = boxRef.current
+    // 移進面板：優先第一個可聚焦元素，沒有就聚焦容器本身
+    const first = el?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    ;(first || el)?.focus?.({ preventScroll: true })
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); return }
+      if (e.key !== 'Tab' || !el) return
+      // 焦點鎖：Tab 循環只在面板內走
+      const f = [...el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(n => !n.disabled && n.offsetParent !== null)
+      if (!f.length) { e.preventDefault(); return }
+      const i = f.indexOf(document.activeElement)
+      if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus() }
+      else if (!e.shiftKey && (i === f.length - 1 || i === -1)) { e.preventDefault(); f[0].focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      // 還原焦點（元素可能已被卸載，所以要防呆）
+      try { opener.current?.focus?.({ preventScroll: true }) } catch { /* ignore */ }
+    }
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
   const finish = () => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null }
     onClose()
   }
   return (
     <div className={`sheet-mask${leaving ? ' out' : ''}`} onClick={close}
+      ref={boxRef} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
       /* 只認遮罩自己的動畫；.sheet 的離場動畫會冒泡上來，要濾掉否則會提早卸載 */
       onAnimationEnd={(e) => { if (leaving && e.target === e.currentTarget) finish() }}>
       {typeof children === 'function' ? children(close) : children}

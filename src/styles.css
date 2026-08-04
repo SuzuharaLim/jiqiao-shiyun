@@ -639,8 +639,11 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
    ⚠️ 曾試過用 ::after 把「可點範圍」擴到 40×40（不動版面），但實測留言列裡
    讚與刪除相鄰，兩個擴張區重疊 6×37，還會蓋到送出留言鈕——反而更容易點錯。
    改成單純把按鈕本體撐到 24×24：達標且不會互相侵犯。 */
-.iconbtn { display:flex; align-items:center; justify-content:center; padding:2px; position:relative;
-  min-width:24px; min-height:24px; }
+/* ⚠️ 頂列的通知／私訊實測只有 27x27，低於 WCAG 2.5.5 建議的 44x44 CSS px，
+   手機上手指粗一點就會按錯。改用 min-width/min-height 撐大本體
+   （不要用 ::after 擴張隱形點擊區——那會與相鄰按鈕重疊，反而更容易點錯）。 */
+.iconbtn { display:flex; align-items:center; justify-content:center; padding:8px; position:relative;
+  min-width:44px; min-height:44px; }
 .acc { color:var(--accent); font-weight:700; font-size:var(--text-sm); }
 .badge-dot { position:absolute; top:-1px; right:-2px; width:8px; height:8px;
   background:var(--heart); border-radius:50%; border:1.5px solid var(--bg); }
@@ -1995,12 +1998,17 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 
 /* ---------- 宜／忌 詞彙白話解釋（可點擊查看）---------- */
 /* 曆頁兩欄內的詞：保持原本純文字外觀，只加虛線底線暗示可點 */
-/* ⚠️ 必須 inline-block + nowrap：預設 inline 的 <button> 內容會在詞的中間斷行，
-   實測「上樑 入學」被拆成「上」／「樑入學」，看起來像亂碼。 */
-.yjcols .it button.glossable {
+/* ⚠️ 盒子行為要掛在 `.gterm`（有沒有詞條都有），不能只掛在 `.glossable`。
+   原本只有可點的詞是 inline-block + nowrap + 右邊距，沒詞條的詞是裸 <span>
+   ——於是連續兩個沒詞條的詞會黏成一坨（實測「修飾垣牆平治道塗」八個字連在一起），
+   356px 下還從詞中間切成「修／飾垣牆平治道塗」。 */
+.yjcols .it .gterm {
   display:inline-block; white-space:nowrap;
+  margin:0 10px 2px 0;
+}
+.yjcols .it button.glossable {
   border:none; background:none; color:inherit; font:inherit; padding:0 0 1px;
-  margin:0 10px 2px 0; cursor:pointer; border-bottom:1px dotted var(--muted);
+  cursor:pointer; border-bottom:1px dotted var(--muted);
 }
 .yjcols .it button.glossable.on { border-bottom-style:solid; color:var(--cinnabar); font-weight:700; }
 /* 標籤型（.ty/.tn）的詞：沿用原本膠囊樣式，選中時加外框 */
@@ -3298,3 +3306,4 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .zy-num.sm { flex: 0 0 68px; }
 .zy-out { font-size: var(--text-2xs); margin: 8px 0 0; line-height: 1.8; }
 .zy-out b { color: var(--cinnabar); font-size: var(--text-sm); }
+.zy-out .zy-warn { color: var(--ji); }

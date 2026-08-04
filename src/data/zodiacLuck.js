@@ -24,8 +24,16 @@ const idxOf = (sign) => ZODIAC_ORDER.indexOf(sign)
 //    這與 almanac.js 的年柱同一個判準（lunarYearGanzhiIndex 用正月初一是另一套，
 //    只給秤骨用，不可混用）。沒給月日時保守以整年論並在畫面上提醒。
 // 支援民國年輸入（1–200 視為民國年）。
+// ⚠️ 全形數字必須先轉半形。中文輸入法沒切回半形時打出來的是「１９９０」，
+//    使用者看不出它和 1990 差在哪，只會覺得「這網站壞了」。
+//    （站上已經處理了「1990年」與前後空白，全形只是同一組清理邏輯漏掉的一條。）
+const toHalfWidth = (s) => String(s ?? '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+const cleanNum = (v) => toHalfWidth(v).replace(/[^\d]/g, '').trim()
+
 export function zodiacOfBirth(year, month, day) {
-  let y = Number(year)
+  const yRaw = cleanNum(year)
+  if (yRaw === '') return null
+  let y = Number(yRaw)
   if (!Number.isFinite(y)) return null
   if (y >= 1 && y <= 200) y += 1911            // 民國年
   if (y < 1900 || y > 2100) return null
@@ -34,17 +42,28 @@ export function zodiacOfBirth(year, month, day) {
   //    而 `Number('')` 是 **0**（不是 NaN），`Number.isFinite(0)` 為真——
   //    於是「月 0 日 0」永遠小於立春，每個人都被算成前一年的生肖
   //    （實測民國 87 年沒填月日時顯示「牛」，正解是虎）。
-  const hasMD = String(month ?? '').trim() !== '' && String(day ?? '').trim() !== ''
-  if (hasMD && Number.isFinite(Number(month)) && Number.isFinite(Number(day))) {
+  const mRaw = cleanNum(month), dRaw = cleanNum(day)
+  const hasMD = mRaw !== '' && dRaw !== ''
+  // ⚠️ 月／日超出範圍不可**靜默忽略**。原本填「月 99 日 99」照樣顯示「生肖馬」，
+  //    兩個 99 還留在欄位裡卻完全沒說「這兩格我沒採用」——而這個欄位存在的意義
+  //    就是處理立春換年，填錯 = 拿到錯的生肖 = 挑到錯的日子，使用者不會發現。
+  //    回報 mdInvalid 讓畫面講出來。
+  let mdInvalid = false
+  if (hasMD) {
+    const mm = Number(mRaw), dd = Number(dRaw)
+    const dim = new Date(y, mm, 0).getDate()       // 該年該月的實際天數
+    if (!(mm >= 1 && mm <= 12) || !(dd >= 1 && dd <= dim)) mdInvalid = true
+  }
+  if (hasMD && !mdInvalid) {
     // ⚠️ termLocalDay 回的是**儒略日**不是 {m,d}——直接讀 .m/.d 會拿到 undefined，
     //    比較永遠成立不了，立春分界整個失效（實測 1998-01-20 被算成虎，正解是牛）。
     //    用 termTable 取當年立春的月日。
     const li = termTable(y).find(t => t.name === '立春')
-    const m = Number(month), d = Number(day)
+    const m = Number(mRaw), d = Number(dRaw)
     if (li && (m < li.m || (m === li.m && d < li.d))) effY = y - 1   // 立春前算前一年
   }
   // 1900 是鼠年（庚子）；ZODIAC_ORDER 以鼠為首
-  return { zodiac: ZODIAC_ORDER[((effY - 1900) % 12 + 12) % 12], year: y, effYear: effY }
+  return { zodiac: ZODIAC_ORDER[((effY - 1900) % 12 + 12) % 12], year: y, effYear: effY, mdInvalid, usedMD: hasMD && !mdInvalid }
 }
 
 const LIUHE = { 0: 1, 1: 0, 2: 11, 11: 2, 3: 10, 10: 3, 4: 9, 9: 4, 5: 8, 8: 5, 6: 7, 7: 6 }

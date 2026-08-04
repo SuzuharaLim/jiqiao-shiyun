@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import { dayFor, todayOffset } from '../data/almanac.js'
+import { dayFor, todayOffset, parseDateParam } from '../data/almanac.js'
 import { api, setCsrf } from '../api.js'
 
 // ─────────────────────────────────────────────────────────────
@@ -65,11 +65,21 @@ export const hrefForTab = (tab) => TAB_PATHS[tab] || '/'
 //    貼過去對方看到的是今天；(2) 翻了幾天之後按瀏覽器「上一頁」會**直接離開
 //    整個網站**，而不是回到前一天。後者是最常見的動作。
 // ⚠️ 只有「首頁根畫面」用得到這個參數（tab 0 且沒有堆疊）。堆疊畫面自己有路徑。
-const isoRe = /^\d{4}-\d{2}-\d{2}$/
+// ⚠️ 一定要**驗證**而不是只比對格式。原本只檢查 `^\d{4}-\d{2}-\d{2}$`，於是：
+//      ?date=2026-02-30 → 顯示 3/2（JS 自動進位）
+//      ?date=2026-99-99 → 顯示 2034/6/7
+//      ?date=9999-12-31 → 照樣算出一整頁煞有介事的宜忌神煞
+//    而網址列還留著原本那個不存在的日期。日期選擇器明明寫著可查詢範圍、
+//    箭頭也會 disabled，但網址參數完全不受限——同一個限制在兩條路徑上不一致。
+//    parseDateParam 會擋掉進位、兩位數年份與超出範圍，並回傳正規化後的 iso。
 export const homeDateFromSearch = (search) => {
   try {
     const v = new URLSearchParams(search || '').get('date')
-    return v && isoRe.test(v) ? v : null
+    const p = parseDateParam(v)
+    // ⚠️ 指到「今天」時回 null，讓網址正規化成 `/`。否則 `/` 與
+    //    `/?date=<今天>` 是同一份內容的兩個網址——canonical 已經指向 `/`，
+    //    多一個等價網址只會稀釋自己。
+    return (p && p.off !== todayOffset()) ? p.iso : null
   } catch { return null }
 }
 function pathFromState(tab, stack, homeDate) {

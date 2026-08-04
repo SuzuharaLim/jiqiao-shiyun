@@ -5,7 +5,7 @@ import { TERM_ARTICLES } from '../data/termArticle.js'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
 import { usePostsPaged } from '../hooks/useApi.js'
-import { dayFor, dateFromOffset, offsetFromDate, monthCells, todayOffset } from '../data/almanac.js'
+import { dayFor, dateFromOffset, offsetFromDate, monthCells, todayOffset, BROWSE_RANGE_DAYS } from '../data/almanac.js'
 
 const WK = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -40,7 +40,7 @@ export default function Feed() {
   const { items: allPosts, loading: shotsLoading } = usePostsPaged(null)
   const shots = allPosts.filter(p => p.term === d.term).concat(allPosts).slice(0, 6)
 
-  const RANGE = 1095 // 可翻閱範圍：今日前後約三年（示範演算，已標註近似）
+  const RANGE = BROWSE_RANGE_DAYS   // 與網址參數驗證共用同一個常數（見 almanac.js）
   const clampOff = (o) => Math.max(-RANGE, Math.min(RANGE, o))
 
   // ---------- 撕曆翻頁 ----------
@@ -269,7 +269,7 @@ export default function Feed() {
 
       {/* 月曆跳日期選擇器：« 年  ‹ 月 | 年月 | 月 ›  年 » */}
       {cal && (
-        <SheetMask onClose={() => setCal(null)}>{close => (
+        <SheetMask onClose={() => setCal(null)} label="選擇日期">{close => (
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-grip" />
             <div className="cal-picker">
