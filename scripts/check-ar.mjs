@@ -12,6 +12,8 @@ import {
   detectQuad, orderCorners, otsuThreshold, rectify, rotateRgba,
   convexHull, reduceHullToQuad,
 } from '../src/lib/quadDetect.js'
+import { makeSignature } from '../src/lib/scanner.js'
+import { createTracker } from '../src/lib/arTracker.js'
 
 let pass = 0
 const fails = []
@@ -138,6 +140,64 @@ for (let i = 500; i < 1000; i++) bimodal[i] = 200
 ok(otsuThreshold(bimodal) < 200, 'Otsu 分開雙峰')
 ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).length === 4,
   '凸包縮到四頂點')
+
+// ── arTracker：四個方向的對齊 ──────────────────────────────────────────
+// ⚠️ 這一組是整條管線最容易寫錯又最難發現的地方：把拉正圖轉 r 次才對得上參考時，
+//    角點要位移 **-r** 不是 +r。寫成 +r 的話 0° 與 180° 完全正確
+//    （±2 在 mod 4 下同值），只有 90°／270° 會把原點放到對角——
+//    而且模型不會消失，只是整個轉 90°。正面朝上測試永遠測不出來。
+{
+  const SZ = 48, CW = 200, CH = 200
+  // 有明確方向性的測試卡：左上暗記號、右下亮塊
+  const card = () => {
+    const a = new Uint8ClampedArray(SZ * SZ * 4)
+    for (let y = 0; y < SZ; y++) {
+      for (let x = 0; x < SZ; x++) {
+        const i = (y * SZ + x) * 4
+        const v = (x < SZ / 3 && y < SZ / 3) ? 110
+          : (x > SZ * 0.62 && y > SZ * 0.62) ? 245
+            : 170 + ((x + y) % 40)
+        a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255
+      }
+    }
+    return a
+  }
+  const refCard = { id: 'test-card', ...makeSignature(card(), SZ, SZ) }
+  const paint = (corners) => {
+    const rgba = new Uint8ClampedArray(CW * CH * 4)
+    for (let i = 0; i < CW * CH; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = 20; rgba[i * 4 + 3] = 255 }
+    const src = card()
+    const [tl, tr, br, bl] = corners
+    for (let v = 0; v <= 1; v += 0.0012) {
+      for (let u = 0; u <= 1; u += 0.0012) {
+        const sx = (1 - v) * ((1 - u) * tl[0] + u * tr[0]) + v * ((1 - u) * bl[0] + u * br[0])
+        const sy = (1 - v) * ((1 - u) * tl[1] + u * tr[1]) + v * ((1 - u) * bl[1] + u * br[1])
+        const px = Math.round(sx), py = Math.round(sy)
+        if (px < 0 || py < 0 || px >= CW || py >= CH) continue
+        const cx = Math.min(SZ - 1, Math.floor(u * SZ)), cy = Math.min(SZ - 1, Math.floor(v * SZ))
+        const s = (cy * SZ + cx) * 4, o = (py * CW + px) * 4
+        rgba[o] = src[s]; rgba[o + 1] = src[s + 1]; rgba[o + 2] = src[s + 2]; rgba[o + 3] = 255
+      }
+    }
+    return rgba
+  }
+  const base = [[50, 40], [160, 40], [160, 150], [50, 150]]
+  for (let k = 0; k < 4; k++) {
+    // 把卡片實體旋轉 k×90°：內容的原點跑到 base 的第 (-k) 個角
+    const painted = paint([0, 1, 2, 3].map(i => base[(i - k + 4) % 4]))
+    const tracker = createTracker({ refs: [refCard], rectifySize: SZ })
+    const res = tracker.track(painted, CW, CH)
+    ok(!!res, `旋轉 ${k * 90}° 時追蹤得到`)
+    if (res) {
+      const expect = base[(0 - k + 4) % 4]
+      const d = Math.hypot(res.corners[0][0] - expect[0], res.corners[0][1] - expect[1])
+      ok(d < 12, `旋轉 ${k * 90}° 的原點對齊（偏差 ${d.toFixed(1)}px，上限 12）`)
+      ok(res.rotation === k, `旋轉 ${k * 90}° 判定為 r=${k}（實得 ${res.rotation}）`)
+    }
+  }
+  // 沒有登錄任何卡片時不可硬給結果
+  ok(createTracker({ refs: [] }).track(paint(base), CW, CH) === null, '無登錄卡片時回 null')
+}
 
 // ── 結果 ───────────────────────────────────────────────────────────────
 if (fails.length) {
