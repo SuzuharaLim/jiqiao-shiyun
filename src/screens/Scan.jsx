@@ -13,7 +13,7 @@ import ARScene from '../components/ARScene.jsx'
 const GRAB_LONG = 160        // 取樣畫面的長邊（短邊照顯示框比例算）
 const RECT = 48
 const MIN_SCORE = 58        // 匹配門檻（0–100）
-const MAX_REFS = 12         // 登錄上限（localStorage 空間考量）
+const MAX_REFS = 20         // 登錄上限（localStorage 空間考量；一張約 3KB）
 // ⚠️ 換 key 是刻意的：舊版登錄的是「畫面中央 128×96 的裁切」，新版登錄的是
 //    「偵測到卡片後透視拉正的 48×48」。兩者的 dHash 不在同一個座標系，
 //    直接沿用會讓所有舊卡片永遠對不上（而且是靜默的——使用者只會覺得
@@ -34,14 +34,15 @@ function loadRefs() {
       const valid = typeof r?.id === 'string' && typeof r?.name === 'string'
         && typeof r?.sig?.hash === 'string' && /^[0-9a-fA-F]{16}$/.test(r.sig.hash)
         && Array.isArray(r.sig.hist) && r.sig.hist.length === HIST_LEN && r.sig.hist.every(Number.isFinite)
-      if (valid) out.push({ ...r, ...deserializeSig(r.sig) })
+      if (valid) out.push({ ...r, aspect: Number(r.aspect) > 0 ? Number(r.aspect) : 1, ...deserializeSig(r.sig) })
     } catch { /* 剔除單筆壞資料 */ }
   }
   return out
 }
 function saveRefs(refs) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(refs.map(r => ({ id: r.id, name: r.name, thumb: r.thumb, sig: serializeSig(r) }))))
+    localStorage.setItem(LS_KEY, JSON.stringify(refs.map(r =>
+      ({ id: r.id, name: r.name, thumb: r.thumb, aspect: r.aspect, sig: serializeSig(r) }))))
     return true
   } catch { return false }
 }
@@ -55,6 +56,7 @@ export default function Scan() {
   const armTimer = useRef(null)
   const trackerRef = useRef(null)
   const stageRef = useRef(null)
+  const fileRef = useRef(null)
   // 取樣畫面的實際尺寸（隨顯示框比例而定）——疊加層要用它換算到螢幕座標。
   // ⚠️ 初值不可隨便填。它只有在 grabFrame 真的跑過一次之後才會更新，而在那之前
   //    疊加層的縮放就是錯的（實測初值填 160×160、實際應為 100×160 時，
@@ -203,7 +205,10 @@ export default function Scan() {
     tv.getContext('2d').putImageData(new ImageData(flat, RECT, RECT), 0, 0)
     const thumb = tv.toDataURL('image/jpeg', 0.7)
     const serial = refs.reduce((mx, r) => Math.max(mx, Number((r.name.match(/(\d+)\s*$/) || [])[1]) || 0), 0) + 1
-    const ref = { id: `card-${Date.now()}`, name: `卡片 ${serial}`, thumb, hash: sig.hash, hist: sig.hist }
+    // 由四邊形的兩組對邊平均長度推長寬比（給疊加層排版用）
+    const side = (a, b) => Math.hypot(quad.corners[b][0] - quad.corners[a][0], quad.corners[b][1] - quad.corners[a][1])
+    const aspect = ((side(0, 1) + side(3, 2)) / 2) / Math.max(1e-6, (side(1, 2) + side(0, 3)) / 2)
+    const ref = { id: `card-${Date.now()}`, name: `卡片 ${serial}`, thumb, aspect, hash: sig.hash, hist: sig.hist }
     const next = [...refs, ref]
     if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊卡片'); return }
     setRefs(next)
@@ -212,6 +217,63 @@ export default function Scan() {
     setTimeout(() => setLastAdded(v => (v === ref.id ? null : v)), 1400)
     requestAnimationFrame(() => document.getElementById(ref.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
     setToast(`已登錄「${ref.name}」——現在把鏡頭對著它，內容會直接貼上去`)
+  }
+
+  // ---- 從圖片檔登錄（.mind 那種「給我原圖」的流程）----
+  //
+  // 為什麼需要這條路：使用者手上有的是**設計檔**，不是印出來的實體。要他先印出來、
+  // 再拿相機對著登錄，等於把最麻煩的一步留給他，而且相機登錄的品質受當下光線影響。
+  // 直接吃原圖既準又快，而且同一份設計可以先登錄、之後再印。
+  //
+  // ⚠️ 關鍵：原圖要用**與追蹤時完全相同的正規化**——rectify() 是把偵測到的四邊形
+  //    壓成 RECT×RECT 的正方形（不管卡片本身是幾比幾），所以這裡也要把整張圖
+  //    壓成 RECT×RECT。任何一邊改成「保持比例」，兩邊的 dHash 就不在同一個
+  //    座標系，永遠對不上——而且是靜默失敗，只會顯示「看到卡片了，但不是登錄過的」。
+  const registerFromFile = async (file) => {
+    if (!file) return
+    if (refs.length >= MAX_REFS) { setToast(`最多登錄 ${MAX_REFS} 張，請先刪除舊的`); return }
+    if (!/^image\//.test(file.type)) { setToast('請選圖片檔（PNG／JPG／WebP）'); return }
+    let bmp
+    try {
+      bmp = typeof createImageBitmap === 'function'
+        ? await createImageBitmap(file)
+        : await new Promise((res, rej) => {
+          const img = new Image()
+          img.onload = () => res(img); img.onerror = rej
+          img.src = URL.createObjectURL(file)
+        })
+    } catch { setToast('這個圖片讀不進來，換一張試試'); return }
+    const iw = bmp.width || bmp.naturalWidth, ih = bmp.height || bmp.naturalHeight
+    if (!iw || !ih) { setToast('這個圖片讀不進來，換一張試試'); return }
+
+    const cv = document.createElement('canvas')
+    cv.width = RECT; cv.height = RECT
+    const ctx = cv.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(bmp, 0, 0, RECT, RECT)          // 與 rectify 一樣壓成正方形
+    const flat = ctx.getImageData(0, 0, RECT, RECT).data
+    const sig = makeSignature(flat, RECT, RECT)
+    const dup = refs.find(r => matchScore(sig, r) >= 88)
+    if (dup) { setToast(`這張看起來已登錄過（${dup.name}）`); return }
+
+    // 縮圖保留原比例，清單上看得出是哪一張
+    const tw = 120, th = Math.max(40, Math.round(120 * ih / iw))
+    const tv = document.createElement('canvas')
+    tv.width = tw; tv.height = th
+    tv.getContext('2d').drawImage(bmp, 0, 0, tw, th)
+    const name = (file.name || '').replace(/\.[^.]+$/, '').slice(0, 16)
+      || `卡片 ${refs.length + 1}`
+    const ref = {
+      id: `card-${Date.now()}`, name, thumb: tv.toDataURL('image/jpeg', 0.7),
+      aspect: iw / ih, hash: sig.hash, hist: sig.hist,
+    }
+    const next = [...refs, ref]
+    if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊卡片'); return }
+    setRefs(next)
+    trackerRef.current?.reset()
+    setLastAdded(ref.id)
+    setTimeout(() => setLastAdded(v => (v === ref.id ? null : v)), 1400)
+    setToast(`已登錄「${ref.name}」——把印出來的那張放進框內就會跳出內容`)
+    bmp.close?.()
   }
 
   // 兩段式刪除：第一次點 ✕ 武裝（變朱紅），2.5 秒內再點一次才真的刪
@@ -277,15 +339,27 @@ export default function Scan() {
         </div>
 
         <div className="scan-acts">
-          <button className="btn-primary tap" onClick={register} disabled={status !== 'ready'}
-            style={status !== 'ready' ? { opacity: .55 } : null}>
-            <Icon name="scan" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />登錄這張卡片
+          {/* 兩條登錄路徑：有設計檔就直接吃原圖（準又快），沒有就拿相機對著實體登錄 */}
+          <button className="btn-primary tap" onClick={() => fileRef.current?.click()}>
+            <Icon name="scroll" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />
+            從圖片檔登錄目標
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden
+            aria-label="選擇要當作掃描目標的圖片檔"
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; registerFromFile(f) }} />
+          <button className="btn-ghost tap" onClick={register} disabled={status !== 'ready'}
+            style={{ marginTop: 8, ...(status !== 'ready' ? { opacity: .55 } : null) }}>
+            <Icon name="scan" style={{ width: 18, height: 18, stroke: 'currentColor', verticalAlign: '-3px', marginRight: 6 }} />
+            改用相機對著實體登錄
           </button>
           <p className="muted scan-soon">
-            自研平面追蹤：偵測卡片的四個角 → 透視拉正 → 比對登錄過的卡片 → 解出姿態，
+            自研平面追蹤：偵測卡片的四個角 → 透視拉正 → 比對登錄過的目標 → 解出姿態，
             內容就直接貼在卡片上並跟著傾斜。全程在你的裝置上運算，影像不上傳、零第三方相依。
             <br />
-            適合有明確邊框的印刷品（卡片、手帳頁）；背景越單純越穩。
+            <b>可以登錄多張</b>（上限 {MAX_REFS} 張），全部在這一頁一起掃——鏡頭對到哪一張就跳出哪一張的內容。
+            <br />
+            適合<b>有明確邊框的印刷品</b>（月曆頁、明信片、手帳頁）。把整張放進框內、
+            紙張與背景顏色差越多越穩；純白桌面上放白紙會找不到邊。
           </p>
         </div>
 

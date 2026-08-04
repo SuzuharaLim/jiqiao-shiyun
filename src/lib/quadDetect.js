@@ -92,6 +92,36 @@ export function largestComponent(bin, w, h) {
 }
 
 /**
+ * 補洞：把「從畫面邊界連得到的背景」以外的所有像素都算成前景。
+ *
+ * ⚠️ 這一步是能不能認得**真實印刷品**的關鍵。第一版直接取「最大的亮色連通元件」，
+ *    在純色測試卡上完美，但拿真的月曆頁一試就整個失效——真實版面裡有深色標題、
+ *    色塊、照片，Otsu 二值化會把這些算成背景，於是頁面內部被切得零零落落，
+ *    最大元件只剩其中一小塊白底，四個角自然完全對不上（實測直接回 null）。
+ *    改成「先找出真正的背景（與畫面邊界相連的那一團），其餘都是紙」之後，
+ *    頁面內的深色內容自動被包進來，因為它們跟外面的背景不相連。
+ */
+export function fillFromBorder(bin, w, h) {
+  const outside = new Uint8Array(w * h)
+  const stack = new Int32Array(w * h)
+  let sp = 0
+  const push = (i) => { if (!outside[i] && !bin[i]) { outside[i] = 1; stack[sp++] = i } }
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x) }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1) }
+  while (sp) {
+    const i = stack[--sp]
+    const x = i % w, y = (i / w) | 0
+    if (x > 0) push(i - 1)
+    if (x < w - 1) push(i + 1)
+    if (y > 0) push(i - w)
+    if (y < h - 1) push(i + w)
+  }
+  const filled = new Uint8Array(w * h)
+  for (let i = 0; i < filled.length; i++) filled[i] = outside[i] ? 0 : 1
+  return filled
+}
+
+/**
  * 取出元件的邊界像素（至少有一個 4-鄰居是背景的前景像素）。
  *
  * ⚠️ 這裡刻意**不做 Moore 邊界追蹤**。第一版寫了追蹤器，結果它在起點附近繞
@@ -258,6 +288,32 @@ export function orderCorners(pts) {
 }
 
 /**
+ * 背景模型：用畫面**外framing一圈**的像素當「桌面顏色」，凡是與它差很多的都算紙。
+ *
+ * ⚠️ 這一招是為了真實印刷品加的。只用 Otsu＋補洞在「紙比桌面亮、且紙上的深色內容
+ *    不碰到紙邊」時很好用，但真實版面常有**滿版出血**的深色元素（月曆頁頂端的
+ *    色帶、邊緣的插圖）——那些一路連到紙的邊緣，於是跟外面的桌面連成一片，
+ *    補洞時被當成背景挖掉，最大元件小一圈、四邊形度也過不了關（實測直接回 null）。
+ *    改用「與桌面顏色的差異」當前景判準之後，不論紙上印的是深是淺都會被包進來，
+ *    只要桌面本身夠均勻——而那正是使用者會做的事（把卡片放在桌上拍）。
+ */
+export function backgroundMask(gray, w, h, tol = 26) {
+  const ring = []
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 40))
+  for (let x = 0; x < w; x += step) { ring.push(gray[x], gray[(h - 1) * w + x]) }
+  for (let y = 0; y < h; y += step) { ring.push(gray[y * w], gray[y * w + w - 1]) }
+  if (!ring.length) return null
+  ring.sort((a, b) => a - b)
+  const med = ring[ring.length >> 1]
+  // 邊框自己的離散程度：桌面有紋理時要放寬，否則整片桌面都被當成紙
+  const mad = ring.map(v => Math.abs(v - med)).sort((a, b) => a - b)[ring.length >> 1]
+  const th = Math.max(tol, mad * 3)
+  const out = new Uint8Array(w * h)
+  for (let i = 0; i < out.length; i++) out[i] = Math.abs(gray[i] - med) > th ? 1 : 0
+  return out
+}
+
+/**
  * 主入口：在灰階畫面裡找出最像卡片的四邊形。
  *
  * @param {Uint8Array} gray 灰階像素（w*h）
@@ -270,11 +326,22 @@ export function detectQuad(gray, w, h, { minAreaRatio = 0.06, maxAreaRatio = 0.9
   const t = otsuThreshold(blurred)
   const total = w * h
 
-  // 卡片可能比背景亮，也可能比背景暗——兩種極性都試，取面積比較合理的那個。
+  // 三種前景假設都試，取「最像一張卡片」的那個：
+  //   1/0  Otsu 的兩種極性（紙比桌面亮／暗）
+  //   'bg' 與桌面顏色的差異（處理滿版出血的深色元素，見 backgroundMask）
   let best = null
-  for (const polarity of [1, 0]) {
-    const bin = new Uint8Array(total)
-    for (let i = 0; i < total; i++) bin[i] = (polarity ? blurred[i] > t : blurred[i] <= t) ? 1 : 0
+  const bgMask = backgroundMask(blurred, w, h)
+  for (const strategy of [1, 0, 'bg']) {
+    let raw
+    if (strategy === 'bg') {
+      if (!bgMask) continue
+      raw = bgMask
+    } else {
+      raw = new Uint8Array(total)
+      for (let i = 0; i < total; i++) raw[i] = (strategy ? blurred[i] > t : blurred[i] <= t) ? 1 : 0
+    }
+    // 補洞：紙上的深色內容不該被當成背景（見 fillFromBorder 的說明）
+    const bin = fillFromBorder(raw, w, h)
     const comp = largestComponent(bin, w, h)
     if (!comp) continue
     const ratio = comp.size / total
