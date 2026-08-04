@@ -240,6 +240,16 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
 - **`.lp-map` 地圖預覽不可用固定高**：原本 184px，手機橫向時搜尋結果的捲動區只剩 72px（地圖看得到但選不到地點）。改 `clamp(120px, 24dvh, 184px)`，矮視窗另壓到 100px 並給清單 `min-height`。
 - **入場動畫的終態要與靜態樣式一致並加 `forwards`**：`slideup` 原本 `to{transform:none}` 且無 fill-mode，動畫被中斷或未推進時元素會停在 `from` 的 `translateY(24px)`，底部彈出的 sheet 露出視窗外。
+- **AR 是自研平面追蹤，不是 MindAR**（`src/lib/homography.js` ＋ `quadDetect.js` ＋ `arTracker.js`，零第三方相依）：偵測卡片四角 → 透視拉正 → 四方向比對辨識 → 角點平滑 → 解 homography 與 3D 姿態 → `ARScene.jsx` 用 CSS `matrix3d` 貼上去。適合**有明確邊框的印刷品**；沒有邊框、貼在雜亂背景上的圖會找不到，這是這條路線的已知邊界。`scripts/check-ar.mjs`（47 項）掛在 `npm run build` 上——這層是純數學，寫錯不會拋錯，只會讓模型「貼歪」或「亂轉」。
+  - **方向對齊是 `(i - r + 4) % 4` 不是 `(i + r)`**：寫成加時 0° 與 180° 完全正確（±2 在 mod 4 下同值），只有 90°／270° 的原點跑到對角，而且**模型不會消失、只是整個轉 90°**——正面朝上測試永遠測不出來。
+  - **CSS `matrix3d` 是行主序**（前四個數是第一「欄」）：寫成列主序時靜態畫面看起來很像，一旋轉才發現角度全錯。
+  - **「是不是四邊形」要看「凸包縮成四邊形時損失多少面積」，不是實心度**：一個 L 形貪婪縮頂點會收斂成貼著它外緣的梯形，L 佔那個梯形 94%，實心度完全過關。
+  - **角點要做線擬合精修**（TLS／PCA，不可用一般最小平方——邊接近垂直時斜率發散）：凸包直接取角在透視下有 5px 誤差＝160 寬畫面的 3%，模型會明顯偏出卡片；精修後 ≤1.2px。
+  - **取樣畫面的長寬比必須等於顯示區**，不可寫死 4:3：`.scan-video` 是 `object-fit:cover`，兩個裁切區不同會讓偵測找到看不到的卡片，且座標換算永遠對不上（實測 scale 變成非等比 2.35×5.01，內容飛出畫面三萬 px）。
+  - **AR 疊加層的模型盒要 100px 不可 1px**：子元素的 %、字級、`translate(-50%)` 會在 1px 的盒子裡爆掉（實測印章跑到 −12437px）。換算靠 transform 尾端補 `scale(0.01)`。
+  - 疊加層必須 `pointer-events:none`（否則吃掉整個取景畫面的點擊，症狀是「按鈕有時候按不動」）。
+  - **要換 A-Frame／three.js 只需另寫一個吃同樣 `track` 物件的元件**，追蹤層不用動；`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。⚠️ 兩邊的 **fov 必須一致**（A-Frame 預設 80、本追蹤器預設 60），否則模型會浮在卡片上方或陷進桌面。
+- **新增 effect 要放在它相依的 state 宣告之後**：`useEffect(..., [status])` 寫在 `const [status] = useState()` 之前會踩到 TDZ，**整個畫面被 ErrorBoundary 接走**（只看到「畫面暫時出了點狀況」），而 `npm run build` 完全不報錯。
 - **「今天」一律取台北的日曆日（`almanac.js` 的 `taipeiToday()`）**，不可用 `new Date()` 直接算。**Cloud Run 的預設時區是 UTC**，比台北慢 8 小時——每天台灣時間 00:00–08:00 這八個小時，伺服器注入的首屏靜態層、sitemap 的 lastmod、RSS、逐頁 og:image 取的節氣、AI 的曆訊 context **全部會是前一天的**。瀏覽器端同理，人在美洲／歐洲會看到前一天。**不可用 `new Date(Date.now() + 8*3600e3)` 手動加時差**（在本身就是 UTC+8 的環境會多加八小時），要交給 `Intl` 判斷。Dockerfile 另設 `TZ=Asia/Taipei` 只是為了 log 可讀。
 - **網址參數的日期一定要用 `parseDateParam()` 驗證**，不可只比對 `^\d{4}-\d{2}-\d{2}$` 就丟給 `new Date(y, m-1, d)`：JS 會**自動進位**（`2026-02-30`→3/2、`2026-99-99`→2034/6/7），兩位數年份會被當成 19xx（`0050`→1950），而 `9999-12-31` 會照樣算出一整頁煞有介事的宜忌神煞。可查詢範圍的唯一真相是 `BROWSE_RANGE_DAYS`（UI 箭頭停用、網址驗證、AI context 共用）——同一個限制分散在兩處就一定會不一致。無效參數要退回今天**並正規化網址**；指到今天要正規化成 `/`（否則 `/` 與 `/?date=<今天>` 同內容兩個網址）。
 - **手機／矮視窗版面捲的是 `.device .body`，鍵盤捲動要自己實作**：`html`／`body` 的高度被鎖成一個視窗，而瀏覽器的鍵盤捲動作用在「有焦點的捲動容器」上——`.body` 從來沒拿到焦點，所以空白鍵、PageDown、End、方向鍵**全部落空**（違反 WCAG 2.1.1）。同理原生 anchor jump 也動不了它，「跳至主要內容」等於裝飾。**注意斷點**：手機層的條件含 `min-height:600px`，所以 1280×545 這種矮視窗也走手機版面。**不可用 `scrollBy({behavior:'smooth'})`**——實測在真的 Chromium 上對這個容器完全沒有作用且是靜默的，要直接指定 `scrollTop`。
