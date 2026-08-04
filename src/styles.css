@@ -3307,3 +3307,71 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .zy-out { font-size: var(--text-2xs); margin: 8px 0 0; line-height: 1.8; }
 .zy-out b { color: var(--cinnabar); font-size: var(--text-sm); }
 .zy-out .zy-warn { color: var(--ji); }
+
+/* ══════════════ AR 疊加層（貼在被追蹤到的卡片上）══════════════
+   ⚠️ 疊加層必須 pointer-events:none：它蓋在整個取景畫面上，否則會吃掉底下
+      所有點擊。症狀是「按鈕有時候按不動」，而畫面看起來完全正常。
+   ⚠️ 模型盒是 100×100px 代表「卡片的單位正方形」，實際換算由 JS 在 transform
+      尾端補 scale(0.01)。不可把盒子直接做成 1px——子元素的 %、字級、
+      translate(-50%) 會全部在 1px 的盒子裡爆掉（實測印章飛到 −12437px）。 */
+.ar-layer {
+  position: absolute; inset: 0; overflow: hidden;
+  pointer-events: none; z-index: 3;
+  perspective: 900px;
+}
+/* 取樣座標 → 顯示座標的**等比**縮放（取樣裁切已對齊顯示框比例） */
+.ar-scale {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  transform: scale(var(--ar-s, 1));
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+}
+.ar-anchor {
+  position: absolute; top: 0; left: 0;
+  width: 100px; height: 100px;          /* ＝卡片的單位正方形 */
+  transform-origin: 0 0;
+  opacity: 0;
+  transition: opacity var(--m-base) var(--e-out);
+  will-change: transform;
+  /* ⚠️ 大角度 3D 需要，否則中低階 Android 會閃現反轉的內容 */
+  backface-visibility: hidden;
+}
+.ar-anchor > * { position: absolute; }
+.ar-card-glow {
+  inset: -6%;
+  background: radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--gold-hi) 50%, transparent), transparent 70%);
+  animation: arGlow 2.6s ease-in-out infinite;
+}
+.ar-seal {
+  left: 50%; top: 16%; width: 26%; height: 26%;
+  transform: translate(-50%, -50%);
+}
+.ar-seal img { width: 100%; height: 100%; }
+.ar-date, .ar-term, .ar-yi, .ar-ji {
+  left: 50%; transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--serif);
+  color: #fff;
+  text-shadow: 0 .4px 2px rgba(0, 0, 0, .85), 0 0 1px rgba(0, 0, 0, .95);
+}
+.ar-date { top: 36%; font-size: 11px; font-weight: 800; }
+.ar-term { top: 48%; font-size: 9px; color: var(--gold-hi); }
+.ar-yi   { top: 62%; font-size: 7.5px; }
+.ar-ji   { top: 74%; font-size: 7.5px; }
+.ar-yi b, .ar-ji b {
+  display: inline-block; margin-right: 2px; padding: .5px 3px; border-radius: 1px;
+  background: var(--yi); color: var(--on-yi);
+}
+.ar-ji b { background: var(--ji); color: var(--on-ji); }
+.ar-yi i, .ar-ji i { font-style: normal; margin-right: 3px; }
+
+@keyframes arGlow {
+  0%, 100% { opacity: .5; }
+  50%      { opacity: .9; }
+}
+/* ⚠️ 無限循環動畫要尊重 reduce-motion：AR 疊加層本來就一直在動，
+   再加一個呼吸光暈對前庭敏感的人是負擔。 */
+@media (prefers-reduced-motion: reduce) {
+  .ar-card-glow { animation: none; opacity: .7; }
+}

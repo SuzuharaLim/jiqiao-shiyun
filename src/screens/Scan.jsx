@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, SheetMask, Seal } from '../components/ui.jsx'
+import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { dayFor } from '../data/almanac.js'
-import { makeSignature, bestMatchMultiWindow, matchScore, cropRgba, serializeSig, deserializeSig } from '../lib/scanner.js'
+import { dayFor, todayOffset } from '../data/almanac.js'
+import { makeSignature, matchScore, serializeSig, deserializeSig } from '../lib/scanner.js'
+import { detectQuad, rectify } from '../lib/quadDetect.js'
+import { toGray } from '../lib/scanner.js'
+import { createTracker, makeThrottle } from '../lib/arTracker.js'
+import ARScene from '../components/ARScene.jsx'
 
-// 取樣尺寸：GRAB = 相機取樣畫面，WIN = 比對視窗（多視窗比對容忍手持偏移）
-const GRAB_W = 160, GRAB_H = 120
-const WIN_W = 128, WIN_H = 96
-const MIN_SCORE = 60        // 匹配門檻（0–100）
-const HITS_NEEDED = 3       // 連續命中幀數 → 確認辨識（防單幀誤判）
-const TICK_MS = 300         // 比對頻率
+// 取樣尺寸：GRAB = 相機取樣畫面；RECT = 拉正後的方形邊長（辨識用）
+const GRAB_LONG = 160        // 取樣畫面的長邊（短邊照顯示框比例算）
+const RECT = 48
+const MIN_SCORE = 58        // 匹配門檻（0–100）
 const MAX_REFS = 12         // 登錄上限（localStorage 空間考量）
-const LS_KEY = 'jq-postcards'
+// ⚠️ 換 key 是刻意的：舊版登錄的是「畫面中央 128×96 的裁切」，新版登錄的是
+//    「偵測到卡片後透視拉正的 48×48」。兩者的 dHash 不在同一個座標系，
+//    直接沿用會讓所有舊卡片永遠對不上（而且是靜默的——使用者只會覺得
+//    「以前可以現在不行」）。換 key 等於請使用者重新登錄一次，誠實且乾淨。
+const LS_KEY = 'jq-ar-cards-v2'
 
-// ---- 已登錄明信片的持久化（簽名 + 縮圖，全存本機；影像不上傳） ----
+// ---- 已登錄卡片的持久化（簽名 + 縮圖，全存本機；影像不上傳） ----
 // 逐筆驗證＋逐筆 try/catch：單筆壞資料只剔除該筆，不會讓全部登錄消失
 // （若整批包一個 try/catch，一筆污染 → 回 []，之後 saveRefs 覆寫 = 完好登錄永久遺失）
 const HIST_LEN = 24   // 8 bins × 3 通道
@@ -46,21 +52,44 @@ export default function Scan() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const grabRef = useRef(null)               // 取樣 canvas + context（只建一次）
-  const hitsRef = useRef({ id: null, n: 0 })
-  const pendingRef = useRef(null)            // 剛登錄的卡片 id：須先離場一次才允許自動辨識
-  const blurRef = useRef(0)                  // 模糊遲滯計數（連續 2 幀才切換，防提示閃爍）
   const armTimer = useRef(null)
-  const prevFocus = useRef(null)
-  const sheetRef = useRef(null)
+  const trackerRef = useRef(null)
+  const stageRef = useRef(null)
+  // 取樣畫面的實際尺寸（隨顯示框比例而定）——疊加層要用它換算到螢幕座標。
+  // ⚠️ 初值不可隨便填。它只有在 grabFrame 真的跑過一次之後才會更新，而在那之前
+  //    疊加層的縮放就是錯的（實測初值填 160×160、實際應為 100×160 時，
+  //    --ar-s 是 2.35 而不是 3.75，內容整個縮小並偏移約 76px）。
+  //    掛載後先照顯示框比例算一次，第一幀之前就是對的。
+  const [grabSize, setGrabSize] = useState({ w: GRAB_LONG, h: GRAB_LONG })
   const [status, setStatus] = useState('loading') // loading | ready | denied | unsupported
   const [refs, setRefs] = useState(loadRefs)
   const refsRef = useRef(refs); refsRef.current = refs
-  const [live, setLive] = useState(null)          // { score, name } 即時比對回饋
-  const [blurry, setBlurry] = useState(false)
-  const [found, setFound] = useState(null)        // 辨識成功 { name, score, thumb }
-  const foundRef = useRef(null); foundRef.current = found
+  // track：追蹤結果（含 matrix3d / pose / corners），null＝目前沒追到
+  const [track, setTrack] = useState(null)
+  const [seeCard, setSeeCard] = useState(false)   // 有沒有看到「一張卡片」（不論認不認得）
   const [lastAdded, setLastAdded] = useState(null) // 剛登錄的 chip id（閃爍確認）
   const [armId, setArmId] = useState(null)         // 兩段式刪除：已武裝的 chip id
+
+  // ⚠️ 這個 effect 相依 `status`，必須寫在 status 宣告之後。
+  //    放在前面會踩到 TDZ——`Cannot access 'status' before initialization`，
+  //    而且是**整個畫面被 ErrorBoundary 接走**（只看到「畫面暫時出了點狀況」），
+  //    build 完全不會報錯。
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const sync = () => {
+      const box = el.getBoundingClientRect()
+      if (!box.width || !box.height) return
+      const ar = box.width / box.height
+      const w = ar >= 1 ? GRAB_LONG : Math.max(60, Math.round(GRAB_LONG * ar))
+      const h = ar >= 1 ? Math.max(60, Math.round(GRAB_LONG / ar)) : GRAB_LONG
+      setGrabSize(prev => (prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+    sync()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(sync) : null
+    ro?.observe(el)
+    return () => ro?.disconnect()
+  }, [status])
 
   // ---- 開關相機 ----
   useEffect(() => {
@@ -93,85 +122,96 @@ export default function Scan() {
 
   // ---- 取樣一幀（video → 160×120 ImageData）----
   // canvas 尺寸只設一次：對 width/height 賦值（即使同值）依規格會清空 bitmap 並重置 context
+  // ⚠️ 取樣畫面的長寬比必須與**顯示區**一致，不可寫死 4:3。
+  //    .scan-video 是 object-fit:cover，畫面上看得到的是「視訊被裁成顯示框比例」的
+  //    那一塊。若取樣時裁成 4:3、顯示卻是 375×601，兩個裁切區根本不同——
+  //    偵測會找到使用者看不到的卡片，而疊加層的座標換算也永遠對不上
+  //    （實測 scale 變成非等比的 2.35 × 5.01，印章直接飛到畫面外三萬 px）。
+  //    對齊之後，取樣座標 → 顯示座標就只差一個**等比**縮放。
   const grabFrame = () => {
     const video = videoRef.current
-    if (!video || video.readyState < 2) return null
-    if (!grabRef.current) {
+    const stage = stageRef.current
+    if (!video || video.readyState < 2 || !stage) return null
+    const vw = video.videoWidth, vh = video.videoHeight
+    if (!vw || !vh) return null
+    const box = stage.getBoundingClientRect()
+    if (!box.width || !box.height) return null
+    // 取樣尺寸：長邊固定 GRAB_LONG，短邊照顯示框的比例
+    const ar = box.width / box.height
+    const gw = ar >= 1 ? GRAB_LONG : Math.max(60, Math.round(GRAB_LONG * ar))
+    const gh = ar >= 1 ? Math.max(60, Math.round(GRAB_LONG / ar)) : GRAB_LONG
+    let g = grabRef.current
+    if (!g || g.cv.width !== gw || g.cv.height !== gh) {
       const cv = document.createElement('canvas')
-      cv.width = GRAB_W; cv.height = GRAB_H
-      grabRef.current = { cv, ctx: cv.getContext('2d', { willReadFrequently: true }) }
+      cv.width = gw; cv.height = gh
+      g = grabRef.current = { cv, ctx: cv.getContext('2d', { willReadFrequently: true }) }
+      setGrabSize({ w: gw, h: gh })
     }
-    const { ctx } = grabRef.current
-    ctx.drawImage(video, 0, 0, GRAB_W, GRAB_H)
-    return ctx.getImageData(0, 0, GRAB_W, GRAB_H)
+    // cover：以較大的縮放比填滿，超出的部分裁掉（與 CSS 的 object-fit:cover 同一套）
+    const scale = Math.max(gw / vw, gh / vh)
+    const sw = gw / scale, sh = gh / scale
+    g.ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, gw, gh)
+    return { data: g.ctx.getImageData(0, 0, gw, gh).data, w: gw, h: gh }
   }
 
-  // ---- 即時比對迴圈 ----
+  // ---- AR 追蹤迴圈 ----
+  // ⚠️ 用 requestAnimationFrame + 節流，不用 setInterval：分頁切到背景時 rAF
+  //    會自動停下來，setInterval 不會——那等於在看不見的分頁裡持續跑影像運算。
+  //    節流器以「上次完成」計時，某一幀跑太久也不會排隊堆積。
   useEffect(() => {
     if (status !== 'ready') return
-    const timer = setInterval(() => {
-      if (document.hidden || foundRef.current) return
+    const tracker = createTracker({ refs: refsRef.current, rectifySize: RECT, minScore: MIN_SCORE })
+    trackerRef.current = tracker
+    const shouldRun = makeThrottle(15)
+    let raf = 0, alive = true
+    const loop = (now) => {
+      if (!alive) return
+      raf = requestAnimationFrame(loop)
+      if (!shouldRun(now)) return
       const frame = grabFrame()
       if (!frame) return
-      const list = refsRef.current
-      // 中央視窗清晰度 → 模糊提示（連續 2 幀才切換，防閃爍）
-      const cx = (GRAB_W - WIN_W) >> 1, cy = (GRAB_H - WIN_H) >> 1
-      const centerSig = makeSignature(cropRgba(frame.data, GRAB_W, GRAB_H, cx, cy, WIN_W, WIN_H), WIN_W, WIN_H)
-      const isBlur = centerSig.sharp < 25
-      blurRef.current = isBlur ? Math.min(2, Math.max(0, blurRef.current) + 1) : Math.max(-2, Math.min(0, blurRef.current) - 1)
-      if (blurRef.current >= 2) setBlurry(true)
-      else if (blurRef.current <= -2) setBlurry(false)
-      if (!list.length) { setLive(null); return }
-      const m = bestMatchMultiWindow(frame.data, GRAB_W, GRAB_H, WIN_W, WIN_H, list, MIN_SCORE)
-      setLive(m ? { score: m.score, name: m.name } : null)
-      // 剛登錄的卡片：須先離場一次，之後對回來才觸發自動辨識
-      // （否則登錄當下卡片還在框內 → 0.9 秒內必彈成功 sheet，蓋掉「先移開再對回來」的引導）
-      if (m?.ok && m.ref.id === pendingRef.current) return
-      if (!m?.ok || m.ref.id !== pendingRef.current) pendingRef.current = null
-      // 連續命中 → 確認（防單幀誤判）
-      const h = hitsRef.current
-      if (m?.ok) {
-        h.n = h.id === m.ref.id ? h.n + 1 : 1; h.id = m.ref.id
-        if (h.n >= HITS_NEEDED) {
-          setFound({ name: m.ref.name, score: m.score, thumb: m.ref.thumb })
-          h.id = null; h.n = 0
-        }
-      } else { h.id = null; h.n = 0 }
-    }, TICK_MS)
-    return () => clearInterval(timer)
+      tracker.setRefs(refsRef.current)
+      const res = tracker.track(frame.data, frame.w, frame.h)
+      setTrack(res)
+      // 沒有登錄任何卡片時，仍然回報「有沒有看到一張卡片」，
+      // 這樣登錄前的引導才知道要不要提示使用者對準
+      if (!refsRef.current.length) {
+        setSeeCard(!!detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h))
+      } else setSeeCard(!!res)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => { alive = false; cancelAnimationFrame(raf) }
   }, [status])
 
-  // ---- 登錄目前畫面為明信片 ----
+  // ---- 登錄目前畫面為卡片 ----
   const register = () => {
     const frame = grabFrame()
     if (!frame) { setToast('鏡頭尚未就緒'); return }
     if (refs.length >= MAX_REFS) { setToast(`最多登錄 ${MAX_REFS} 張，請先刪除舊的`); return }
-    // 中央視窗簽名作為參考
-    const cx = (GRAB_W - WIN_W) >> 1, cy = (GRAB_H - WIN_H) >> 1
-    const sig = makeSignature(cropRgba(frame.data, GRAB_W, GRAB_H, cx, cy, WIN_W, WIN_H), WIN_W, WIN_H)
-    if (sig.sharp < 25) { setToast('畫面太模糊，請對穩後再登錄'); return }
-    // 避免重複登錄同一張
-    const dup = refs.find(r => matchScore(sig, r) >= 90)
+    // ⚠️ 一定要登錄「偵測到卡片後拉正的那一張」，不是畫面中央的裁切。
+    //    追蹤時比對的是拉正圖，兩邊必須是同一個座標系，否則永遠對不上。
+    const quad = detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h)
+    if (!quad) { setToast('沒有看到卡片——請讓整張卡片入框，背景盡量單純'); return }
+    const flat = rectify(frame.data, frame.w, frame.h, quad.corners, RECT)
+    const sig = makeSignature(flat, RECT, RECT)
+    if (sig.sharp < 18) { setToast('畫面太模糊，請對穩後再登錄'); return }
+    const dup = refs.find(r => matchScore(sig, r) >= 88)
     if (dup) { setToast(`這張看起來已登錄過（${dup.name}）`); return }
-    // 縮圖（120×90 JPEG，只存本機）
+    // 縮圖：直接用拉正後的影像，之後在清單裡看到的就是「系統認得的那一面」
     const tv = document.createElement('canvas')
-    tv.width = 120; tv.height = 90
-    tv.getContext('2d').drawImage(videoRef.current, 0, 0, 120, 90)
-    const thumb = tv.toDataURL('image/jpeg', 0.6)
-    // 流水號取現存名稱最大值 +1（刪除舊卡後不會重名）
+    tv.width = RECT; tv.height = RECT
+    tv.getContext('2d').putImageData(new ImageData(flat, RECT, RECT), 0, 0)
+    const thumb = tv.toDataURL('image/jpeg', 0.7)
     const serial = refs.reduce((mx, r) => Math.max(mx, Number((r.name.match(/(\d+)\s*$/) || [])[1]) || 0), 0) + 1
-    const ref = { id: `pc-${Date.now()}`, name: `明信片 ${serial}`, thumb, hash: sig.hash, hist: sig.hist }
+    const ref = { id: `card-${Date.now()}`, name: `卡片 ${serial}`, thumb, hash: sig.hash, hist: sig.hist }
     const next = [...refs, ref]
-    if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊明信片'); return }
+    if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊卡片'); return }
     setRefs(next)
-    // 剛登錄的卡片還在框內：重置命中並要求先離場，避免立刻自動彈出成功 sheet
-    hitsRef.current = { id: null, n: 0 }
-    pendingRef.current = ref.id
-    // 原地確認：新 chip 閃爍＋捲入視野
+    trackerRef.current?.reset()
     setLastAdded(ref.id)
     setTimeout(() => setLastAdded(v => (v === ref.id ? null : v)), 1400)
     requestAnimationFrame(() => document.getElementById(ref.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
-    setToast(`已登錄「${ref.name}」，移開再對回來就會自動辨識`)
+    setToast(`已登錄「${ref.name}」——現在把鏡頭對著它，內容會直接貼上去`)
   }
 
   // 兩段式刪除：第一次點 ✕ 武裝（變朱紅），2.5 秒內再點一次才真的刪
@@ -192,39 +232,25 @@ export default function Scan() {
   }
   useEffect(() => () => clearTimeout(armTimer.current), [])
 
-  const resume = () => { setFound(null); setLive(null) }
+  // ⚠️ 曆訊要用「今天」不是錨點：dayFor(0) 是錨點 6/6，不是今天。
+  const d = dayFor(todayOffset())
+  const tracking = !!track
 
-  // 辨識成功 sheet：dialog 焦點管理 + Esc 關閉
-  useEffect(() => {
-    if (!found) return
-    prevFocus.current = document.activeElement
-    sheetRef.current?.focus()
-    const onKey = (e) => { if (e.key === 'Escape') resume() }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      prevFocus.current?.focus?.()
-    }
-  }, [found])
-
-  const d = dayFor(0)   // 辨識成功 → 帶出今日曆頁內容（示範 payload）
-  const tracking = live && live.score >= MIN_SCORE
-
-  // 離散階段（aria-live 只在階段/名稱變化時播報；分數本身 aria-hidden 防 300ms 播報轟炸）
+  // aria-live 只播報「階段」不播分數——追蹤是每秒 15 次，播分數會變成朗讀轟炸
   const phaseText = status !== 'ready' ? '　'
-    : !refs.length ? (blurry
-        ? '尚未登錄明信片——畫面有點模糊，請對穩、靠近一點再登錄'
-        : '尚未登錄明信片——把明信片放進框內，按下方「登錄這張明信片」')
-    : blurry ? '畫面有點模糊，請對穩、靠近一點'
-    : tracking ? `已對準：${live.name}`
-    : live ? '比對中…'
-    : '掃描中——把登錄過的明信片放進框內'
+    : !refs.length
+      ? (seeCard
+        ? '看到一張卡片了——按下方「登錄這張卡片」，之後對到它就會跳出內容'
+        : '尚未登錄卡片——把整張卡片放進框內，背景盡量單純')
+      : tracking ? `已對準：${track.ref.name}`
+        : seeCard ? '看到卡片了，但不是登錄過的那一張'
+          : '掃描中——把登錄過的卡片放進框內'
 
   return (
     <>
-      <TopBar title="掃描明信片" onBack />
+      <TopBar title="AR 掃描｜卡片一入鏡就跳出內容" onBack />
       <div className="body scan-body">
-        <div className="scan-stage">
+        <div className="scan-stage" ref={stageRef}>
           {status === 'ready' && <video ref={videoRef} className="scan-video" autoPlay playsInline muted />}
           {status !== 'ready' && (
             <div className="scan-fallback">
@@ -236,32 +262,34 @@ export default function Scan() {
               </p>
             </div>
           )}
+          {/* AR 疊加層：內容直接貼在被追蹤到的卡片上（CSS 3D matrix3d） */}
+          {status === 'ready' && <ARScene track={track} day={d} grabW={grabSize.w} grabH={grabSize.h} />}
           <div className={`scan-frame ${tracking ? 'hit' : ''}`} aria-hidden="true">
             <span className="c tl" /><span className="c tr" /><span className="c bl" /><span className="c br" />
-            {status === 'ready' && !found && <div className="scan-line" />}
+            {status === 'ready' && !tracking && <div className="scan-line" />}
           </div>
         </div>
 
         {/* 即時狀態列 */}
         <div className="scan-status">
           <span aria-live="polite">{phaseText}</span>
-          {live && !blurry && refs.length > 0 && (
-            <span aria-hidden="true">　最高相似 <b>{live.score}%</b></span>
-          )}
+          {tracking && <span aria-hidden="true">　相似度 <b>{track.score}%</b></span>}
         </div>
 
         <div className="scan-acts">
-          <button className="btn-primary tap" onClick={register} disabled={status !== 'ready' || !!found}
+          <button className="btn-primary tap" onClick={register} disabled={status !== 'ready'}
             style={status !== 'ready' ? { opacity: .55 } : null}>
-            <Icon name="scan" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />登錄這張明信片
+            <Icon name="scan" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />登錄這張卡片
           </button>
           <p className="muted scan-soon">
-            辨識引擎為自研演算（感知雜湊＋色彩直方圖），全程在你的裝置上運算、影像不上傳。
-            先「登錄」一張明信片，之後鏡頭一對到它就會自動辨識；正式版將以登錄檔庫直接內建官方明信片。
+            自研平面追蹤：偵測卡片的四個角 → 透視拉正 → 比對登錄過的卡片 → 解出姿態，
+            內容就直接貼在卡片上並跟著傾斜。全程在你的裝置上運算，影像不上傳、零第三方相依。
+            <br />
+            適合有明確邊框的印刷品（卡片、手帳頁）；背景越單純越穩。
           </p>
         </div>
 
-        {/* 已登錄明信片（放在按鈕之後：登錄時按鈕不跳位） */}
+        {/* 已登錄卡片（放在按鈕之後：登錄時按鈕不跳位） */}
         {refs.length > 0 && (
           <div className="scan-refs">
             {refs.map(r => (
@@ -277,36 +305,6 @@ export default function Scan() {
         )}
       </div>
 
-      {/* 辨識成功 */}
-      {/* ⚠️ .sheet 不可用 inline maxHeight/paddingBottom 覆寫——會蓋掉樣式表的
-          min(82dvh, 100dvh-48px) 與 env(safe-area-inset-bottom)：手機橫向
-          （390px 視窗）時貼底會超出，iOS home indicator 也會壓住最後一列。 */}
-      {found && (
-        <SheetMask onClose={resume}>{close => (
-          <div className="sheet" role="dialog" aria-modal="true" aria-label={`已辨識 ${found.name}`}
-            tabIndex={-1} ref={sheetRef}
-            onClick={e => e.stopPropagation()}>
-            <div className="sheet-grip" />
-            <div className="scanres">
-              {/* 辨識成功＝蓋一枚印，不再用通用的綠圈打勾（那個哪個 App 都長一樣） */}
-              <div className="okmark seal-stamp"><Seal badge alt="" /></div>
-              <h3>已辨識：{found.name}</h3>
-              <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>匹配度 {found.score}%（自研辨識）</div>
-              {found.thumb && <img src={found.thumb} alt={found.name} />}
-              <div className="scanres-day">
-                <b>{d.solar}・{d.term}・{d.ganzhi}</b>
-                <div className="yj">
-                  <span>宜</span>{d.yi.slice(0, 3).map(t => <i key={t} className="ty">{t}</i>)}
-                  <span className="jj">忌</span>{d.ji.slice(0, 2).map(t => <i key={t} className="tn">{t}</i>)}
-                </div>
-              </div>
-              <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7 }}>🔮 AR 節氣動畫與語音祝福即將推出——屆時掃描這張明信片就會在畫面上播放。</p>
-              <button className="btn-primary tap" onClick={close}>再掃一次</button>
-              <button className="btn-ghost tap" style={{ marginTop: 8 }} onClick={pop}>完成</button>
-            </div>
-          </div>
-        )}</SheetMask>
-      )}
     </>
   )
 }
