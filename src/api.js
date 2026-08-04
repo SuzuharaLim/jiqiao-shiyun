@@ -130,7 +130,9 @@ export const api = {
   //    「這 AI 有時候會變笨」，其實是好回覆被自己人掐掉了。
   //    串流之後改用兩段式逾時：首個位元組 20 秒，之後看「閒置」而不是總時長
   //    （已經在逐字吐出來的回覆，不該因為講得比較長就被砍掉）。
-  aiChatStream: async (messages, context, { onDelta, signal } = {}) => {
+  // ⚠️ date＝「使用者正在看的那一天」（YYYY-MM-DD 或 null＝今天）。
+  //    後端只拿它當日期用、所有數字仍自己算，所以不違反「不採用前端傳來的 context」。
+  aiChatStream: async (messages, context, { onDelta, signal, date } = {}) => {
     const headers = { 'Content-Type': 'application/json' }
     if (csrf) headers['x-csrf-token'] = csrf
 
@@ -144,7 +146,7 @@ export const api = {
     try {
       res = await fetch('/api/ai/chat', {
         method: 'POST', credentials: 'include', headers, signal: ctrl.signal,
-        body: JSON.stringify({ messages, context }),
+        body: JSON.stringify({ messages, context, date }),
       })
     } catch (e) {
       clearTimeout(timer); signal?.removeEventListener('abort', abort)

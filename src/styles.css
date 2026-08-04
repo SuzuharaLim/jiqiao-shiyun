@@ -1188,7 +1188,12 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .calwk span { text-align:center; font-size:var(--text-2xs); color:var(--muted); padding:2px 0; }
 /* grid-auto-rows 固定列高 → 每一列都一樣高，任何格子（含前導空白 span）都無法把某列撐高。
    不用 aspect-ratio（空 span 會被撐成 ~100px 造成首週大空隙）。 */
-.calgrid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); grid-auto-rows:46px; gap:4px; padding:2px 10px 8px; }
+/* ⚠️ 固定 6 排（grid-template-rows 而非 auto-rows）：月份有 5 排或 6 排時彈窗
+   高度不同，而彈窗是垂直置中的 → 標題列（« ‹ › » 四個箭頭）會上下跳約 30px。
+   實測在同一個位置連點「»」10 下只前進 2 年，其餘 8 下都點在空白處，
+   使用者會覺得「這顆按鈕有時候有反應有時候沒有」。不足的排數留空即可。 */
+.calgrid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr));
+  grid-template-rows:repeat(6, 46px); gap:4px; padding:2px 10px 8px; }
 .calcell { display:flex; align-items:center; justify-content:center; font-size:var(--text-sm);
   border-radius:2px; color:var(--text); background:var(--card); border:1px solid var(--line); }
 .calcell.today { box-shadow:inset 0 0 0 1.5px var(--cinnabar); color:var(--cinnabar); font-weight:800; }
@@ -1247,12 +1252,16 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .yjcols .it { font-size:var(--text-sm); line-height:2; color:var(--text); min-height:54px; }
 
 /* 曆頁下方三行摘要（吉時/諺語/當季） */
-.calnote { display:flex; align-items:center; gap:9px; padding:11px 15px; border-top:1px solid var(--line);
+.calnote { display:flex; align-items:flex-start; gap:9px; padding:11px 15px; border-top:1px solid var(--line);
   font-size:var(--text-xs); }
 .calnote:first-of-type { border-top:1px dashed var(--line2); }
 .calnote { min-height:42px; }
 .calnote .k { color:var(--muted); flex:0 0 auto; font-weight:700; }
-.calnote .v { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* ⚠️ 不可 nowrap+ellipsis：吉時有六個時辰，一行放不下就被「…」吃掉後三個，
+   而且沒有任何可以展開的樣子——使用者看不完也點不開。改成允許換行。
+   `.calnote` 本身也要從 center 改成 flex-start，否則多行時標籤會垂直置中、
+   與內容第一行對不齊。 */
+.calnote .v { flex:1; min-width:0; line-height:1.8; word-break:keep-all; overflow-wrap:anywhere; }
 .calnote .stars { color:var(--gold); letter-spacing:2px; flex:0 0 auto; }
 /* 星等逐顆點亮：整排同時出現沒有「揭曉」的味道 */
 .calnote .stars i { font-style:normal; display:inline-block;
@@ -1986,7 +1995,10 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 
 /* ---------- 宜／忌 詞彙白話解釋（可點擊查看）---------- */
 /* 曆頁兩欄內的詞：保持原本純文字外觀，只加虛線底線暗示可點 */
+/* ⚠️ 必須 inline-block + nowrap：預設 inline 的 <button> 內容會在詞的中間斷行，
+   實測「上樑 入學」被拆成「上」／「樑入學」，看起來像亂碼。 */
 .yjcols .it button.glossable {
+  display:inline-block; white-space:nowrap;
   border:none; background:none; color:inherit; font:inherit; padding:0 0 1px;
   margin:0 10px 2px 0; cursor:pointer; border-bottom:1px dotted var(--muted);
 }
@@ -3228,3 +3240,15 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 }
 .gz-cell b { display: block; font-size: var(--text-xs); }
 .gz-cell small { display: block; font-size: var(--text-2xs); color: var(--muted); margin-top: 1px; }
+
+
+/* ---------- 首頁：翻到別年時顯示年份 ----------
+   ⚠️ 沒有這個的話，跳到 2027/8/31 整頁只寫「8 / 31 週二」，使用者會當成今年的
+      8/31 而照著這天的宜忌去搬家。同年不顯示（畫面乾淨），跨年一定顯示。 */
+.daynum .dayyear {
+  display:block; font-size:var(--text-sm); font-weight:700; color:var(--cinnabar);
+  letter-spacing:1px; line-height:1.1; margin-bottom:2px;
+}
+
+/* 首頁「今日大家拍的」空狀態：原本是一整塊 90px 的空白，使用者會以為圖沒載出來 */
+.rail-empty { padding:22px 24px; }

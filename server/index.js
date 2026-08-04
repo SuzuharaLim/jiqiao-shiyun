@@ -1297,11 +1297,14 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 · 結尾若合適，主動提出一個延伸問題，讓對話能接下去。
 
 【資料紀律｜這條最重要】
-· 上面【今日曆訊】裡有的數字——農曆日期、干支、納音、建除、宜忌、沖煞、
+· 上面【曆訊】裡有的數字——農曆日期、干支、納音、建除、宜忌、沖煞、
   煞方、吉時、凶時、喜神、財神、貴人、胎神、二十八宿、彭祖百忌、星等——
   一律照抄，不得自行推算、換算或改寫。你沒有能力重算這些，算了一定錯。
-· 曆訊裡沒有的（例如明天或某個指定日期的宜忌），就說「這個我得翻一下曆頁」，
-  並請使用者到完整國民曆自己挑日子。不要憑印象回答。
+· 曆訊開頭的「所查日期」就是**使用者正在看的那一天**，不一定是今天。
+  他問「今天」時指的是那一天；不要把他拉回真正的今天，也不要說你只有今天的資料。
+· 曆訊附了「前一日」與「後一日」：被問到「明天呢」「昨天呢」直接用那兩行回答。
+· 曆訊裡沒有的日期（例如三個月後的某一天），請他在曆頁上翻到那一天再問，
+  或到完整國民曆查——**絕對不要叫使用者把宜忌貼給你**，資料本來就是我們的。
 · 商品價格、退費政策、出貨時間、運費、帳號功能細節：一律不要自己講。
   改說「這部分我幫你轉客服」或請對方到站內對應頁面查。
   編造價格或政策會造成實質的商業與法律糾紛——使用者會截圖要求你履約。
@@ -1383,11 +1386,39 @@ async function callOpenAI({ messages, stream = false, maxTokens = 500, timeoutMs
 //    星等憑空生出一張四維表。這不是機率問題，是結構上的必然。
 //
 // ⚠️ 也不可沿用前端傳來的字串——那是使用者可竄改的輸入。
-function buildAlmanacContext(user) {
-  const d = dayFor(todayOffset())
+// ⚠️ 這支要收「使用者正在看的那一天」，不是永遠算今天。
+//    先前寫死 todayOffset()，於是在 8/31 的曆頁按「問 AI 時光顧問」，AI 開口還是
+//    「今天是大暑，庚戌日」——使用者剛翻的日期被丟掉；問 8/31 能不能剪頭髮，
+//    它回「若你把 8/31 的宜忌貼給我，我可以幫你對照解讀」——網站自己有整年的
+//    曆資料，卻要使用者去查了再貼回來。
+// ⚠️ 同時帶入前一日與後一日的摘要：「那明天呢？」是最自然的追問，而系統自己
+//    在下方就建議了這一句，卻必定答不出來（實測回「我這裡只有今天的資料」）。
+//    建議一個自己答不出來的問題，比不建議更糟。
+// ⚠️ 日期由前端傳入但**只取日期**，所有數字仍由伺服器自己算——這與「不使用
+//    前端傳來的 context」不衝突：可竄改的只是一個會被驗證的 YYYY-MM-DD。
+function almanacBrief(d) {
+  const good = d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時`)
+  return `${d.solar}（${d.weekday}）${d.lunar}・${d.ganzhi}・${d.term}｜宜：${d.yi.join('、') || '無'}｜忌：${d.ji.join('、') || '無'}｜${d.zheng}｜吉時：${good.join('、') || '無'}`
+}
+function buildAlmanacContext(user, iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''))
+  let off = todayOffset()
+  if (m) {
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    if (!Number.isNaN(dt.getTime()) && dt.getMonth() === Number(m[2]) - 1) {
+      const o = offsetFromDate(dt)
+      // 只接受本站可翻閱的範圍（今日前後約三年），超出就退回今天
+      if (Math.abs(o - todayOffset()) <= 1095) off = o
+    }
+  }
+  const isToday = off === todayOffset()
+  const d = dayFor(off)
   const good = d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時(${h.range})`)
   const bad = d.hours12.filter(h => h.luck === '凶').map(h => `${h.zhi}時`)
   const L = [
+    isToday
+      ? `所查日期：今天（${dateFromOffset(off).getFullYear()} 年）`
+      : `所查日期：${dateFromOffset(off).getFullYear()} 年——使用者正在看的是這一天，不是今天（今天是 ${dayFor(todayOffset()).solar}）。他說「今天」時指的就是這一天。`,
     `國曆 ${d.solar}（${d.weekday}）｜${d.lunar}｜節氣：${d.term}`,
     `干支：${d.yearGZ}年 ${d.monthGZ}月 ${d.ganzhi}｜納音 ${d.wuxing}｜建除「${d.jianchu}」日（${d.jianchuYi}）`,
     `今日評等 ${d.stars}/5 星`,
@@ -1403,6 +1434,8 @@ function buildAlmanacContext(user) {
   ]
   if (d.festival) L.push(`今日節慶：${d.festival}`)
   if (d.flags?.length) L.push(`特殊日：${d.flags.map(f => `${f.t}（${f.d}）`).join('；')}`)
+  L.push(`前一日：${almanacBrief(dayFor(off - 1))}`)
+  L.push(`後一日（使用者說「明天」時指這一天）：${almanacBrief(dayFor(off + 1))}`)
   if (user?.name) L.push(`使用者暱稱：${user.name}`)
   return L.join('\n')
 }
@@ -1437,7 +1470,7 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
 
   // ⚠️ 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
   //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
-  const sys = AI_SYSTEM + `\n\n【今日曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user)}`
+  const sys = AI_SYSTEM + `\n\n【曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user, req.body?.date)}`
 
   // ---------- 串流回應（SSE）----------
   // 沒有串流的 AI 對話，體感就是「三個點轉很久然後整段砸出來」。

@@ -4,7 +4,7 @@ import { TopBar, Disclaimer } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { aiOpenFor, aiQuickRepliesFor, aiReply } from '../data/mock.js'
-import { dayFor, todayOffset } from '../data/almanac.js'
+import { dayFor, todayOffset, offsetFromDate } from '../data/almanac.js'
 import { localAnswer } from '../data/aiKnowledge.js'
 
 // ⚠️ 防禦性 Markdown 清除。
@@ -57,8 +57,13 @@ const LS_KEY = 'jq-ai-chat'
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
 export default function AIChat() {
-  const { setToast, requireAccount, push, user } = useNav()
-  const today = dayFor(todayOffset())
+  // ⚠️ 要用「使用者正在看的那一天」，不是永遠today。先前在 8/31 的曆頁點進來，
+  //    開場白仍寫「今天是大暑、庚戌日」——剛翻的日期被整個丟掉。
+  const { setToast, requireAccount, push, user, homeDate } = useNav()
+  const viewOff = homeDate
+    ? (() => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(homeDate); return m ? offsetFromDate(new Date(+m[1], +m[2] - 1, +m[3])) : todayOffset() })()
+    : todayOffset()
+  const today = dayFor(viewOff)
   const opening = aiOpenFor(today)
 
   const [msgs, setMsgs] = useState(() => {
@@ -162,6 +167,7 @@ export default function AIChat() {
     try {
       const r = await api.aiChatStream(history, ctx, {
         signal: ctrl.signal,
+        date: homeDate || null,
         onDelta: (full) => {
           if (!started) { started = true; setTyping(false); setStreaming(true); pushMsg({ who: 'ai', text: '', live: true }) }
           setMsgs(list => {

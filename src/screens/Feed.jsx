@@ -4,15 +4,22 @@ import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask, Sectio
 import { TERM_ARTICLES } from '../data/termArticle.js'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
-import { usePosts } from '../hooks/useApi.js'
+import { usePostsPaged } from '../hooks/useApi.js'
 import { dayFor, dateFromOffset, offsetFromDate, monthCells, todayOffset } from '../data/almanac.js'
 
 const WK = ['日', '一', '二', '三', '四', '五', '六']
 
 export default function Feed() {
-  const { push, liked, notifRead } = useNav()
+  const { push, liked, notifRead, homeDate, setHomeDate } = useNav()
   const T0 = todayOffset()               // 真實今日對錨點的偏移
-  const [off, setOff] = useState(T0)     // 一開就停在系統當前日期
+  // ⚠️ 翻到的日期存在網址（`/?date=YYYY-MM-DD`）不是元件的 local state。
+  //    先前是 local state，於是不管翻到哪一天網址都是 `/`：想把某一天傳給朋友
+  //    做不到（貼過去對方看到今天），翻了幾天按「上一頁」會直接離開整個網站。
+  const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const off = homeDate
+    ? (() => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(homeDate); return m ? offsetFromDate(new Date(+m[1], +m[2] - 1, +m[3])) : T0 })()
+    : T0
+  const setOff = (o) => setHomeDate(o === T0 ? null : isoOf(dateFromOffset(o)))
   const [cal, setCal] = useState(null) // {y, m} 開啟月曆選擇器
   const gl = useGlossary()               // 宜/忌 詞彙白話解釋
   const [provOpen, setProvOpen] = useState(false)  // 今日一諺是否展開解釋
@@ -20,10 +27,17 @@ export default function Feed() {
 
   const d = dayFor(off)
   const gzZi = d.ganzhi.replace(/日$/, '')
+  // ⚠️ 翻到別年時整頁找不到任何年份字樣——實測跳到 2027/8/31 只寫「8 / 31 週二」，
+  //    使用者百分之百會當成今年的 8/31，然後照這天的宜忌去搬家。
+  //    同年不顯示（畫面乾淨），跨年一定顯示。
+  const viewYear = dateFromOffset(off).getFullYear()
+  const showYear = viewYear !== dateFromOffset(T0).getFullYear()
   // 當前節氣的專頁 slug（首頁「農民曆入口」用；沒有對應條目就不渲染那顆連結）
   const termSlug = TERM_ARTICLES.find(t => t.term === d.term)?.slug || ''
   // 社群貼文（嚴格來自資料庫）。依節氣排前，開啟貼文詳情＋留言
-  const allPosts = usePosts(null)
+  // ⚠️ 要拿 loading：載入中不可顯示空狀態——第一幀 items=[] 會被判成「沒有作品」，
+  //    在資料還在路上時就跟使用者說這裡是空的。
+  const { items: allPosts, loading: shotsLoading } = usePostsPaged(null)
   const shots = allPosts.filter(p => p.term === d.term).concat(allPosts).slice(0, 6)
 
   const RANGE = 1095 // 可翻閱範圍：今日前後約三年（示範演算，已標註近似）
@@ -75,7 +89,9 @@ export default function Feed() {
               key 帶日期讓 React 重新掛載，動畫才會重播；方向跟著翻頁走。
               ⚠️ 只動 transform 不動 opacity：這是主要資訊，不可因動畫沒跑就消失。 */}
           <button className="mid tap" onClick={openCal}>
-            <div className="big daynum" key={d.solar} data-dir={tear || 'next'}>{d.solar}</div>
+            <div className="big daynum" key={d.solar} data-dir={tear || 'next'}>
+              {showYear && <small className="dayyear">{viewYear}</small>}{d.solar}
+            </div>
             <div className="wk daysub" key={`s-${d.solar}`} data-dir={tear || 'next'}>{d.weekday} · {d.lunar} · {d.term} ▾</div>
           </button>
           <button className="side tap" onClick={() => go(1)} disabled={off >= RANGE}
@@ -209,6 +225,22 @@ export default function Feed() {
           <div className="t">今日大家拍的〈<small>{d.term}</small>〉</div>
           <button className="more tap" onClick={() => push('todayShots', { term: d.term })}>更多作品 ›</button>
         </div>
+        {/* ⚠️ 沒有作品時原本是一整塊 90px 的空白——有標題、有「更多作品 ›」，中間什麼
+            都沒有，使用者會以為圖片沒載出來而一直重整。/explore 早就有做好的空狀態，
+            首頁卻沒有。沿用同一組文案並直接給入口。 */}
+        {shotsLoading ? (
+          <div className="rail">
+            {[0, 1, 2].map(i => <div key={i} className="railcard"><div className="ph ui-skeleton" /></div>)}
+          </div>
+        ) : shots.length === 0 ? (
+          <div className="empty rail-empty">
+            這個節氣還沒有人留下紀錄
+            <br />
+            <button className="pill dark tap" style={{ marginTop: 12 }} onClick={() => push('camera')}>
+              ＋ 成為第一個拍下此刻的人
+            </button>
+          </div>
+        ) : (
         <div className="rail">
           {shots.map((p, i) => (
             <button key={`${p.id}-${i}`} className="railcard tap" onClick={() => push('postDetail', { id: p.id })}>
@@ -223,6 +255,7 @@ export default function Feed() {
             </button>
           ))}
         </div>
+        )}
 
         {/* 節氣攝影挑戰入口（原本掛在「更多」，移到這裡成為獨立卡片） */}
         <button className="feedchal tap" onClick={() => push('challenges')}>
@@ -257,6 +290,11 @@ export default function Feed() {
                       disabled={far} onClick={() => { setOff(c.off); close() }}>{c.day}</button>
                   )
                 })}
+              </div>
+              {/* ⚠️ 撞到年份邊界時箭頭只是變灰，沒有任何說明——使用者只會覺得按鈕壞了。
+                  直接把可查詢範圍寫出來。 */}
+              <div className="center muted" style={{ fontSize: 'var(--text-2xs)', padding: '2px 12px 6px' }}>
+                可查詢範圍：{dateFromOffset(T0 - RANGE).getFullYear()}–{dateFromOffset(T0 + RANGE).getFullYear()} 年（今日前後約三年）
               </div>
               <div className="pad" style={{ display: 'flex', gap: 8 }}>
                 <button className="b tap" onClick={() => { setOff(T0); close() }}>回今日</button>

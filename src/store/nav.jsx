@@ -58,14 +58,29 @@ function buildPath(screen, props = {}) {
 // ★ 這裡是路徑組成的唯一真相，Link 不可自行重實作一份。
 export const hrefForScreen = (screen, props) => buildPath(screen, props)
 export const hrefForTab = (tab) => TAB_PATHS[tab] || '/'
-function pathFromState(tab, stack) {
+// 首頁翻到的日期（`/?date=YYYY-MM-DD`）。
+//
+// ⚠️ 為什麼首頁的翻日一定要進網址：先前不管翻到哪一天網址都是 `/`，造成兩個
+//    使用者一定會踩到的問題——(1) 想把「8/7 的曆頁」傳給朋友或加書籤做不到，
+//    貼過去對方看到的是今天；(2) 翻了幾天之後按瀏覽器「上一頁」會**直接離開
+//    整個網站**，而不是回到前一天。後者是最常見的動作。
+// ⚠️ 只有「首頁根畫面」用得到這個參數（tab 0 且沒有堆疊）。堆疊畫面自己有路徑。
+const isoRe = /^\d{4}-\d{2}-\d{2}$/
+export const homeDateFromSearch = (search) => {
+  try {
+    const v = new URLSearchParams(search || '').get('date')
+    return v && isoRe.test(v) ? v : null
+  } catch { return null }
+}
+function pathFromState(tab, stack, homeDate) {
   const top = stack[stack.length - 1]
   // ⚠️ 找不到頁面沒有自己的路徑：要保留使用者打錯的那個網址，
   // 否則同步邏輯會把網址改寫成 '/'，使用者按重新整理就變成首頁、
   // 也無法把壞掉的連結回報給我們。
-  if (top?.screen === 'notFound') return window.location.pathname
+  if (top?.screen === 'notFound') return window.location.pathname + window.location.search
   if (top) { const p = buildPath(top.screen, top.props); if (p) return p }
-  return TAB_PATHS[tab] || '/'
+  const base = TAB_PATHS[tab] || '/'
+  return (tab === 0 && homeDate) ? `${base}?date=${homeDate}` : base
 }
 function routeFromPath(pathname) {
   const p = (pathname || '/').replace(/\/+$/, '') || '/'
@@ -222,6 +237,10 @@ export function NavProvider({ children }) {
   // ---- 分頁 + 畫面堆疊（初始狀態由網址解析）----
   const [tab, setTabRaw] = useState(() => initialRoute().tab)
   const [stack, setStack] = useState(() => initialRoute().stack) // [{screen, props}]
+  // 首頁正在看的日期（null＝今天）。進網址才能分享、加書籤，上一頁也才會回到前一天。
+  const [homeDate, setHomeDate] = useState(() => {
+    try { return homeDateFromSearch(window.location.search) } catch { return null }
+  })
 
   // ---- 捲動位置：進入新畫面歸零、返回既有畫面還原 ----
   //
@@ -290,31 +309,44 @@ export function NavProvider({ children }) {
   // ---- 網址同步（History API）：狀態變 → 更新網址；上一頁/下一頁 → 還原狀態 ----
   const suppressSync = useRef(false)
   const lastSig = useRef(null)   // 上一次的「堆疊深度:畫面名」，用來分辨換頁與換參數
+  const lastHomeDate = useRef(null)
   useEffect(() => {
     if (suppressSync.current) { suppressSync.current = false; return }  // popstate 造成的變動不再回推
-    const path = pathFromState(tab, stack)
+    const path = pathFromState(tab, stack, homeDate)
     // ⚠️ 同一個畫面只換參數（例如完整曆頁翻日）要用 replaceState 不可 pushState。
     //    否則 replace() 雖然沒有把堆疊變長，網址同步這一層還是每次都推一筆歷史
     //    ——實測連按三下「後一天」就多三筆，使用者得按三次上一頁才離得開這頁。
     //    判準：堆疊深度與最上層畫面都沒變，就只是參數改了。
     const top = stack[stack.length - 1]
     const sig = `${stack.length}:${top?.screen ?? ''}`
-    const paramOnly = lastSig.current === sig
+    // ⚠️ 首頁翻日同理：第一次離開「今天」要 push（這樣按上一頁才會回到今天而不是
+    //    離開網站），之後一天一天翻改用 replace——否則翻五天就多五筆歷史，
+    //    使用者得按五次上一頁才離得開。
+    const dateStepOnly = lastHomeDate.current != null && homeDate != null
+    const paramOnly = lastSig.current === sig && (homeDate === lastHomeDate.current || dateStepOnly)
     lastSig.current = sig
+    lastHomeDate.current = homeDate
     try {
-      if (path !== window.location.pathname) {
-        window.history[paramOnly ? 'replaceState' : 'pushState']({ tab, stack }, '', path)
+      const cur = window.location.pathname + window.location.search
+      if (path !== cur) {
+        window.history[paramOnly ? 'replaceState' : 'pushState']({ tab, stack, homeDate }, '', path)
       }
     } catch { /* ignore */ }
-  }, [tab, stack])
+  }, [tab, stack, homeDate])
   useEffect(() => {
     const onPop = (e) => {
       const r = (e.state && typeof e.state.tab === 'number') ? e.state : routeFromPath(window.location.pathname)
       suppressSync.current = true
-      setTabRaw(r.tab); setStack(r.stack || []); scrollTop()
+      setTabRaw(r.tab); setStack(r.stack || [])
+      // ⚠️ 日期也要跟著還原，否則按上一頁網址變回 `/` 但畫面還停在 8/31。
+      //    state 沒帶（例如使用者手動改網址後按上一頁）就從 search 重新解析。
+      const hd = (e.state && 'homeDate' in e.state) ? e.state.homeDate : homeDateFromSearch(window.location.search)
+      lastHomeDate.current = hd || null
+      setHomeDate(hd || null)
+      scrollTop()
     }
     window.addEventListener('popstate', onPop)
-    try { window.history.replaceState({ tab, stack }, '', pathFromState(tab, stack)) } catch { /* ignore */ }
+    try { window.history.replaceState({ tab, stack, homeDate }, '', pathFromState(tab, stack, homeDate)) } catch { /* ignore */ }
     return () => window.removeEventListener('popstate', onPop)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -467,6 +499,7 @@ export function NavProvider({ children }) {
     user, authLoading, login, loginGuest, logout, updateProfile,
     authWall, setAuthWall, requireAccount,
     tab, setTab, stack, push, replace, pop, popAll,
+    homeDate, setHomeDate,
     liked, toggleLike, saved, toggleSave,
     reminders, toggleReminder,
     subscribed, setSubscribed,
