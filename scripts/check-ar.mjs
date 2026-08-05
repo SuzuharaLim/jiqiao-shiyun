@@ -141,6 +141,45 @@ ok(otsuThreshold(bimodal) < 200, 'Otsu 分開雙峰')
 ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).length === 4,
   '凸包縮到四頂點')
 
+// ── ★ 圖卡邊框規範：淺色桌面上沒有邊框就偵測不到 ────────────────────────
+// 這一項鎖的不是程式，是**印刷規範**。實測「滿版出血、無邊框」的版面在
+// 中／淺色桌面上四種角度全部偵測不到（3/12）；照策畫書 §5.3 加一圈深色實框後
+// 變成 11/12。所以「卡面外緣要有連續高對比矩形邊框」是這條追蹤路線的**前提**，
+// 不是美術偏好——有人把邊框拿掉時，這裡要立刻擋下來。
+{
+  const AW = 143, AH = 100
+  const page = (framed) => {
+    const g = new Uint8Array(AW * AH)
+    const bw = Math.round(AH * 0.03)
+    for (let y = 0; y < AH; y++) {
+      for (let x = 0; x < AW; x++) {
+        // 滿版出血的深色元素：頂端色帶、底部色塊（兩者都碰到紙邊）
+        let v = 245
+        if (y < AH * 0.10) v = 90
+        else if (y > AH * 0.88) v = 120
+        else if (x < AW * 0.22 && y > AH * 0.30) v = 175
+        if (framed && (x < bw || y < bw || x >= AW - bw || y >= AH - bw)) v = 30
+        g[y * AW + x] = v
+      }
+    }
+    return g
+  }
+  // 把版面貼到淺色桌面（205）上的一塊區域
+  const place = (art, bg) => {
+    const g = new Uint8Array(W * H).fill(bg)
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const u = (x - 18) / 124, v = (y - 12) / 96
+        if (u < 0 || v < 0 || u >= 1 || v >= 1) continue
+        g[y * W + x] = art[Math.min(AH - 1, (v * AH) | 0) * AW + Math.min(AW - 1, (u * AW) | 0)]
+      }
+    }
+    return g
+  }
+  ok(detectQuad(place(page(true), 205), W, H) !== null,
+    '★ 有深色實框的卡片，在淺色桌面上必須偵測得到（§5.3 印刷規範）')
+}
+
 // ── arTracker：四個方向的對齊 ──────────────────────────────────────────
 // ⚠️ 這一組是整條管線最容易寫錯又最難發現的地方：把拉正圖轉 r 次才對得上參考時，
 //    角點要位移 **-r** 不是 +r。寫成 +r 的話 0° 與 180° 完全正確
