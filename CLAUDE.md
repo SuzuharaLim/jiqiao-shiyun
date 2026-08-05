@@ -252,6 +252,16 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **`track()` 已經吐出完整 6DoF**（`{ref, score, rotation, corners, H, matrix3d, pose, areaRatio}`），要接 WebGL 不需要先做「追蹤器到底暴露什麼」的調查。`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。**追蹤器不知道也不該知道卡片的實體尺寸（mm）**——那是卡片註冊表的 metadata，`pose` 的單位是卡片邊長。
   - **180° 翻轉誤判已經處理掉了**（比對階段四個方向都試、取最佳分，`check-ar.mjs` 有四方向測試）。但**卡面若接近旋轉對稱，四個方向的分數會很接近而變得不穩**，所以印刷面仍要有明顯不對稱的定位元素——理由是「拉開分數差距」，不是「四角偵測分不出方向」。
   - **要換 A-Frame／three.js 只需另寫一個吃同樣 `track` 物件的元件**，追蹤層不用動；`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。⚠️ 兩邊的 **fov 必須一致**（A-Frame 預設 80、本追蹤器預設 60），否則模型會浮在卡片上方或陷進桌面。
+- **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（46 項）掛在 `npm run build` 上。
+  - **這一層與 three 絕不可進主 bundle**：一律 `React.lazy(() => import('../components/ProduceStage.jsx'))`。實測懶載入分塊 **137.5 KB gzip**，主 bundle 只 +1.2 KB。無條件塞進去等於首頁多背三分之一重量給一個多數人不會點的功能。
+  - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀 `d.topWaveFreq`，但 preset 的 layers 沒這個欄位——原本靠 `registerGeometry` 的 schema 補 2。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。
+  - **接觸陰影掛 `root` 不掛 `body`**：原 demo 放場景層級並用 `getElementById('blob')` 抓（註解寫「掛在角色底下會跟著跳起來」——觀察對，但角色就無法多實例）。正解是分兩層：root 不動、body 才受動作驅動，陰影掛 root。**別照字面把它改成 body 的子節點**，那會讓陰影跟著跳躍飛起來。
+  - **`gradientMap` 必須 `NearestFilter`**：它是查表資料不是顏色，用 LinearFilter 會把階梯內插掉＝完全沒有賽璐璐效果，而且不會有任何錯誤訊息。
+  - **幾何要共用**：葉片每層只有 3 種高度變體（29 片 → 15 份）、四肢左右同形（8 → 4 份）。退回去畫面完全看不出差別，只有記憶體與載入變差——所以 check-char 鎖死「幾何份數 22」。
+  - **描邊不可每幀 `apply()`**：原本 `tick(){this.apply()}` 是 63 顆 mesh × 60fps ＝ 每秒 3,780 次無謂查詢。幾何建好就不會換，建立時做一次即可。
+  - **React unmount 必須 `dispose()` 並 `forceContextLoss()`**：行動裝置能同時存在的 WebGL context 常見上限 8–16，反覆進出抽屜會拿不到新 context，症狀是「第 N 次點開變成空白」而前面幾次都正常。**ramp 快取是跨角色共用的，不可被單一角色的 dispose 清掉**。
+  - **JS 驅動的動畫要自己讀 reduce-motion**（同 AnimatedText 那個坑）。作法是把幅度縮到 ~12% 而**不是整個停掉**——角色僵住不動看起來像壞掉，微微呼吸才像「靜止」。
+  - **動作是 base ＋ additive 兩層**：原本的 `switch` 互斥，寫不出「揮手同時講話」。`setOverlay('talk')` 走 additive 通道相加，既有 12 個動作一行都不用改。
 - **新增 effect 要放在它相依的 state 宣告之後**：`useEffect(..., [status])` 寫在 `const [status] = useState()` 之前會踩到 TDZ，**整個畫面被 ErrorBoundary 接走**（只看到「畫面暫時出了點狀況」），而 `npm run build` 完全不報錯。
 - **「今天」一律取台北的日曆日（`almanac.js` 的 `taipeiToday()`）**，不可用 `new Date()` 直接算。**Cloud Run 的預設時區是 UTC**，比台北慢 8 小時——每天台灣時間 00:00–08:00 這八個小時，伺服器注入的首屏靜態層、sitemap 的 lastmod、RSS、逐頁 og:image 取的節氣、AI 的曆訊 context **全部會是前一天的**。瀏覽器端同理，人在美洲／歐洲會看到前一天。**不可用 `new Date(Date.now() + 8*3600e3)` 手動加時差**（在本身就是 UTC+8 的環境會多加八小時），要交給 `Intl` 判斷。Dockerfile 另設 `TZ=Asia/Taipei` 只是為了 log 可讀。
 - **網址參數的日期一定要用 `parseDateParam()` 驗證**，不可只比對 `^\d{4}-\d{2}-\d{2}$` 就丟給 `new Date(y, m-1, d)`：JS 會**自動進位**（`2026-02-30`→3/2、`2026-99-99`→2034/6/7），兩位數年份會被當成 19xx（`0050`→1950），而 `9999-12-31` 會照樣算出一整頁煞有介事的宜忌神煞。可查詢範圍的唯一真相是 `BROWSE_RANGE_DAYS`（UI 箭頭停用、網址驗證、AI context 共用）——同一個限制分散在兩處就一定會不一致。無效參數要退回今天**並正規化網址**；指到今天要正規化成 `/`（否則 `/` 與 `/?date=<今天>` 同內容兩個網址）。
