@@ -36,7 +36,13 @@ function readCache() {
   } catch { return {} }
 }
 function writeCache(map) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(map)) } catch { /* 空間不足就算了，下次重算 */ }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(map)); return true } catch { return false }
+}
+/** 寫不進去就丟掉該筆的縮圖再試——簽名不可以因為縮圖太大而一起存不進去。 */
+function writeCacheSafe(map, id) {
+  if (writeCache(map)) return true
+  if (map[id]?.poster) { delete map[id].poster; if (writeCache(map)) return true }
+  return false
 }
 
 /** 把一張圖壓成 size×size 並算簽名。與 Scan.jsx 的 registerFromFile 同一條路。 */
@@ -72,8 +78,19 @@ export async function signatureFromImage(src, size) {
   const ctx = cv.getContext('2d', { willReadFrequently: true })
   ctx.drawImage(bmp, 0, 0, size, size)
   const sig = makeSignature(ctx.getImageData(0, 0, size, size).data, size, size)
+  // 縮圖：給 /ar/card/:slug 的熱區校對用。
+  // ⚠️ 一定要縮小再存——原尺寸的設計稿動輒好幾 MB，localStorage 只有 5MB 左右，
+  //    塞不進去時 setItem 會丟 QuotaExceededError，而那會連簽名一起存不進去。
+  let poster = null
+  try {
+    const pw = 900, ph = Math.max(1, Math.round(900 * h / w))
+    const pv = document.createElement('canvas')
+    pv.width = pw; pv.height = ph
+    pv.getContext('2d').drawImage(bmp, 0, 0, pw, ph)
+    poster = pv.toDataURL('image/jpeg', 0.72)
+  } catch { /* 縮圖失敗不影響簽名 */ }
   bmp.close?.()
-  return { ...sig, aspect: w / h }
+  return { ...sig, aspect: w / h, poster }
 }
 
 /**
@@ -92,24 +109,24 @@ export async function loadOfficialRefs(rectifySize) {
     if (hit && hit.target === card.target) {
       refs.push({
         id: card.id, name: card.title, official: true, card,
-        local: hit.source === 'local', fileName: hit.fileName,
+        local: hit.source === 'local', fileName: hit.fileName, poster: hit.poster,
         aspect: hit.aspect || 1, ...deserializeSig(hit.sig),
       })
       continue
     }
     try {
       const sig = await signatureFromImage(card.target, rectifySize)
-      cache[card.id] = { target: card.target, aspect: sig.aspect, sig: serializeSig(sig) }
+      cache[card.id] = { target: card.target, aspect: sig.aspect, poster: sig.poster, sig: serializeSig(sig) }
       dirty = true
       refs.push({
         id: card.id, name: card.title, official: true, card,
-        aspect: sig.aspect, hash: sig.hash, hist: sig.hist,
+        aspect: sig.aspect, poster: sig.poster, hash: sig.hash, hist: sig.hist,
       })
     } catch (err) {
       errors.push({ card: card.title, message: err?.message || String(err) })
     }
   }
-  if (dirty) writeCache(cache)
+  if (dirty) for (const c of OFFICIAL_CARDS) writeCacheSafe(cache, c.id)
   return { refs, errors }
 }
 
@@ -137,12 +154,14 @@ export async function bindLocalTarget(cardId, file, rectifySize) {
     const cache = readCache()
     cache[card.id] = {
       target: card.target, aspect: sig.aspect, source: 'local',
-      fileName: file.name || '', sig: serializeSig(sig),
+      fileName: file.name || '', poster: sig.poster, sig: serializeSig(sig),
     }
-    writeCache(cache)
+    // ⚠️ 空間不足時先丟掉縮圖再試一次——簽名比縮圖重要得多
+    //    （沒有簽名就完全掃不到；沒有縮圖只是校對頁少一張底圖）。
+    if (!writeCacheSafe(cache, card.id)) throw new Error('儲存空間不足，請先清一些瀏覽器資料')
     return {
       id: card.id, name: card.title, official: true, card, local: true,
-      aspect: sig.aspect, hash: sig.hash, hist: sig.hist,
+      aspect: sig.aspect, poster: sig.poster, hash: sig.hash, hist: sig.hist,
     }
   } finally { URL.revokeObjectURL(url) }
 }
@@ -150,4 +169,9 @@ export async function bindLocalTarget(cardId, file, rectifySize) {
 /** 清掉快取（美術換稿但沿用同一個檔名時用）。 */
 export function clearOfficialCache() {
   try { localStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
+}
+
+/** 讀某張官方卡已快取的縮圖（給 /ar/card/:slug 的熱區校對用）。 */
+export function cachedPoster(cardId) {
+  return readCache()[cardId]?.poster || null
 }

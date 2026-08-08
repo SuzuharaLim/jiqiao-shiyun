@@ -10,6 +10,7 @@ import { termGuide } from '../src/data/termGuide.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
 import { termTable } from '../src/data/lunisolar.js'
+import { OFFICIAL_CARDS } from '../src/data/arCards.js'
 
 // 有獨立頁的夢境：只收「有原典斷語」者。沒有原典的條目內容太薄，
 // 做成獨立頁就是空殼，量一多反而拖累全站評價。
@@ -119,6 +120,9 @@ const ROUTES = [
   //    「節氣手帳」「客製化企業月曆」這類高意圖查詢就沒有落地頁可以排。
   { path: '/store/:slug', title: '商品｜機巧時運選物',
     desc: '機巧時運選物的商品說明、規格與購買方式。' },
+  // ⚠️ 這條**允許索引**（`/AR` 是 noindex）：沒有實體卡片的人從搜尋進來就是靠這頁。
+  { path: '/ar/card/:slug', title: '節氣卡片｜機巧時運',
+    desc: '節氣明信片的互動內容：點卡面上的物件看當令農產、身體保健與曆頁。' },
   { path: '/subscription', title: '訂閱方案比較｜Free 與 Premium｜機巧時運',
     desc: '機巧時運的方案比較：免費版可看每日國民曆與節氣社群，Premium 另有 AI 時光顧問額度、月曆匯出與市集授權等功能。' },
   { path: '/about', title: '關於機巧時運｜把農民曆讀成人話的文化科技團隊',
@@ -227,6 +231,16 @@ const slugOf = (pathname) => decodeURIComponent(pathname.split('/').pop() || '')
 function entryMeta(pathname, route) {
   const p = route?.path
   if (p === '/almanac/day/:date') return dateMeta(slugOf(pathname))
+  if (p === '/ar/card/:slug') {
+    const c = OFFICIAL_CARDS.find(x => x.slug === slugOf(pathname))
+    if (!c) return null
+    const spots = c.hotspots.map(h => h.label).join('、')
+    return {
+      title: `${c.title} 節氣卡片｜${c.term}｜機巧時運`,
+      desc: `${c.title}（${c.subtitle}）節氣明信片的互動內容。點卡面上的${spots}，`
+        + `看當令農產的品種與產地、節氣養生重點與當天的曆頁。沒有實體卡片也能看。`,
+    }
+  }
   if (p === '/store/:slug') {
     const pr = productBySlug(slugOf(pathname)); if (!pr) return null
     return {
@@ -813,6 +827,7 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
       ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
       ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
       ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
+      ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
     ])
   }
   return wrap([])
@@ -852,6 +867,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
     ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
     ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
+    ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
     ...PURPOSES.flatMap(p => [
       item(`${origin}/auspicious/${p.slug}`, lastmod),
       ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
@@ -872,7 +888,7 @@ export function entryExists(pathname, route) {
   const p = route?.path
   const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
     '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot',
-    '/store/:slug']
+    '/store/:slug', '/ar/card/:slug']
   if (!ENTRY.includes(p)) return true
   return entryMeta(pathname, route) !== null
 }

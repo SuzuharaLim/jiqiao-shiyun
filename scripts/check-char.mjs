@@ -75,9 +75,14 @@ ok(st.triangles > 180000, `全解析度 ${st.triangles.toLocaleString()} 確實�
   ok(web.stats().triangles <= 180000,
     `網頁抽屜 lod 0.85 ＝ ${web.stats().triangles.toLocaleString()} ≤ 180k`)
   web.dispose()
-  const ar = buildCharacter(NAPA_CABBAGE, { lod: 0.6 })
+  const ar = buildCharacter(NAPA_CABBAGE, { lod: 0.6, outlineLayers: 1 })
   ok(ar.stats().triangles <= 110000,
     `AR 疊加 lod 0.6 ＝ ${ar.stats().triangles.toLocaleString()} ≤ 110k`)
+  // ⚠️ draw call ≈ mesh 數，而 **LOD 只降細分、不會減少 draw call**。
+  //    要進 AR 的 ≤90 只能少描一層邊（outlineLayers: 1）。
+  ok(ar.stats().meshes <= 90, `AR 疊加 draw call ${ar.stats().meshes} ≤ 90（少描一層邊）`)
+  ok(st.meshes <= 140, `網頁抽屜 draw call ${st.meshes} ≤ 140`)
+  ok(st.meshes > 90, '全解析度的 102 確實超出 AR 的 90——所以 AR 要傳 outlineLayers: 1')
   ar.dispose()
 }
 

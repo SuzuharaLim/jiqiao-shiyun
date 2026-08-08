@@ -3417,3 +3417,103 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   font-size: var(--text-2xs); line-height: 1.7; color: var(--on-ji);
   background: var(--ji); border-radius: 8px; padding: var(--space-2) var(--space-3); margin: 0 0 var(--space-3);
 }
+
+/* ── /ar/card/:slug 卡片頁（無相機降級 ＋ 熱區校對）───────────────────── */
+.cardp-h1 { font-size: var(--text-2xl); margin: 0 var(--space-4) var(--space-2); }
+.cardp-h1 small { font-size: var(--text-sm); color: var(--muted); font-weight: 400; }
+.cardp-lead { margin: 0 var(--space-4) var(--space-4); font-size: var(--text-xs); line-height: 1.7; }
+
+.cardp-stage {
+  position: relative; margin: 0 var(--space-4) var(--space-2);
+  width: calc(100% - var(--space-4) * 2);
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--paper-100); flex: 0 0 auto;
+}
+.cardp-img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.cardp-noimg {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; padding: var(--space-4);
+  text-align: center; font-size: var(--text-xs);
+}
+.cardp-noimg p { margin: 0; }
+
+/* 熱區：真的 <button>，鍵盤可達 */
+.cardp-hot {
+  position: absolute; padding: 0; border: 2px dashed transparent; border-radius: 8px;
+  background: transparent; cursor: pointer;
+  transition: border-color var(--m-fast) var(--e-out), background var(--m-fast) var(--e-out);
+}
+.cardp-hot:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.cardp-hot.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.cardp-stage.calib .cardp-hot { border-color: color-mix(in srgb, var(--primary) 55%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .cardp-hot:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+}
+/* 脈動圓點：標出「這裡可以點」。⚠️ 基礎樣式保持可見，動畫只負責怎麼出現。 */
+.cardp-dot {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px rgba(255, 255, 255, .85);
+  animation: cardpPulse 1.8s var(--e-out) infinite;
+}
+@keyframes cardpPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 0 4px color-mix(in srgb, var(--primary) 40%, transparent); }
+  50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 0 11px color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+.cardp-hot.primary .cardp-dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+.cardp-tag {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, 12px);
+  font-size: var(--text-2xs); white-space: nowrap; color: var(--on-primary);
+  background: var(--primary); border-radius: 999px; padding: 1px 7px;
+  opacity: 0; transition: opacity var(--m-fast) var(--e-out);
+}
+.cardp-hot.on .cardp-tag, .cardp-stage.calib .cardp-tag { opacity: 1; }
+.cardp-num {
+  position: absolute; left: 2px; top: 2px; font: 10px/1.3 ui-monospace, monospace;
+  color: var(--ink); background: rgba(255, 255, 255, .9); padding: 1px 3px; border-radius: 3px;
+}
+.cardp-tools { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
+
+.cardp-obj { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
+.cardp-line { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+.cardp-facts { margin: var(--space-3) 0; }
+.cardp-facts > div { display: flex; gap: var(--space-3); margin-bottom: var(--space-2); }
+.cardp-facts dt { flex: 0 0 4.5em; font-size: var(--text-xs); color: var(--muted); font-weight: 600; }
+.cardp-facts dd { margin: 0; font-size: var(--text-xs); line-height: 1.7; }
+.cardp-facts dd i { font-style: normal; font-size: var(--text-2xs); color: var(--muted); }
+.cardp-warn {
+  font-size: var(--text-2xs); line-height: 1.75; color: var(--on-ji); background: var(--ji);
+  border-radius: 8px; padding: var(--space-3); margin: 0 0 var(--space-3);
+}
+.cardp-more { display: inline-block; margin-top: var(--space-3); }
+
+.cardp-quiz {
+  margin-top: var(--space-4); padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.cardp-q { font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+.cardp-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3); }
+.cardp-opt {
+  font-size: var(--text-xs); padding: 8px 14px; min-height: 24px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card); cursor: pointer;
+  transition: background var(--m-fast) var(--e-out), border-color var(--m-fast) var(--e-out);
+}
+.cardp-opt.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+/* 送出後才標對錯：作答中就標紅等於直接給答案 */
+.cardp-opt.right { border-color: var(--yi); background: var(--yi); color: var(--on-yi); }
+.cardp-opt.wrong { border-color: var(--ji); background: var(--ji); color: var(--on-ji); }
+.cardp-opt.missed { border-color: var(--yi); border-style: dashed; }
+@media (hover: hover) and (pointer: fine) {
+  .cardp-opt:hover { border-color: var(--primary); }
+}
+.cardp-win, .cardp-again { margin-top: var(--space-3); font-size: var(--text-xs); line-height: 1.7; }
+.cardp-win b { font-size: var(--text-lg); color: var(--primary); }
+.cardp-win p, .cardp-again p { margin: 6px 0 0; }
+
+/* 桌機：卡面與內容並排（卡面是橫式的，單欄會很浪費） */
+@media (min-width: 600px) and (min-height: 600px) {
+  .screen-arCard .body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+  .screen-arCard .body > * { grid-column: 1 / -1; }
+  .screen-arCard .cardp-stage { grid-column: 1; margin-inline: var(--space-4) 0; width: auto; }
+  .screen-arCard .cardp-tools { grid-column: 1; padding-inline: var(--space-4) 0; }
+  .screen-arCard .cardp-obj { grid-column: 2; grid-row: span 2; padding-inline: 0 var(--space-4); }
+}

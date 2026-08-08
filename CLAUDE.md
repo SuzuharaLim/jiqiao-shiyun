@@ -262,6 +262,13 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **`track()` 已經吐出完整 6DoF**（`{ref, score, rotation, corners, H, matrix3d, pose, areaRatio}`），要接 WebGL 不需要先做「追蹤器到底暴露什麼」的調查。`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。**追蹤器不知道也不該知道卡片的實體尺寸（mm）**——那是卡片註冊表的 metadata，`pose` 的單位是卡片邊長。
   - **180° 翻轉誤判已經處理掉了**（比對階段四個方向都試、取最佳分，`check-ar.mjs` 有四方向測試）。但**卡面若接近旋轉對稱，四個方向的分數會很接近而變得不穩**，所以印刷面仍要有明顯不對稱的定位元素——理由是「拉開分數差距」，不是「四角偵測分不出方向」。
   - **要換 A-Frame／three.js 只需另寫一個吃同樣 `track` 物件的元件**，追蹤層不用動；`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。⚠️ 兩邊的 **fov 必須一致**（A-Frame 預設 80、本追蹤器預設 60），否則模型會浮在卡片上方或陷進桌面。
+- **`/ar/card/:slug`（`CardPage.jsx`）是不用相機的降級路徑，一頁兼三個用途**：① 桌機／拒絕相機權限的去處 ② **可索引**的內容頁（`/AR` 是 noindex，沒有實體卡片的人從搜尋進來靠這頁）③ **熱區校對工具**（熱區框直接畫在卡面上，開「顯示座標」就能對照 rect 數值）。
+  - **熱區必須是真的 `<button>`**（帶 `aria-label`／`aria-pressed`）：div + onClick 的話 Tab 走不到、螢幕閱讀器也唸不出來。
+  - **3D 走 `React.lazy`，不點就不下載**：實測 `ProduceStage` 分塊 138 KB gzip 獨立、主 bundle 只因為新畫面本身 +17 KB。
+  - **卡面圖缺失時不可假裝有**：畫一個空的比例框並說明去哪裡補，熱區位置仍可校對（那才是這頁對美術最有用的地方）。
+  - **小挑戰答錯不扣分、不鎖、不記次數**，而且**送出後才標對錯**——作答中就標紅等於直接給答案。
+  - **徽章存 `localStorage['jq-ar-badges']`**（沿用站上 `jq-` 慣例，不要用文件寫的 `cq.ar.badges`——同一個 app 兩套命名遲早會漏掉一邊，例如「刪帳號時清本機資料」那段）。訪客也能拿（站上訪客沒有 session，寫入 API 一律 401）。
+  - **`bindLocalTarget` 順便存一張 900px 縮圖**給這頁當底圖；**空間不足時先丟縮圖再存簽名**——沒有簽名就完全掃不到，沒有縮圖只是校對頁少一張圖。
 - **官方 AR 卡包在 `src/data/arCards.js`＋`src/lib/arCardRegistry.js`**：進 `/AR` 就有東西可掃，不必自己登錄。**使用者自訂登錄（從圖片檔／相機）刻意保留**，只是降級為進階選項。
   - **簽名不寫進原始碼，載入時從 `public/ar/targets/*.png` 算**：建置期要算就得在 Node 裡解 PNG／JPEG（PNG 還能用 zlib 硬幹，JPEG 要整套解碼器）。美術換稿只要換那張圖，算完存 `localStorage['jq-ar-official-v1']`。**換稿要換檔名或呼叫 `clearOfficialCache()`**——快取以路徑為 key。
   - **抓目標圖不可用 `cache: 'force-cache'`，而且只看 `res.ok` 不夠**：檔案不存在時 SPA fallback 回 **200 + index.html**，force-cache 把那份 HTML 存下來後，就算圖補上了也永遠拿到 HTML。症狀是「The source image could not be decoded.」——**「檔案不存在」偽裝成「圖片壞掉」**，會讓人去查圖片格式而不是查路徑。要檢查 `content-type` 是不是 `image/`。
@@ -279,7 +286,9 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **中央白葉柄的半寬是大白菜最關鍵的一件事**：綠色只長在那條白帶之外（`wRib`／`gpZone`）。實測算繪像素的綠度梯度由上到下 43 → 6 → 1，這條驗得出移植對不對。
   - **`bulge` 表要是「直筒」**：u=0.22~0.79 幾乎等寬（0.97），底部 20% 才收圓、頂部 76% 以上才收頂。一路線性收窄怎麼調都像竹筍；線性 flare 則會變成青江菜。
   - **preset 欄位改名一定要同步 factory**：`leafBaseY` → `baseY` 改了一半時 `baseY = undefined` → 所有 `position.y = NaN` → **世界矩陣 NaN → 模型整個不見**，而每一顆 mesh 的 position 屬性都是正常的，逐點檢查完全驗不出來。**要量世界包圍盒**（check-char 有這一項）。
-  - **全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算**（那份預算按舊版 29 片葉估的）。`ProduceStage` 因此**預設 `lod = 0.85`**（170,456，畫面看不出差別）；AR 疊加請給 `0.6`（89,314，符合 110k 預算）。
+  - **全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算**（那份預算按舊版 29 片葉估的）。`ProduceStage` 因此**預設 `lod = 0.85`**（170,456，畫面看不出差別）。
+  - **draw call ≈ mesh 數，而 LOD 只降細分、不會減少 draw call**：全解析度 102 超出 AR 的 ≤90。要進預算得少描一層邊 → **AR 用 `{ lod: 0.6, outlineLayers: 1 }`**（draw call 87、三角形 75,274）。
+  - **反覆進出 3D 抽屜 20 次實測**：幾何恆 24、紋理恆 2、draw call 恆 102，收完仍拿得到新 WebGL context（策畫書驗收 #10）。
   - **這一層與 three 絕不可進主 bundle**：一律 `React.lazy(() => import('../components/ProduceStage.jsx'))`。實測懶載入分塊 **137.5 KB gzip**，主 bundle 只 +1.2 KB。無條件塞進去等於首頁多背三分之一重量給一個多數人不會點的功能。
   - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀十幾個欄位而 preset 的 layers 不會全給——原本靠 `registerGeometry` 的 schema 補。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。
   - **接觸陰影掛 `root` 不掛 `body`**：原 demo 放場景層級並用 `getElementById('blob')` 抓（註解寫「掛在角色底下會跟著跳起來」——觀察對，但角色就無法多實例）。正解是分兩層：root 不動、body 才受動作驅動，陰影掛 root。**別照字面把它改成 body 的子節點**，那會讓陰影跟著跳躍飛起來。

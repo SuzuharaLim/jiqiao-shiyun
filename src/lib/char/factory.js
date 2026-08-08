@@ -92,7 +92,7 @@ function makeBlobShadow({ radius, opacity, color }) {
  * 組出一隻角色。
  * @returns {{ root, body, blob, leafRoots, arms, hips, faceMesh, setExpression, dispose, stats }}
  */
-export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
+export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers = 2 } = {}) {
   const P = preset
   const baseY = P.baseY
   const root = new Group(); root.name = `char-${P.id}`
@@ -174,8 +174,12 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
       owned.materials.push(mat)
       const mesh = new Mesh(geo, mat)   // 幾何共用，不進 owned（上面已記一次）
       mesh.castShadow = true; mesh.receiveShadow = true
-      // ⚠️ 54 片葉子每片都描邊會讀成芹菜稈：只描最外兩層（li >= 3）。
-      if (li >= 3) owned.materials.push(addOutline(mesh, oLeaf).material)
+      // ⚠️ 54 片葉子每片都描邊會讀成芹菜稈：預設只描最外兩層。
+      //    AR 模式傳 outlineLayers: 1 只描最外層——draw call 從 102 降到 87，
+      //    符合策畫書 §6.1 給 AR 的 ≤90（LOD 只降細分，不會減少 draw call）。
+      if (li >= P.layers.length - outlineLayers) {
+        owned.materials.push(addOutline(mesh, oLeaf).material)
+      }
       tiltNode.add(mesh)
       if (isFace) leafRoots[li].faceNode = tiltNode
     }

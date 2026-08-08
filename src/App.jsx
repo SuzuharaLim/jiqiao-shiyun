@@ -24,6 +24,7 @@ const SCREEN_TITLES = {
   editProfile: '編輯個人檔案', about: '品牌故事', accountSecurity: '帳號安全', admin: '管理後台',
   privacy: '隱私權政策', terms: '服務條款', contact: '聯絡我們',
   termDetail: '節氣專頁', deityDetail: '神明誕辰', dreamDetail: '解夢',
+  arCard: '節氣卡片',
   auspiciousIndex: '擇日工具', auspicious: '吉日查詢',
   glossary: '術語解釋', glossaryDetail: '術語', editorial: '編輯政策', myths: '常見誤解',
   sunIndex: '攝影時刻', sunTimes: '日出日落',

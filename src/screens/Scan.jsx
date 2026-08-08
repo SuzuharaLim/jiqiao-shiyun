@@ -451,6 +451,12 @@ export default function Scan() {
                     指定本機圖片當目標（僅這台裝置）
                   </button>
                 )}
+                {/* 「沒有卡片？看示範」——導向不需相機的卡片頁（改版文件 §5.1）。
+                    ⚠️ 這是真的 <a href>：/ar/card/:slug 允許索引，爬蟲要走得進去。 */}
+                <Link screen="arCard" props={{ slug: c.slug }} className="btn-ghost tap"
+                  style={{ marginTop: 'var(--space-2)' }}>
+                  沒有卡片？看示範內容 ›
+                </Link>
                 {official.find(o => o.id === c.id)?.local && (
                   <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>
                     目前用的是你指定的本機圖片，只在這台裝置有效。

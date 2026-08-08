@@ -29,7 +29,7 @@ export default function ProduceStage({
   //    全解析度 230,310 個三角形，超出策畫書 §6.1 的 180k 預算（那份預算是按
   //    舊版 29 片葉子估的）。實測 0.85 = 170,456 剛好進預算而畫面看不出差別；
   //    AR 疊加要與追蹤共用 CPU/GPU，呼叫端請給 0.6（89,314）。
-  preset = NAPA_CABBAGE, action = 'idle', lod = 0.85, height = 320, onReady,
+  preset = NAPA_CABBAGE, action = 'idle', lod = 0.85, outlineLayers = 2, height = 320, onReady,
 }) {
   const hostRef = useRef(null)
   const actorRef = useRef(null)
@@ -79,7 +79,7 @@ export default function ProduceStage({
     scene.add(fill, rim)
 
     const pivot = new Group(); scene.add(pivot)
-    char = buildCharacter(preset, { lod })
+    char = buildCharacter(preset, { lod, outlineLayers })
     pivot.add(char.root)
     const actor = createActor(char, { action, reduceMotion: reduce })
     actorRef.current = actor
@@ -126,7 +126,7 @@ export default function ProduceStage({
       renderer.forceContextLoss?.()
       renderer.domElement.remove()
     }
-  }, [preset, lod, onReady])   // ⚠️ action 不在相依裡：換動作不該重建整個場景
+  }, [preset, lod, outlineLayers, onReady])   // ⚠️ action 不在相依裡：換動作不該重建整個場景
 
   if (failed) return null      // 呼叫端負責降級（策畫書 §5.4：3D 是體驗，知識卡是內容）
   return (
