@@ -14,6 +14,7 @@ import { openBackCamera } from '../lib/arCamera.js'
 import { measureEdgeBow, explain } from '../lib/arDiagnose.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
+import SpeakButton from '../components/SpeakButton.jsx'
 
 // ⚠️ 角色層與 three 走 React.lazy：只有真的命中「有 3D 模型的熱區」才下載
 //    （138 KB gzip）。掃描頁是入口，不該為了一個可能不會發生的情境先背這個重量。
@@ -529,6 +530,11 @@ export default function Scan() {
                 </dl>
               )}
               {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
+              {/* 語音導覽：這裡才是它真正的使用情境——手上拿著卡、眼睛盯著卡面，
+                  低頭讀這一小塊面板是彆扭的。
+                  ⚠️ 換熱區時上一段一定要停（SpeakButton 依 obj.id 自己處理），
+                     否則使用者瞄準白菜卻聽到臘八粥。 */}
+              <SpeakButton obj={obj} className="scan-hit-speak" />
               {obj.link && (
                 <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap">
                   {obj.link.label} ›

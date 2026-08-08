@@ -6,7 +6,7 @@ import { useNav } from '../store/nav.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
 import { cachedPoster } from '../lib/arCardRegistry.js'
 import { earnBadge, hasBadge, BADGES } from '../lib/arBadges.js'
-import { speechSupported, speak, scriptForObject } from '../lib/speak.js'
+import SpeakButton from '../components/SpeakButton.jsx'
 
 // ============================================================================
 // /ar/card/:slug —— 不用相機也能走完整條動線
@@ -185,51 +185,6 @@ export default function CardPage({ slug }) {
         </Disclaimer>
       </div>
     </>
-  )
-}
-
-/**
- * 「聽這一段」按鈕。
- *
- * ⚠️ 不支援的瀏覽器**整顆不渲染**，不可顯示一顆按了沒反應的按鈕
- *    ——那比沒有這個功能更糟。
- *
- * ⚠️ 三個一定要做的清理，漏任何一個都會讓聲音「跟著使用者跑」：
- *    ① 元件卸載時 cancel（按上一頁離開後還在唸，而畫面上已經沒東西能停它）
- *    ② 切換到別的熱區時 cancel（不然兩個物件的內容會疊在一起唸）
- *    ③ 分頁切到背景時 cancel（使用者跳去別的 App，聲音還在背景講）
- */
-function SpeakButton({ obj }) {
-  const [state, setState] = useState('idle')   // idle | speaking
-  const ctrl = useRef(null)
-
-  const stop = () => { ctrl.current?.cancel(); ctrl.current = null }
-
-  // ①＋② obj 變了或元件卸載 → 停
-  useEffect(() => stop, [obj?.id])
-
-  // ③ 分頁切到背景 → 停
-  useEffect(() => {
-    const h = () => { if (document.hidden) stop() }
-    document.addEventListener('visibilitychange', h)
-    return () => document.removeEventListener('visibilitychange', h)
-  }, [])
-
-  if (!speechSupported()) return null
-
-  const toggle = () => {
-    if (state === 'speaking') { stop(); setState('idle'); return }
-    ctrl.current = speak(scriptForObject(obj), { onState: setState })
-  }
-
-  return (
-    <button className="btn-ghost tap cardp-speak" onClick={toggle}
-      aria-label={state === 'speaking' ? '停止朗讀' : `朗讀${obj.name}的介紹`}>
-      {/* ⚠️ 圖示名寫錯不會拋錯，Icon 會靜靜地退回 `dots`——站上的關閉是 `x` 不是 `close` */}
-      <Icon name={state === 'speaking' ? 'x' : 'sound'}
-        style={{ width: 18, height: 18, stroke: 'currentColor', verticalAlign: '-3px', marginRight: 6 }} />
-      {state === 'speaking' ? '停止朗讀' : '聽這一段'}
-    </button>
   )
 }
 

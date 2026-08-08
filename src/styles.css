@@ -3609,3 +3609,5 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* 語音導覽按鈕。⚠️ 不支援語音合成的瀏覽器整顆不渲染（見 CardPage 的 SpeakButton），
    所以這裡不必處理「停用」的樣式——一顆按了沒反應的按鈕比沒有更糟。 */
 .cardp-speak { display: inline-flex; align-items: center; margin: var(--space-3) 0 0; }
+/* AR 命中面板裡的同一顆按鈕：那塊面板本來就窄，收一點上緣間距 */
+.scan-hit-speak { margin-top: var(--space-2); }
