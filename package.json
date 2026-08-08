@@ -19,7 +19,8 @@
     "check:almanac": "node scripts/check-almanac.mjs",
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
-    "card:frame": "node scripts/frame-card.mjs"
+    "card:frame": "node scripts/frame-card.mjs",
+    "card:install": "node scripts/install-target.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -162,7 +162,9 @@ export function addSpec(src) {
 // ── 驗證：把成品放在四種桌面上，用真的偵測器量逐角誤差 ────────────────────
 // ⚠️ 只檢查「偵測得到」是不夠的：滿版出血最危險的失敗是**單角失敗**
 //    （某一個角偏掉 24~64px，其他三角完全正常，偵測仍然回報成功）。
-function verify(card, label) {
+// ⚠️ 要 export：install-target.mjs 會重用同一套驗證，
+//    兩邊各寫一份遲早會分岔（而分岔的症狀是「工具說過了、現場掃不到」）。
+export function verify(card, label) {
   const CW = 260, CH = 195
   const X = 26, Y = 22
   const W = Math.round((CW - 2 * X) * 0.98)
