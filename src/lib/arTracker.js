@@ -80,7 +80,9 @@ export function createTracker({
         corners,
         H,
         matrix3d: cssMatrix3dString(H),
-        pose: poseFromHomography(H, { width: w, height: h, fovDeg }),
+        // ⚠️ 卡片長寬比要餵進去：這個分解假設模型平面是單位正方形（見 homography.js）。
+        //    ref.aspect 由登錄時的目標圖算出（arCardRegistry / registerFromFile）。
+        pose: poseFromHomography(H, { width: w, height: h, fovDeg, aspect: best.ref?.aspect || 1 }),
         areaRatio: quad.areaRatio,
       }
     },

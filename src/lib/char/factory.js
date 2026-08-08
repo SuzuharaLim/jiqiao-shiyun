@@ -21,7 +21,7 @@
 //    看起來像角色黏著一塊地板。
 // ============================================================================
 import {
-  Group, Mesh, MeshBasicMaterial, PlaneGeometry, SphereGeometry,
+  Group, Object3D, Mesh, MeshBasicMaterial, PlaneGeometry, SphereGeometry,
   CanvasTexture, Color, SRGBColorSpace,
 } from 'three'
 import {
@@ -261,6 +261,38 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
   owned.geometries.push(faceGeo); owned.materials.push(faceMat)
   ;(leafRoots[faceLayerIdx].faceNode ?? leafRoots[faceLayerIdx].node).add(faceMesh)
 
+  // ── 標籤錨點 ──
+  // 給 DOM 標籤（品種／產地／俗語那些膠囊）用的 3D 掛點。
+  // ⚠️ 掛在**葉層**上而不是 root：這樣標籤會跟著角色呼吸、跳躍、擺葉一起動，
+  //    看起來是「長在它身上」而不是「浮在旁邊的 UI」。
+  // ⚠️ 一律用 Object3D 不要用 Mesh——這些點不需要被畫出來，
+  //    做成 Mesh 會白白多幾個 draw call（而 draw call 是 AR 的瓶頸）。
+  const anchors = []
+  {
+    // 環繞一圈：角度錯開、高度錯開，標籤才不會擠在一起
+    // ⚠️ 角度一律留在**前半球（|az| < 90）**：cos(az) 為負就跑到模型背面，
+    //    標籤會被白菜整個擋住。第一版用了 ±118 度，實測 z 是 −0.21（在背後）。
+    //    螢幕上的水平位置 ∝ r·sin(az)，所以 −70/−44/0/50/66 已經夠散開。
+    const spec = [
+      { layer: 4, az: -70, h: 0.80 },
+      { layer: 4, az: 66, h: 0.66 },
+      { layer: 3, az: -44, h: 0.44 },
+      { layer: 3, az: 50, h: 0.30 },
+      { layer: 4, az: 0, h: 0.96 },
+    ]
+    for (const a of spec) {
+      const li = Math.min(a.layer, P.layers.length - 1)
+      const L = P.layers[li]
+      const node = new Object3D()
+      const rad = a.az * DEG
+      // 半徑取該層的外緣再往外一點，標籤才不會壓在葉子上
+      const r = L.r * 1.18
+      node.position.set(r * Math.sin(rad), L.h * a.h, r * Math.cos(rad))
+      leafRoots[li].node.add(node)
+      anchors.push(node)
+    }
+  }
+
   // ── 接觸陰影：掛 root 不掛 body（見檔頭）──
   const blob = makeBlobShadow(P.blob)
   owned.geometries.push(blob.geometry); owned.materials.push(blob.material)
@@ -268,7 +300,7 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
 
   let expr = 'normal'
   return {
-    root, body, blob, leafRoots, arms, hips, faceMesh, preset: P,
+    root, body, blob, leafRoots, arms, hips, faceMesh, anchors, preset: P,
     get expression() { return expr },
     setExpression(name) {
       if (expr === name) return

@@ -3517,3 +3517,52 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   .screen-arCard .cardp-tools { grid-column: 1; padding-inline: var(--space-4) 0; }
   .screen-arCard .cardp-obj { grid-column: 2; grid-row: span 2; padding-inline: 0 var(--space-4); }
 }
+
+/* ── 3D 舞台的 DOM 標籤層 ────────────────────────────────────────────────
+   ⚠️ 標籤蓋在 canvas 上，一定要 pointer-events:none——否則吃掉手勢，
+      症狀是「模型有時候轉不動」而畫面看起來完全正常。 */
+.produce-stage { position: relative; }
+.produce-stage canvas { position: relative; z-index: 0; }
+.ps-label {
+  position: absolute; left: 0; top: 0; z-index: 1;
+  pointer-events: none; white-space: nowrap;
+  font-size: var(--text-2xs); font-weight: 600;
+  color: var(--ink); background: rgba(255, 255, 255, .92);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; box-shadow: 0 2px 8px rgba(0, 0, 0, .10);
+  /* ⚠️ 動畫只負責「怎麼出現」不負責「是否存在」：from/to 都定義、加 both，
+     動畫沒執行時標籤仍然看得見（只是沒有淡入）。 */
+  animation: psLabelIn var(--m-base) var(--e-out) both;
+}
+@keyframes psLabelIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+[data-theme="dark"] .ps-label { background: rgba(28, 28, 32, .92); }
+
+/* 吉祥物對話框 */
+.ps-say {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  font-size: var(--text-xs); line-height: 1.7;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  border-top-left-radius: 4px; padding: var(--space-3) var(--space-4);
+  position: relative;
+}
+.ps-say::before {
+  content: ''; position: absolute; left: 14px; top: -7px;
+  width: 12px; height: 12px; background: var(--card);
+  border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+
+/* ── AR 角色層（three canvas 疊在取景畫面上）──────────────────────────
+   ⚠️ pointer-events:none 是硬性要求：它蓋在整個取景畫面上，會吃掉所有點擊。
+      這個 bug 的症狀是「按鈕有時候按不動」而畫面看起來完全正常。
+   ⚠️ 追丟時用 opacity 過場而不是直接卸載——閃爍很難看，而重建 WebGL 場景
+      要重編 shader，來回開關會嚴重掉幀。 */
+.ar-char {
+  position: absolute; inset: 0; z-index: 2;
+  pointer-events: none;
+  transition: opacity var(--m-base) var(--e-out);
+}
+.ar-char canvas { transition: opacity var(--m-base) var(--e-out); }

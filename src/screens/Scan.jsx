@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -11,6 +11,10 @@ import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
+
+// ⚠️ 角色層與 three 走 React.lazy：只有真的命中「有 3D 模型的熱區」才下載
+//    （138 KB gzip）。掃描頁是入口，不該為了一個可能不會發生的情境先背這個重量。
+const ARCharacter = lazy(() => import('../components/ARCharacter.jsx'))
 
 // 取樣尺寸：GRAB = 相機取樣畫面；RECT = 拉正後的方形邊長（辨識用）
 const GRAB_LONG = 160        // 取樣畫面的長邊（短邊照顯示框比例算）
@@ -387,6 +391,21 @@ export default function Scan() {
           <span aria-live="polite">{phaseText}</span>
           {tracking && <span aria-hidden="true">　相似度 <b>{track.score}%</b></span>}
         </div>
+
+        {/* ── 角色站在卡片上（命中有模型的熱區才載入）── */}
+        {(() => {
+          const o = hotspot ? objectForHotspot(hotspot) : null
+          if (!o?.model || !track?.pose) return null
+          return (
+            <Suspense fallback={null}>
+              <ARCharacter
+                track={track} grabW={grabSize.w} grabH={grabSize.h}
+                anchorUV={[hotspot.rect.x + hotspot.rect.w / 2, hotspot.rect.y + hotspot.rect.h / 2]}
+                action="present"
+              />
+            </Suspense>
+          )
+        })()}
 
         {/* ── 命中卡面熱區：跳出那個物件的內容 ── */}
         {hotspot && (() => {

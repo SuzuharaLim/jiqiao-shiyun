@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Scene, PerspectiveCamera, WebGLRenderer, Group,
+  Scene, PerspectiveCamera, WebGLRenderer, Group, Vector3,
   HemisphereLight, DirectionalLight, PCFSoftShadowMap, NeutralToneMapping, Color,
 } from 'three'
 import { buildCharacter, NAPA_CABBAGE } from '../lib/char/factory.js'
@@ -30,8 +30,12 @@ export default function ProduceStage({
   //    舊版 29 片葉子估的）。實測 0.85 = 170,456 剛好進預算而畫面看不出差別；
   //    AR 疊加要與追蹤共用 CPU/GPU，呼叫端請給 0.6（89,314）。
   preset = NAPA_CABBAGE, action = 'idle', lod = 0.85, outlineLayers = 2, height = 320, onReady,
+  // 標籤：[{ key, label }]。每一顆掛在角色身上的一個 3D 錨點，跟著它動。
+  // ⚠️ **一律 DOM 不用 3D 文字**：中文 MSDF 字集動輒好幾 MB，而這裡只要幾個詞。
+  labels = [],
 }) {
   const hostRef = useRef(null)
+  const labelRefs = useRef([])
   const actorRef = useRef(null)
   const [failed, setFailed] = useState(false)
 
@@ -104,6 +108,28 @@ export default function ProduceStage({
     const onVis = () => { hidden = document.hidden }
     document.addEventListener('visibilitychange', onVis)
 
+    // ── 標籤定位：每幀把 3D 錨點投影到螢幕座標 ──
+    // ⚠️ 直接寫 DOM 的 style，不走 React state：這是每秒 60 次的更新，
+    //    每次 setState 會讓整棵樹重繪，中階手機直接掉幀。
+    const tmp = new Vector3()
+    const placeLabels = () => {
+      const els = labelRefs.current
+      if (!els.length) return
+      const r = host.getBoundingClientRect()
+      const w = r.width, h = r.height
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i], node = char.anchors[i % char.anchors.length]
+        if (!el || !node) continue
+        node.getWorldPosition(tmp).project(camera)
+        // ⚠️ project() 之後 z > 1 代表在遠裁面之外或在相機背後——要藏起來，
+        //    否則會出現「標籤浮在模型正中央」這種看起來像 bug 的畫面。
+        const behind = tmp.z > 1 || tmp.z < -1
+        el.style.opacity = behind ? '0' : '1'
+        el.style.transform =
+          `translate3d(${((tmp.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-tmp.y * 0.5 + 0.5) * h).toFixed(1)}px, 0) translate(-50%, -50%)`
+      }
+    }
+
     const loop = (now) => {
       raf = requestAnimationFrame(loop)
       // 分頁在背景時不算不畫——否則使用者切走之後手機還在燒電
@@ -111,6 +137,7 @@ export default function ProduceStage({
       actor.update(now - last)
       last = now
       renderer.render(scene, camera)
+      placeLabels()
     }
     raf = requestAnimationFrame(loop)
     onReady?.({ actor, char })
@@ -136,7 +163,23 @@ export default function ProduceStage({
       style={{ height, width: '100%' }}
       role="img"
       aria-label={`${preset.name}的立體角色動畫`}
-    />
+    >
+      {/* ⚠️ 標籤層 aria-hidden：這些字在知識卡裡已經有一份可讀的版本，
+          讓讀屏唸兩次只是噪音。整個舞台的 aria-label 已經說明它是什麼。
+          ⚠️ pointer-events:none 由 CSS 給——蓋在 canvas 上會吃掉手勢。 */}
+      {labels.map((l, i) => (
+        <span
+          key={l.key ?? i}
+          ref={(el) => { labelRefs.current[i] = el }}
+          className="ps-label"
+          aria-hidden="true"
+          // 依序淡入（策畫書 §5.2 stagger 120ms）
+          style={{ animationDelay: `${i * 0.12}s` }}
+        >
+          {l.label}
+        </span>
+      ))}
+    </div>
   )
 }
 

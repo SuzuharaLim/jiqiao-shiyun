@@ -118,8 +118,20 @@ export const cssMatrix3dString = (H) => `matrix3d(${cssMatrix3d(H).map(n => Numb
  * @returns {{ matrix:number[], position:number[], scale:number }|null}
  *          matrix 為 column-major 的 4×4（three.js 的 Matrix4.fromArray 可直接吃）
  */
-export function poseFromHomography(H, { width, height, fovDeg = 60 } = {}) {
+export function poseFromHomography(H, { width, height, fovDeg = 60, aspect = 1 } = {}) {
   if (!H || !width || !height) return null
+  // ⚠️ `aspect` 是**卡片本身**的長寬比（寬/高），不是畫面的。
+  //    這個分解假設模型平面是「單位正方形」，所以卡片不是正方形時一定要給。
+  //    2027 小寒卡是 148×105（1.41:1）——用 aspect=1 去解，角色會落在錯的位置，
+  //    而且**看起來很像對齊誤差**，會讓人去調落點座標而不是去查這個參數。
+  //    數學上：正方形的 (u,v) 與矩形的 (x,y) 的關係是 y = v·k（k = 1/aspect），
+  //    所以把 H 的第二欄乘 k 就得到「矩形 → 影像」的 homography。
+  //    卡面 (u,v) 與矩形模型 (x,y) 的關係是 u = x、v = y/k，代進去得
+  //    image = H_sq·(x, y/k, 1)，所以矩形版的 H 是「第二欄**除以** k」。
+  //    ⚠️ 寫成乘 k 會讓誤差比不修正還大（實測 11.9px → 17.6px）——
+  //       方向錯了但仍然「有在做事」，看起來像參數沒調好而不是公式錯。
+  const k = 1 / (aspect || 1)
+  if (k !== 1) H = [[H[0][0], H[0][1] / k, H[0][2]], [H[1][0], H[1][1] / k, H[1][2]], [H[2][0], H[2][1] / k, H[2][2]]]
   const f = (width / 2) / Math.tan((fovDeg * Math.PI / 180) / 2)
   const cx = width / 2, cy = height / 2
   // K⁻¹ · H（K 是上三角，直接展開比通用反矩陣穩）
@@ -164,6 +176,8 @@ export function poseFromHomography(H, { width, height, fovDeg = 60 } = {}) {
     ],
     position: t,
     scale: 1 / lambda,
+    // 卡面座標 (u,v) → 模型座標 (u, v*vScale, 0)。正方形卡片時為 1。
+    vScale: k,
   }
 }
 

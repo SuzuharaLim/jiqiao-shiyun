@@ -14,6 +14,7 @@ import {
 } from '../src/lib/quadDetect.js'
 import { makeSignature, matchScore } from '../src/lib/scanner.js'
 import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
+import { cvToThree, verticalFov } from '../src/lib/arPoseBridge.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
@@ -390,6 +391,88 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(self >= 95, `有收邊版自比 ${self}（應 ≥95，作為上限基準）`)
   ok(cross < 58, `★ 無框版登錄 × 有框版拍攝的相似度 ${cross} < 門檻 58——`
     + '所以目標圖必須是加了收邊之後的那一版')
+}
+
+// ── ★ 姿態橋接：CV → three（每一項都是「貼歪但不報錯」的類型）────────────
+// 驗證方法：造一張**已知姿態**的卡片（自己算出它四角的像素座標），解 pose，
+// 再把模型點重投影回去比對。誤差應該趨近 0。
+{
+  const GW = 160, GH = 120, FOVX = 60
+  const UNIT = [[0, 0], [1, 0], [1, 1], [0, 1]]
+  const f = (GW / 2) / Math.tan((FOVX * Math.PI) / 360)
+
+  // 用純 CV 公式擺一張 w×h 的卡片並投影出四角
+  const synth = (aspect, yaw, pitch, dist) => {
+    const k = 1 / aspect
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch)
+    return [[0, 0], [1, 0], [1, k], [0, k]].map(([x, y]) => {
+      const px = x - 0.5, py = y - k / 2
+      const y1 = cp * py, z1 = sp * py
+      const c = [cy * px + sy * z1, y1, -sy * px + cy * z1 + dist]
+      return [GW / 2 + f * c[0] / c[2], GH / 2 + f * c[1] / c[2]]
+    })
+  }
+  // pose + 模型點 → 像素（純 CV，不經過 three）
+  const reproj = (pose, u, v) => {
+    const R = [pose.matrix.slice(0, 3), pose.matrix.slice(4, 7), pose.matrix.slice(8, 11)]
+    const t = pose.position, vy = v * (pose.vScale ?? 1)
+    const c = [
+      R[0][0] * u + R[1][0] * vy + t[0],
+      R[0][1] * u + R[1][1] * vy + t[1],
+      R[0][2] * u + R[1][2] * vy + t[2],
+    ]
+    return [GW / 2 + f * c[0] / c[2], GH / 2 + f * c[1] / c[2]]
+  }
+  const worstErr = (quad, aspect) => {
+    const H = homography(UNIT, quad)
+    const pose = poseFromHomography(H, { width: GW, height: GH, fovDeg: FOVX, aspect })
+    if (!pose) return Infinity
+    return Math.max(...UNIT.map(([u, v]) => {
+      const p = reproj(pose, u, v), e = applyH(H, u, v)
+      return Math.hypot(p[0] - e[0], p[1] - e[1])
+    }))
+  }
+
+  // 正方形卡片：aspect 預設 1 就該完全正確
+  ok(worstErr(synth(1, 0, 0, 3), 1) < 0.01, '正方形卡片重投影誤差 < 0.01px')
+
+  // ★ 非正方形卡片一定要給 aspect（2027 小寒卡是 148×105）
+  // ⚠️ 這個分解假設模型平面是**單位正方形**。不給 aspect 的話誤差約 12px
+  //    （160px 寬的取樣畫面上約 7%）——角色會落在卡片外面，
+  //    而且看起來很像「落點座標沒調好」。
+  const CA = 148 / 105
+  for (const [name, yaw, pitch, d] of [
+    ['正對', 0, 0, 2.4], ['轉 20°', 20 * Math.PI / 180, 0, 2.4],
+    ['俯視 25°', 0, 25 * Math.PI / 180, 2.4],
+    ['兩軸都轉', 18 * Math.PI / 180, 15 * Math.PI / 180, 2.2],
+  ]) {
+    const q = synth(CA, yaw, pitch, d)
+    ok(worstErr(q, CA) < 0.05, `148×105 卡片（${name}）給 aspect 後誤差 < 0.05px`)
+    ok(worstErr(q, 1) > 5, `148×105 卡片（${name}）不給 aspect 誤差 >5px（所以必須給）`)
+  }
+
+  // ★ 水平 fov → 垂直 fov：兩邊都填同一個數字會差 8px
+  const fovY = verticalFov(FOVX, GW / GH)
+  ok(Math.abs(fovY - 46.826) < 0.01, `verticalFov(60, 4/3) = ${fovY.toFixed(3)}（應為 46.826）`)
+  // 像素尺度必須與 pose 假設的 f 一致
+  const pxScale = (GH / 2) / Math.tan((fovY * Math.PI) / 360)
+  ok(Math.abs(pxScale - f) < 1e-6, `換算後的像素尺度 ${pxScale.toFixed(4)} ＝ pose 的 f ${f.toFixed(4)}`)
+  ok(Math.abs(verticalFov(60, 1) - 60) < 1e-9, 'aspect 為 1 時垂直 fov 等於水平 fov')
+
+  // ★ CV → three 的手性轉換：第 2、3 列取負
+  {
+    const m = Array.from({ length: 16 }, (_, i) => i + 1)
+    const out = cvToThree(m)
+    const e = out.elements
+    ok(e[0] === 1 && e[4] === 5 && e[8] === 9 && e[12] === 13, 'cvToThree 保留第 1 列')
+    ok(e[1] === -2 && e[5] === -6 && e[9] === -10 && e[13] === -14, 'cvToThree 第 2 列取負（y 上下顛倒）')
+    ok(e[2] === -3 && e[6] === -7 && e[10] === -11 && e[14] === -15, 'cvToThree 第 3 列取負（z 前後顛倒）')
+    ok(e[3] === 4 && e[7] === 8 && e[11] === 12 && e[15] === 16, 'cvToThree 保留第 4 列（齊次項）')
+    // 深度必須翻正：CV 的 t.z > 0（卡片在前方）→ three 的 z < 0（相機看 −z）
+    const pose = poseFromHomography(homography(UNIT, synth(1, 0, 0, 3)), { width: GW, height: GH, fovDeg: FOVX })
+    ok(pose.position[2] > 0, 'CV 的 pose 深度為正（卡片在相機前方）')
+    ok(cvToThree(pose.matrix).elements[14] < 0, '轉成 three 之後深度為負（相機看 −z）')
+  }
 }
 
 // ── 官方卡包：熱區標註與卡面曆算 ────────────────────────────────────────

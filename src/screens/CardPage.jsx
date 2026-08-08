@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar, SectionHead, Link, Breadcrumb, Disclaimer } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
+import AnimatedText from '../components/AnimatedText.jsx'
 import { useNav } from '../store/nav.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
 import { cachedPoster } from '../lib/arCardRegistry.js'
@@ -119,14 +120,25 @@ export default function CardPage({ slug }) {
         {obj && (
           <div className="cardp-obj" key={obj.id}>
             <SectionHead title={obj.name} />
-            {obj.line && <p className="cardp-line">{obj.line}</p>}
+            {/* 吉祥物對話框：打字機。⚠️ AnimatedText 的 typewriter 自己讀
+                reduce-motion（CSS 的全域 animation 覆寫碰不到 setInterval）。 */}
+            {obj.line && (
+              <p className="ps-say cardp-line">
+                <AnimatedText text={obj.line} fx="typewriter" />
+              </p>
+            )}
 
             {/* 有 3D 模型的物件才給按鈕。⚠️ 不點不下載 three。 */}
             {obj.model && (
               want3d
                 ? (
                   <Suspense fallback={<div className="ui-skeleton" style={{ height: 320 }} />}>
-                    <ProduceStage action="present" height={320} />
+                    {/* 標籤用**已經查證過的** facts 標題（品種／產地／節氣俗語），
+                        ⚠️ 不是營養素——那要等食藥署核對（見 arCards.js 的說明）。 */}
+                    <ProduceStage
+                      action="present" height={320}
+                      labels={(obj.facts ?? []).map(f => ({ key: f.label, label: f.label }))}
+                    />
                   </Suspense>
                 )
                 : (
