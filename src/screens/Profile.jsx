@@ -87,6 +87,8 @@ export default function Profile() {
         <ToolRow iconName="coin" title="錢包 / 收益" sub="訂單 · 授權 · 提領" onClick={() => push('wallet')} />
         <ToolRow iconName="basket" title="商店" sub="手帳 · 方案 · 企業版" onClick={() => push('store')} />
 
+        <BadgeWall />
+
         <SectionHead title="我的作品冊" />
         <div className="termwheel" style={{ borderBottom: 'none', paddingBottom: 4 }}>
           {[['works', '節氣作品'], ['market', '市集上架'], ['books', '我的月曆']].map(([k, l]) => (
@@ -117,5 +119,64 @@ export default function Profile() {
         <div style={{ height: 16 }} />
       </div>
     </>
+  )
+}
+
+/**
+ * 節氣徽章牆（AR 小挑戰的收藏）。
+ *
+ * ⚠️ 一枚都沒有時**不顯示整個區塊**，而不是顯示「還沒有徽章」的空狀態：
+ *    這是一個多數人還沒接觸過的功能，在個人頁擺一塊空的只會讓人覺得
+ *    「我漏了什麼嗎」。有了第一枚才出現，才是獎勵該有的感覺。
+ *
+ * ⚠️ 讀本機那份就好，不必等後端：syncBadges 已經在登入時把兩邊合併進 localStorage，
+ *    這裡再打一次 API 只會讓畫面閃一下。
+ */
+function BadgeWall() {
+  const [ids, setIds] = useState([])
+  useEffect(() => {
+    let alive = true
+    let off = null
+    import('../lib/arBadges.js')
+      .then(m => {
+        if (!alive) return
+        setIds(m.loadBadges())
+        // ⚠️ 要訂閱變動，不能只讀一次：syncBadges 在登入後才把後端那份拉回來，
+        //    只讀一次的症狀是「換裝置登入第一次進 /me 看不到徽章」。
+        const h = (e) => setIds(Array.isArray(e.detail) ? e.detail : m.loadBadges())
+        window.addEventListener(m.BADGES_EVENT, h)
+        off = () => window.removeEventListener(m.BADGES_EVENT, h)
+      })
+      .catch(() => { /* 拿不到就不顯示 */ })
+    return () => { alive = false; off?.() }
+  }, [])
+  if (!ids.length) return null
+  return (
+    <>
+      <SectionHead title={`節氣徽章 · ${ids.length}`} />
+      <div className="badgewall">
+        {ids.map(id => (
+          <BadgeChip key={id} id={id} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function BadgeChip({ id }) {
+  const [meta, setMeta] = useState(null)
+  useEffect(() => {
+    let alive = true
+    import('../lib/arBadges.js')
+      .then(m => { if (alive) setMeta(m.BADGES[id] ?? null) })
+      .catch(() => {})
+  }, [id])
+  // ⚠️ 查不到 meta 時顯示 id 而不是整個藏起來——那代表前端的 BADGES 表漏了一筆，
+  //    藏起來會讓「使用者明明拿過卻看不到」，而那比顯示一個 slug 更難查。
+  return (
+    <span className="badgechip">
+      <b>{meta?.name ?? id}</b>
+      {meta?.term && <i>{meta.term}</i>}
+    </span>
   )
 }

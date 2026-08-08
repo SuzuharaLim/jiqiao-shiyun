@@ -1022,6 +1022,44 @@ app.post('/api/follow', requireAuth, requireCsrf, ah(async (req, res) => {
 }))
 
 // 我的通知（unread＝未讀數，供鈴鐺徽章跨重整一致）
+// ══════════════════════════════════════════════════════════════════
+// 節氣徽章（AR 小挑戰）
+// ⚠️ 訪客也能拿徽章（存瀏覽器 localStorage），所以這裡只處理已登入者，
+//    並提供「合併」語意：前端在登入後把本機那份 POST 上來，重複的自動忽略。
+// ══════════════════════════════════════════════════════════════════
+app.get('/api/badges', requireAuth, ah(async (req, res) => {
+  const rows = await db.all(
+    'SELECT badge_id, earned_at FROM user_badges WHERE user_id=? ORDER BY earned_at DESC', [req.user.id])
+  res.json({ badges: rows.map(r => ({ id: r.badge_id, earnedAt: r.earned_at })) })
+}))
+
+app.post('/api/badges', requireAuth, ah(async (req, res) => {
+  // 接受單一 id 或一個陣列（登入後合併本機紀錄用同一支端點）
+  const raw = Array.isArray(req.body?.ids) ? req.body.ids : [req.body?.id]
+  // ⚠️ 一定要限制數量與格式：這是使用者可控的輸入，不設上限等於讓人塞爆資料表。
+  //    徽章 id 是我們自己定的 slug，用白名單字元擋掉其餘一切。
+  const ids = [...new Set(raw
+    .filter(x => typeof x === 'string')
+    .map(x => x.trim())
+    .filter(x => /^[a-z0-9-]{3,48}$/.test(x)))].slice(0, 60)
+  if (!ids.length) return res.status(400).json({ error: '沒有有效的徽章 id' })
+  const now = new Date().toISOString()
+  let added = 0
+  for (const id of ids) {
+    // ⚠️ 用「先查再插」而不是 ON CONFLICT：pg 與 sqlite 的 upsert 語法不同，
+    //    而 db.js 的可移植性原則是只用兩邊都一樣的 SQL（見 CLAUDE.md）。
+    const has = await db.get('SELECT 1 AS x FROM user_badges WHERE user_id=? AND badge_id=?',
+      [req.user.id, id])
+    if (has) continue
+    await db.run('INSERT INTO user_badges (user_id, badge_id, earned_at) VALUES (?,?,?)',
+      [req.user.id, id, now])
+    added++
+  }
+  const rows = await db.all(
+    'SELECT badge_id, earned_at FROM user_badges WHERE user_id=? ORDER BY earned_at DESC', [req.user.id])
+  res.json({ added, badges: rows.map(r => ({ id: r.badge_id, earnedAt: r.earned_at })) })
+}))
+
 app.get('/api/notifications', requireAuth, ah(async (req, res) => {
   const { before, limit } = pageArgs(req, 30)
   const v = [req.user.id]

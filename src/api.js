@@ -71,6 +71,9 @@ export const api = {
   follow: (b) => req('/follow', { method: 'POST', body: b }),
   followers: (handle) => req('/users/' + encodeURIComponent(handle) + '/followers'),
   following: (handle) => req('/users/' + encodeURIComponent(handle) + '/following'),
+  // 節氣徽章（AR 小挑戰）。POST 接受 { ids } 陣列＝登入後合併本機紀錄。
+  badges: () => req('/badges'),
+  earnBadges: (ids) => req('/badges', { method: 'POST', body: { ids } }),
   notifications: () => req('/notifications'),
   notificationsRead: () => req('/notifications/read', { method: 'POST' }),
   deletePost: (id) => req('/posts/' + encodeURIComponent(id), { method: 'DELETE' }),

@@ -3585,3 +3585,20 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .scan-diag-verdict.ok b { color: var(--teal-ink); }
 .scan-diag-verdict.warn b { color: var(--orange-ink); }
 .scan-diag-verdict.error b { color: var(--on-ji); }
+
+/* ── 節氣徽章牆（/me）───────────────────────────────────────────────── */
+.badgewall {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto;
+}
+.badgechip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; min-height: 24px;
+  border: 1px solid var(--gold); border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+}
+.badgechip b { font-size: var(--text-xs); }
+.badgechip i {
+  font-style: normal; font-size: var(--text-2xs); color: var(--muted);
+  padding-left: 6px; border-left: 1px solid var(--line);
+}

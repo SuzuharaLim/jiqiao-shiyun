@@ -53,6 +53,8 @@
 | POST | `/api/posts/:id/comments` | 🛡️ | 留言 |
 | GET | `/api/works?term=` | 🔓 | 市集作品列表 |
 | POST | `/api/follow` | 🛡️ | 追蹤／取消（by userId 或 handle） |
+| GET | `/api/badges` | 🔒 | 我的節氣徽章（AR 小挑戰） |
+| POST | `/api/badges` | 🔒 | 取得徽章／登入後合併本機那份（`{ids:[…]}`，重複自動忽略） |
 | GET | `/api/notifications` | 🔒 | 我的通知 |
 
 ## 參考／編輯內容

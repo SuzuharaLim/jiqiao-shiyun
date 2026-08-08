@@ -24,7 +24,7 @@ import { earnBadge, hasBadge, BADGES } from '../lib/arBadges.js'
 const ProduceStage = lazy(() => import('../components/ProduceStage.jsx'))
 
 export default function CardPage({ slug }) {
-  const { push } = useNav()
+  const { user } = useNav()
   const card = cardBySlug(slug)
   const [hotId, setHotId] = useState(null)
   const [poster, setPoster] = useState(null)
@@ -160,7 +160,7 @@ export default function CardPage({ slug }) {
               </dl>
             )}
             {obj.warn && <p className="cardp-warn">{obj.warn}</p>}
-            {obj.quiz && <Quiz quiz={obj.quiz} />}
+            {obj.quiz && <Quiz quiz={obj.quiz} loggedIn={!!user && !user.guest} />}
             {obj.link && (
               <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap cardp-more">
                 {obj.link.label} ›
@@ -183,7 +183,7 @@ export default function CardPage({ slug }) {
  * ⚠️ 答錯不扣分、不鎖、不記次數（改版文件 §5.3 第 7 點）——這是教育內容不是考試，
  *    鎖住重試只會讓人關掉頁面。
  */
-function Quiz({ quiz }) {
+function Quiz({ quiz, loggedIn }) {
   const [picked, setPicked] = useState([])
   const [submitted, setSubmitted] = useState(false)
   const [fresh, setFresh] = useState(false)
@@ -200,7 +200,7 @@ function Quiz({ quiz }) {
   const submit = () => {
     setSubmitted(true)
     const ok = [...picked].sort().join(',') === correctKeys
-    if (ok && quiz.badge) setFresh(earnBadge(quiz.badge))
+    if (ok && quiz.badge) setFresh(earnBadge(quiz.badge, { loggedIn }))
   }
 
   const owned = quiz.badge ? hasBadge(quiz.badge) : false

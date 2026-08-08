@@ -282,3 +282,20 @@ CREATE TABLE IF NOT EXISTS payouts (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_payouts_user ON payouts(user_id, created_at);
+
+-- ══════════════════════════════════════════════════════════════════
+-- 節氣徽章（AR 小挑戰答對取得）
+-- ⚠️ 訪客也能拿徽章（存在瀏覽器的 localStorage），登入後才會合併上來。
+--    所以這張表只存「已登入者」的，PRIMARY KEY 用 (user_id, badge_id)
+--    讓合併時的重複插入天然無害（ON CONFLICT DO NOTHING）。
+-- ⚠️ 不建 badge 的主檔表：徽章的名稱與圖示屬於前端內容（src/lib/arBadges.js
+--    的 BADGES），與「有沒有拿到」是兩件事。做成表只會多一份要同步的資料。
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS user_badges (
+  user_id    TEXT NOT NULL,
+  badge_id   TEXT NOT NULL,
+  earned_at  TEXT NOT NULL,
+  PRIMARY KEY (user_id, badge_id),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, earned_at);

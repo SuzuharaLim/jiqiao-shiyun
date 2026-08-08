@@ -194,6 +194,20 @@ export function NavProvider({ children }) {
   }, [])
   // 由 Auth 畫面登入/註冊成功後呼叫（傳入後端回的 user 與 csrfToken）
   const login = (apiUser, csrfToken) => { setCsrf(csrfToken); setUser(toAppUser(apiUser)) }
+
+  // ⚠️ AR 徽章的合併要掛在「使用者變成真帳號」這件事上，不能只掛在 login()：
+  //    重新整理是走 session 還原（第 186 行那條），不會經過 login()，
+  //    所以換裝置登入後第一次重整就會看不到之前拿的徽章。
+  //    合併是雙向的（本機推上去 ＋ 後端拉下來），且每個帳號只做一次。
+  useEffect(() => {
+    if (!user || user.guest || !user.id) return
+    let alive = true
+    // 動態載入：徽章模組只有 AR 動線用得到，不必進主 bundle 的關鍵路徑
+    import('../lib/arBadges.js')
+      .then(m => { if (alive) return m.syncBadges(user.id) })
+      .catch(() => { /* 離線或 401：本機那份仍在，下次再合併 */ })
+    return () => { alive = false }
+  }, [user?.id, user?.guest])
   // ⚠️ 訪客身分要寫進 localStorage。原本純記憶體的作法有三個沒人預期得到的死路：
   //    按 F5 回登入牆、把網址貼給朋友對方看到登入牆、從書籤打開也是登入牆。
   //    使用者只會覺得「這站一直把我踢出去」，而不會知道自己是訪客。
