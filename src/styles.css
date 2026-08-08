@@ -3566,3 +3566,22 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   transition: opacity var(--m-base) var(--e-out);
 }
 .ar-char canvas { transition: opacity var(--m-base) var(--e-out); }
+
+/* ── 掃描診斷（拿實體卡除錯用）────────────────────────────────────────── */
+.scan-diag { padding: 0 var(--space-4) var(--space-3); flex: 0 0 auto; }
+.scan-diag-box {
+  margin-top: var(--space-2); padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  font-size: var(--text-2xs);
+}
+.scan-diag-kv > div { display: flex; gap: var(--space-2); margin-bottom: 4px; }
+.scan-diag-kv dt { flex: 0 0 6.5em; color: var(--muted); font-weight: 600; }
+.scan-diag-kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.scan-diag-kv dd i { font-family: inherit; font-style: normal; }
+.scan-diag-verdict {
+  margin: var(--space-2) 0 0; padding-top: var(--space-2);
+  border-top: 1px solid var(--line); line-height: 1.7;
+}
+.scan-diag-verdict.ok b { color: var(--teal-ink); }
+.scan-diag-verdict.warn b { color: var(--orange-ink); }
+.scan-diag-verdict.error b { color: var(--on-ji); }

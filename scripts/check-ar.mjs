@@ -17,6 +17,7 @@ import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/li
 import { cvToThree, verticalFov } from '../src/lib/arPoseBridge.js'
 import { decodePng, encodePng, addSpec, QUIET, FRAME } from './frame-card.mjs'
 import { pickMainCameraId } from '../src/lib/arCamera.js'
+import { explain, measureEdgeBow, K1_LIMIT } from '../src/lib/arDiagnose.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
@@ -541,7 +542,40 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(laba.month === 12 && laba.day === 8, '卡面臘八節 2027-01-15 ＝ 農曆十二月初八')
 }
 
-// ── ★ 避開超廣角鏡頭 ────────────────────────────────────────────────────
+// ── ★ 現場診斷：每一條判讀都要給「下一步」────────────────────────────
+// 診斷的價值在於它**取代猜測**。只說「失敗」等於沒有診斷——拿實體卡掃不到的人
+// 會開始亂試（光線？角度？卡片印壞了？鏡頭？），而這幾個原因的處理方式完全不同。
+{
+  const cases = [
+    ['看不到四邊形', { quadFound: false }],
+    ['卡片太小', { quadFound: true, areaRatio: 0.03 }],
+    ['分數不足', { quadFound: true, areaRatio: 0.3, bestScore: 41, minScore: 58, cameraLabel: 'Back Ultra Wide Camera' }],
+  ]
+  for (const [name, input] of cases) {
+    const v = explain(input)
+    ok(v.level !== 'ok' && !!v.what, `診斷「${name}」有結論`)
+    ok(!!v.next && v.next.length > 6, `診斷「${name}」有具體的下一步`)
+  }
+  const good = explain({ quadFound: true, areaRatio: 0.3, bestScore: 72, minScore: 58 })
+  ok(good.level === 'ok', '一切正常時回 ok')
+
+  // ⚠️ 診斷**不可**替使用者斷定「鏡頭有問題」——現場量不出可信的畸變值。
+  //    我試過從邊緣弓起量反推 k1：真值 0 被估成 −0.041（誤報「超標」），
+  //    而真值 −0.02／−0.04／−0.06／−0.20 全都判不出來。
+  //    一個會說謊的診斷比沒有診斷更糟，所以那個反推已經移除。
+  const src = await import('node:fs').then(fs =>
+    fs.readFileSync(new URL('../src/lib/arDiagnose.js', import.meta.url), 'utf8'))
+  ok(!/k1\s*:/.test(src), '★ arDiagnose 不可回傳 k1 估計值（實測會誤報）')
+  ok(K1_LIMIT === -0.04, 'K1_LIMIT 是規格線（-0.04），供文件與相機挑選參考')
+  const bowSrc = /export function measureEdgeBow/.test(src)
+  ok(bowSrc, '保留 measureEdgeBow（弓起量是可觀測的事實，只是不下判斷）')
+
+  // measureEdgeBow 的防呆：輸入不合法不可爆
+  ok(measureEdgeBow(new Uint8Array(100), 10, 10, null) === null, '沒有四邊形時回 null')
+  ok(measureEdgeBow(new Uint8Array(100), 10, 10, [[0, 0], [1, 0], [1, 1]]) === null, '四角數量不對時回 null')
+}
+
+// ── ★ 避開超廣角鏡頭 ─// ── ★ 避開超廣角鏡頭 ────────────────────────────────────────────────────
 // ⚠️ 桶狀畸變對這個追蹤器的容忍上限只有 k1 ≈ −0.04（實測：−0.04→62%、
 //    −0.05→33%、−0.07 以上→**0%**）。超廣角的 k1 常在 −0.25~−0.4。
 //    ⚠️ −0.07 之後的失效模式是「**四邊形照樣找得到**，但拉正後被畸變扭曲、

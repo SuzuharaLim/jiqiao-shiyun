@@ -11,6 +11,7 @@ import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
 import { openBackCamera } from '../lib/arCamera.js'
+import { measureEdgeBow, explain } from '../lib/arDiagnose.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
 
@@ -36,6 +37,21 @@ const MAX_REFS = 20         // 登錄上限（localStorage 空間考量；一張
 //    「偵測到卡片後透視拉正的 48×48」。兩者的 dHash 不在同一個座標系，
 //    直接沿用會讓所有舊卡片永遠對不上（而且是靜默的——使用者只會覺得
 //    「以前可以現在不行」）。換 key 等於請使用者重新登錄一次，誠實且乾淨。
+// ⚠️ 模擬模式的旗標要在**模組載入時**就抓，不可在 effect 裡讀 location.search：
+//    nav.jsx 的網址同步層只組路徑（pathFromState 不帶 query），所以 `?simulate=1`
+//    在 React 掛載後就被洗掉了——effect 永遠讀不到。
+//    抓到之後記進 sessionStorage，重新整理也還在（除錯時會一直重整）。
+const SIM_FLAG = (() => {
+  if (!import.meta.env.DEV) return false
+  try {
+    if (new URLSearchParams(location.search).has('simulate')) {
+      sessionStorage.setItem('jq-ar-sim', '1')
+      return true
+    }
+    return sessionStorage.getItem('jq-ar-sim') === '1'
+  } catch { return false }
+})()
+
 const LS_KEY = 'jq-ar-cards-v3'   // v3：RECT 48 → 64，舊簽名不在同一個座標系
 
 // ---- 已登錄卡片的持久化（簽名 + 縮圖，全存本機；影像不上傳） ----
@@ -102,6 +118,12 @@ export default function Scan() {
   const [officialErr, setOfficialErr] = useState(null)
   // 命中的卡面熱區（瞄準或點擊卡上的物件）
   const [hotspot, setHotspot] = useState(null)
+  // 現場診斷：拿實體卡掃不到時，讓畫面自己說出「觀測到什麼」而不是只說失敗。
+  // ⚠️ 只放**量得準**的觀測值。曾試過反推鏡頭 k1，實測會誤報（見 arDiagnose 檔頭）。
+  const [diag, setDiag] = useState(null)
+  const [showDiag, setShowDiag] = useState(false)
+  const diagRef = useRef(0)
+  const showDiagRef = useRef(false); showDiagRef.current = showDiag
   const latchRef = useRef(null)
   if (!latchRef.current) latchRef.current = makeHotspotLatch()
 
@@ -142,8 +164,7 @@ export default function Scan() {
 
   // ---- 模擬掃描（僅開發模式）----
   useEffect(() => {
-    if (!import.meta.env.DEV) return
-    if (!new URLSearchParams(location.search).has('simulate')) return
+    if (!SIM_FLAG) return
     const ref = official[0]
     const src = ref?.poster || ref?.card?.target
     if (!src) return
@@ -273,6 +294,28 @@ export default function Scan() {
       if (!refsRef.current.length) {
         setSeeCard(!!detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h))
       } else setSeeCard(!!res)
+
+      // ── 現場診斷（節流到約每 0.7 秒一次）──
+      // ⚠️ 不可每幀跑：measureEdgeBow 會重跑一次前景遮罩，那是整條鏈第二貴的一步。
+      if (showDiagRef.current && now - diagRef.current > 700) {
+        diagRef.current = now
+        const gray = toGray(frame.data, frame.w, frame.h)
+        const dq = detectQuad(gray, frame.w, frame.h)
+        const bow = dq ? measureEdgeBow(gray, frame.w, frame.h, dq.corners) : null
+        const track0 = streamRef.current?.getVideoTracks?.()[0]
+        const st = track0?.getSettings?.() ?? {}
+        setDiag({
+          camera: track0?.label || '(未知)',
+          res: st.width && st.height ? `${st.width}×${st.height}` : '(未知)',
+          quadFound: !!dq,
+          areaRatio: res?.areaRatio ?? dq?.areaRatio ?? null,
+          score: res?.score ?? null,
+          minScore: MIN_SCORE,
+          bowPx: bow?.maxPx ?? null,
+          bowRatio: bow?.maxRatio ?? null,
+          refs: officialRef.current.length + refsRef.current.length,
+        })
+      }
 
       // ── 卡面熱區：瞄準卡上的物件就跳內容 ──
       // ⚠️ 一定要走 latch（進入 3 幀／離開 8 幀）。追蹤每秒 15 次、四角偵測有
@@ -494,6 +537,54 @@ export default function Scan() {
             </div>
           )
         })()}
+
+        {/* ── 現場診斷 ──
+            拿實體卡掃不到時，這一區把「觀測到什麼」列出來取代猜測。
+            ⚠️ 每一行都是可觀測的事實；判讀那一段刻意不替使用者斷定原因
+               （現場量不出可信的鏡頭畸變值——見 arDiagnose.js 檔頭）。 */}
+        <div className="scan-diag">
+          <button className="btn-ghost tap" onClick={() => setShowDiag(v => !v)}
+            aria-expanded={showDiag}>
+            {showDiag ? '關閉' : '打開'}掃描診斷
+          </button>
+          {showDiag && (
+            <div className="scan-diag-box">
+              {!diag && <p className="muted">正在取樣…（約每 0.7 秒更新一次）</p>}
+              {diag && (() => {
+                const v = explain({
+                  quadFound: diag.quadFound, bestScore: diag.score, minScore: diag.minScore,
+                  cameraLabel: diag.camera, areaRatio: diag.areaRatio,
+                })
+                return (
+                  <>
+                    <dl className="scan-diag-kv">
+                      <div><dt>鏡頭</dt><dd>{diag.camera}</dd></div>
+                      <div><dt>解析度</dt><dd>{diag.res}</dd></div>
+                      <div><dt>已登錄目標</dt><dd>{diag.refs} 個</dd></div>
+                      <div><dt>找到四邊形</dt><dd>{diag.quadFound ? '是' : '否'}</dd></div>
+                      <div><dt>卡片佔畫面</dt>
+                        <dd>{diag.areaRatio != null ? (diag.areaRatio * 100).toFixed(1) + '%' : '—'}</dd></div>
+                      <div><dt>比對分數</dt>
+                        <dd>{diag.score != null ? `${diag.score} / 門檻 ${diag.minScore}` : '未達門檻'}</dd></div>
+                      <div><dt>邊緣弓起</dt>
+                        <dd>
+                          {diag.bowPx != null
+                            ? `${diag.bowPx}px（佔邊長 ${(diag.bowRatio * 100).toFixed(1)}%）`
+                            : '—'}
+                          <i className="muted">　參考值，不代表鏡頭有問題</i>
+                        </dd></div>
+                    </dl>
+                    <p className={`scan-diag-verdict ${v.level}`}>
+                      <b>{v.what}</b>
+                      {v.why && <><br />{v.why}</>}
+                      {v.next && <><br /><b>試試：</b>{v.next}</>}
+                    </p>
+                  </>
+                )
+              })()}
+            </div>
+          )}
+        </div>
 
         {/* ── 官方卡片：進頁就能掃，不必自己登錄 ── */}
         <div className="scan-official">
