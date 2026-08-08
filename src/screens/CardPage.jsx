@@ -160,7 +160,12 @@ export default function CardPage({ slug }) {
               </dl>
             )}
             {obj.warn && <p className="cardp-warn">{obj.warn}</p>}
-            {obj.quiz && <Quiz quiz={obj.quiz} loggedIn={!!user && !user.guest} />}
+            {obj.quiz && (
+              <Quiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
+                term={card.term}
+                // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
+                fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} />
+            )}
             {obj.link && (
               <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap cardp-more">
                 {obj.link.label} ›
@@ -183,7 +188,7 @@ export default function CardPage({ slug }) {
  * ⚠️ 答錯不扣分、不鎖、不記次數（改版文件 §5.3 第 7 點）——這是教育內容不是考試，
  *    鎖住重試只會讓人關掉頁面。
  */
-function Quiz({ quiz, loggedIn }) {
+function Quiz({ quiz, loggedIn, term, fact }) {
   const [picked, setPicked] = useState([])
   const [submitted, setSubmitted] = useState(false)
   const [fresh, setFresh] = useState(false)
@@ -239,6 +244,13 @@ function Quiz({ quiz, loggedIn }) {
               </p>
             )}
             {quiz.note && <p className="muted">{quiz.note}</p>}
+            {/* 分享圖卡：純 canvas 產生，零外部素材。
+                ⚠️ 放在徽章與解說**之後**——先講結果再給動作，順序反過來的話
+                   讀起來會變成「答對了！存成圖片獲得節氣徽章」。
+                ⚠️ 圖要先畫好再呼叫 saveOrShare：Web Share 必須在使用者手勢
+                   附近呼叫，在那裡才 await 繪製會被瀏覽器擋掉。 */}
+            <ShareButton badgeName={BADGES[quiz.badge]?.name ?? quiz.badge}
+              term={term} fact={fact?.value} source={fact?.source} />
           </div>
         )}
         {submitted && !allRight && (
@@ -253,5 +265,45 @@ function Quiz({ quiz, loggedIn }) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * 「存成圖片／分享」按鈕。
+ *
+ * ⚠️ 三段式回饋：產生中 → 結果。使用者按取消（Web Share 的 AbortError）
+ *    **不可**顯示失敗——那是正常操作。
+ * ⚠️ shareCard.js 走 lazy import：canvas 繪製那一段只有答對的人會用到。
+ */
+function ShareButton({ badgeName, term, fact, source }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const go = async () => {
+    setBusy(true); setMsg(null)
+    try {
+      const m = await import('../lib/shareCard.js')
+      const blob = await m.renderShareCard({
+        badgeName, term, fact, source,
+        dateText: new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }),
+      })
+      const r = await m.saveOrShare(blob, `機巧時運-${badgeName}.png`)
+      setMsg({
+        shared: '已開啟分享選單',
+        downloaded: '已存成圖片',
+        opened: '已在新分頁開啟——長按圖片即可儲存',
+        cancelled: null,
+        failed: '這台裝置無法產生圖片，換個瀏覽器再試',
+      }[r] ?? null)
+    } catch {
+      setMsg('圖片產生失敗，請稍後再試')
+    } finally { setBusy(false) }
+  }
+  return (
+    <>
+      <button className="btn-ghost tap cardp-share" onClick={go} disabled={busy}>
+        {busy ? '產生中…' : '存成圖片／分享'}
+      </button>
+      {msg && <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>{msg}</p>}
+    </>
   )
 }
