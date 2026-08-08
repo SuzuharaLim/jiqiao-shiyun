@@ -3506,7 +3506,12 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   .cardp-opt:hover { border-color: var(--primary); }
 }
 .cardp-win, .cardp-again { margin-top: var(--space-3); font-size: var(--text-xs); line-height: 1.7; }
-.cardp-win b { font-size: var(--text-lg); color: var(--primary); }
+/* ⚠️ 文字色一律用 --cinnabar 不可用 --primary。
+   --primary 是「實心底＋白字」那組（深色模式 #1B5088），拿來當**文字**時
+   在深底上只有 **2.15**——tokens.css 的註解逐字寫著「深藍在深底上看不見（對比 2.15）」。
+   --cinnabar 在深色會提亮成 #6E9CD2（深底文字 6.20 ✓），這才是文字用的那一個。
+   這是 CLAUDE.md 記過的坑，「答對了！」這行又踩了一次。 */
+.cardp-win b { font-size: var(--text-lg); color: var(--cinnabar); }
 .cardp-win p, .cardp-again p { margin: 6px 0 0; }
 
 /* 桌機：卡面與內容並排（卡面是橫式的，單欄會很浪費） */
