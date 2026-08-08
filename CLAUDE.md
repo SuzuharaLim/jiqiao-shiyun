@@ -71,7 +71,9 @@ chengqi-main/
 │  │  └─ almanac.js        任意日期生國民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
 │  │                        ★todayOffset() 讓 App 開在真實今日；dayFor 回傳完整傳統項目（三柱干支動態年份/建除/星宿/彭祖/胎神/沖煞歲數/財喜貴方位/十二時辰/特殊日）；另 export yearOverview
 │  ├─ lib/
-│  │  └─ scanner.js        ★自研影像辨識（dHash＋直方圖＋清晰度，純陣列運算零相依，可直接 Node 測試）
+│  │  ├─ scanner.js        ★自研影像辨識（dHash＋直方圖＋清晰度，純陣列運算零相依，可直接 Node 測試）
+│  │  ├─ speak.js          ★語音導覽（Web Speech API 零相依）：切短句避開 Chrome 15 秒看門狗、挑中文語音、離開必 cancel
+│  │  └─ shareCard.js      ★成果圖卡（純 canvas 1080×1080 零素材）＋ Web Share／下載三段 fallback
 │  ├─ components/
 │  │  ├─ ui.jsx            共用：TopBar / TabBar / ToolRow / Switch / SectionHead / Disclaimer / Toast
 │  │  ├─ Icon.jsx          內嵌 SVG 線條圖示系統（P 物件查表）
@@ -332,7 +334,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **熱區命中一定要走 `makeHotspotLatch`（進入 3 幀／離開 8 幀）**：追蹤每秒 15 次、四角偵測有 1px 抖動，熱區邊界附近會在命中／沒命中之間高頻跳動，而開關內容面板是最貴的操作。**進出門檻必須不同**（hysteresis），同門檻時站在邊界上會等頻率一直開一直關。
   - **卡面內容刻意不放營養素與健康宣稱**：那受《食品安全衛生管理法》規範，未經食藥署核對不可上。`check-ar.mjs` 把「待審」變成閘門（`ok(!obj.nutrients)` ＋ 療效用語黑名單）。不碰營養宣稱也有足夠內容——品種／產地來自農業部開放資料、俗語與養生來自 `termGuide.js`、宜忌來自 `almanac.js`，全都可標來源。
   - **查某日屬於哪個節氣要用 `termFromDate`，不可用 `termLocalDay` 的序號反推公曆年**：小寒在「立春起算」的序號裡屬於**下一個**公曆年，`termLocalDay(2027, 22)` 會得到 2028-01-06。2027 小寒實際是 **01-05**（改版文件寫 01-06 是錯的）。
-- **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片／菜根）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（54 項）掛在 `npm run build` 上。**移植自 demo `_6`：5 層 54 片葉子、102 顆 mesh、24 份幾何。**
+- **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片／菜根）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（57 項）掛在 `npm run build` 上。**移植自 demo `_6`：5 層 54 片葉子、102 顆 mesh、24 份幾何。**
   - **★ 皺褶的方位角頻率必須是葉片數的整數倍**（`kAz = n`、`kRib = 2n`，factory 自動推導）：這樣 `sin(k(θ − i·2π/n)) = sin(kθ)`，同一層每片葉子落在**同一個曲面**上，只差 `rAdd` 一階，永遠不會互相穿插。頻率隨便取就會葉片穿模。
   - **★ 葉片半徑要用「世界高度 pu」取樣，不是這片葉子自己的 u**：同層有 3 種高度變體，用自己的 u 會讓矮葉在同一個世界高度鼓到高葉前面，**把臉遮掉**。
   - **葉尖用 |t|³ 不是 t²**：t² 會拉出尖峰，一圈葉尖讀起來像鬱金香花瓣。
@@ -348,11 +350,18 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀十幾個欄位而 preset 的 layers 不會全給——原本靠 `registerGeometry` 的 schema 補。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。
   - **接觸陰影掛 `root` 不掛 `body`**：原 demo 放場景層級並用 `getElementById('blob')` 抓（註解寫「掛在角色底下會跟著跳起來」——觀察對，但角色就無法多實例）。正解是分兩層：root 不動、body 才受動作驅動，陰影掛 root。**別照字面把它改成 body 的子節點**，那會讓陰影跟著跳躍飛起來。
   - **`gradientMap` 必須 `NearestFilter`**：它是查表資料不是顏色，用 LinearFilter 會把階梯內插掉＝完全沒有賽璐璐效果，而且不會有任何錯誤訊息。
-  - **幾何要共用**：葉片每層只有 3 種高度變體（29 片 → 15 份）、四肢左右同形（8 → 4 份）。退回去畫面完全看不出差別，只有記憶體與載入變差——所以 check-char 鎖死「幾何份數 22」。
+  - **幾何要共用**：葉片每層只有 3 種高度變體（54 片 → 15 份）、四肢左右同形（8 → 4 份）。退回去畫面完全看不出差別，只有記憶體與載入變差——所以 check-char 鎖死「幾何份數 **24**」（葉 15 ＋ 臉葉 1 ＋ 芯 1 ＋ 四肢 4 ＋ 根 1 ＋ 臉貼片 1 ＋ 陰影 1）。
   - **描邊不可每幀 `apply()`**：原本 `tick(){this.apply()}` 是 63 顆 mesh × 60fps ＝ 每秒 3,780 次無謂查詢。幾何建好就不會換，建立時做一次即可。
   - **React unmount 必須 `dispose()` 並 `forceContextLoss()`**：行動裝置能同時存在的 WebGL context 常見上限 8–16，反覆進出抽屜會拿不到新 context，症狀是「第 N 次點開變成空白」而前面幾次都正常。**ramp 快取是跨角色共用的，不可被單一角色的 dispose 清掉**。
   - **JS 驅動的動畫要自己讀 reduce-motion**（同 AnimatedText 那個坑）。作法是把幅度縮到 ~12% 而**不是整個停掉**——角色僵住不動看起來像壞掉，微微呼吸才像「靜止」。
   - **動作是 base ＋ additive 兩層**：原本的 `switch` 互斥，寫不出「揮手同時講話」。`setOverlay('talk')` 走 additive 通道相加，既有 12 個動作一行都不用改。
+- **語音導覽在 `src/lib/speak.js`（Web Speech API，零相依）**：`/ar/card/:slug` 的「聽這一段」。**絕不自動朗讀**——這頁可能在公共場合被打開，而且沒有使用者手勢的發聲本來就會被 iOS/Chrome 擋掉（拿到一個靜默失敗的 utterance，看起來像功能壞了）。**語音是輔助不是替代**：不支援的瀏覽器**整顆按鈕不渲染**，一顆按了沒反應的按鈕比沒有更糟。
+  - **`getVoices()` 第一次常常回空陣列**（清單非同步載入，Chrome 尤其明顯）。只呼叫一次就放棄的症狀是「第一次點沒聲音或英文腔，第二次才正常」，而使用者不會再點第二次。要等 `voiceschanged`，**並且加逾時**——有些 WebView 永遠不發這個事件，死等會讓按鈕卡在準備中。
+  - **Chrome 桌機唸超過約 15 秒會被看門狗靜音砍掉，且不觸發 error**。常見繞法是定時 `pause()/resume()`，但那會在句中造成可聽見的頓挫。改成**切成短句依序排隊**：每段遠短於 15 秒，而且在句子邊界斷句本來就好聽。中文沒有空白可切要靠標點，**切出的空字串要濾掉**（`onend` 立刻觸發，聽起來像跳過一句）。
+  - **`speechSynthesis` 是全域單例、跨頁面存活**：不在卸載時 `cancel()` 的話，使用者按上一頁離開，聲音**還會繼續唸完**，而畫面上已經沒有東西能停它。三個清理缺一不可：**卸載、切換熱區、分頁切到背景**。
+  - **`lang` 一定要設**：不設的話英文系統會用英文語音唸中文，出來是一串亂音節。另外 `u.voice` 只接受原生 `SpeechSynthesisVoice`，塞別的會丟 TypeError → 要包 try（失敗就靠 `lang` 挑，不是致命的）。
+  - **狀態不可依賴合成引擎不出錯**：`run()` 裡只要拋一次，狀態就永遠停在 `speaking`——按鈕寫著「停止朗讀」卻一個字都沒唸，使用者無從得知已經壞了。整體 catch 後退回 idle。**同「動畫只負責怎麼出現、不可負責是否存在」那條原則：失效要退回可用狀態，不是卡在中間態。**
+  - 唸的稿子（`scriptForObject`）與畫面上的字**刻意不完全一樣**：括號裡的出處逐條唸很吵，改成結尾說一次；對照表要補「，」才聽得懂分界。但**內容不增減**，不可為了順口加上畫面沒有的說法。
 - **新增 effect 要放在它相依的 state 宣告之後**：`useEffect(..., [status])` 寫在 `const [status] = useState()` 之前會踩到 TDZ，**整個畫面被 ErrorBoundary 接走**（只看到「畫面暫時出了點狀況」），而 `npm run build` 完全不報錯。
 - **「今天」一律取台北的日曆日（`almanac.js` 的 `taipeiToday()`）**，不可用 `new Date()` 直接算。**Cloud Run 的預設時區是 UTC**，比台北慢 8 小時——每天台灣時間 00:00–08:00 這八個小時，伺服器注入的首屏靜態層、sitemap 的 lastmod、RSS、逐頁 og:image 取的節氣、AI 的曆訊 context **全部會是前一天的**。瀏覽器端同理，人在美洲／歐洲會看到前一天。**不可用 `new Date(Date.now() + 8*3600e3)` 手動加時差**（在本身就是 UTC+8 的環境會多加八小時），要交給 `Intl` 判斷。Dockerfile 另設 `TZ=Asia/Taipei` 只是為了 log 可讀。
 - **網址參數的日期一定要用 `parseDateParam()` 驗證**，不可只比對 `^\d{4}-\d{2}-\d{2}$` 就丟給 `new Date(y, m-1, d)`：JS 會**自動進位**（`2026-02-30`→3/2、`2026-99-99`→2034/6/7），兩位數年份會被當成 19xx（`0050`→1950），而 `9999-12-31` 會照樣算出一整頁煞有介事的宜忌神煞。可查詢範圍的唯一真相是 `BROWSE_RANGE_DAYS`（UI 箭頭停用、網址驗證、AI context 共用）——同一個限制分散在兩處就一定會不一致。無效參數要退回今天**並正規化網址**；指到今天要正規化成 `/`（否則 `/` 與 `/?date=<今天>` 同內容兩個網址）。
