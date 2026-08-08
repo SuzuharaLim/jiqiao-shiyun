@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { loadBadges, BADGES, BADGES_EVENT } from '../lib/arBadges.js'
 
 export default function Profile() {
   const { push, subscribed, user, logout, orders } = useNav()
@@ -133,22 +134,15 @@ export default function Profile() {
  *    這裡再打一次 API 只會讓畫面閃一下。
  */
 function BadgeWall() {
-  const [ids, setIds] = useState([])
+  // 初值就讀本機那份：徽章存 localStorage，同步可得，沒有「載入中」這個狀態
+  const [ids, setIds] = useState(loadBadges)
   useEffect(() => {
-    let alive = true
-    let off = null
-    import('../lib/arBadges.js')
-      .then(m => {
-        if (!alive) return
-        setIds(m.loadBadges())
-        // ⚠️ 要訂閱變動，不能只讀一次：syncBadges 在登入後才把後端那份拉回來，
-        //    只讀一次的症狀是「換裝置登入第一次進 /me 看不到徽章」。
-        const h = (e) => setIds(Array.isArray(e.detail) ? e.detail : m.loadBadges())
-        window.addEventListener(m.BADGES_EVENT, h)
-        off = () => window.removeEventListener(m.BADGES_EVENT, h)
-      })
-      .catch(() => { /* 拿不到就不顯示 */ })
-    return () => { alive = false; off?.() }
+    // ⚠️ 要訂閱變動，不能只讀一次：syncBadges 在登入後才把後端那份拉回來，
+    //    只讀一次的症狀是「換裝置登入第一次進 /me 看不到徽章」，
+    //    而那正好是「徽章上後端」要解決的情境。
+    const h = (e) => setIds(Array.isArray(e.detail) ? e.detail : loadBadges())
+    window.addEventListener(BADGES_EVENT, h)
+    return () => window.removeEventListener(BADGES_EVENT, h)
   }, [])
   if (!ids.length) return null
   return (
@@ -164,13 +158,10 @@ function BadgeWall() {
 }
 
 function BadgeChip({ id }) {
-  const [meta, setMeta] = useState(null)
-  useEffect(() => {
-    let alive = true
-    import('../lib/arBadges.js')
-      .then(m => { if (alive) setMeta(m.BADGES[id] ?? null) })
-      .catch(() => {})
-  }, [id])
+  // 同步查表，沒有狀態也沒有 effect。原本是動態 import ＋ useState，
+  // 於是第一幀顯示 id、載入後才換成名稱——那是**看得見的閃動**，
+  // 而且 BADGES 只是一個常數物件，本來就不需要非同步。
+  const meta = BADGES[id] ?? null
   // ⚠️ 查不到 meta 時顯示 id 而不是整個藏起來——那代表前端的 BADGES 表漏了一筆，
   //    藏起來會讓「使用者明明拿過卻看不到」，而那比顯示一個 slug 更難查。
   return (

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { dayFor, todayOffset, parseDateParam } from '../data/almanac.js'
 import { api, setCsrf } from '../api.js'
+import { syncBadges } from '../lib/arBadges.js'
 
 // ─────────────────────────────────────────────────────────────
 // 網址路由：每個畫面對應一個路徑，與 History API 同步（無 react-router）。
@@ -201,12 +202,11 @@ export function NavProvider({ children }) {
   //    合併是雙向的（本機推上去 ＋ 後端拉下來），且每個帳號只做一次。
   useEffect(() => {
     if (!user || user.guest || !user.id) return
-    let alive = true
-    // 動態載入：徽章模組只有 AR 動線用得到，不必進主 bundle 的關鍵路徑
-    import('../lib/arBadges.js')
-      .then(m => { if (alive) return m.syncBadges(user.id) })
-      .catch(() => { /* 離線或 401：本機那份仍在，下次再合併 */ })
-    return () => { alive = false }
+    // ⚠️ 這裡刻意用**靜態** import（見檔頭的 import 區）。原本是動態載入，理由寫著
+    //    「徽章模組不必進主 bundle 的關鍵路徑」——但 CardPage 本來就靜態 import 它，
+    //    rollup 因此無法把它移出主 chunk（build 會警告），動態載入完全沒有分塊效果，
+    //    只換來非同步狀態與競態。而它壓縮後不到 1 KB，本來也不值得分塊。
+    syncBadges(user.id).catch(() => { /* 離線或 401：本機那份仍在，下次再合併 */ })
   }, [user?.id, user?.guest])
   // ⚠️ 訪客身分要寫進 localStorage。原本純記憶體的作法有三個沒人預期得到的死路：
   //    按 F5 回登入牆、把網址貼給朋友對方看到登入牆、從書籤打開也是登入牆。
