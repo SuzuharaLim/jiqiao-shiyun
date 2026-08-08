@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node --watch server/index.js",
-    "build": "node scripts/check-almanac.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && vite build",
+    "build": "node scripts/check-almanac.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js",
@@ -18,6 +18,7 @@
     "push:keys": "node server/push-keys.js",
     "check:almanac": "node scripts/check-almanac.mjs",
     "check:char": "node scripts/check-char.mjs",
+    "check:speak": "node scripts/check-speak.mjs",
     "card:frame": "node scripts/frame-card.mjs"
   },
   "dependencies": {
