@@ -9,6 +9,7 @@ import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
 import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
+import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
 
@@ -66,6 +67,9 @@ export default function Scan() {
   const fileRef = useRef(null)
   const officialFileRef = useRef(null)
   const pendingCardRef = useRef(null)   // 正在等使用者選圖的那張官方卡 id
+  // ⚠️ 模擬掃描只在開發模式生效（`/AR?simulate=1`）。正式站絕不可讓使用者
+  //    在沒有卡片的情況下看到「掃到了」——那是最糟的假象。
+  const simRef = useRef(null)   // { bitmap, canvas, ctx, t0, truthQuad }
   // 取樣畫面的實際尺寸（隨顯示框比例而定）——疊加層要用它換算到螢幕座標。
   // ⚠️ 初值不可隨便填。它只有在 grabFrame 真的跑過一次之後才會更新，而在那之前
   //    疊加層的縮放就是錯的（實測初值填 160×160、實際應為 100×160 時，
@@ -126,10 +130,39 @@ export default function Scan() {
     return () => { cancelled = true }
   }, [])
 
+  // ---- 模擬掃描（僅開發模式）----
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    if (!new URLSearchParams(location.search).has('simulate')) return
+    const ref = official[0]
+    const src = ref?.poster || ref?.card?.target
+    if (!src) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const bmp = typeof createImageBitmap === 'function'
+          ? await createImageBitmap(await (await fetch(src)).blob())
+          : null
+        if (cancelled || !bmp) return
+        const canvas = document.createElement('canvas')
+        simRef.current = {
+          bitmap: bmp, canvas, ctx: canvas.getContext('2d', { willReadFrequently: true }),
+          t0: performance.now(), aspect: ref.aspect || 1, truthQuad: null,
+        }
+        // 讓外部（瀏覽器測試）拿得到真值四角
+        window.__arSim = simRef.current
+        setStatus('ready')
+        setToast('模擬掃描已啟動（僅開發模式）')
+      } catch { /* 拿不到圖就不啟動，走正常相機流程 */ }
+    })()
+    return () => { cancelled = true; simRef.current = null; delete window.__arSim }
+  }, [official])
+
   // ---- 開關相機 ----
   useEffect(() => {
     let cancelled = false
     async function start() {
+      if (simRef.current) return          // 模擬模式不開相機
       if (!navigator.mediaDevices?.getUserMedia) { setStatus('unsupported'); return }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -164,6 +197,20 @@ export default function Scan() {
   //    （實測 scale 變成非等比的 2.35 × 5.01，印章直接飛到畫面外三萬 px）。
   //    對齊之後，取樣座標 → 顯示座標就只差一個**等比**縮放。
   const grabFrame = () => {
+    // ── 模擬掃描：把目標圖畫到一個會緩慢移動的透視四邊形上 ──
+    // 整條鏈（偵測 → 拉正 → 比對 → 解姿態 → 貼角色 → 熱區）都跑真的，
+    // 只有「相機」是假的。見 lib/arSimFrame.js。
+    const sim = simRef.current
+    if (sim?.bitmap) {
+      const { w, h } = grabSize
+      if (sim.canvas.width !== w || sim.canvas.height !== h) {
+        sim.canvas.width = w; sim.canvas.height = h
+      }
+      const t = (performance.now() - sim.t0) / 1000
+      const quad = wobbleQuad(t, { w, h, aspect: sim.aspect })
+      sim.truthQuad = quad
+      return drawSimFrame(sim.ctx, sim.bitmap, { w, h, quad })
+    }
     const video = videoRef.current
     const stage = stageRef.current
     if (!video || video.readyState < 2 || !stage) return null

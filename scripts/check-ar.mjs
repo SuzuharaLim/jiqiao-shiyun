@@ -540,6 +540,86 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(laba.month === 12 && laba.day === 8, '卡面臘八節 2027-01-15 ＝ 農曆十二月初八')
 }
 
+// ── ★ 多視角簽名的比對契約 ──────────────────────────────────────────────
+// ⚠️ dHash 對**透視縮短**很敏感：只存正面簽名時，yaw ±17°／pitch ±13° 的
+//    手持晃動會讓分數掉到 37~57（門檻 58）。實測（瀏覽器，合成手持晃動）
+//    追蹤成功率 33% → 多視角 80%，而誤判維持 0（立春卡 0/25、棋盤格 0/25）。
+//    ⚠️ 絕對不可以改成調低 minScore：那會讓正式站把別的東西認成卡片，
+//       而且是最難發現的壞法（使用者只覺得「有時候跳出錯的內容」）。
+// 這裡測的是**契約**（有 sigs 就全部比過、取最高；沒有就退回 ref 本身），
+// warpToSquare 需要 canvas，只能在瀏覽器驗。
+{
+  const SZ = 48, CW = 200, CH = 150
+  // ⚠️ 「不相符」的參考圖必須真的不同。第一版只是把同一張圖平移 9px，
+  //    但那張卡大半是漸層，平移後分數仍 ≥58——測試因此驗不到門檻。
+  const card = (kind) => {
+    const a = new Uint8ClampedArray(SZ * SZ * 4)
+    for (let y = 0; y < SZ; y++) {
+      for (let x = 0; x < SZ; x++) {
+        const i = (y * SZ + x) * 4
+        let v
+        if (kind === 'A') {
+          v = (x < SZ / 3 && y < SZ / 3) ? 110
+            : (x > SZ * 0.62 && y > SZ * 0.62) ? 245 : 170 + ((x + y) % 40)
+        } else {
+          // 明暗分佈刻意反過來（左下暗、右上亮）＋不同頻率的紋理
+          v = (x > SZ * 0.7 && y < SZ * 0.3) ? 60
+            : (x < SZ * 0.3 && y > SZ * 0.7) ? 250 : 90 + ((x * 3 - y * 2 + 96) % 70)
+        }
+        a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255
+      }
+    }
+    return a
+  }
+  const paint = (corners, src) => {
+    const rgba = new Uint8ClampedArray(CW * CH * 4)
+    for (let i = 0; i < CW * CH; i++) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = 20; rgba[i * 4 + 3] = 255 }
+    const [tl, tr, br, bl] = corners
+    for (let v = 0; v <= 1; v += 0.0012) {
+      for (let u = 0; u <= 1; u += 0.0012) {
+        const sx = (1 - v) * ((1 - u) * tl[0] + u * tr[0]) + v * ((1 - u) * bl[0] + u * br[0])
+        const sy = (1 - v) * ((1 - u) * tl[1] + u * tr[1]) + v * ((1 - u) * bl[1] + u * br[1])
+        const px = Math.round(sx), py = Math.round(sy)
+        if (px < 0 || py < 0 || px >= CW || py >= CH) continue
+        const cx = Math.min(SZ - 1, Math.floor(u * SZ)), cy = Math.min(SZ - 1, Math.floor(v * SZ))
+        const si = (cy * SZ + cx) * 4, di = (py * CW + px) * 4
+        rgba[di] = src[si]; rgba[di + 1] = src[si + 1]; rgba[di + 2] = src[si + 2]
+      }
+    }
+    return rgba
+  }
+  const quad = [[30, 24], [170, 22], [172, 122], [28, 120]]
+  const seen = paint(quad, card('A'))
+
+  // ① 只給「錯的」正面簽名 → 應該追不到
+  const wrongOnly = { id: 'w', ...makeSignature(card('B'), SZ, SZ) }
+  ok(createTracker({ refs: [wrongOnly], rectifySize: SZ, minScore: 58 }).track(seen, CW, CH) === null,
+    '只有不符的簽名時追不到（門檻有效）')
+
+  // ② sigs 裡多了「對的」那一個 → 應該追得到，且用的是最高分
+  const withRight = {
+    id: 'w', ...makeSignature(card('B'), SZ, SZ),
+    sigs: [makeSignature(card('B'), SZ, SZ), makeSignature(card('A'), SZ, SZ)],
+  }
+  const hit = createTracker({ refs: [withRight], rectifySize: SZ, minScore: 58 }).track(seen, CW, CH)
+  ok(hit !== null, '★ sigs 裡有相符的視角時追得到（多視角的作用）')
+  ok(hit && hit.score >= 58, `多視角取到的分數 ${hit?.score} ≥ 58`)
+
+  // ③ 沒有 sigs 時必須退回 ref 本身（向後相容：舊快取沒有這個欄位）
+  const legacy = { id: 'L', ...makeSignature(card('A'), SZ, SZ) }
+  ok(createTracker({ refs: [legacy], rectifySize: SZ, minScore: 58 }).track(seen, CW, CH) !== null,
+    '沒有 sigs 欄位時退回 ref 本身（舊快取相容）')
+
+  // ④ 多視角**不可**放寬門檻：完全不相干的圖仍要追不到
+  const noise = new Uint8ClampedArray(CW * CH * 4)
+  for (let i = 0; i < CW * CH; i++) {
+    const v = ((i % CW) + Math.floor(i / CW)) % 2 ? 235 : 45
+    noise[i * 4] = noise[i * 4 + 1] = noise[i * 4 + 2] = v; noise[i * 4 + 3] = 255
+  }
+  ok(createTracker({ refs: [withRight], rectifySize: SZ, minScore: 58 }).track(noise, CW, CH) === null,
+    '多視角不可提高誤判：不相干的圖仍追不到')
+}
+
 // ── 收邊工具的 PNG 編解碼（scripts/frame-card.mjs）────────────────────────
 // ⚠️ 手寫的 PNG 編解碼是「壞掉但不報錯」的典型：反濾波寫錯不會拋例外，
 //    只會讓圖片從某一列開始整片糊掉或出現斜條紋——而那張圖是要拿去**付印**的。

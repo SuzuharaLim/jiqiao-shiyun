@@ -52,8 +52,18 @@ export function createTracker({
           const rot = rotateRgba(flat, rectifySize, r)
           const sig = makeSignature(rot, rectifySize, rectifySize)
           for (const ref of refs) {
-            const s = matchScore(sig, ref)
-            if (!best || s > best.score) best = { ref, score: s, rotation: r }
+            // ★ 多視角簽名：同一張卡存了幾個「從斜角看」的版本，取最高分。
+            //    ⚠️ 只存正面簽名時，yaw ±17°／pitch ±13° 的手持晃動會讓分數掉到
+            //       37~57（門檻 58），實測追蹤成功率只有 33%——而四邊形每一幀
+            //       都找得到，所以問題在比對不在偵測。
+            //    ⚠️ 絕對不可以改成調低 minScore：那會讓正式站把別的東西認成卡片，
+            //       而且是最難發現的壞法（使用者只覺得「有時候跳出錯的內容」）。
+            //    見 arCardRegistry.js 的 VIEWS。
+            const cands = ref.sigs?.length ? ref.sigs : [ref]
+            for (const cand of cands) {
+              const sc = matchScore(sig, cand)
+              if (!best || sc > best.score) best = { ref, score: sc, rotation: r }
+            }
           }
         }
       }
