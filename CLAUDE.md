@@ -270,9 +270,18 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **熱區命中一定要走 `makeHotspotLatch`（進入 3 幀／離開 8 幀）**：追蹤每秒 15 次、四角偵測有 1px 抖動，熱區邊界附近會在命中／沒命中之間高頻跳動，而開關內容面板是最貴的操作。**進出門檻必須不同**（hysteresis），同門檻時站在邊界上會等頻率一直開一直關。
   - **卡面內容刻意不放營養素與健康宣稱**：那受《食品安全衛生管理法》規範，未經食藥署核對不可上。`check-ar.mjs` 把「待審」變成閘門（`ok(!obj.nutrients)` ＋ 療效用語黑名單）。不碰營養宣稱也有足夠內容——品種／產地來自農業部開放資料、俗語與養生來自 `termGuide.js`、宜忌來自 `almanac.js`，全都可標來源。
   - **查某日屬於哪個節氣要用 `termFromDate`，不可用 `termLocalDay` 的序號反推公曆年**：小寒在「立春起算」的序號裡屬於**下一個**公曆年，`termLocalDay(2027, 22)` 會得到 2028-01-06。2027 小寒實際是 **01-05**（改版文件寫 01-06 是錯的）。
-- **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（46 項）掛在 `npm run build` 上。
+- **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片／菜根）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（54 項）掛在 `npm run build` 上。**移植自 demo `_6`：5 層 54 片葉子、102 顆 mesh、24 份幾何。**
+  - **★ 皺褶的方位角頻率必須是葉片數的整數倍**（`kAz = n`、`kRib = 2n`，factory 自動推導）：這樣 `sin(k(θ − i·2π/n)) = sin(kθ)`，同一層每片葉子落在**同一個曲面**上，只差 `rAdd` 一階，永遠不會互相穿插。頻率隨便取就會葉片穿模。
+  - **★ 葉片半徑要用「世界高度 pu」取樣，不是這片葉子自己的 u**：同層有 3 種高度變體，用自己的 u 會讓矮葉在同一個世界高度鼓到高葉前面，**把臉遮掉**。
+  - **葉尖用 |t|³ 不是 t²**：t² 會拉出尖峰，一圈葉尖讀起來像鬱金香花瓣。
+  - **只描最外兩層（`li >= 3`，27 片）**：54 片全描邊會讀成「一叢芹菜稈」而不是白菜。
+  - **臉葉的幾何 key 必須含 face 旗標**：`faceClear`／`gLift` 不同，共用到別片會讓其他葉子中間出現一塊莫名的白色平面。
+  - **中央白葉柄的半寬是大白菜最關鍵的一件事**：綠色只長在那條白帶之外（`wRib`／`gpZone`）。實測算繪像素的綠度梯度由上到下 43 → 6 → 1，這條驗得出移植對不對。
+  - **`bulge` 表要是「直筒」**：u=0.22~0.79 幾乎等寬（0.97），底部 20% 才收圓、頂部 76% 以上才收頂。一路線性收窄怎麼調都像竹筍；線性 flare 則會變成青江菜。
+  - **preset 欄位改名一定要同步 factory**：`leafBaseY` → `baseY` 改了一半時 `baseY = undefined` → 所有 `position.y = NaN` → **世界矩陣 NaN → 模型整個不見**，而每一顆 mesh 的 position 屬性都是正常的，逐點檢查完全驗不出來。**要量世界包圍盒**（check-char 有這一項）。
+  - **全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算**（那份預算按舊版 29 片葉估的）。`ProduceStage` 因此**預設 `lod = 0.85`**（170,456，畫面看不出差別）；AR 疊加請給 `0.6`（89,314，符合 110k 預算）。
   - **這一層與 three 絕不可進主 bundle**：一律 `React.lazy(() => import('../components/ProduceStage.jsx'))`。實測懶載入分塊 **137.5 KB gzip**，主 bundle 只 +1.2 KB。無條件塞進去等於首頁多背三分之一重量給一個多數人不會點的功能。
-  - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀 `d.topWaveFreq`，但 preset 的 layers 沒這個欄位——原本靠 `registerGeometry` 的 schema 補 2。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。
+  - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀十幾個欄位而 preset 的 layers 不會全給——原本靠 `registerGeometry` 的 schema 補。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。
   - **接觸陰影掛 `root` 不掛 `body`**：原 demo 放場景層級並用 `getElementById('blob')` 抓（註解寫「掛在角色底下會跟著跳起來」——觀察對，但角色就無法多實例）。正解是分兩層：root 不動、body 才受動作驅動，陰影掛 root。**別照字面把它改成 body 的子節點**，那會讓陰影跟著跳躍飛起來。
   - **`gradientMap` 必須 `NearestFilter`**：它是查表資料不是顏色，用 LinearFilter 會把階梯內插掉＝完全沒有賽璐璐效果，而且不會有任何錯誤訊息。
   - **幾何要共用**：葉片每層只有 3 種高度變體（29 片 → 15 份）、四肢左右同形（8 → 4 份）。退回去畫面完全看不出差別，只有記憶體與載入變差——所以 check-char 鎖死「幾何份數 22」。

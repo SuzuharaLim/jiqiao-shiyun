@@ -25,7 +25,11 @@ const prefersReduce = () => typeof matchMedia !== 'undefined'
   && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export default function ProduceStage({
-  preset = NAPA_CABBAGE, action = 'idle', lod = 1, height = 320, onReady,
+  // ⚠️ 預設 lod 不是 1。移植 demo _6 之後角色是 5 層 54 片葉子，
+  //    全解析度 230,310 個三角形，超出策畫書 §6.1 的 180k 預算（那份預算是按
+  //    舊版 29 片葉子估的）。實測 0.85 = 170,456 剛好進預算而畫面看不出差別；
+  //    AR 疊加要與追蹤共用 CPU/GPU，呼叫端請給 0.6（89,314）。
+  preset = NAPA_CABBAGE, action = 'idle', lod = 0.85, height = 320, onReady,
 }) {
   const hostRef = useRef(null)
   const actorRef = useRef(null)

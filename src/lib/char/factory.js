@@ -25,55 +25,46 @@ import {
   CanvasTexture, Color, SRGBColorSpace,
 } from 'three'
 import {
-  PAL, DEG, buildLeafGeometry, buildCoreGeometry, buildLimbGeometry, buildFacePatch,
+  PAL, DEG, buildLeafGeometry, buildCoreGeometry, buildLimbGeometry,
+  buildFacePatch, buildRootBall,
 } from './geometry.js'
 import { makeToonMaterial, addOutline, makeToonRamp } from './material.js'
 import { faceTexture, disposeFaceCache } from './face.js'
 import { MeshToonMaterial } from 'three'
 
-/** 結球白菜 —— 第一個 preset。量產角色時只允許改這裡的色票與比例。 */
+/**
+ * 結球白菜 —— 第一個 preset（移植自 demo _6）。
+ * 量產角色時只允許改這裡的色票與比例，材質參數鎖在 material.js。
+ *
+ * ⚠️ `kAz` 必須等於該層的葉片數 `n`、`kRib` 等於 `2n`（factory 自動推導，
+ *    不要在 preset 裡手動覆寫）。理由見 geometry.js 檔頭 ①：
+ *    頻率不是葉片數的整數倍時，同層葉片會互相穿模。
+ */
 export const NAPA_CABBAGE = {
   id: 'napa-cabbage',
   name: '結球白菜',
-  leafBaseY: 0.19,
+  // 葉片從 y=0 往上長，整組往下移半個身高，角色中心才在原點附近
+  baseY: -0.595,
   layers: [
-    // ① 嫩芯：比外層高，葉尖從頂端縫隙冒出來
-    {
-      n: 4, radius: 0.150, height: 1.22, spread: 74, flare: 0.02, crinkle: 0.016,
-      crinkleFreq: 2, topWave: 0.030, topWaveFreq: 2, edgeDrop: 0.44, thickness: 0.020,
-      top: PAL.leafHeart, segU: 12, segV: 16, angles: [25, 115, 205, 295],
-    },
-    {
-      n: 5, radius: 0.280, height: 0.88, spread: 58, flare: 0.04, crinkle: 0.020,
-      crinkleFreq: 2, topWave: 0.030, topWaveFreq: 2, edgeDrop: 0.26, thickness: 0.024,
-      top: PAL.leafA, segU: 12, segV: 18, offset: 36,
-    },
-    {
-      n: 7, radius: 0.345, height: 0.98, spread: 52, flare: 0.05, crinkle: 0.034,
-      crinkleFreq: 3, topWave: 0.045, topWaveFreq: 2, edgeDrop: 0.30, thickness: 0.026,
-      top: PAL.leafB, segU: 14, segV: 24, offset: 25.7,
-    },
-    // ④ offset 0 → 正前方剛好是一片葉子的中心（crinkle 在 t=0 為零），臉貼這裡
-    {
-      n: 9, radius: 0.400, height: 1.06, spread: 46, flare: 0.08, crinkle: 0.044,
-      crinkleFreq: 3, topWave: 0.055, topWaveFreq: 2, edgeDrop: 0.34, thickness: 0.028,
-      top: PAL.leafC, segU: 18, segV: 30, offset: 0, face: true, outline: true,
-    },
-    // ⑤ 鬆脫的外層老葉。包覆角 ±42° + 角度從 82° 起跳 → 正面 ±40° 淨空，不壓到臉
-    {
-      n: 4, radius: 0.428, height: 0.80, spread: 42, flare: 0.26, crinkle: 0.056,
-      crinkleFreq: 3, topWave: 0.070, topWaveFreq: 2, edgeDrop: 0.48, thickness: 0.030,
-      top: PAL.leafOuter, segU: 16, segV: 26, angles: [82, 148, 212, 278], outline: true,
-    },
+    { r: 0.246, h: 1.100, flare: 0.01, half: 82, n: 6, green: 0.55, crinkle: 0.010, tone: 0.93, drop: 0.30, ruf: 0.016, rib: 0.008, segU: 28, segV: 12, out: false },
+    { r: 0.298, h: 1.140, flare: 0.01, half: 66, n: 9, green: 0.72, crinkle: 0.014, tone: 0.95, drop: 0.36, ruf: 0.020, rib: 0.010, segU: 28, segV: 12, out: false },
+    { r: 0.346, h: 1.165, flare: 0.01, half: 54, n: 12, green: 0.86, crinkle: 0.020, tone: 0.97, drop: 0.44, ruf: 0.026, rib: 0.013, segU: 30, segV: 20, out: false },
+    { r: 0.386, h: 1.180, flare: 0.01, half: 44, n: 15, green: 0.95, crinkle: 0.026, tone: 0.99, drop: 0.50, ruf: 0.030, rib: 0.015, segU: 28, segV: 20, out: false },
+    { r: 0.436, h: 1.190, flare: 0.01, half: 52, n: 12, green: 1.00, crinkle: 0.032, tone: 1.00, drop: 0.54, ruf: 0.030, rib: 0.017, segU: 30, segV: 24, out: true },
   ],
-  core: { height: 0.92, radius: 0.275, segments: 44 },
-  face: { y0: 0.545, y1: 0.925, half: 30, extra: 0.022, segW: 28, segH: 22 },
-  blob: { radius: 0.58, opacity: 0.30, color: '#8E96D6' },
+  // 最外層（臉在上面那層）的擺幅要單獨壓小，臉才不會晃得歪來歪去
+  layerAmp: [0.45, 0.80, 1.20, 1.55, 0.42],
+  core: { radius: 0.238, height: 1.185 },
+  rootBall: { radius: 0.168, squashY: 0.60, lift: 0.020 },
+  face: { azHalf: 44, uLo: 0.14, uHi: 0.62, extra: 0.011, segX: 44, segY: 40 },
+  blob: { radius: 0.58, opacity: 0.30, color: PAL.blob },
 }
 
-// 每片葉子只有 3 種高度變體（打散「頂端排成一圈尖刺」的規律性），
-// 原本每片各建一份 geometry ＝ 29 份；快取後只剩 15 份（策畫書 §6.2 #11）。
-const HEIGHT_VARIANTS = [1.00, 0.90, 0.955]
+// ⚠️ 同層每片往外推一階（3 階循環，葉數都取 3 的倍數，接縫才不會兩片同高）。
+//    臉那片 i=0 最外，鄰葉依序內縮——不做這件事，同層葉片會互相穿插把臉蓋掉。
+const R_STEP = 0.0200
+// 3 種高度輪替（打散「頂端排成一圈尖刺」的規律性），每層只多 2 份 geometry。
+const HV = [1.00, 0.958, 0.983]
 
 function makeBlobShadow({ radius, opacity, color }) {
   let map = null
@@ -103,7 +94,7 @@ function makeBlobShadow({ radius, opacity, color }) {
  */
 export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
   const P = preset
-  const baseY = P.leafBaseY
+  const baseY = P.baseY
   const root = new Group(); root.name = `char-${P.id}`
   const body = new Group(); body.name = 'body'
   root.add(body)
@@ -121,63 +112,88 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
     return mesh
   }
 
-  const oLeaf = { thickness: 0.0032, color: PAL.inkLeaf }
-  const oCream = { thickness: 0.0032, color: PAL.inkCream }
+  const oLeaf = { thickness: 0.0030, color: PAL.oLeaf }
+  const oLimb = { thickness: 0.0032, color: PAL.oLimb }
 
-  // ── 菜芯 ──
+  // ── 菜心：把中間堵住，不然從上面看得到空心 ──
   const core = mkMesh(
-    buildCoreGeometry({ ...P.core, segments: seg(P.core.segments) }),
-    makeToonMaterial({ color: PAL.cream }), oCream)
+    buildCoreGeometry({ ...P.core, segH: seg(56), segR: seg(40) }),
+    makeToonMaterial({ vertexColors: true, rimAmount: 0.14 }))
   core.position.y = baseY
   body.add(core)
 
-  // ── 葉子 ──
+  // ── 葉子（5 層共 54 片）──
   const leafRoots = []
   const leafGeoCache = new Map()
   P.layers.forEach((L, li) => {
     const layerRoot = new Group()
     layerRoot.position.y = baseY
     body.add(layerRoot)
-    // 臉掛在這一層上，擺動幅度要壓小，否則五官會跟著晃
-    leafRoots.push({ node: layerRoot, phase: li * 1.1, amp: L.face ? 0.35 : (0.5 + li * 0.28) })
+    leafRoots.push({ node: layerRoot, phase: li * 1.1, amp: P.layerAmp[li] })
 
     for (let i = 0; i < L.n; i++) {
-      const ang = L.angles ? L.angles[i] : (L.offset + i * (360 / L.n))
-      const hv = HEIGHT_VARIANTS[i % 3]
-      const key = `${li}|${i % 3}`
+      const isFace = L.out && i === 0
+      // 方位角：外層對齊 0（臉那片），內層錯開半格避免縫對縫
+      const az = (i / L.n) * 360 + (L.out ? 0 : (li % 2 ? 180 / L.n : 0))
+      const vi = isFace ? 0 : (i % 3)
+      // ⚠️ 幾何 key 必須含 face 旗標：臉那片的 faceClear/gLift 不同，
+      //    共用到別片會讓其他葉子中間出現一塊莫名的白色平面。
+      const key = `${li}|${i % 3}|${isFace ? 'f' : ''}`
       let geo = leafGeoCache.get(key)
       if (!geo) {
         geo = buildLeafGeometry({
-          height: L.height * hv, radius: L.radius, spread: L.spread, flare: L.flare,
-          crinkle: L.crinkle, crinkleFreq: L.crinkleFreq,
-          topWave: L.topWave, topWaveFreq: L.topWaveFreq, edgeDrop: L.edgeDrop,
-          thickness: L.thickness, colorBottom: PAL.cream, colorTop: L.top,
+          faceClear: isFace ? 1 : 0,
+          gLift: isFace ? 0.20 : 0,
+          rAdd: -(i % 3) * R_STEP,
+          radius: L.r, hRef: L.h, height: L.h * HV[vi],
+          flare: L.flare, half: L.half, thickness: 0.020,
+          crinkle: L.crinkle, green: L.green, tone: L.tone,
+          edgeDrop: L.drop, ruffle: L.ruf,
+          // ★ 頻率鎖成葉片數的整數倍（見 geometry.js 檔頭 ①）
+          kAz: L.n, kRib: 2 * L.n,
+          fine: L.crinkle * 0.40, ribAmp: L.rib,
+          // 鄰葉邊緣落在本片上的位置
+          tsh: 1 - (360 / L.n) / L.half,
           segU: seg(L.segU), segV: seg(L.segV),
         })
         leafGeoCache.set(key, geo)
         owned.geometries.push(geo)
       }
-      const holder = new Group()
-      holder.rotation.y = ang * DEG
-      layerRoot.add(holder)
-      const mat = makeToonMaterial({ color: '#FFFFFF', vertexColors: true })
+      const azNode = new Group()
+      azNode.rotation.y = az * DEG
+      layerRoot.add(azNode)
+      const tiltNode = new Group()
+      // 打散規律性：每片微幅前後／左右傾（臉那片不動，五官才不會歪）
+      tiltNode.rotation.x = (isFace ? 0 : (-2.5 + (i % 3) * 2.5)) * DEG
+      tiltNode.rotation.z = (isFace ? 0 : ((i % 2) ? 3.0 : -3.0)) * DEG
+      azNode.add(tiltNode)
+
+      const mat = makeToonMaterial({
+        vertexColors: true, rimAmount: L.out ? 0.11 : 0.06,
+      })
       owned.materials.push(mat)
       const mesh = new Mesh(geo, mat)   // 幾何共用，不進 owned（上面已記一次）
       mesh.castShadow = true; mesh.receiveShadow = true
-      if (L.outline) owned.materials.push(addOutline(mesh, oLeaf).material)
-      // 每片微幅傾斜，打散規律性
-      mesh.rotation.x = (i === 0 ? 0 : (-2.5 + (i % 3) * 2.5)) * DEG
-      mesh.rotation.z = (i === 0 ? 0 : ((i % 2) ? 3.0 : -3.0)) * DEG
-      holder.add(mesh)
+      // ⚠️ 54 片葉子每片都描邊會讀成芹菜稈：只描最外兩層（li >= 3）。
+      if (li >= 3) owned.materials.push(addOutline(mesh, oLeaf).material)
+      tiltNode.add(mesh)
+      if (isFace) leafRoots[li].faceNode = tiltNode
     }
   })
+
+  // ── 菜根：葉片底端是平的開口，要有東西蓋住 ──
+  const rb = mkMesh(buildRootBall({ radius: P.rootBall.radius, segW: seg(30), segH: seg(20) }),
+    makeToonMaterial({ color: PAL.cream, rimAmount: 0.14 }), oLimb)
+  rb.position.y = baseY + P.rootBall.lift
+  rb.scale.set(1, P.rootBall.squashY, 1)
+  body.add(rb)
 
   // 四肢的幾何左右同形（鏡像靠位置與旋轉做），建一次共用即可——
   // 與葉片快取同一個道理，各建一份等於白白多四份幾何。
   const limbGeo = {
-    leg: buildLimbGeometry({ radius: 0.056, length: 0.10 }),
+    leg: buildLimbGeometry({ rBot: 0.048, rTop: 0.056, len: 0.10, segR: seg(26) }),
     foot: new SphereGeometry(0.080, seg(26), seg(18)),
-    arm: buildLimbGeometry({ radius: 0.053, length: 0.135 }),
+    arm: buildLimbGeometry({ rBot: 0.042, rTop: 0.053, len: 0.135, segR: seg(26) }),
     hand: new SphereGeometry(0.072, seg(26), seg(18)),
   }
   owned.geometries.push(...Object.values(limbGeo))
@@ -197,10 +213,10 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
     const hip = new Group()
     hip.position.set(s * 0.112, 0.218, 0.02)
     body.add(hip); hips.push(hip)
-    const leg = mkShared(limbGeo.leg, makeToonMaterial({ color: PAL.creamWarm }), oCream)
+    const leg = mkShared(limbGeo.leg, makeToonMaterial({ color: PAL.limb }), oLimb)
     leg.position.y = -0.106; leg.rotation.z = -s * 7 * DEG
     hip.add(leg)
-    const foot = mkShared(limbGeo.foot, makeToonMaterial({ color: PAL.creamWarm }), oCream)
+    const foot = mkShared(limbGeo.foot, makeToonMaterial({ color: PAL.limb }), oLimb)
     foot.scale.set(1, 0.60, 1.35); foot.position.set(0, -0.173, 0.038)
     hip.add(foot)
   }
@@ -212,28 +228,34 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1 } = {}) {
     holder.position.set(s * 0.382, 0.600, 0.06)
     holder.rotation.z = s * 44 * DEG
     body.add(holder); arms.push(holder)
-    const upper = mkShared(limbGeo.arm, makeToonMaterial({ color: PAL.creamWarm }), oCream)
+    const upper = mkShared(limbGeo.arm, makeToonMaterial({ color: PAL.limb }), oLimb)
     upper.position.y = -0.10
     holder.add(upper)
-    const hand = mkShared(limbGeo.hand, makeToonMaterial({ color: PAL.creamWarm }), oCream)
+    const hand = mkShared(limbGeo.hand, makeToonMaterial({ color: PAL.limb }), oLimb)
     hand.position.y = -0.222
     holder.add(hand)
   }
 
   // ── 臉：掛在有 face 旗標的葉層底下（layerRoot 的位移先扣回去）──
-  const faceLayerIdx = P.layers.findIndex(L => L.face)
+  // ── 臉部貼片：貼在最外層那片「臉葉」的曲面上 ──
+  // ⚠️ 掛在 faceNode（那片葉子的 tilt 節點）而不是 layerRoot：
+  //    臉必須跟著那片葉子動，否則葉子擺動時五官會滑出去。
+  const faceLayerIdx = P.layers.findIndex(L => L.out)
   const FL = P.layers[faceLayerIdx]
   const faceMat = new MeshToonMaterial({
     map: faceTexture(P.id, 'normal'), transparent: true, depthWrite: false,
     gradientMap: makeToonRamp(3, 0.46),
   })
-  const faceGeo = buildFacePatch(
-    FL, P.face.y0, P.face.y1, P.face.half, P.face.extra, P.face.segW, P.face.segH, baseY)
+  const faceGeo = buildFacePatch({
+    radius: FL.r, height: FL.h, flare: FL.flare, thickness: 0.020,
+    crinkle: FL.crinkle, fine: FL.crinkle * 0.40, ribAmp: FL.rib,
+    azHalf: P.face.azHalf, uLo: P.face.uLo, uHi: P.face.uHi,
+    extra: P.face.extra, segX: seg(P.face.segX), segY: seg(P.face.segY),
+  })
   const faceMesh = new Mesh(faceGeo, faceMat)
   faceMesh.renderOrder = 2
-  faceMesh.position.y = -baseY
   owned.geometries.push(faceGeo); owned.materials.push(faceMat)
-  leafRoots[faceLayerIdx].node.add(faceMesh)
+  ;(leafRoots[faceLayerIdx].faceNode ?? leafRoots[faceLayerIdx].node).add(faceMesh)
 
   // ── 接觸陰影：掛 root 不掛 body（見檔頭）──
   const blob = makeBlobShadow(P.blob)

@@ -6,6 +6,7 @@
 //
 // 這支在 Node 跑（BufferGeometry 不需要 WebGL context），所以掛在 build 前面。
 // 執行：node scripts/check-char.mjs
+import { Box3, Vector3 } from 'three'
 import { buildCharacter, NAPA_CABBAGE } from '../src/lib/char/factory.js'
 import { createActor, ACTIONS } from '../src/lib/char/actor.js'
 import { rampCacheSize, disposeRampCache, makeToonRamp } from '../src/lib/char/material.js'
@@ -16,9 +17,10 @@ const fails = []
 const ok = (cond, msg) => { if (cond) pass++; else fails.push(msg) }
 
 // ── 幾何：NaN 是這一層最危險的失敗模式 ────────────────────────────────
-// ⚠️ 剝離 A-Frame 時 schema 預設值會消失。buildLeafGeometry 讀 d.topWaveFreq，
-//    而 LAYERS 那五筆設定裡沒有這個欄位——少了預設值就是 sin(undefined)=NaN，
-//    整份 position 變 NaN、模型整個不見，而且**不會拋任何錯誤**。
+// ⚠️ 剝離 A-Frame 時 schema 預設值會消失。buildLeafGeometry 讀 kAz／kRib／tsh 等
+//    十幾個欄位，preset 的 layers 並沒有全部提供——少了預設值就是
+//    sin(undefined)=NaN，整份 position 變 NaN、模型整個不見，
+//    而且**不會拋任何錯誤**。
 {
   const g = buildLeafGeometry()
   const p = g.attributes.position.array
@@ -26,7 +28,7 @@ const ok = (cond, msg) => { if (cond) pass++; else fails.push(msg) }
   ok(g.attributes.normal.array.every(Number.isFinite), '葉片法線無 NaN')
   ok(!!g.getIndex(), '葉片是 indexed（inverted-hull 描邊的前提）')
   ok(g.attributes.color.count === g.attributes.position.count, '頂點色數量對齊')
-  // 明確重現「忘了給 topWaveFreq」的情境，確認預設值有補上
+  // 明確重現「只給幾個欄位」的情境，確認 LEAF_DEFAULTS 有補上其餘的
   const g2 = buildLeafGeometry({ height: 1.0, radius: 0.3, segU: 6, segV: 8 })
   ok(g2.attributes.position.array.every(Number.isFinite), '只給部分參數也不可產生 NaN')
 }
@@ -35,16 +37,49 @@ const ok = (cond, msg) => { if (cond) pass++; else fails.push(msg) }
 const char = buildCharacter(NAPA_CABBAGE)
 const st = char.stats()
 
-// 原 demo 的 HUD 讀數推導：葉片 29 ＋ 葉描邊 13 ＋ 菜芯 2 ＋ 四肢 8 ＋ 四肢描邊 8
-//                        ＋ 臉 1 ＋ 接觸陰影 1 ＝ 62（demo 的 63 含場景地板）
-ok(st.meshes === 62, `mesh 數 ${st.meshes}（應為 62：與原 demo 扣掉地板後一致）`)
+// mesh 數推導（demo _6：5 層 54 片葉）：
+//   葉 54 ＋ 葉描邊 27（只描最外兩層）＋ 菜芯 1 ＋ 菜根 2 ＋ 四肢 8 ＋ 四肢描邊 8
+//   ＋ 臉 1 ＋ 接觸陰影 1 ＝ 102
+// ⚠️ 54 片葉子每片都描邊會讀成芹菜稈，所以只描 li>=3 的兩層。
+//    這一項若變成 54＋54，畫面會從「白菜」變成「一叢綠稈」。
+ok(st.meshes === 102, `mesh 數 ${st.meshes}（應為 102：葉 54＋描邊 27＋芯 1＋根 2＋四肢 16＋臉 1＋陰影 1）`)
+ok(NAPA_CABBAGE.layers.reduce((a, L) => a + L.n, 0) === 54, '葉片總數 54')
+ok(NAPA_CABBAGE.layers.slice(3).reduce((a, L) => a + L.n, 0) === 27, '描邊層（最外兩層）共 27 片')
 
-// ⚠️ 幾何快取：每層葉子只有 3 種高度變體，原本每片各建一份＝29 份。
-//    快取後 5 層 × 3 ＝ 15 份。這一項若退回 29，畫面完全看不出差別，
-//    只有記憶體與載入時間變差（策畫書 §6.2 #11）。
-ok(st.geometries === 15 + 1 + 4 + 1 + 1,
-  `幾何份數 ${st.geometries}（應為 22：葉 15 ＋ 芯 1 ＋ 四肢 4 ＋ 臉 1 ＋ 陰影 1）`)
+// ⚠️ 幾何快取：每層 3 種高度變體，臉那片另算一份（faceClear 不同）。
+//    5 層 × 3 ＝ 15，＋臉葉 1 ＝ 16；再加芯 1、四肢 4、菜根 1、臉貼片 1、陰影 1 ＝ 24。
+//    ⚠️ 臉葉的 key 一定要含 face 旗標，共用到別片會讓其他葉子中間出現一塊白色平面。
+ok(st.geometries === 24,
+  `幾何份數 ${st.geometries}（應為 24：葉 15 ＋ 臉葉 1 ＋ 芯 1 ＋ 四肢 4 ＋ 根 1 ＋ 臉貼片 1 ＋ 陰影 1）`)
 ok(st.triangles > 0 && Number.isFinite(st.triangles), `三角形數 ${st.triangles.toLocaleString()}`)
+
+// ⚠️ 包圍盒是「位置陣列全對但矩陣壞掉」唯一驗得出來的地方。
+//    移植時 preset 的欄位從 leafBaseY 改名 baseY，factory 卻還在讀舊名 →
+//    baseY = undefined → 所有 position.y = NaN → 世界矩陣 NaN → **模型整個不見**。
+//    而每一顆 mesh 的 position 屬性都是正常的，逐點檢查完全驗不出來。
+{
+  char.root.updateMatrixWorld(true)
+  const box = new Box3().setFromObject(char.root)
+  ok(Number.isFinite(box.min.y) && Number.isFinite(box.max.y),
+    '世界包圍盒非 NaN（抓 preset 欄位改名沒同步的錯）')
+  const size = box.getSize(new Vector3())
+  ok(size.y > 0.8 && size.y < 2.0, `角色高度 ${size.y.toFixed(3)}（合理範圍 0.8–2.0）`)
+  ok(Math.abs(box.min.y + box.max.y) < 0.6, `角色大致繞原點置中（y 中心 ${((box.min.y + box.max.y) / 2).toFixed(3)}）`)
+}
+
+// 效能預算：全解析度超出策畫書 §6.1 的 180k（那份預算按舊版 29 片葉估的）。
+// ProduceStage 因此預設 lod 0.85；這裡把兩個門檻都鎖起來。
+ok(st.triangles > 180000, `全解析度 ${st.triangles.toLocaleString()} 確實超出 180k——所以預設要降 LOD`)
+{
+  const web = buildCharacter(NAPA_CABBAGE, { lod: 0.85 })
+  ok(web.stats().triangles <= 180000,
+    `網頁抽屜 lod 0.85 ＝ ${web.stats().triangles.toLocaleString()} ≤ 180k`)
+  web.dispose()
+  const ar = buildCharacter(NAPA_CABBAGE, { lod: 0.6 })
+  ok(ar.stats().triangles <= 110000,
+    `AR 疊加 lod 0.6 ＝ ${ar.stats().triangles.toLocaleString()} ≤ 110k`)
+  ar.dispose()
+}
 
 // 節點階層：接觸陰影必須掛 root 不掛 body
 // ⚠️ 掛 body 的話跳躍時陰影會跟著飛起來（看起來像角色黏著一塊地板）；
@@ -133,8 +168,8 @@ ok(ACTIONS.length === 16, `動作數 ${ACTIONS.length}（原有 12 ＋ 策畫書
 {
   const lo = buildCharacter(NAPA_CABBAGE, { lod: 0.6 })
   const s = lo.stats()
-  ok(s.triangles < st.triangles * 0.75,
-    `AR LOD 三角形 ${s.triangles.toLocaleString()} < 全解析度 ${st.triangles.toLocaleString()} 的 75%`)
+  ok(s.triangles < st.triangles * 0.5,
+    `AR LOD 三角形 ${s.triangles.toLocaleString()} < 全解析度 ${st.triangles.toLocaleString()} 的一半`)
   ok(s.meshes === st.meshes, 'LOD 不可改變 mesh 數（只降細分）')
   lo.dispose()
 }
