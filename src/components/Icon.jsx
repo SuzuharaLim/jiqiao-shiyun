@@ -52,6 +52,7 @@ const P = {
   photo2: <><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" /><path d="M3.5 15l4.5-4 3.5 3 3.5-4 5.5 6" /><circle cx="8" cy="9.5" r="1.3" /></>,  // 照片／作品
   clipboard: <><rect x="5.5" y="4.5" width="13" height="15.5" rx="1.5" /><path d="M9 4.5V3h6v1.5" /><path d="M9 10h6M9 14h4" /></>,  // 紀錄／日誌
   wave: <><path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0" /><path d="M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0" /></>,  // 海／漁獲
+  sound: <><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4Z" /><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" /><path d="M18 7a7 7 0 0 1 0 10" /></>,  // 朗讀／語音導覽
 }
 
 export default function Icon({ name, className = '', fill = false, style }) {

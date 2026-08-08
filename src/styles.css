@@ -3605,3 +3605,7 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 
 /* 成果圖卡按鈕（小挑戰答對後） */
 .cardp-share { display: inline-block; margin: var(--space-2) 0 0; }
+
+/* 語音導覽按鈕。⚠️ 不支援語音合成的瀏覽器整顆不渲染（見 CardPage 的 SpeakButton），
+   所以這裡不必處理「停用」的樣式——一顆按了沒反應的按鈕比沒有更糟。 */
+.cardp-speak { display: inline-flex; align-items: center; margin: var(--space-3) 0 0; }
