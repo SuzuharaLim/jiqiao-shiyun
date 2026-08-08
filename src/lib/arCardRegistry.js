@@ -19,7 +19,11 @@
 import { makeSignature, serializeSig, deserializeSig } from './scanner.js'
 import { OFFICIAL_CARDS } from '../data/arCards.js'
 
-const CACHE_KEY = 'jq-ar-official-v1'
+// ⚠️ 換 key：makeSignature 加了亮度正規化，舊簽名與新的不在同一個座標系。
+//    不換的話舊使用者會永遠對不上，而且是靜默的（只覺得「以前可以現在不行」）。
+// ⚠️ 換 key：RECT 從 48 改成 64，舊簽名與新的不在同一個座標系。
+//    不換的話舊使用者會永遠對不上，而且是靜默的（只覺得「以前可以現在不行」）。
+const CACHE_KEY = 'jq-ar-official-v2'
 const HIST_LEN = 24
 
 /** 快取：卡片 id → 簽名。目標圖換了就要換 target 路徑（或清這個 key）。 */

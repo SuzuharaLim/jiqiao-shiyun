@@ -104,6 +104,26 @@ export function cropRgba(rgba, w, h, x, y, cw, ch) {
 }
 
 /** 建立影像簽名：{ hash, hist, sharp } */
+/**
+ * ⚠️ 曾經在這裡加過「亮度正規化」（用中央區域的 5%/95% 分位把明暗拉到同一基準），
+ *    假設是「rgbHistogram 用絕對分箱，所以簽名不是亮度不變的」。
+ *    **實測全面變差，已撤掉**：
+ *
+ *      情境          正規化前 → 後（RECT 48）
+ *      理想            75% → 70%
+ *      室內明亮        70% → 43%
+ *      室內一般        20% →  3%
+ *      偏暗 0.72×       0% →  3%
+ *
+ *    原因有兩個：
+ *    ① 正規化的增益 `200/(hi-lo)` 對**訊號與雜訊一起**生效，雜訊被放大之後
+ *       dHash 的相鄰比較就開始翻轉。
+ *    ② 過曝本來就不是正規化能救的——超過 255 的值已經被**截頂**，
+ *       資訊不可逆地沒了。
+ *
+ *    留這段註解是為了不要再有人「想到同樣的好主意」再做一次。
+ *    真正有效的是加大 RECT（見 arCardRegistry 的量測）。
+ */
 export function makeSignature(rgba, w, h) {
   const gray = toGray(rgba, w, h)
   return { hash: dhash(gray, w, h), hist: rgbHistogram(rgba), sharp: sharpness(gray, w, h) }
