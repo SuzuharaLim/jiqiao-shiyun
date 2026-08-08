@@ -32,7 +32,30 @@ export default function CardPage({ slug }) {
   const [showBox, setShowBox] = useState(false)   // 校對模式：把 rect 數值標出來
   const [want3d, setWant3d] = useState(false)
 
-  useEffect(() => { if (card) setPoster(cachedPoster(card.id)) }, [card])
+  // 卡面圖：優先用官方目標圖的靜態路徑，其次才是 localStorage 的縮圖快取。
+  //
+  // ⚠️ 原本只讀 `cachedPoster()`，而那份快取是**進過 /AR 才會產生**的。
+  //    於是目標圖明明已經裝在 public/ar/targets/ 底下、瀏覽器一個 GET 就拿得到，
+  //    這一頁卻顯示「卡面圖尚未上傳」——而這頁有三個用途都需要那張圖：
+  //    ①桌機／拒絕相機權限的降級路徑 ②可被索引的內容頁 ③**熱區校對工具**。
+  //    校對頁看不到卡面，等於最需要它的那個用途直接失效。
+  //    （從搜尋結果直接進來的人更是永遠不會有那份快取。）
+  //
+  // ⚠️ 順序不可顛倒：快取是 900px 縮圖，靜態檔是原尺寸。校對要看得清楚。
+  //    但快取仍要留著——美術用 `bindLocalTarget` 指定本機圖時只有快取有那一版。
+  useEffect(() => {
+    if (!card) return
+    setPoster(null)
+    let cancelled = false
+    // 先確認靜態檔真的是圖片：檔案不存在時 SPA fallback 會回 200 + index.html
+    // （這個坑在 arCardRegistry 記過：「檔案不存在」會偽裝成「圖片壞掉」）
+    fetch(card.target, { method: 'GET' })
+      .then(r => (r.ok && (r.headers.get('content-type') || '').startsWith('image/')
+        ? card.target : null))
+      .catch(() => null)
+      .then(url => { if (!cancelled) setPoster(url || cachedPoster(card.id)) })
+    return () => { cancelled = true }
+  }, [card])
 
   // 預設選中主物件——進頁就有東西看，不必先猜要點哪裡
   useEffect(() => {
@@ -80,10 +103,11 @@ export default function CardPage({ slug }) {
               // ⚠️ 沒有卡面圖時不可假裝有：畫一個空的比例框並說明原因，
               //    熱區位置仍然標得出來（校對比例還是有用的）。
               <div className="cardp-noimg">
-                <p>卡面圖尚未上傳</p>
+                <p>卡面圖尚未安裝</p>
                 <p className="muted">
-                  在 <Link screen="scan">AR 掃描</Link> 用「指定本機圖片當目標」選一次設計稿，
-                  這裡就會顯示卡面。熱區位置仍可校對。
+                  把付印的那一版跑 <code>npm run card:install -- 稿.png</code>，
+                  圖會裝進 <code>public{card.target}</code>，這裡與 AR 掃描就都有卡面了。
+                  在那之前熱區位置仍可校對（下方的框是按比例畫的）。
                 </p>
               </div>
             )}
