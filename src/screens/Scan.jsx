@@ -3,8 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
-import { makeSignature, matchScore, serializeSig, deserializeSig } from '../lib/scanner.js'
-import { detectQuad, rectify } from '../lib/quadDetect.js'
+import { detectQuad } from '../lib/quadDetect.js'
 import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
 import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
@@ -32,12 +31,11 @@ const GRAB_LONG = 160        // 取樣畫面的長邊（短邊照顯示框比例
 //       約 50ms，在 15fps 的 66ms 預算內但不寬裕。若實機掉幀，先降到 12fps
 //       再考慮縮 RECT。
 const RECT = 64
+// ⚠️ 門檻**絕對不可以為了「掃不到」而調低**。分數不足的正確解法是多存幾個
+//    視角的簽名（arCardRegistry 的 VIEWS，7 個），實測成功率 33% → 80% 而誤判維持 0。
+//    調低門檻會讓正式站把別的東西認成卡片，而且是最難發現的壞法
+//    ——使用者只覺得「有時候跳出錯的內容」。
 const MIN_SCORE = 58        // 匹配門檻（0–100）
-const MAX_REFS = 20         // 登錄上限（localStorage 空間考量；一張約 3KB）
-// ⚠️ 換 key 是刻意的：舊版登錄的是「畫面中央 128×96 的裁切」，新版登錄的是
-//    「偵測到卡片後透視拉正的 48×48」。兩者的 dHash 不在同一個座標系，
-//    直接沿用會讓所有舊卡片永遠對不上（而且是靜默的——使用者只會覺得
-//    「以前可以現在不行」）。換 key 等於請使用者重新登錄一次，誠實且乾淨。
 // ⚠️ 模擬模式的旗標要在**模組載入時**就抓，不可在 effect 裡讀 location.search：
 //    nav.jsx 的網址同步層只組路徑（pathFromState 不帶 query），所以 `?simulate=1`
 //    在 React 掛載後就被洗掉了——effect 永遠讀不到。
@@ -53,34 +51,10 @@ const SIM_FLAG = (() => {
   } catch { return false }
 })()
 
-const LS_KEY = 'jq-ar-cards-v3'   // v3：RECT 48 → 64，舊簽名不在同一個座標系
-
-// ---- 已登錄卡片的持久化（簽名 + 縮圖，全存本機；影像不上傳） ----
-// 逐筆驗證＋逐筆 try/catch：單筆壞資料只剔除該筆，不會讓全部登錄消失
-// （若整批包一個 try/catch，一筆污染 → 回 []，之後 saveRefs 覆寫 = 完好登錄永久遺失）
-const HIST_LEN = 24   // 8 bins × 3 通道
-function loadRefs() {
-  let parsed
-  try { parsed = JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
-  if (!Array.isArray(parsed)) return []
-  const out = []
-  for (const r of parsed) {
-    try {
-      const valid = typeof r?.id === 'string' && typeof r?.name === 'string'
-        && typeof r?.sig?.hash === 'string' && /^[0-9a-fA-F]{16}$/.test(r.sig.hash)
-        && Array.isArray(r.sig.hist) && r.sig.hist.length === HIST_LEN && r.sig.hist.every(Number.isFinite)
-      if (valid) out.push({ ...r, aspect: Number(r.aspect) > 0 ? Number(r.aspect) : 1, ...deserializeSig(r.sig) })
-    } catch { /* 剔除單筆壞資料 */ }
-  }
-  return out
-}
-function saveRefs(refs) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(refs.map(r =>
-      ({ id: r.id, name: r.name, thumb: r.thumb, aspect: r.aspect, sig: serializeSig(r) }))))
-    return true
-  } catch { return false }
-}
+// ⚠️ `jq-ar-cards-v3`（使用者自訂登錄的持久化）已隨自訂登錄流程一起移除。
+//    舊裝置上殘留的那筆 localStorage 不會被讀取，也不影響官方卡包——
+//    刻意不主動刪除：使用者資料不該在一次改版裡被靜默清掉，日後要恢復
+//    「使用者自己的卡」時它還在。
 
 // 鏡頭掃描 —— 自研辨識管線（dHash + 色彩直方圖，src/lib/scanner.js），零第三方相依。
 export default function Scan() {
@@ -88,10 +62,8 @@ export default function Scan() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const grabRef = useRef(null)               // 取樣 canvas + context（只建一次）
-  const armTimer = useRef(null)
   const trackerRef = useRef(null)
   const stageRef = useRef(null)
-  const fileRef = useRef(null)
   const officialFileRef = useRef(null)
   const pendingCardRef = useRef(null)   // 正在等使用者選圖的那張官方卡 id
   // ⚠️ 模擬掃描只在開發模式生效（`/AR?simulate=1`）。正式站絕不可讓使用者
@@ -104,13 +76,9 @@ export default function Scan() {
   //    掛載後先照顯示框比例算一次，第一幀之前就是對的。
   const [grabSize, setGrabSize] = useState({ w: GRAB_LONG, h: GRAB_LONG })
   const [status, setStatus] = useState('loading') // loading | ready | denied | unsupported
-  const [refs, setRefs] = useState(loadRefs)
-  const refsRef = useRef(refs); refsRef.current = refs
   // track：追蹤結果（含 matrix3d / pose / corners），null＝目前沒追到
   const [track, setTrack] = useState(null)
   const [seeCard, setSeeCard] = useState(false)   // 有沒有看到「一張卡片」（不論認不認得）
-  const [lastAdded, setLastAdded] = useState(null) // 剛登錄的 chip id（閃爍確認）
-  const [armId, setArmId] = useState(null)         // 兩段式刪除：已武裝的 chip id
   // 官方卡包：進頁自動載入，使用者不必自己登錄就有東西可掃。
   // ⚠️ 與使用者自訂登錄是**兩份清單**：官方卡不可被使用者刪掉，
   //    使用者的卡也不會因為官方卡包更新而消失。
@@ -158,7 +126,7 @@ export default function Scan() {
       // ⚠️ 單張失敗只跳過那一張。美術漏上傳一張圖不該讓使用者連別的卡都掃不到。
       if (errors.length) setOfficialErr(errors)
       // 追蹤器已經建好時要補餵進去（不然要等下一次重建）
-      if (list.length) trackerRef.current?.setRefs([...list, ...refsRef.current])
+      if (list.length) trackerRef.current?.setRefs(list)
     }).catch(() => { if (!cancelled) setOfficialErr([{ card: '官方卡包', message: '載入失敗' }]) })
     return () => { cancelled = true }
   }, [])
@@ -275,7 +243,7 @@ export default function Scan() {
   useEffect(() => {
     if (status !== 'ready') return
     const tracker = createTracker({
-      refs: [...officialRef.current, ...refsRef.current],
+      refs: officialRef.current,
       rectifySize: RECT, minScore: MIN_SCORE,
     })
     trackerRef.current = tracker
@@ -287,12 +255,13 @@ export default function Scan() {
       if (!shouldRun(now)) return
       const frame = grabFrame()
       if (!frame) return
-      tracker.setRefs([...officialRef.current, ...refsRef.current])
+      tracker.setRefs(officialRef.current)
       const res = tracker.track(frame.data, frame.w, frame.h)
       setTrack(res)
-      // 沒有登錄任何卡片時，仍然回報「有沒有看到一張卡片」，
-      // 這樣登錄前的引導才知道要不要提示使用者對準
-      if (!refsRef.current.length) {
+      // ⚠️ 官方卡一張都沒載入時（目標圖沒放進 public/ar/targets/），仍然回報
+      //    「有沒有看到一張卡片」——否則畫面連「我看到卡了」都不會說，
+      //    使用者完全無從分辨是「沒對準」還是「根本沒有可比對的目標」。
+      if (!officialRef.current.length) {
         setSeeCard(!!detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h))
       } else setSeeCard(!!res)
 
@@ -314,7 +283,7 @@ export default function Scan() {
           minScore: MIN_SCORE,
           bowPx: bow?.maxPx ?? null,
           bowRatio: bow?.maxRatio ?? null,
-          refs: officialRef.current.length + refsRef.current.length,
+          refs: officialRef.current.length,
         })
       }
 
@@ -340,128 +309,30 @@ export default function Scan() {
     return () => { alive = false; cancelAnimationFrame(raf) }
   }, [status])
 
-  // ---- 登錄目前畫面為卡片 ----
-  const register = () => {
-    const frame = grabFrame()
-    if (!frame) { setToast('鏡頭尚未就緒'); return }
-    if (refs.length >= MAX_REFS) { setToast(`最多登錄 ${MAX_REFS} 張，請先刪除舊的`); return }
-    // ⚠️ 一定要登錄「偵測到卡片後拉正的那一張」，不是畫面中央的裁切。
-    //    追蹤時比對的是拉正圖，兩邊必須是同一個座標系，否則永遠對不上。
-    const quad = detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h)
-    if (!quad) { setToast('沒有看到卡片——請讓整張卡片入框，背景盡量單純'); return }
-    const flat = rectify(frame.data, frame.w, frame.h, quad.corners, RECT)
-    const sig = makeSignature(flat, RECT, RECT)
-    if (sig.sharp < 18) { setToast('畫面太模糊，請對穩後再登錄'); return }
-    const dup = refs.find(r => matchScore(sig, r) >= 88)
-    if (dup) { setToast(`這張看起來已登錄過（${dup.name}）`); return }
-    // 縮圖：直接用拉正後的影像，之後在清單裡看到的就是「系統認得的那一面」
-    const tv = document.createElement('canvas')
-    tv.width = RECT; tv.height = RECT
-    tv.getContext('2d').putImageData(new ImageData(flat, RECT, RECT), 0, 0)
-    const thumb = tv.toDataURL('image/jpeg', 0.7)
-    const serial = refs.reduce((mx, r) => Math.max(mx, Number((r.name.match(/(\d+)\s*$/) || [])[1]) || 0), 0) + 1
-    // 由四邊形的兩組對邊平均長度推長寬比（給疊加層排版用）
-    const side = (a, b) => Math.hypot(quad.corners[b][0] - quad.corners[a][0], quad.corners[b][1] - quad.corners[a][1])
-    const aspect = ((side(0, 1) + side(3, 2)) / 2) / Math.max(1e-6, (side(1, 2) + side(0, 3)) / 2)
-    const ref = { id: `card-${Date.now()}`, name: `卡片 ${serial}`, thumb, aspect, hash: sig.hash, hist: sig.hist }
-    const next = [...refs, ref]
-    if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊卡片'); return }
-    setRefs(next)
-    trackerRef.current?.reset()
-    setLastAdded(ref.id)
-    setTimeout(() => setLastAdded(v => (v === ref.id ? null : v)), 1400)
-    requestAnimationFrame(() => document.getElementById(ref.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
-    setToast(`已登錄「${ref.name}」——現在把鏡頭對著它，內容會直接貼上去`)
-  }
-
-  // ---- 從圖片檔登錄（.mind 那種「給我原圖」的流程）----
-  //
-  // 為什麼需要這條路：使用者手上有的是**設計檔**，不是印出來的實體。要他先印出來、
-  // 再拿相機對著登錄，等於把最麻煩的一步留給他，而且相機登錄的品質受當下光線影響。
-  // 直接吃原圖既準又快，而且同一份設計可以先登錄、之後再印。
-  //
-  // ⚠️ 關鍵：原圖要用**與追蹤時完全相同的正規化**——rectify() 是把偵測到的四邊形
-  //    壓成 RECT×RECT 的正方形（不管卡片本身是幾比幾），所以這裡也要把整張圖
-  //    壓成 RECT×RECT。任何一邊改成「保持比例」，兩邊的 dHash 就不在同一個
-  //    座標系，永遠對不上——而且是靜默失敗，只會顯示「看到卡片了，但不是登錄過的」。
-  const registerFromFile = async (file) => {
-    if (!file) return
-    if (refs.length >= MAX_REFS) { setToast(`最多登錄 ${MAX_REFS} 張，請先刪除舊的`); return }
-    if (!/^image\//.test(file.type)) { setToast('請選圖片檔（PNG／JPG／WebP）'); return }
-    let bmp
-    try {
-      bmp = typeof createImageBitmap === 'function'
-        ? await createImageBitmap(file)
-        : await new Promise((res, rej) => {
-          const img = new Image()
-          img.onload = () => res(img); img.onerror = rej
-          img.src = URL.createObjectURL(file)
-        })
-    } catch { setToast('這個圖片讀不進來，換一張試試'); return }
-    const iw = bmp.width || bmp.naturalWidth, ih = bmp.height || bmp.naturalHeight
-    if (!iw || !ih) { setToast('這個圖片讀不進來，換一張試試'); return }
-
-    const cv = document.createElement('canvas')
-    cv.width = RECT; cv.height = RECT
-    const ctx = cv.getContext('2d', { willReadFrequently: true })
-    ctx.drawImage(bmp, 0, 0, RECT, RECT)          // 與 rectify 一樣壓成正方形
-    const flat = ctx.getImageData(0, 0, RECT, RECT).data
-    const sig = makeSignature(flat, RECT, RECT)
-    const dup = refs.find(r => matchScore(sig, r) >= 88)
-    if (dup) { setToast(`這張看起來已登錄過（${dup.name}）`); return }
-
-    // 縮圖保留原比例，清單上看得出是哪一張
-    const tw = 120, th = Math.max(40, Math.round(120 * ih / iw))
-    const tv = document.createElement('canvas')
-    tv.width = tw; tv.height = th
-    tv.getContext('2d').drawImage(bmp, 0, 0, tw, th)
-    const name = (file.name || '').replace(/\.[^.]+$/, '').slice(0, 16)
-      || `卡片 ${refs.length + 1}`
-    const ref = {
-      id: `card-${Date.now()}`, name, thumb: tv.toDataURL('image/jpeg', 0.7),
-      aspect: iw / ih, hash: sig.hash, hist: sig.hist,
-    }
-    const next = [...refs, ref]
-    if (!saveRefs(next)) { setToast('儲存空間不足，請刪除舊卡片'); return }
-    setRefs(next)
-    trackerRef.current?.reset()
-    setLastAdded(ref.id)
-    setTimeout(() => setLastAdded(v => (v === ref.id ? null : v)), 1400)
-    setToast(`已登錄「${ref.name}」——把印出來的那張放進框內就會跳出內容`)
-    bmp.close?.()
-  }
-
-  // 兩段式刪除：第一次點 ✕ 武裝（變朱紅），2.5 秒內再點一次才真的刪
-  const askRemove = (r) => {
-    if (armId === r.id) {
-      clearTimeout(armTimer.current)
-      setArmId(null)
-      if (pendingRef.current === r.id) pendingRef.current = null
-      const next = refs.filter(x => x.id !== r.id)
-      setRefs(next); saveRefs(next)
-      setToast(`已刪除「${r.name}」`)
-    } else {
-      setArmId(r.id)
-      setToast('再按一次 ✕ 確認刪除')
-      clearTimeout(armTimer.current)
-      armTimer.current = setTimeout(() => setArmId(null), 2500)
-    }
-  }
-  useEffect(() => () => clearTimeout(armTimer.current), [])
+  // ⚠️ 「使用者自己登錄目標」（相機登錄 register／圖片檔登錄 registerFromFile／
+  //    兩段式刪除 askRemove）已於 2026-08 移除——那是工程 demo 的動線。
+  //    拿到卡片的人不該先被要求「登錄一張目標」才能掃；這一頁現在只認官方卡包。
+  //    ⚠️ 移除的是**這一頁的 UI 與流程**，不是追蹤能力：arTracker 仍支援多目標，
+  //       arCardRegistry 仍有 bindLocalTarget（美術改稿時在本機驗動線用）。
+  //       日後要做「使用者自己的卡」，把這段流程接回來即可。
 
   // ⚠️ 曆訊要用「今天」不是錨點：dayFor(0) 是錨點 6/6，不是今天。
   const d = dayFor(todayOffset())
   const tracking = !!track
 
   // aria-live 只播報「階段」不播分數——追蹤是每秒 15 次，播分數會變成朗讀轟炸
+  // ⚠️ 這段以前是講「登錄」的（「按下方登錄這張卡片」），但那顆按鈕已經移除。
+  //    照舊留著會叫使用者去按一個不存在的東西——比不給提示更糟。
+  //    現在區分三種狀態，而且**把「沒有可比對的目標」單獨講出來**：
+  //    那一種不是使用者對不準，是站方少放了一張圖，再怎麼喬角度都不會成功。
   const phaseText = status !== 'ready' ? '　'
-    : !refs.length
+    : !official.length
       ? (seeCard
-        ? '看到一張卡片了——按下方「登錄這張卡片」，之後對到它就會跳出內容'
-        : '尚未登錄卡片——把整張卡片放進框內，背景盡量單純')
+        ? '看到一張卡片了，但目標圖尚未安裝，所以認不出它是哪一張'
+        : '目標圖尚未安裝——這一頁目前掃不到任何卡片')
       : tracking ? `已對準：${track.ref.name}`
-        : seeCard ? '看到卡片了，但不是登錄過的那一張'
-          : '掃描中——把登錄過的卡片放進框內'
+        : seeCard ? '看到卡片了，但不是官方卡片'
+          : '掃描中——把整張卡片放進框內'
 
   return (
     <>
@@ -595,6 +466,30 @@ export default function Scan() {
         {/* ── 官方卡片：進頁就能掃，不必自己登錄 ── */}
         <div className="scan-official">
           <SectionHead title="官方節氣卡片" />
+          {/* ⚠️ 一張官方卡都沒載入時，這一頁會**完全掃不到任何東西**——四邊形照樣偵測得到，
+              但沒有登錄目標可以比對，所以永遠不會命中、3D 也永遠不會出現。
+              先前這個狀態是**靜默的**：使用者只看到「掃了沒反應」，無從得知是缺檔案。
+              症狀與「卡片沒對準／光線不夠」完全一樣，會讓人一直換角度重試。 */}
+          {!official.length && (
+            <div className="scan-nofile">
+              <b>目標圖尚未安裝，所以掃描不會有任何反應。</b>
+              <p>
+                追蹤器需要一張「這張卡長什麼樣」的參考圖才能比對。目前
+                <code>public/ar/targets/</code> 裡沒有任何圖檔，等於沒有登錄目標——
+                相機找得到卡片的四個角，但認不出那是哪一張，所以不會跳出白菜。
+              </p>
+              <p>
+                <b>解法：</b>把印出來的那一版卡面圖存成
+                <code>public/ar/targets/2027-xiaohan.png</code>，重新整理即可。
+                裝上之後所有人都能掃，不必逐台裝置設定。
+              </p>
+              <p className="muted">
+                ⚠️ 一定要用<b>實際付印的那一版</b>（含收邊白邊與深色框）。拿加收邊之前的稿
+                登錄、印加收邊之後的卡，相機看得到卡片、四角也抓得準，卻會一律判定
+                「不是登錄過的目標」——實測無框版登錄＋有框版拍攝 0/2，有框版登錄 4/4。
+              </p>
+            </div>
+          )}
           {OFFICIAL_CARDS.map(c => {
             const loaded = official.some(o => o.id === c.id)
             const active = track?.ref?.id === c.id
@@ -649,7 +544,7 @@ export default function Scan() {
                 const next = [...official.filter(o => o.id !== id), ref]
                 setOfficial(next)
                 setOfficialErr(null)
-                trackerRef.current?.setRefs([...next, ...refsRef.current])
+                trackerRef.current?.setRefs(next)
                 trackerRef.current?.reset()
                 setToast(`已指定「${ref.name}」的目標圖——把實體卡放進框內試試`)
               } catch (err) { setToast(err?.message || '這張圖讀不進來') }
@@ -662,47 +557,16 @@ export default function Scan() {
           )}
         </div>
 
-        <div className="scan-acts">
-          {/* 兩條登錄路徑：有設計檔就直接吃原圖（準又快），沒有就拿相機對著實體登錄。
-              ⚠️ 官方卡包上線後這兩條**刻意保留**，只是位置往下移＝降級為進階選項。 */}
-          <SectionHead title="自訂掃描目標" />
-          <button className="btn-primary tap" onClick={() => fileRef.current?.click()}>
-            <Icon name="scroll" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />
-            從圖片檔登錄目標
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden
-            aria-label="選擇要當作掃描目標的圖片檔"
-            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; registerFromFile(f) }} />
-          <button className="btn-ghost tap" onClick={register} disabled={status !== 'ready'}
-            style={{ marginTop: 8, ...(status !== 'ready' ? { opacity: .55 } : null) }}>
-            <Icon name="scan" style={{ width: 18, height: 18, stroke: 'currentColor', verticalAlign: '-3px', marginRight: 6 }} />
-            改用相機對著實體登錄
-          </button>
-          <p className="muted scan-soon">
-            自研平面追蹤：偵測卡片的四個角 → 透視拉正 → 比對登錄過的目標 → 解出姿態，
-            內容就直接貼在卡片上並跟著傾斜。全程在你的裝置上運算，影像不上傳、零第三方相依。
-            <br />
-            <b>可以登錄多張</b>（上限 {MAX_REFS} 張），全部在這一頁一起掃——鏡頭對到哪一張就跳出哪一張的內容。
-            <br />
-            適合<b>有明確邊框的印刷品</b>（月曆頁、明信片、手帳頁）。把整張放進框內、
-            紙張與背景顏色差越多越穩；純白桌面上放白紙會找不到邊。
-          </p>
-        </div>
-
-        {/* 已登錄卡片（放在按鈕之後：登錄時按鈕不跳位） */}
-        {refs.length > 0 && (
-          <div className="scan-refs">
-            {refs.map(r => (
-              <div key={r.id} id={r.id} className={`scan-refchip ${r.id === lastAdded ? 'just-added' : ''}`}>
-                <img src={r.thumb} alt={r.name} />
-                <div className="nm">{r.name}</div>
-                <button className={`del tap ${armId === r.id ? 'arm' : ''}`}
-                  aria-label={armId === r.id ? `再按一次確認刪除 ${r.name}` : `刪除 ${r.name}`}
-                  onClick={() => askRemove(r)}>✕</button>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* ⚠️ 「自訂掃描目標」（從圖片檔登錄／相機對著實體登錄／已登錄清單）已於 2026-08 移除。
+            那是工程 demo 的動線：拿到卡片的人不該先被要求「登錄一張目標」才能掃。
+            這一頁現在只認官方卡包（OFFICIAL_CARDS），拿卡對著鏡頭就有反應。
+            底層的 registerFromFile / 多目標追蹤仍在 lib 裡，日後要做「使用者自己的卡」再接回來。 */}
+        <p className="muted scan-soon">
+          自研平面追蹤：偵測卡片的四個角 → 透視拉正 → 比對官方卡 → 解出姿態，
+          內容就直接貼在卡片上並跟著傾斜。全程在你的裝置上運算，影像不上傳、零第三方相依。
+          <br />
+          把<b>整張卡片</b>放進框內，紙張與桌面顏色差越多越穩；純白桌面上放白紙會找不到邊。
+        </p>
       </div>
 
     </>

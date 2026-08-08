@@ -3616,3 +3616,20 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .cardp-speak { display: inline-flex; align-items: center; margin: var(--space-3) 0 0; }
 /* AR 命中面板裡的同一顆按鈕：那塊面板本來就窄，收一點上緣間距 */
 .scan-hit-speak { margin-top: var(--space-2); }
+
+/* 「目標圖尚未安裝」——這是「再怎麼喬角度都不會成功」的狀態，
+   要看得出它與一般提示不同，所以用橙色左邊條（--ji 是填色用的原色橙）。
+   ⚠️ 文字不可用 --ji（深色模式當文字會掉到 3.18），用 --orange-ink。 */
+.scan-nofile {
+  margin: var(--space-3) 0; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line); border-left: 4px solid var(--ji);
+  border-radius: 10px; background: var(--card);
+  font-size: var(--text-xs); line-height: 1.7;
+}
+.scan-nofile b { color: var(--orange-ink); }
+.scan-nofile p { margin: 6px 0 0; }
+.scan-nofile code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .92em; padding: 1px 5px; border-radius: 5px;
+  background: var(--chip); word-break: break-all;
+}
