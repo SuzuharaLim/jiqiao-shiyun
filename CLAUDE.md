@@ -248,10 +248,26 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **取樣畫面的長寬比必須等於顯示區**，不可寫死 4:3：`.scan-video` 是 `object-fit:cover`，兩個裁切區不同會讓偵測找到看不到的卡片，且座標換算永遠對不上（實測 scale 變成非等比 2.35×5.01，內容飛出畫面三萬 px）。
   - **AR 疊加層的模型盒要 100px 不可 1px**：子元素的 %、字級、`translate(-50%)` 會在 1px 的盒子裡爆掉（實測印章跑到 −12437px）。換算靠 transform 尾端補 `scale(0.01)`。
   - 疊加層必須 `pointer-events:none`（否則吃掉整個取景畫面的點擊，症狀是「按鈕有時候按不動」）。
-  - **★ 圖卡一定要有「連續、高對比的矩形邊框」（深色實框，約短邊 3%）**：這不是美術偏好，是這條路線能不能用的前提。實測「滿版出血、無邊框」的版面（真實月曆頁就是這樣）在中／淺色桌面上四種角度**全部偵測不到**（3/12）；加一圈深色實框後變 11/12。原因是四角偵測靠的是紙與桌面的邊界對比，白紙放在淺色桌面上根本沒有邊界。`check-ar.mjs` 有一項專門鎖這條規範。連帶的排程結論：**實體卡的設計必須早於 AR 疊加的開發**，拿沒有邊框的稿去測會得到「這條路線不可行」的錯誤結論。
+  - **★ 圖卡收邊規範是「白留白邊 ＋ 深色框」，不是只加深色框**（拿 2027 小寒卡實測出來的，最大角誤差）：
+
+    | 收邊 | 深色桌面 | 中灰 | 淺色 | 木紋 |
+    | --- | --- | --- | --- | --- |
+    | 滿版出血（第一版稿） | 26px | 28px | 72px | 28px |
+    | 只加深色框 | **27px** | 1.4px | 1.4px | 1.4px |
+    | 白留白邊＋深色框 | 1.4px | 1.4px | 1.4px | 1.4px |
+
+    白邊負責深／中／木紋桌面的對比，深色框負責淺色桌面，兩者互補；只做一半一定有一種桌面會爛。規範是：四邊留一圈白邊（短邊 2.5%）、**任何元素都不可碰到紙邊**、白邊內側再一圈深色實框（短邊 3%）。`check-ar.mjs` 有五項鎖這條，含兩個反例。
+  - **滿版出血最危險的是「單角失敗」，不是整張認不到**：小寒卡左下角是深藍 QR、上緣是橘色帶，兩者都碰到紙邊 → 那一段邊界與桌面同色 → **那一個角被切掉 24~64px，其他三角完全正常**。偵測仍然回報成功，只是模型與熱區整個歪掉。只檢查「有沒有偵測到」永遠測不出來，**要逐角量誤差**。
+  - 連帶的排程結論：**實體卡的設計必須早於 AR 疊加的開發**，拿滿版出血的稿去測會得到「這條路線不可行」的錯誤結論。
   - **`track()` 已經吐出完整 6DoF**（`{ref, score, rotation, corners, H, matrix3d, pose, areaRatio}`），要接 WebGL 不需要先做「追蹤器到底暴露什麼」的調查。`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。**追蹤器不知道也不該知道卡片的實體尺寸（mm）**——那是卡片註冊表的 metadata，`pose` 的單位是卡片邊長。
   - **180° 翻轉誤判已經處理掉了**（比對階段四個方向都試、取最佳分，`check-ar.mjs` 有四方向測試）。但**卡面若接近旋轉對稱，四個方向的分數會很接近而變得不穩**，所以印刷面仍要有明顯不對稱的定位元素——理由是「拉開分數差距」，不是「四角偵測分不出方向」。
   - **要換 A-Frame／three.js 只需另寫一個吃同樣 `track` 物件的元件**，追蹤層不用動；`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。⚠️ 兩邊的 **fov 必須一致**（A-Frame 預設 80、本追蹤器預設 60），否則模型會浮在卡片上方或陷進桌面。
+- **官方 AR 卡包在 `src/data/arCards.js`＋`src/lib/arCardRegistry.js`**：進 `/AR` 就有東西可掃，不必自己登錄。**使用者自訂登錄（從圖片檔／相機）刻意保留**，只是降級為進階選項。
+  - **簽名不寫進原始碼，載入時從 `public/ar/targets/*.png` 算**：建置期要算就得在 Node 裡解 PNG／JPEG（PNG 還能用 zlib 硬幹，JPEG 要整套解碼器）。美術換稿只要換那張圖，算完存 `localStorage['jq-ar-official-v1']`。**換稿要換檔名或呼叫 `clearOfficialCache()`**——快取以路徑為 key。
+  - **抓目標圖不可用 `cache: 'force-cache'`，而且只看 `res.ok` 不夠**：檔案不存在時 SPA fallback 回 **200 + index.html**，force-cache 把那份 HTML 存下來後，就算圖補上了也永遠拿到 HTML。症狀是「The source image could not be decoded.」——**「檔案不存在」偽裝成「圖片壞掉」**，會讓人去查圖片格式而不是查路徑。要檢查 `content-type` 是不是 `image/`。
+  - **熱區命中一定要走 `makeHotspotLatch`（進入 3 幀／離開 8 幀）**：追蹤每秒 15 次、四角偵測有 1px 抖動，熱區邊界附近會在命中／沒命中之間高頻跳動，而開關內容面板是最貴的操作。**進出門檻必須不同**（hysteresis），同門檻時站在邊界上會等頻率一直開一直關。
+  - **卡面內容刻意不放營養素與健康宣稱**：那受《食品安全衛生管理法》規範，未經食藥署核對不可上。`check-ar.mjs` 把「待審」變成閘門（`ok(!obj.nutrients)` ＋ 療效用語黑名單）。不碰營養宣稱也有足夠內容——品種／產地來自農業部開放資料、俗語與養生來自 `termGuide.js`、宜忌來自 `almanac.js`，全都可標來源。
+  - **查某日屬於哪個節氣要用 `termFromDate`，不可用 `termLocalDay` 的序號反推公曆年**：小寒在「立春起算」的序號裡屬於**下一個**公曆年，`termLocalDay(2027, 22)` 會得到 2028-01-06。2027 小寒實際是 **01-05**（改版文件寫 01-06 是錯的）。
 - **3D 角色層在 `src/lib/char/`（純 three，零 A-Frame）**：`geometry.js`（手刻葉／芯／四肢／臉貼片）＋`material.js`（賽璐璐＋inverted-hull 描邊）＋`face.js`（canvas 表情）＋`factory.js`（組裝＋preset）＋`actor.js`（通道式動作）。`components/ProduceStage.jsx` 是 React 進入點。`scripts/check-char.mjs`（46 項）掛在 `npm run build` 上。
   - **這一層與 three 絕不可進主 bundle**：一律 `React.lazy(() => import('../components/ProduceStage.jsx'))`。實測懶載入分塊 **137.5 KB gzip**，主 bundle 只 +1.2 KB。無條件塞進去等於首頁多背三分之一重量給一個多數人不會點的功能。
   - **剝離 A-Frame 時 schema 預設值會消失**：`buildLeafGeometry` 讀 `d.topWaveFreq`，但 preset 的 layers 沒這個欄位——原本靠 `registerGeometry` 的 schema 補 2。少了預設值就是 `sin(undefined)=NaN`，整份 position 變 NaN、**模型整個不見而且不拋任何錯誤**。geometry.js 自帶 `LEAF_DEFAULTS`，check-char 有專測。

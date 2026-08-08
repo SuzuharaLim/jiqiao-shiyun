@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar } from '../components/ui.jsx'
+import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { dayFor, todayOffset } from '../data/almanac.js'
 import { makeSignature, matchScore, serializeSig, deserializeSig } from '../lib/scanner.js'
 import { detectQuad, rectify } from '../lib/quadDetect.js'
 import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
+import { loadOfficialRefs } from '../lib/arCardRegistry.js'
+import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
+import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
 
 // 取樣尺寸：GRAB = 相機取樣畫面；RECT = 拉正後的方形邊長（辨識用）
@@ -71,6 +74,16 @@ export default function Scan() {
   const [seeCard, setSeeCard] = useState(false)   // 有沒有看到「一張卡片」（不論認不認得）
   const [lastAdded, setLastAdded] = useState(null) // 剛登錄的 chip id（閃爍確認）
   const [armId, setArmId] = useState(null)         // 兩段式刪除：已武裝的 chip id
+  // 官方卡包：進頁自動載入，使用者不必自己登錄就有東西可掃。
+  // ⚠️ 與使用者自訂登錄是**兩份清單**：官方卡不可被使用者刪掉，
+  //    使用者的卡也不會因為官方卡包更新而消失。
+  const [official, setOfficial] = useState([])
+  const officialRef = useRef(official); officialRef.current = official
+  const [officialErr, setOfficialErr] = useState(null)
+  // 命中的卡面熱區（瞄準或點擊卡上的物件）
+  const [hotspot, setHotspot] = useState(null)
+  const latchRef = useRef(null)
+  if (!latchRef.current) latchRef.current = makeHotspotLatch()
 
   // ⚠️ 這個 effect 相依 `status`，必須寫在 status 宣告之後。
   //    放在前面會踩到 TDZ——`Cannot access 'status' before initialization`，
@@ -92,6 +105,20 @@ export default function Scan() {
     ro?.observe(el)
     return () => ro?.disconnect()
   }, [status])
+
+  // ---- 官方卡包（進頁就載，失敗不影響自訂登錄）----
+  useEffect(() => {
+    let cancelled = false
+    loadOfficialRefs(RECT).then(({ refs: list, errors }) => {
+      if (cancelled) return
+      setOfficial(list)
+      // ⚠️ 單張失敗只跳過那一張。美術漏上傳一張圖不該讓使用者連別的卡都掃不到。
+      if (errors.length) setOfficialErr(errors)
+      // 追蹤器已經建好時要補餵進去（不然要等下一次重建）
+      if (list.length) trackerRef.current?.setRefs([...list, ...refsRef.current])
+    }).catch(() => { if (!cancelled) setOfficialErr([{ card: '官方卡包', message: '載入失敗' }]) })
+    return () => { cancelled = true }
+  }, [])
 
   // ---- 開關相機 ----
   useEffect(() => {
@@ -162,7 +189,10 @@ export default function Scan() {
   //    節流器以「上次完成」計時，某一幀跑太久也不會排隊堆積。
   useEffect(() => {
     if (status !== 'ready') return
-    const tracker = createTracker({ refs: refsRef.current, rectifySize: RECT, minScore: MIN_SCORE })
+    const tracker = createTracker({
+      refs: [...officialRef.current, ...refsRef.current],
+      rectifySize: RECT, minScore: MIN_SCORE,
+    })
     trackerRef.current = tracker
     const shouldRun = makeThrottle(15)
     let raf = 0, alive = true
@@ -172,7 +202,7 @@ export default function Scan() {
       if (!shouldRun(now)) return
       const frame = grabFrame()
       if (!frame) return
-      tracker.setRefs(refsRef.current)
+      tracker.setRefs([...officialRef.current, ...refsRef.current])
       const res = tracker.track(frame.data, frame.w, frame.h)
       setTrack(res)
       // 沒有登錄任何卡片時，仍然回報「有沒有看到一張卡片」，
@@ -180,6 +210,24 @@ export default function Scan() {
       if (!refsRef.current.length) {
         setSeeCard(!!detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h))
       } else setSeeCard(!!res)
+
+      // ── 卡面熱區：瞄準卡上的物件就跳內容 ──
+      // ⚠️ 一定要走 latch（進入 3 幀／離開 8 幀）。追蹤每秒 15 次、四角偵測有
+      //    1px 抖動，熱區邊界附近會高頻跳動，而開關內容面板是最貴的操作。
+      const card = res?.ref?.card
+      if (card && stageRef.current) {
+        const box = stageRef.current.getBoundingClientRect()
+        const hs = hotspotAtCenter(res.H, card.hotspots, {
+          dispW: box.width, dispH: box.height, grabW: frame.w, grabH: frame.h,
+        })
+        const out = latchRef.current.push(hs?.id ?? null)
+        if (out.changed) {
+          setHotspot(out.id ? card.hotspots.find(h => h.id === out.id) ?? null : null)
+        }
+      } else if (latchRef.current.current) {
+        latchRef.current.reset()
+        setHotspot(null)
+      }
     }
     raf = requestAnimationFrame(loop)
     return () => { alive = false; cancelAnimationFrame(raf) }
@@ -338,8 +386,75 @@ export default function Scan() {
           {tracking && <span aria-hidden="true">　相似度 <b>{track.score}%</b></span>}
         </div>
 
+        {/* ── 命中卡面熱區：跳出那個物件的內容 ── */}
+        {hotspot && (() => {
+          const obj = objectForHotspot(hotspot)
+          if (!obj) return null
+          return (
+            <div className="scan-hit ui-enter">
+              <div className="scan-hit-hd">
+                <b>{obj.name}</b>
+                <span className="muted">{track?.ref?.name}</span>
+              </div>
+              {obj.line && <p className="scan-hit-line">{obj.line}</p>}
+              {obj.facts?.length > 0 && (
+                <dl className="scan-hit-facts">
+                  {obj.facts.map(f => (
+                    <div key={f.label}>
+                      <dt>{f.label}</dt>
+                      <dd>{f.value}{f.source && <i className="muted">（{f.source}）</i>}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
+              {obj.link && (
+                <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap">
+                  {obj.link.label} ›
+                </Link>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* ── 官方卡片：進頁就能掃，不必自己登錄 ── */}
+        <div className="scan-official">
+          <SectionHead title="官方節氣卡片" />
+          {OFFICIAL_CARDS.map(c => {
+            const loaded = official.some(o => o.id === c.id)
+            const active = track?.ref?.id === c.id
+            return (
+              <div key={c.id} className={`scan-card${active ? ' on' : ''}`}>
+                <div className="scan-card-hd">
+                  <b>{c.title}</b>
+                  <span className="muted">{c.subtitle}</span>
+                  {active && <span className="scan-card-live">正在掃描中</span>}
+                </div>
+                <p className="muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
+                  {loaded
+                    ? `拿這張卡對著鏡頭，瞄準卡上的${c.hotspots.find(h => h.primary)?.label ?? '主物件'}就會跳出內容。`
+                    : '目標圖尚未上傳，這張卡目前無法掃描。'}
+                </p>
+                <div className="scan-card-spots">
+                  {c.hotspots.map(h => (
+                    <span key={h.id} className={`chip${hotspot?.id === h.id ? ' on' : ''}`}>{h.label}</span>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          {officialErr && (
+            <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+              官方卡包有 {officialErr.length} 張載入失敗（{officialErr.map(e => e.card).join('、')}）——
+              自訂登錄不受影響。
+            </p>
+          )}
+        </div>
+
         <div className="scan-acts">
-          {/* 兩條登錄路徑：有設計檔就直接吃原圖（準又快），沒有就拿相機對著實體登錄 */}
+          {/* 兩條登錄路徑：有設計檔就直接吃原圖（準又快），沒有就拿相機對著實體登錄。
+              ⚠️ 官方卡包上線後這兩條**刻意保留**，只是位置往下移＝降級為進階選項。 */}
+          <SectionHead title="自訂掃描目標" />
           <button className="btn-primary tap" onClick={() => fileRef.current?.click()}>
             <Icon name="scroll" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />
             從圖片檔登錄目標

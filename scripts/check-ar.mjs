@@ -14,6 +14,8 @@ import {
 } from '../src/lib/quadDetect.js'
 import { makeSignature } from '../src/lib/scanner.js'
 import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
+import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
+import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
 
 let pass = 0
@@ -142,43 +144,81 @@ ok(otsuThreshold(bimodal) < 200, 'Otsu 分開雙峰')
 ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).length === 4,
   '凸包縮到四頂點')
 
-// ── ★ 圖卡邊框規範：淺色桌面上沒有邊框就偵測不到 ────────────────────────
-// 這一項鎖的不是程式，是**印刷規範**。實測「滿版出血、無邊框」的版面在
-// 中／淺色桌面上四種角度全部偵測不到（3/12）；照策畫書 §5.3 加一圈深色實框後
-// 變成 11/12。所以「卡面外緣要有連續高對比矩形邊框」是這條追蹤路線的**前提**，
-// 不是美術偏好——有人把邊框拿掉時，這裡要立刻擋下來。
+// ── ★ 圖卡收邊規範：白留白邊 ＋ 深色框（實測出來的，不是美術偏好）────────
+// 這一項鎖的是**印在紙上的東西**。卡片付印之後就改不了，而收邊做錯不會拋錯——
+// 四角偵測仍然「找到」一個四邊形，只是某個角偏掉幾十 px，模型與熱區跟著歪。
+//
+// 2027 小寒卡的實測（逐角誤差，200×150 取樣、卡片約 168×104）：
+//
+//   收邊方式              深色桌面  中灰   淺色    木紋
+//   滿版出血（第一版稿）    26px    28px   72px   28px
+//   只加深色框              27px   1.4px  1.4px  1.4px
+//   白留白邊 ＋ 深色框      1.4px   1.4px  1.4px  1.4px   ← 唯一全過
+//
+// ⚠️ 「只加深色框」不夠：深色框放在深色桌面上一樣沒有邊界對比。
+//    ⚠️ 而滿版出血最致命的是**單角失敗**：小寒卡左下角是深藍 QR、上緣是橘色帶，
+//       兩者都碰到紙邊，於是那一段邊界與桌面同色 → 那個角被切掉 24~64px，
+//       其他三角完全正常。只檢查「有沒有偵測到」永遠測不出來。
 {
-  const AW = 143, AH = 100
-  const page = (framed) => {
-    const g = new Uint8Array(AW * AH)
-    const bw = Math.round(AH * 0.03)
-    for (let y = 0; y < AH; y++) {
-      for (let x = 0; x < AW; x++) {
-        // 滿版出血的深色元素：頂端色帶、底部色塊（兩者都碰到紙邊）
-        let v = 245
-        if (y < AH * 0.10) v = 90
-        else if (y > AH * 0.88) v = 120
-        else if (x < AW * 0.22 && y > AH * 0.30) v = 175
-        if (framed && (x < bw || y < bw || x >= AW - bw || y >= AH - bw)) v = 30
-        g[y * AW + x] = v
+  const CW = 220, CH = 165, X = 24, Y = 30, CARD_W = 168, CARD_H = 104
+  const truth = [[X, Y], [X + CARD_W - 1, Y], [X + CARD_W - 1, Y + CARD_H - 1], [X, Y + CARD_H - 1]]
+  // 版面內容：頂端滿版橘帶 ＋ 左下角深色 QR（＝小寒卡真正的兩個弱點）
+  const paint = (g, x0, y0, w, h) => {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const u = x / w, v = y / h
+        let val = 245
+        if (v < 0.10) val = 150                             // 橘帶（灰階值）
+        else if (u < 0.16 && v > 0.74) val = 60             // 深藍 QR
+        else if (u < 0.17 && v > 0.13 && v < 0.54) val = 150
+        else if (u > 0.18 && v > 0.20 && v < 0.50) val = 95
+        g[(y0 + y) * CW + (x0 + x)] = val
+      }
+    }
+  }
+  const render = (desk, mode) => {
+    const g = new Uint8Array(CW * CH).fill(desk)
+    const qz = Math.max(2, Math.round(CARD_H * 0.025))   // 白留白邊
+    const fr = Math.max(2, Math.round(CARD_H * 0.03))    // 深色框
+    if (mode === 'none') {
+      paint(g, X, Y, CARD_W, CARD_H)
+    } else if (mode === 'frameOnly') {
+      paint(g, X, Y, CARD_W, CARD_H)
+      for (let i = 0; i < fr; i++) {
+        for (let x = X; x < X + CARD_W; x++) { g[(Y + i) * CW + x] = 30; g[(Y + CARD_H - 1 - i) * CW + x] = 30 }
+        for (let y = Y; y < Y + CARD_H; y++) { g[y * CW + X + i] = 30; g[y * CW + X + CARD_W - 1 - i] = 30 }
+      }
+    } else {                                              // quietZone
+      for (let y = Y; y < Y + CARD_H; y++) for (let x = X; x < X + CARD_W; x++) g[y * CW + x] = 255
+      paint(g, X + qz + fr, Y + qz + fr, CARD_W - 2 * (qz + fr), CARD_H - 2 * (qz + fr))
+      for (let i = 0; i < fr; i++) {
+        for (let x = X + qz; x < X + CARD_W - qz; x++) {
+          g[(Y + qz + i) * CW + x] = 30; g[(Y + CARD_H - 1 - qz - i) * CW + x] = 30
+        }
+        for (let y = Y + qz; y < Y + CARD_H - qz; y++) {
+          g[y * CW + X + qz + i] = 30; g[y * CW + X + CARD_W - 1 - qz - i] = 30
+        }
       }
     }
     return g
   }
-  // 把版面貼到淺色桌面（205）上的一塊區域
-  const place = (art, bg) => {
-    const g = new Uint8Array(W * H).fill(bg)
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const u = (x - 18) / 124, v = (y - 12) / 96
-        if (u < 0 || v < 0 || u >= 1 || v >= 1) continue
-        g[y * W + x] = art[Math.min(AH - 1, (v * AH) | 0) * AW + Math.min(AW - 1, (u * AW) | 0)]
-      }
-    }
-    return g
+  const maxErr = (g) => {
+    const q = detectQuad(g, CW, CH)
+    if (!q?.corners) return Infinity
+    return Math.max(...q.corners.map((p, i) => Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1])))
   }
-  ok(detectQuad(place(page(true), 205), W, H) !== null,
-    '★ 有深色實框的卡片，在淺色桌面上必須偵測得到（§5.3 印刷規範）')
+  const DESKS = [['深色', 35], ['中灰', 140], ['淺色', 216], ['木紋', 150]]
+
+  // 白留白邊＋深色框：四種桌面都要在 3px 以內
+  for (const [name, desk] of DESKS) {
+    const e = maxErr(render(desk, 'quietZone'))
+    ok(e <= 3, `★ 白留白邊＋深色框在${name}桌面的角誤差 ${e.toFixed(1)}px（上限 3）`)
+  }
+  // 反例鎖定：現稿（滿版出血）在淺色桌面上一定會爛掉。
+  // 這一項若「通過」＝有人改了偵測邏輯或改了這個測試，收邊規範就可以放寬了——
+  // 請重跑上面那張表再決定，不要直接把這行刪掉。
+  ok(maxErr(render(216, 'none')) > 10, '滿版出血在淺色桌面上角誤差 >10px（收邊規範的存在理由）')
+  ok(maxErr(render(35, 'frameOnly')) > 10, '只加深色框在深色桌面上角誤差 >10px（所以必須留白邊）')
 }
 
 // ── arTracker：四個方向的對齊 ──────────────────────────────────────────
@@ -287,9 +327,73 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
     'rect 單邊 <12% 要被擋下（手機上點不到）')
 }
 
+// ── 官方卡包：熱區標註與卡面曆算 ────────────────────────────────────────
+// 這一段鎖的是**印在紙上的東西**。卡片一旦付印就改不了，而熱區標錯不會拋錯，
+// 只會讓使用者點不到東西或點到卡片另一邊。
+{
+  ok(OFFICIAL_CARDS.length >= 1, `官方卡包有 ${OFFICIAL_CARDS.length} 張卡`)
+  for (const card of OFFICIAL_CARDS) {
+    const v = validateCard(card)
+    ok(v.ok, `${card.title} 熱區標註合法${v.ok ? '' : '：' + v.errors.join('；')}`)
+    ok(card.hotspots.filter(h => h.primary).length === 1,
+      `${card.title} 必須剛好有一個主物件（卡面上印著「掃描主物件」）`)
+    // 每個熱區都要有對應的內容，否則點了跳出空白
+    for (const hs of card.hotspots) {
+      ok(!!objectForHotspot(hs), `${card.title}／${hs.id} 有對應的內容資料（${hs.objectId}）`)
+    }
+    // 熱區之間不可大幅重疊——重疊區塊使用者按到哪個都合理，等於隨機
+    for (let i = 0; i < card.hotspots.length; i++) {
+      for (let j = i + 1; j < card.hotspots.length; j++) {
+        const a = card.hotspots[i].rect, b = card.hotspots[j].rect
+        const ow = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
+        const oh = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+        const frac = (ow * oh) / Math.min(a.w * a.h, b.w * b.h)
+        ok(frac < 0.35,
+          `${card.hotspots[i].id} 與 ${card.hotspots[j].id} 重疊 ${(frac * 100).toFixed(0)}%（上限 35%）`)
+      }
+    }
+  }
+
+  // 內容資料紀律：每個 fact 有出處；刻意不放營養宣稱
+  for (const [id, obj] of Object.entries(CARD_OBJECTS)) {
+    ok(!!obj.name && !!obj.link, `${id} 有名稱與導回站內的連結`)
+    // ⚠️ 營養宣稱受《食品安全衛生管理法》規範，未經食藥署核對前不可出現。
+    //    改版文件 §4.2 擬了草稿並自己標了待審——這裡把「待審」變成建置閘門。
+    ok(!obj.nutrients, `${id} 尚未放營養素資料（須經食藥署核對後才可加）`)
+    const claim = /療效|治療|預防疾病|抗癌|降血[壓糖脂]|排毒/
+    ok(!claim.test(JSON.stringify(obj)), `${id} 沒有療效類宣稱用語`)
+  }
+
+  // ── 卡面曆算逐項核對（2027 小寒卡）──
+  // ⚠️ 查某日屬於哪個節氣要用 termFromDate，**不可**用 termLocalDay 的序號
+  //    反推公曆年：小寒在「立春起算」的序號裡屬於下一個公曆年，
+  //    termLocalDay(2027, 22) 會得到 2028-01-06。
+  const t = termFromDate(2027, 1, 5)
+  ok(t.term === '小寒' && t.startsToday === true, '卡面小寒交節日 2027-01-05 正確')
+  ok(termFromDate(2027, 1, 6).startsToday === false, '2027-01-06 不是交節日（改版文件寫錯）')
+  const CARD_LUNAR = {
+    1: [11, 24], 2: [11, 25], 3: [11, 26], 4: [11, 27], 5: [11, 28], 6: [11, 29], 7: [11, 30],
+    8: [12, 1], 9: [12, 2], 10: [12, 3], 11: [12, 4], 12: [12, 5], 13: [12, 6], 14: [12, 7],
+    15: [12, 8], 16: [12, 9],
+  }
+  let lunarBad = 0
+  for (const [d, [lm, ld]] of Object.entries(CARD_LUNAR)) {
+    const L = lunarFromDate(2027, 1, Number(d))
+    if (L.month !== lm || L.day !== ld) lunarBad++
+  }
+  ok(lunarBad === 0, `卡面 16 個農曆日全部正確（不符 ${lunarBad} 筆）`)
+  const lgz = lunarYearGanzhiIndex(2027, 3, 1)
+  ok('甲乙丙丁戊己庚辛壬癸'[lgz % 10] + '子丑寅卯辰巳午未申酉戌亥'[lgz % 12] === '丁未',
+    '卡面「丁未年 羊」正確')
+  ok(new Date(2027, 0, 1).getDay() === 5, '2027-01-01 是星期五（卡面週欄位對齊）')
+  // 臘八節＝農曆十二月初八
+  const laba = lunarFromDate(2027, 1, 15)
+  ok(laba.month === 12 && laba.day === 8, '卡面臘八節 2027-01-15 ＝ 農曆十二月初八')
+}
+
 if (fails.length) {
   console.error(`\n[check-ar] ${fails.length} 項失敗：`)
   fails.forEach(f => console.error('  ✗ ' + f))
   process.exit(1)
 }
-console.log(`✓ AR 層 ${pass} 項檢查全部通過（homography、四邊形偵測、角點精修、姿態、卡面熱區）`)
+console.log(`✓ AR 層 ${pass} 項檢查全部通過（homography、四邊形偵測、角點精修、姿態、卡面熱區、官方卡包）`)

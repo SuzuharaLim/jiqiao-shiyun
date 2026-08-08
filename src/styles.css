@@ -3375,3 +3375,45 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 @media (prefers-reduced-motion: reduce) {
   .ar-card-glow { animation: none; opacity: .7; }
 }
+
+/* ── AR 官方卡包與熱區命中 ─────────────────────────────────────────────
+   ⚠️ hover 一律包 @media (hover:hover)：觸控裝置沒有真 hover，
+      點過之後狀態會黏住直到點別處。 */
+.scan-official { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
+.scan-card {
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2);
+  background: var(--card); transition: border-color var(--m-fast) var(--e-out);
+}
+.scan-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+.scan-card-hd { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.scan-card-hd b { font-size: var(--text-base); }
+.scan-card-hd .muted { font-size: var(--text-xs); }
+.scan-card-live {
+  margin-left: auto; font-size: var(--text-2xs); color: var(--on-primary);
+  background: var(--primary); border-radius: 999px; padding: 2px 8px;
+}
+.scan-card-spots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+
+/* 熱區命中面板。⚠️ 內容可見性不依賴動畫：ui-enter 只動 transform 不動 opacity，
+   動畫沒跑最壞只是偏移幾 px，永遠看得見。 */
+.scan-hit {
+  margin: 0 var(--space-4) var(--space-3); padding: var(--space-4);
+  border: 1px solid var(--primary); border-radius: 12px; background: var(--card);
+  flex: 0 0 auto; max-height: 40dvh; overflow: auto;
+}
+.scan-hit-hd { display: flex; align-items: baseline; gap: var(--space-2); }
+.scan-hit-hd b { font-size: var(--text-lg); }
+.scan-hit-hd .muted { font-size: var(--text-2xs); margin-left: auto; }
+.scan-hit-line { margin: var(--space-2) 0; font-size: var(--text-sm); }
+.scan-hit-facts { margin: var(--space-2) 0 var(--space-3); }
+.scan-hit-facts > div { display: flex; gap: var(--space-2); margin-bottom: 6px; }
+.scan-hit-facts dt {
+  flex: 0 0 4.5em; font-size: var(--text-xs); color: var(--muted); font-weight: 600;
+}
+.scan-hit-facts dd { margin: 0; font-size: var(--text-xs); line-height: 1.6; }
+.scan-hit-facts dd i { font-style: normal; font-size: var(--text-2xs); }
+.scan-hit-warn {
+  font-size: var(--text-2xs); line-height: 1.7; color: var(--on-ji);
+  background: var(--ji); border-radius: 8px; padding: var(--space-2) var(--space-3); margin: 0 0 var(--space-3);
+}
