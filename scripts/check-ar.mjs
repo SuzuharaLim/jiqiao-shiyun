@@ -15,6 +15,7 @@ import {
 import { makeSignature, matchScore } from '../src/lib/scanner.js'
 import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
 import { cvToThree, verticalFov } from '../src/lib/arPoseBridge.js'
+import { decodePng, encodePng, addSpec, QUIET, FRAME } from './frame-card.mjs'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
@@ -537,6 +538,77 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   // 臘八節＝農曆十二月初八
   const laba = lunarFromDate(2027, 1, 15)
   ok(laba.month === 12 && laba.day === 8, '卡面臘八節 2027-01-15 ＝ 農曆十二月初八')
+}
+
+// ── 收邊工具的 PNG 編解碼（scripts/frame-card.mjs）────────────────────────
+// ⚠️ 手寫的 PNG 編解碼是「壞掉但不報錯」的典型：反濾波寫錯不會拋例外，
+//    只會讓圖片從某一列開始整片糊掉或出現斜條紋——而那張圖是要拿去**付印**的。
+{
+  const W = 97, H = 61
+  const rgba = new Uint8ClampedArray(W * H * 4)
+  let seed = 12345
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296)
+  for (let i = 0; i < W * H; i++) {
+    rgba[i * 4] = rnd() * 256 | 0; rgba[i * 4 + 1] = rnd() * 256 | 0
+    rgba[i * 4 + 2] = rnd() * 256 | 0; rgba[i * 4 + 3] = 255
+  }
+  const back = decodePng(encodePng(W, H, rgba))
+  ok(back.w === W && back.h === H, `PNG 往返尺寸 ${back.w}×${back.h}`)
+  let diff = 0
+  for (let i = 0; i < W * H * 4; i++) if (rgba[i] !== back.rgba[i]) diff++
+  ok(diff === 0, `PNG 編解碼往返逐像素相同（不同位元組 ${diff}）`)
+
+  // 外部工具匯出的 PNG 幾乎不會用 filter 0，所以反濾波一定要測
+  const stride = W * 3
+  const raw = Buffer.alloc(H * (1 + stride))
+  for (let y = 0; y < H; y++) {
+    raw[y * (1 + stride)] = 1                       // Sub
+    for (let x = 0; x < W; x++) {
+      for (let c = 0; c < 3; c++) {
+        const cur = rgba[(y * W + x) * 4 + c]
+        const left = x > 0 ? rgba[(y * W + x - 1) * 4 + c] : 0
+        raw[y * (1 + stride) + 1 + x * 3 + c] = (cur - left) & 0xff
+      }
+    }
+  }
+  // 借 encodePng 的 chunk 組法：直接拿一張 filter 0 的來換掉 IDAT 太脆弱，
+  // 這裡用 zlib 自己組（與 frame-card 的編碼路徑無關，才測得出解碼）
+  const zlib = await import('node:zlib')
+  const crcT = Int32Array.from({ length: 256 }, (_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1
+    return c
+  })
+  const crc = (b) => { let c = ~0; for (const v of b) c = crcT[(c ^ v) & 255] ^ (c >>> 8); return (~c) >>> 0 }
+  const chunk = (t, d) => {
+    const l = Buffer.alloc(4); l.writeUInt32BE(d.length)
+    const td = Buffer.concat([Buffer.from(t, 'ascii'), d])
+    const cc = Buffer.alloc(4); cc.writeUInt32BE(crc(td))
+    return Buffer.concat([l, td, cc])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 2
+  const filtered = Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+  ])
+  const f1 = decodePng(filtered)
+  let d1 = 0
+  for (let i = 0; i < W * H * 4; i++) if (rgba[i] !== f1.rgba[i]) d1++
+  ok(d1 === 0, `filter=1（Sub）反濾波正確（不同位元組 ${d1}）`)
+
+  // 收邊比例：白邊 2.5%、框 3%，都以**短邊**為基準；畫布尺寸不可改變
+  // ⚠️ 畫布放大的話實體卡的成品尺寸會變，而 148×105 是明信片規格。
+  const spec = addSpec({ w: 1000, h: 700, rgba: new Uint8ClampedArray(1000 * 700 * 4).fill(200) })
+  ok(spec.quiet === Math.round(700 * QUIET), `白邊 ${spec.quiet}px ＝ 短邊 ${(QUIET * 100)}%`)
+  ok(spec.frame === Math.round(700 * FRAME), `深色框 ${spec.frame}px ＝ 短邊 ${(FRAME * 100)}%`)
+  ok(spec.w === 1000 && spec.h === 700, '加收邊不改變畫布尺寸（版面內縮，不是畫布放大）')
+  // 四個角落必須是白的（那是白留白邊）
+  const at = (x, y) => spec.rgba[(y * spec.w + x) * 4]
+  ok(at(0, 0) === 255 && at(999, 0) === 255 && at(0, 699) === 255 && at(999, 699) === 255,
+    '四個角落是白留白邊')
+  // 白邊內側必須是深色框
+  ok(at(spec.quiet + 1, spec.h / 2 | 0) < 60, '白邊內側是深色框')
 }
 
 if (fails.length) {
