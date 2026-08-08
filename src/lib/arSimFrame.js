@@ -25,13 +25,15 @@
  * @returns {{ data: Uint8ClampedArray, w: number, h: number, quad: number[][] }}
  *          quad 是真值四角（順序：左上、右上、右下、左下）
  */
-export function drawSimFrame(ctx, bitmap, { w, h, quad, desk = '#2A2A2E' }) {
+export function drawSimFrame(ctx, bitmap, { w, h, quad, quadAt, desk = '#2A2A2E' }) {
   ctx.fillStyle = desk
   ctx.fillRect(0, 0, w, h)
-  const [tl, tr, br, bl] = quad
   const N = 240
   for (let i = 0; i < N; i++) {
     const v0 = i / N, v1 = (i + 1) / N
+    // ★ 捲簾快門：每一列的曝光時間不同，所以每一條帶要用**那一列的時間**的四角。
+    //    quadAt(v) 由呼叫端提供（見 rollingShutterQuadAt）。沒給就退回靜態四角。
+    const [tl, tr, br, bl] = quadAt ? quadAt(v0) : quad
     const lx0 = tl[0] + (bl[0] - tl[0]) * v0, ly0 = tl[1] + (bl[1] - tl[1]) * v0
     const rx0 = tr[0] + (br[0] - tr[0]) * v0, ry0 = tr[1] + (br[1] - tr[1]) * v0
     const lx1 = tl[0] + (bl[0] - tl[0]) * v1, ly1 = tl[1] + (bl[1] - tl[1]) * v1
@@ -115,6 +117,67 @@ export function degrade(frame, { noise = 0, blur = 0, exposure = 1, seed = 1, se
 }
 
 /**
+ * ★ 捲簾快門 —— 產生一個「逐列取不同時間」的四角函式。
+ *
+ * ⚠️ 這是三個鏡頭效應裡最危險的一個：移動中的矩形被逐列取樣之後，
+ *    投影出來的四邊形**不再是任何平面矩形的合法投影**。也就是說它與我之前
+ *    在模擬器裡踩過的「剪切近似」是同一類的輸入——homography 無解、
+ *    rectify 拉正後影像是歪的。
+ *    偵測器仍然會「找到」一個四邊形（實心度與四邊形度都過得了），
+ *    所以症狀是**分數莫名偏低**而不是追不到，很容易被誤診為「比對太嚴格」。
+ *
+ * @param readoutMs 整個畫面從第一列讀到最後一列的時間。手機常見 15~30ms
+ *                  （高階機有些做到 5ms 以下，那幾乎沒有捲簾效應）
+ */
+export function rollingShutterQuadAt(quadFn, t, readoutMs) {
+  const tau = readoutMs / 1000
+  return (v) => quadFn(t + v * tau)
+}
+
+/**
+ * ★ 鏡頭徑向畸變（Brown-Conrady 的一階／二階項）。
+ *
+ * 手機廣角鏡頭多是**桶狀**畸變（k1 < 0）：畫面邊緣被往外推，直線變成弧線。
+ * ⚠️ 對四角偵測的影響不是「整體縮放」而是「**角落偏移比中央多**」——
+ *    卡片放在畫面正中央幾乎沒事，靠邊就開始歪。所以測試一定要包含
+ *    「卡片不在畫面中央」的情形，只測置中會完全漏掉這一項。
+ *
+ * @param k1 一階係數。手機主鏡頭約 -0.05~-0.15，超廣角 -0.25~-0.4
+ */
+export function applyDistortion(frame, { k1 = 0, k2 = 0 } = {}) {
+  if (!k1 && !k2) return frame
+  const { w, h, data } = frame
+  const out = new Uint8ClampedArray(data.length)
+  const cx = w / 2, cy = h / 2
+  const norm = Math.hypot(cx, cy)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // 逆向映射：對輸出的每個像素，找它在原始（無畸變）畫面的位置
+      const dx = (x - cx) / norm, dy = (y - cy) / norm
+      const r2 = dx * dx + dy * dy
+      const f = 1 + k1 * r2 + k2 * r2 * r2
+      const sx = Math.round(cx + dx * norm / f)
+      const sy = Math.round(cy + dy * norm / f)
+      const o = (y * w + x) * 4
+      if (sx < 0 || sy < 0 || sx >= w || sy >= h) { out[o + 3] = 255; continue }
+      const i = (sy * w + sx) * 4
+      out[o] = data[i]; out[o + 1] = data[i + 1]; out[o + 2] = data[i + 2]; out[o + 3] = 255
+    }
+  }
+  return { data: out, w, h, quad: frame.quad }
+}
+
+/**
+ * ★ 對焦呼吸 —— 自動對焦時有效焦距會微幅改變，畫面看起來像在輕微縮放。
+ * 幅度小（1~2%），但它是**持續**的，所以每一幀的卡片大小都在變。
+ * 對這個追蹤器影響不大（四角偵測本來就每幀重算），列進來是為了確認「不影響」
+ * 而不是假設它不影響。
+ */
+export function focusBreath(t, { amount = 0.015, hz = 0.7 } = {}) {
+  return 1 + Math.sin(t * hz * Math.PI * 2) * amount
+}
+
+/**
  * 產生一組會緩慢移動的四角，模擬「手持著卡片」。
  *
  * ⚠️ 必須是**真正的透視投影**（把 3D 矩形投影下來），不可用
@@ -129,16 +192,16 @@ export function degrade(frame, { noise = 0, blur = 0, exposure = 1, seed = 1, se
  *
  * @param t 秒
  */
-export function wobbleQuad(t, { w, h, aspect = 148 / 105, cover = 0.62, fovDeg = 60 }) {
+export function wobbleQuad(t, { w, h, aspect = 148 / 105, cover = 0.62, fovDeg = 60, zoom = 1, offx = 0, offy = 0 }) {
   const k = 1 / aspect
   const f = (w / 2) / Math.tan((fovDeg * Math.PI) / 360)
   // 讓卡片在畫面裡大約佔 cover 的寬度 → 反推距離
-  const dist = f / (w * cover)
+  const dist = f / (w * cover * zoom)
   const yaw = Math.sin(t * 0.41) * 0.30
   const pitch = Math.cos(t * 0.33) * 0.22
   const roll = Math.sin(t * 0.23) * 0.14
-  const ox = Math.sin(t * 0.35) * 0.06
-  const oy = Math.cos(t * 0.27) * 0.05
+  const ox = Math.sin(t * 0.35) * 0.06 + offx
+  const oy = Math.cos(t * 0.27) * 0.05 + offy
   const cy = Math.cos(yaw), sy = Math.sin(yaw)
   const cp = Math.cos(pitch), sp = Math.sin(pitch)
   const cr = Math.cos(roll), sr = Math.sin(roll)

@@ -10,6 +10,7 @@ import { createTracker, makeThrottle } from '../lib/arTracker.js'
 import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
+import { openBackCamera } from '../lib/arCamera.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
 
@@ -174,9 +175,9 @@ export default function Scan() {
       if (simRef.current) return          // 模擬模式不開相機
       if (!navigator.mediaDevices?.getUserMedia) { setStatus('unsupported'); return }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }, audio: false,
-        }).catch(() => navigator.mediaDevices.getUserMedia({ video: true, audio: false }))
+        // ★ 避開超廣角鏡頭（畸變容忍上限只有 k1 ≈ −0.04，超廣角遠超過）。
+        //    三層 fallback、盡力而為，絕不可因此開不了相機——見 lib/arCamera.js。
+        const stream = await openBackCamera()
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
         setStatus('ready')

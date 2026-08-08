@@ -16,6 +16,7 @@ import { makeSignature, matchScore } from '../src/lib/scanner.js'
 import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
 import { cvToThree, verticalFov } from '../src/lib/arPoseBridge.js'
 import { decodePng, encodePng, addSpec, QUIET, FRAME } from './frame-card.mjs'
+import { pickMainCameraId } from '../src/lib/arCamera.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
@@ -540,7 +541,35 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(laba.month === 12 && laba.day === 8, '卡面臘八節 2027-01-15 ＝ 農曆十二月初八')
 }
 
-// ── ★ 多視角簽名的比對契約 ──────────────────────────────────────────────
+// ── ★ 避開超廣角鏡頭 ────────────────────────────────────────────────────
+// ⚠️ 桶狀畸變對這個追蹤器的容忍上限只有 k1 ≈ −0.04（實測：−0.04→62%、
+//    −0.05→33%、−0.07 以上→**0%**）。超廣角的 k1 常在 −0.25~−0.4。
+//    ⚠️ −0.07 之後的失效模式是「**四邊形照樣找得到**，但拉正後被畸變扭曲、
+//       分數崩到 17~34」——症狀是「對著卡片卻一直說沒認出來」，很容易被誤診成
+//       「比對太嚴格」而去調低門檻，那會讓正式站亂認。
+// ⚠️ 沒有標準 constraint 可以說「不要超廣角」，只能靠 label 猜，所以這是
+//    盡力而為：猜不出來要回 null 讓呼叫端退回 facingMode，**不可開不了相機**。
+{
+  const dev = (label, id) => ({ kind: 'videoinput', label, deviceId: id })
+  const pick = (labels) => pickMainCameraId(labels.map((l, i) => dev(l, 'd' + i)))
+
+  ok(pick(['Front Camera', 'Back Camera', 'Back Ultra Wide Camera', 'Back Telephoto Camera']) === 'd1',
+    'iPhone 命名：挑到 Back Camera 而不是 Ultra Wide')
+  ok(pick(['camera2 1, facing front', 'camera2 0, facing back', 'camera2 3, facing back (ultra wide)']) === 'd1',
+    'Android 命名：挑到 facing back 而不是 ultra wide')
+  ok(pick(['前置鏡頭', '後置主鏡頭', '後置超廣角鏡頭']) === 'd1', '中文命名：挑到後置主鏡頭')
+  ok(pick(['Front', 'Back 1x', 'Back 0.5x']) === 'd1', '0.5x 命名也算超廣角')
+  // 以下三種都必須回 null（讓呼叫端退回 facingMode）
+  ok(pick(['Integrated Webcam']) === null, '只有一顆鏡頭時回 null（沒得挑）')
+  ok(pick(['', '', '']) === null, '沒有 label（未授權）時回 null——不可亂猜')
+  ok(pick(['Back Ultra Wide', 'Back ultra wide 2']) === null,
+    '全部都是超廣角時回 null（有東西總比沒有好，交給 facingMode）')
+  ok(pickMainCameraId(null) === null && pickMainCameraId([]) === null, '空輸入不可爆')
+  ok(pickMainCameraId([{ kind: 'audioinput', label: 'Mic', deviceId: 'a' },
+    dev('Back Camera', 'b'), dev('Front', 'f')]) === 'b', '只看 videoinput，忽略麥克風')
+}
+
+// ── ★ 多視角簽名的比對契約 ─// ── ★ 多視角簽名的比對契約 ──────────────────────────────────────────────
 // ⚠️ dHash 對**透視縮短**很敏感：只存正面簽名時，yaw ±17°／pitch ±13° 的
 //    手持晃動會讓分數掉到 37~57（門檻 58）。實測（瀏覽器，合成手持晃動）
 //    追蹤成功率 33% → 多視角 80%，而誤判維持 0（立春卡 0/25、棋盤格 0/25）。
