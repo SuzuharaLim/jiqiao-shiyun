@@ -13,6 +13,7 @@ import {
   convexHull, reduceHullToQuad,
 } from '../src/lib/quadDetect.js'
 import { makeSignature } from '../src/lib/scanner.js'
+import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
 import { createTracker } from '../src/lib/arTracker.js'
 
 let pass = 0
@@ -239,9 +240,56 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
 }
 
 // ── 結果 ───────────────────────────────────────────────────────────────
+// ── 卡面熱區（改版文件「決策 A」：不做物件偵測，改用卡片座標系）─────────
+// ⚠️ 座標系有三層（螢幕 / 取樣畫面 / 卡面 0..1），混用是這一層唯一會錯的地方。
+{
+  const layout = { dispW: 375, dispH: 601, grabW: 95, grabH: 160 }
+  const Hc = homography(UNIT, [[15, 40], [80, 38], [82, 110], [13, 108]])
+  const HS = [
+    { id: 'hs-baicai', objectId: 'obj-baicai', rect: { x: 0.08, y: 0.62, w: 0.30, h: 0.30 } },
+    { id: 'hs-almanac', objectId: 'obj-almanac', rect: { x: 0.05, y: 0.05, w: 0.90, h: 0.33 } },
+  ]
+  // 每個熱區的中心點，反推成螢幕座標後必須命中自己
+  for (const hs of HS) {
+    const cu = hs.rect.x + hs.rect.w / 2, cv = hs.rect.y + hs.rect.h / 2
+    const g = applyH(Hc, cu, cv)
+    const pt = { x: g[0] * layout.dispW / layout.grabW, y: g[1] * layout.dispH / layout.grabH }
+    const uv = screenToCard(Hc, pt, layout)
+    ok(hitTest(HS, uv[0], uv[1])?.id === hs.id, `熱區 ${hs.id} 的中心點命中自己`)
+  }
+  const out = screenToCard(Hc, { x: 5, y: 5 }, layout)
+  ok(!hitTest(HS, out[0], out[1]), '卡片外的點不可命中任何熱區')
+  const nest = [
+    { id: 'big', objectId: 'o', rect: { x: 0, y: 0, w: 1, h: 1 } },
+    { id: 'small', objectId: 'o', rect: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 } },
+  ]
+  ok(hitTest(nest, 0.5, 0.5)?.id === 'small', '熱區重疊時取面積最小的（小的意圖較明確）')
+
+  // 防手震：進入 3 幀、離開 8 幀（hysteresis）
+  // ⚠️ 沒有這層的話，四角偵測的 1px 抖動會讓邊界附近高頻開關 3D 舞台——
+  //    而建 WebGL 場景／編譯 shader 是整條動線最貴的操作。
+  const L = makeHotspotLatch({ enterFrames: 3, leaveFrames: 8 })
+  ok(L.push('a').id === null && L.push('a').id === null, '熱區前兩幀不觸發')
+  ok(L.push('a').changed === true, '熱區第三幀才觸發')
+  ok(L.push(null).id === 'a', '掉一幀不可放掉（會閃爍）')
+  let last
+  for (let i = 0; i < 7; i++) last = L.push(null)
+  ok(last.id === null && last.changed === true, '連續 8 幀沒命中才收起')
+  const L2 = makeHotspotLatch({ enterFrames: 3 })
+  L2.push('a'); L2.push('b'); L2.push('a')
+  ok(L2.current === null, '中途換過目標要重新計數（不可累加）')
+
+  // 熱區 JSON 是人工標註的，寫錯不拋錯——只會讓使用者點不到東西
+  ok(validateCard({ id: 'c', hotspots: HS }).ok, '合法卡片通過驗證')
+  ok(!validateCard({ id: 'c', hotspots: [{ id: 'x', objectId: 'o', rect: { x: 0.9, y: 0.9, w: 0.3, h: 0.3 } }] }).ok,
+    'rect 超出卡面 0..1 要被擋下')
+  ok(!validateCard({ id: 'c', hotspots: [{ id: 't', objectId: 'o', rect: { x: 0.1, y: 0.1, w: 0.05, h: 0.05 } }] }).ok,
+    'rect 單邊 <12% 要被擋下（手機上點不到）')
+}
+
 if (fails.length) {
   console.error(`\n[check-ar] ${fails.length} 項失敗：`)
   fails.forEach(f => console.error('  ✗ ' + f))
   process.exit(1)
 }
-console.log(`✓ AR 幾何層 ${pass} 項檢查全部通過（homography、四邊形偵測、角點精修、姿態）`)
+console.log(`✓ AR 層 ${pass} 項檢查全部通過（homography、四邊形偵測、角點精修、姿態、卡面熱區）`)
