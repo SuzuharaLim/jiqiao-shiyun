@@ -30,7 +30,7 @@ function readCache() {
     for (const [id, e] of Object.entries(raw)) {
       const okSig = typeof e?.sig?.hash === 'string' && /^[0-9a-fA-F]{16}$/.test(e.sig.hash)
         && Array.isArray(e.sig.hist) && e.sig.hist.length === HIST_LEN && e.sig.hist.every(Number.isFinite)
-      if (okSig && typeof e.target === 'string') out[id] = e
+      if (okSig && typeof e.target === 'string') out[id] = e   // 含 source/fileName
     }
     return out
   } catch { return {} }
@@ -52,8 +52,9 @@ export async function signatureFromImage(src, size) {
     if (!res.ok) throw new Error(`目標圖載入失敗（HTTP ${res.status}）`)
     // ⚠️ 只看 res.ok 不夠，理由同上：SPA fallback 的 200 也是 ok。
     //    必須確認回來的真的是圖片，錯誤訊息才指得出真正的原因。
+    //    （blob: URL 是本機檔案，型別由 File 決定，呼叫端已經驗過。）
     const ct = res.headers.get('content-type') || ''
-    if (!ct.startsWith('image/')) {
+    if (!src.startsWith('blob:') && !ct.startsWith('image/')) {
       throw new Error(`${src} 找不到（伺服器回的是 ${ct.split(';')[0] || '未知型別'}，不是圖片）`)
     }
     bmp = await createImageBitmap(await res.blob())
@@ -91,6 +92,7 @@ export async function loadOfficialRefs(rectifySize) {
     if (hit && hit.target === card.target) {
       refs.push({
         id: card.id, name: card.title, official: true, card,
+        local: hit.source === 'local', fileName: hit.fileName,
         aspect: hit.aspect || 1, ...deserializeSig(hit.sig),
       })
       continue
@@ -109,6 +111,40 @@ export async function loadOfficialRefs(rectifySize) {
   }
   if (dirty) writeCache(cache)
   return { refs, errors }
+}
+
+/**
+ * 用「本機的一個檔案」補上某張官方卡的目標圖。
+ *
+ * 為什麼需要這條路：設計檔還沒進 `public/ar/targets/` 之前（美術還在改稿、
+ * 或只是想先試試看），使用者手上就已經有那張圖了。這條路讓他選一次檔案就能掃，
+ * 不必動 repo、不必等部署。簽名存進同一份快取，所以與正式版是同一條程式路徑。
+ *
+ * ⚠️ 正式上線仍應把圖放進 `public/ar/targets/`——localStorage 只在這台裝置上有效，
+ *    別人打開網站還是掃不到。所以介面上要講清楚這是「本機測試用」。
+ *
+ * ⚠️ `source: 'local'` 要記下來：之後 target 路徑真的有圖了，快取的判斷是
+ *    `hit.target === card.target`，本機版會用同一個 key 佔住位置。標記來源才能
+ *    在介面上區分「這張是我自己指定的」與「這是正式版的」。
+ */
+export async function bindLocalTarget(cardId, file, rectifySize) {
+  const card = OFFICIAL_CARDS.find(c => c.id === cardId)
+  if (!card) throw new Error('找不到這張官方卡片')
+  if (!file || !/^image\//.test(file.type)) throw new Error('請選圖片檔（PNG／JPG／WebP）')
+  const url = URL.createObjectURL(file)
+  try {
+    const sig = await signatureFromImage(url, rectifySize)
+    const cache = readCache()
+    cache[card.id] = {
+      target: card.target, aspect: sig.aspect, source: 'local',
+      fileName: file.name || '', sig: serializeSig(sig),
+    }
+    writeCache(cache)
+    return {
+      id: card.id, name: card.title, official: true, card, local: true,
+      aspect: sig.aspect, hash: sig.hash, hist: sig.hist,
+    }
+  } finally { URL.revokeObjectURL(url) }
 }
 
 /** 清掉快取（美術換稿但沿用同一個檔名時用）。 */

@@ -12,7 +12,7 @@ import {
   detectQuad, orderCorners, otsuThreshold, rectify, rotateRgba,
   convexHull, reduceHullToQuad,
 } from '../src/lib/quadDetect.js'
-import { makeSignature } from '../src/lib/scanner.js'
+import { makeSignature, matchScore } from '../src/lib/scanner.js'
 import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/lib/arHotspot.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
@@ -325,6 +325,71 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
     'rect 超出卡面 0..1 要被擋下')
   ok(!validateCard({ id: 'c', hotspots: [{ id: 't', objectId: 'o', rect: { x: 0.1, y: 0.1, w: 0.05, h: 0.05 } }] }).ok,
     'rect 單邊 <12% 要被擋下（手機上點不到）')
+}
+
+// ── ★ 目標圖必須是「實際會印出來的那一版」（含收邊）────────────────────
+// ⚠️ 這是流程陷阱不是程式 bug，而且它會浪費一整輪打樣：
+//    設計檔加白邊與深色框之後，**整張圖的內容就變了**（版面被內縮、四周多了兩圈）。
+//    拿「加收邊之前」的稿去登錄、印「加收邊之後」的卡，壓成 48×48 的 dHash
+//    完全不同 → 相機看得到卡片、四角也抓得準，但一律判定「不是登錄過的目標」。
+//    實測就是這樣踩到的：無框版登錄 + 有框版拍攝 = 0/2 追不到；
+//    改用有框版登錄 = 4/4（深色/淺色桌面 × 正對/斜拍），六個熱區全部命中。
+{
+  const AW = 148, AH = 105
+  const draw = (withSpec) => {
+    const rgba = new Uint8ClampedArray(AW * AH * 4).fill(255)
+    const pad = withSpec ? 3 : 0, fw = withSpec ? 3 : 0
+    const ix = pad + fw, iy = pad + fw, iw = AW - 2 * ix, ih = AH - 2 * iy
+    const box = (x0, y0, w, h, v) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const px = Math.round(ix + (x0 + x) * iw / AW), py = Math.round(iy + (y0 + y) * ih / AH)
+          if (px < 0 || py < 0 || px >= AW || py >= AH) continue
+          const i = (py * AW + px) * 4
+          rgba[i] = rgba[i + 1] = rgba[i + 2] = v; rgba[i + 3] = 255
+        }
+      }
+    }
+    box(0, 0, AW, 10, 150)        // 橘帶
+    box(3, 14, 22, 42, 120)       // 白菜
+    box(27, 22, 74, 30, 95)       // 身體保健
+    box(5, 80, 18, 22, 60)        // QR
+    if (withSpec) {
+      for (let i = 0; i < fw; i++) {
+        for (let x = pad; x < AW - pad; x++) {
+          for (const y of [pad + i, AH - 1 - pad - i]) {
+            const k = (y * AW + x) * 4; rgba[k] = rgba[k + 1] = rgba[k + 2] = 30
+          }
+        }
+        for (let y = pad; y < AH - pad; y++) {
+          for (const x of [pad + i, AW - 1 - pad - i]) {
+            const k = (y * AW + x) * 4; rgba[k] = rgba[k + 1] = rgba[k + 2] = 30
+          }
+        }
+      }
+    }
+    return rgba
+  }
+  const squash = (src, size) => {
+    const out = new Uint8ClampedArray(size * size * 4)
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const sx = Math.min(AW - 1, Math.floor(x * AW / size))
+        const sy = Math.min(AH - 1, Math.floor(y * AH / size))
+        const si = (sy * AW + sx) * 4, oi = (y * size + x) * 4
+        out[oi] = src[si]; out[oi + 1] = src[si + 1]; out[oi + 2] = src[si + 2]; out[oi + 3] = 255
+      }
+    }
+    return out
+  }
+  const SZ = 48
+  const sigPlain = makeSignature(squash(draw(false), SZ), SZ, SZ)
+  const sigSpec = makeSignature(squash(draw(true), SZ), SZ, SZ)
+  const self = matchScore(sigSpec, sigSpec)
+  const cross = matchScore(sigSpec, sigPlain)
+  ok(self >= 95, `有收邊版自比 ${self}（應 ≥95，作為上限基準）`)
+  ok(cross < 58, `★ 無框版登錄 × 有框版拍攝的相似度 ${cross} < 門檻 58——`
+    + '所以目標圖必須是加了收邊之後的那一版')
 }
 
 // ── 官方卡包：熱區標註與卡面曆算 ────────────────────────────────────────

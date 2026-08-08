@@ -7,7 +7,7 @@ import { makeSignature, matchScore, serializeSig, deserializeSig } from '../lib/
 import { detectQuad, rectify } from '../lib/quadDetect.js'
 import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
-import { loadOfficialRefs } from '../lib/arCardRegistry.js'
+import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
@@ -60,6 +60,8 @@ export default function Scan() {
   const trackerRef = useRef(null)
   const stageRef = useRef(null)
   const fileRef = useRef(null)
+  const officialFileRef = useRef(null)
+  const pendingCardRef = useRef(null)   // 正在等使用者選圖的那張官方卡 id
   // 取樣畫面的實際尺寸（隨顯示框比例而定）——疊加層要用它換算到螢幕座標。
   // ⚠️ 初值不可隨便填。它只有在 grabFrame 真的跑過一次之後才會更新，而在那之前
   //    疊加層的縮放就是錯的（實測初值填 160×160、實際應為 100×160 時，
@@ -440,9 +442,39 @@ export default function Scan() {
                     <span key={h.id} className={`chip${hotspot?.id === h.id ? ' on' : ''}`}>{h.label}</span>
                   ))}
                 </div>
+                {/* 目標圖還沒進 public/ 時，讓使用者直接指定手邊那張圖。
+                    ⚠️ 只存在這台裝置的 localStorage——正式上線仍要把圖放進
+                       public/ar/targets/，否則別人打開網站還是掃不到。 */}
+                {!loaded && (
+                  <button className="btn-ghost tap" style={{ marginTop: 'var(--space-2)' }}
+                    onClick={() => { pendingCardRef.current = c.id; officialFileRef.current?.click() }}>
+                    指定本機圖片當目標（僅這台裝置）
+                  </button>
+                )}
+                {official.find(o => o.id === c.id)?.local && (
+                  <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>
+                    目前用的是你指定的本機圖片，只在這台裝置有效。
+                  </p>
+                )}
               </div>
             )
           })}
+          <input ref={officialFileRef} type="file" accept="image/*" hidden
+            aria-label="選擇官方卡片的目標圖片"
+            onChange={async (e) => {
+              const f = e.target.files?.[0]; e.target.value = ''
+              const id = pendingCardRef.current; pendingCardRef.current = null
+              if (!f || !id) return
+              try {
+                const ref = await bindLocalTarget(id, f, RECT)
+                const next = [...official.filter(o => o.id !== id), ref]
+                setOfficial(next)
+                setOfficialErr(null)
+                trackerRef.current?.setRefs([...next, ...refsRef.current])
+                trackerRef.current?.reset()
+                setToast(`已指定「${ref.name}」的目標圖——把實體卡放進框內試試`)
+              } catch (err) { setToast(err?.message || '這張圖讀不進來') }
+            }} />
           {officialErr && (
             <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
               官方卡包有 {officialErr.length} 張載入失敗（{officialErr.map(e => e.card).join('、')}）——
