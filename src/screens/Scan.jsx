@@ -10,7 +10,7 @@ import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
 import { openBackCamera } from '../lib/arCamera.js'
-import { measureEdgeBow, explain } from '../lib/arDiagnose.js'
+import { measureEdgeBow, explain, quadAspect } from '../lib/arDiagnose.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import ARScene from '../components/ARScene.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -307,6 +307,11 @@ export default function Scan() {
           minScore: MIN_SCORE,
           bowPx: bow?.maxPx ?? null,
           bowRatio: bow?.maxRatio ?? null,
+          // ★ 「框到的不是卡片」的訊號：偵測到的四邊形長寬比 vs 卡片應有的。
+          //    最常見是拿另一台裝置掃螢幕時整個螢幕入鏡（螢幕 1.78 vs 小寒卡 1.37）。
+          //    沒有這一項時那個情況會被誤診成「比對太嚴格」——見 arDiagnose 的說明。
+          seenAspect: dq ? quadAspect(dq.corners) : null,
+          cardAspect: officialRef.current[0]?.aspect ?? null,
           refs: officialRef.current.length,
         })
       }
@@ -458,6 +463,7 @@ export default function Scan() {
                 const v = explain({
                   quadFound: diag.quadFound, bestScore: diag.score, minScore: diag.minScore,
                   cameraLabel: diag.camera, areaRatio: diag.areaRatio,
+                  seenAspect: diag.seenAspect, cardAspect: diag.cardAspect,
                 })
                 return (
                   <>
@@ -470,6 +476,12 @@ export default function Scan() {
                         <dd>{diag.areaRatio != null ? (diag.areaRatio * 100).toFixed(1) + '%' : '—'}</dd></div>
                       <div><dt>比對分數</dt>
                         <dd>{diag.score != null ? `${diag.score} / 門檻 ${diag.minScore}` : '未達門檻'}</dd></div>
+                      {/* ★ 判讀「框到的是不是卡片」的依據。並列出來才看得出結論從哪來。 */}
+                      <div><dt>四邊形長寬比</dt>
+                        <dd>
+                          {diag.seenAspect != null ? diag.seenAspect.toFixed(2) : '—'}
+                          {diag.cardAspect != null && <i className="muted">　卡片應為 {diag.cardAspect.toFixed(2)}</i>}
+                        </dd></div>
                       <div><dt>邊緣弓起</dt>
                         <dd>
                           {diag.bowPx != null

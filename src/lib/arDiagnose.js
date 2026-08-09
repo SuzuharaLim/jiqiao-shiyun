@@ -108,7 +108,23 @@ export const K1_LIMIT = -0.04
  * 把一幀的觀測結果翻成「該怎麼辦」。
  * ⚠️ 每一條都要給**下一步動作**，不可只說「失敗」——診斷的價值在於它取代了猜測。
  */
-export function explain({ quadFound, bestScore, minScore, distortion, cameraLabel, areaRatio }) {
+/**
+ * 由四個角推四邊形的長寬比（兩組對邊各取平均）。
+ * ⚠️ 不可用包圍盒的寬高比：卡片斜放時包圍盒會接近正方形，得到的數字毫無意義。
+ */
+export function quadAspect(corners) {
+  if (!corners || corners.length !== 4) return null
+  const d = (a, b) => Math.hypot(corners[b][0] - corners[a][0], corners[b][1] - corners[a][1])
+  const w = (d(0, 1) + d(3, 2)) / 2
+  const h = (d(1, 2) + d(0, 3)) / 2
+  return h > 1e-6 ? w / h : null
+}
+
+export function explain({
+  quadFound, bestScore, minScore, distortion, cameraLabel, areaRatio,
+  // 偵測到的四邊形長寬比 vs 卡片應有的長寬比
+  seenAspect, cardAspect,
+}) {
   if (!quadFound) {
     return {
       level: 'warn',
@@ -119,6 +135,27 @@ export function explain({ quadFound, bestScore, minScore, distortion, cameraLabe
   }
   if (areaRatio != null && areaRatio < 0.06) {
     return { level: 'warn', what: '卡片在畫面裡太小', why: `只佔 ${(areaRatio * 100).toFixed(1)}% 的面積`, next: '靠近一點，讓卡片佔畫面一半以上' }
+  }
+  // ★ 「框到的不是卡片」——2026-08-09 實測發現的失效模式。
+  //    用另一台裝置掃螢幕上的卡面時，若整個螢幕都入鏡而螢幕四周是淺色牆，
+  //    偵測器找到的是**螢幕的邊界**（深色螢幕 vs 淺色牆是全畫面最強的邊界），
+  //    拉正整個 16:9 畫面當然對不上卡片簽名 → 實測 **0/24**（分數 12~33）。
+  //    ⚠️ 這個情況 `quadFound` 是 true、分數也不足，會掉進下面那條「比對分數不足」，
+  //       而那條會叫人去查目標圖版本／光線／角度——**全都是錯的方向**。
+  //    長寬比是可量的訊號：小寒卡 1.37、電腦螢幕 1.78、手機螢幕 2.16。
+  if (seenAspect != null && cardAspect != null && cardAspect > 0) {
+    const off = Math.abs(Math.log(seenAspect / cardAspect))
+    if (off > 0.18) {   // 約 ±20%；1.78/1.37 = 1.30 → 0.26，會被抓到
+      return {
+        level: 'warn',
+        what: `框到的四邊形長寬比是 ${seenAspect.toFixed(2)}，但卡片應該是 ${cardAspect.toFixed(2)}`,
+        why: '偵測到的不是卡片，而是別的矩形——最常見的是「整個螢幕」（拿另一台裝置掃螢幕上的卡面時）'
+          + '，也可能是桌墊、書本或相框',
+        // ⚠️ 不可寫 Markdown 的 `**粗體**`：這段會進 `.scan-diag-verdict`（純文字 <p>），
+        //    星號會原樣顯示。要強調就用書名號或「」，不要靠標記語言。
+        next: '靠近一點，讓那個矩形的邊框落在取景框「外面」，畫面裡只留卡片與它周圍的底色',
+      }
+    }
   }
   if (bestScore != null && bestScore < minScore) {
     return {

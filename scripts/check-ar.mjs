@@ -17,7 +17,7 @@ import { screenToCard, hitTest, makeHotspotLatch, validateCard } from '../src/li
 import { cvToThree, verticalFov } from '../src/lib/arPoseBridge.js'
 import { decodePng, encodePng, addSpec, QUIET, FRAME } from './frame-card.mjs'
 import { pickMainCameraId } from '../src/lib/arCamera.js'
-import { explain, measureEdgeBow, K1_LIMIT } from '../src/lib/arDiagnose.js'
+import { explain, measureEdgeBow, quadAspect, K1_LIMIT } from '../src/lib/arDiagnose.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS, objectForHotspot } from '../src/data/arCards.js'
 import { termFromDate, lunarFromDate, lunarYearGanzhiIndex } from '../src/data/lunisolar.js'
 import { createTracker } from '../src/lib/arTracker.js'
@@ -569,6 +569,55 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(K1_LIMIT === -0.04, 'K1_LIMIT 是規格線（-0.04），供文件與相機挑選參考')
   const bowSrc = /export function measureEdgeBow/.test(src)
   ok(bowSrc, '保留 measureEdgeBow（弓起量是可觀測的事實，只是不下判斷）')
+
+  // ── ★ 「框到的不是卡片」要獨立診斷，不可掉進「比對分數不足」 ──
+  //
+  // 2026-08-09 實測：用另一台裝置掃螢幕上的卡面時，若整個螢幕入鏡而螢幕四周是
+  // 淺色牆，偵測器找到的是**螢幕的邊界**（深色螢幕 vs 淺色牆是全畫面最強的邊界），
+  // 拉正整個 16:9 畫面對不上卡片簽名 → **0/24**（分數 12~33）。
+  // ⚠️ 那個情況 quadFound 是 true、分數也不足，若沒有這一條就會被判成
+  //    「比對分數不足」，而那條會叫人去查目標圖版本／光線／角度——**全是錯方向**。
+  {
+    const CARD = 1831 / 1335          // 小寒卡 1.3715
+    const screen16 = explain({ quadFound: true, areaRatio: 0.4, bestScore: 27, minScore: 58,
+      seenAspect: 16 / 9, cardAspect: CARD })
+    ok(/長寬比/.test(screen16.what), '★ 框到 16:9 螢幕時要判成「框到的不是卡片」')
+    ok(/整個螢幕/.test(screen16.why), '★ 要點出最常見的原因是「整個螢幕」')
+    ok(/靠近/.test(screen16.next) && /外面/.test(screen16.next),
+      '★ 要給的動作是「靠近，讓那個矩形的邊框落在取景框外面」')
+    ok(/長寬比/.test(explain({ quadFound: true, areaRatio: 0.4, bestScore: 20, minScore: 58,
+      seenAspect: 2.16, cardAspect: CARD }).what), '框到手機螢幕（2.16）也要抓到')
+    // ⚠️ 反例：真的是卡片、只是分數不足時**不可**誤報成「框到別的東西」
+    //    （透視與角點抖動會讓量到的長寬比有幾 % 誤差，門檻要容得下）
+    for (const a of [CARD, CARD * 1.08, CARD * 0.93]) {
+      const v = explain({ quadFound: true, areaRatio: 0.4, bestScore: 40, minScore: 58,
+        seenAspect: a, cardAspect: CARD })
+      ok(/比對分數不足/.test(v.what),
+        `長寬比 ${a.toFixed(2)}（誤差 ${((a / CARD - 1) * 100).toFixed(0)}%）仍應判成分數不足`)
+    }
+    ok(/比對分數不足/.test(explain({ quadFound: true, areaRatio: 0.4, bestScore: 30, minScore: 58,
+      seenAspect: null, cardAspect: CARD }).what), '拿不到長寬比時退回原本的判定')
+    // quadAspect：斜放時不可用包圍盒（那會接近正方形）
+    const rot = [[50, 10], [90, 50], [50, 90], [10, 50]]   // 正方形轉 45°
+    ok(Math.abs(quadAspect(rot) - 1) < 0.02, 'quadAspect 對旋轉 45° 的正方形回 1（不是包圍盒比例）')
+    ok(quadAspect(null) === null && quadAspect([[0, 0]]) === null, 'quadAspect 對壞輸入回 null')
+
+    // ⚠️ 判定文字會進 `.scan-diag-verdict`（純文字 <p>，不 render Markdown）。
+    //    寫成 `**外面**` 會原樣顯示星號——與 AI 回覆那個 Markdown 洩漏是同一類問題。
+    //    要強調就用「」或書名號，不要靠標記語言。
+    const MD = /\*\*|__|^#{1,6}\s/
+    for (const c of [
+      { quadFound: false },
+      { quadFound: true, areaRatio: 0.02 },
+      { quadFound: true, areaRatio: 0.4, bestScore: 27, minScore: 58, seenAspect: 1.78, cardAspect: CARD },
+      { quadFound: true, areaRatio: 0.4, bestScore: 40, minScore: 58 },
+      { quadFound: true, areaRatio: 0.4, bestScore: 72, minScore: 58 },
+    ]) {
+      const v = explain(c)
+      const leak = Object.entries(v).filter(([, s]) => typeof s === 'string' && MD.test(s))
+      ok(leak.length === 0, `判定文字不可含 Markdown 標記${leak.length ? `（${leak[0][0]}）` : ''}`)
+    }
+  }
 
   // measureEdgeBow 的防呆：輸入不合法不可爆
   ok(measureEdgeBow(new Uint8Array(100), 10, 10, null) === null, '沒有四邊形時回 null')
