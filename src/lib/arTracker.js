@@ -14,6 +14,7 @@
 import { toGray, makeSignature, matchScore } from './scanner.js'
 import { detectQuad, rectify, rotateRgba } from './quadDetect.js'
 import { homography, poseFromHomography, cssMatrix3dString, makeSmoother } from './homography.js'
+import { extractFeatures, matchDescriptors, ransacHomography, cornersFromH } from './features.js'
 
 const UNIT_SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]]
 
@@ -39,9 +40,23 @@ const UNIT_SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]]
 const HI_RES_BELOW_AREA = 0.15
 const HI_RES_SCALE = 3
 
+// ── 特徵點備援的參數（見 tryFeatures 的說明與實測表）──
+// 3：節流。這條路每幀約 33ms（桌機）、中階手機 3~4 倍＝超出 15fps 的 66ms 預算。
+//    ⚠️ 這個狀態本來就是「找不到卡片」，延遲 200ms 換覆蓋率是值得的；
+//       而且它**只在四邊形偵測失敗時**才跑，正常情況完全不花成本。
+const FEATURE_EVERY = 3
+// 2：特徵點需要比 160px 更多細節，但 320 就夠（實測 320 時畫面特徵 359 個）。
+const FEATURE_SCALE = 2
+// 配對／inlier 下限。⚠️ 這兩個是**誤認防線**，不可為了「掃不到」而調低：
+//    實測不同的圖即使湊出配對，inlier 也上不到 10（check-features 有負向對照）。
+const FEATURE_MIN_PAIRS = 10
+const FEATURE_MIN_INLIERS = 10
+
 /** 建立追蹤器。refs 為已登錄卡片（需含 hash / hist，見 scanner.js 的簽名格式）。 */
 export function createTracker({
   refs = [],
+  // 特徵點參考（每筆 {id, ref, uv, desc, n}）。空的話就完全不走那條路。
+  featureRefs = [],
   rectifySize = 48,      // 拉正後的邊長：太小認不準，太大每幀成本高
   minScore = 58,         // 匹配門檻（0–100）
   smoothAlpha = 0.35,
@@ -49,10 +64,89 @@ export function createTracker({
 } = {}) {
   const smoother = makeSmoother(smoothAlpha)
   let lastId = null
+  // 特徵點路線的節流計數（見 tryFeatures）
+  let featTick = 0
+  let lastFeature = null
+
+  /**
+   * ★★ 特徵點路線：找不到四邊形時的備援。
+   *
+   * ⚠️ 兩條路是**互補**的，不是取代——實測（真卡片、合成手持晃動）：
+   *
+   *      情境                    四角＋dHash    特徵點      四角誤差
+   *      卡片佔 62%、深桌          22/24        8/8        1.4px vs 13px
+   *      左 30% 被遮住            **0/6**      **6/6**     13~19px
+   *      左 45% 被遮住            **0/6**      5/6         10~24px
+   *      卡片偏出畫面              **0/6**      **6/6**     15~42px
+   *
+   *   舊路線**準得多**（1.4px vs 13px），但它需要四個角都看得到＋紙與桌面有邊界；
+   *   特徵點不需要輪廓，所以在「被遮住／拍不全／沒有邊框」時是唯一能work的。
+   *   → 先試舊的，失敗才走這條。好的情況保留 1.4px 的精度，壞的情況才降級。
+   *
+   * ⚠️ 這條路每幀約 33ms（桌機），中階手機約 3~4 倍＝**超出 15fps 的 66ms 預算**。
+   *    所以節流：每 3 幀才試一次。反正這時候的狀態本來就是「找不到卡片」，
+   *    延遲 200ms 換到覆蓋率是值得的；而它**只在舊路線失敗時**才跑，
+   *    正常情況完全不花成本。
+   */
+  function tryFeatures(rgba, w, h, sampleHiRes) {
+    smoother.reset()
+    if (!featureRefs.length || !sampleHiRes) { lastId = null; return null }
+    if (++featTick % FEATURE_EVERY !== 0) return lastFeature   // 節流：沿用上一次的結果
+    const hi = sampleHiRes(FEATURE_SCALE)
+    if (!hi?.data) { lastId = null; return null }
+    const g = toGray(hi.data, hi.w, hi.h)
+    const q = extractFeatures(g, hi.w, hi.h, {
+      levels: 3, factor: 1.4, maxTotal: 360, maxPerLevel: 140,
+    })
+    if (q.n < 12) { lastFeature = null; lastId = null; return null }
+    let bestRes = null, bestRef = null
+    for (const fr of featureRefs) {
+      const pairs = matchDescriptors(q.desc, q.n, fr.desc, fr.n, { ratio: 0.85, maxDist: 100 })
+      if (pairs.length < FEATURE_MIN_PAIRS) continue
+      const res = ransacHomography(
+        pairs.map(p => fr.uv[p.r]),
+        pairs.map(p => [q.pts[p.q].x, q.pts[p.q].y]),
+        homography,
+        { iters: 500, thresh: 4, minInliers: FEATURE_MIN_INLIERS },
+      )
+      if (res && (!bestRes || res.inliers.length > bestRes.inliers.length)) { bestRes = res; bestRef = fr }
+    }
+    if (!bestRes) { lastFeature = null; lastId = null; return null }
+    // ⚠️ 把 H 從「高解析度取樣座標」換回呼叫端的取樣座標，否則下游的疊加層
+    //    會用錯的尺度貼圖（那個坑站上踩過：非等比縮放讓內容飛出畫面三萬 px）。
+    const kx = w / hi.w, ky = h / hi.h
+    const S = [[kx, 0, 0], [0, ky, 0], [0, 0, 1]]
+    const H = [0, 1, 2].map(i => [0, 1, 2].map(j =>
+      S[i][0] * bestRes.H[0][j] + S[i][1] * bestRes.H[1][j] + S[i][2] * bestRes.H[2][j]))
+    // ⚠️ aspect 傳 1：參考點是**兩軸各自正規化**（x/refW、y/refH），
+    //    所以卡角在 UV 是 (0,0)(1,0)(1,1)(0,1)。傳 1/aspect 會讓四角誤差從 13px 變 55px。
+    const corners = cornersFromH(H, 1)
+    if (!corners.every(c => c.every(Number.isFinite))) { lastFeature = null; return null }
+    lastId = bestRef.id
+    lastFeature = {
+      ref: bestRef.ref,
+      // 分數：inlier 數換算成 0~100 的可比尺度（不與 dHash 的分數混用，見 via）
+      score: Math.min(99, 50 + bestRes.inliers.length * 2),
+      rotation: 0,
+      corners,
+      H,
+      matrix3d: cssMatrix3dString(H),
+      pose: poseFromHomography(H, { width: w, height: h, fovDeg, aspect: bestRef.ref?.aspect || 1 }),
+      areaRatio: null,
+      hiRes: true,
+      // ★ 一定要標明是哪條路來的：兩者的精度差一個數量級（1.4px vs 13px），
+      //   診斷與未來調校都需要分得出來，不可讓它們看起來一樣。
+      via: 'features',
+      inliers: bestRes.inliers.length,
+      reproj: +bestRes.error.toFixed(2),
+    }
+    return lastFeature
+  }
 
   return {
     setRefs(list) { refs = list },
-    reset() { smoother.reset(); lastId = null },
+    setFeatureRefs(list) { featureRefs = list || [] },
+    reset() { smoother.reset(); lastId = null; lastFeature = null; featTick = 0 },
 
     /**
      * 追蹤一幀。
@@ -67,7 +161,9 @@ export function createTracker({
     track(rgba, w, h, { sampleHiRes } = {}) {
       const gray = toGray(rgba, w, h)
       const quad = detectQuad(gray, w, h)
-      if (!quad) { smoother.reset(); lastId = null; return null }
+      // ── ★★ 找不到四邊形 → 改走特徵點 ──
+      // 兩條路是**互補**的，不是取代（見 tryFeatures 的說明）。
+      if (!quad) return tryFeatures(rgba, w, h, sampleHiRes)
 
       // ── ★ 卡片小的時候，改用高解析度的取樣來拉正 ──
       //
@@ -122,7 +218,13 @@ export function createTracker({
           }
         }
       }
-      if (!best || best.score < minScore) { smoother.reset(); lastId = null; return null }
+      // ⚠️ 這裡**也要**落到特徵點路線，不可只在「找不到四邊形」時 fallback。
+      //    實測：卡片被遮住 30% 時 detectQuad **仍然找得到**一個四邊形
+      //    （可見部分的邊界），於是比對失敗後直接 return null，
+      //    備援路線一次都沒被呼叫到——12 幀裡走特徵點 0 次、總成功 0/12。
+      //    第一版就是這樣寫的，而症狀與「備援根本沒生效」完全一樣，
+      //    只能從「走特徵點 = 0」這個計數看出來。
+      if (!best || best.score < minScore) return tryFeatures(rgba, w, h, sampleHiRes)
 
       // ⚠️ 方向對齊：偵測出的角永遠是「畫面上左上優先」，與參考圖的左上不一定是同一個角。
       //    這裡是**減**不是加。一開始寫成 `(i + r) % 4`，實測 0° 與 180° 完全正確、

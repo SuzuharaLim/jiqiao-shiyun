@@ -6,7 +6,7 @@ import { dayFor, todayOffset } from '../data/almanac.js'
 import { detectQuad } from '../lib/quadDetect.js'
 import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
-import { loadOfficialRefs, bindLocalTarget } from '../lib/arCardRegistry.js'
+import { loadOfficialRefs, bindLocalTarget, loadFeatureRefs } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
 import { openBackCamera } from '../lib/arCamera.js'
@@ -98,6 +98,10 @@ export default function Scan() {
   const [official, setOfficial] = useState([])
   const officialRef = useRef(official); officialRef.current = official
   const [officialErr, setOfficialErr] = useState(null)
+  // 特徵點參考（備援路線）。⚠️ 用 ref 保存，讓追蹤迴圈重建時能立刻餵回去
+  //    ——否則切換相機／改變顯示框大小之後備援路線會靜默失效。
+  const featureRefsRef = useRef([])
+  const [featureCount, setFeatureCount] = useState(0)
   // 命中的卡面熱區（瞄準或點擊卡上的物件）
   const [hotspot, setHotspot] = useState(null)
   // ⚠️ 追蹤迴圈要讀「目前選中哪個熱區」，但**不可把 hotspot 放進 effect 的 deps**
@@ -149,6 +153,16 @@ export default function Scan() {
       if (errors.length) setOfficialErr(errors)
       // 追蹤器已經建好時要補餵進去（不然要等下一次重建）
       if (list.length) trackerRef.current?.setRefs(list)
+      // ★ 特徵點參考另外算（約 40ms／張），給「四邊形找不到」時的備援路線用。
+      //   ⚠️ 不阻塞主流程：算好之前一般路線照樣可用，所以不 await 在上面。
+      if (list.length) {
+        loadFeatureRefs(list).then(fr => {
+          if (cancelled) return
+          setFeatureCount(fr.length)
+          trackerRef.current?.setFeatureRefs(fr)
+          featureRefsRef.current = fr
+        }).catch(() => { /* 算不出來就只走一般路線 */ })
+      }
     }).catch(() => { if (!cancelled) setOfficialErr([{ card: '官方卡包', message: '載入失敗' }]) })
     return () => { cancelled = true }
   }, [])
@@ -320,6 +334,9 @@ export default function Scan() {
     if (status !== 'ready') return
     const tracker = createTracker({
       refs: officialRef.current,
+      // ⚠️ 重建追蹤器時要把特徵點參考一起餵回去，否則切鏡頭／改視窗大小之後
+      //    備援路線會**靜默失效**（畫面完全沒有差別，只是變回原來的難掃）。
+      featureRefs: featureRefsRef.current,
       rectifySize: RECT, minScore: MIN_SCORE,
     })
     trackerRef.current = tracker
@@ -388,6 +405,8 @@ export default function Scan() {
           cardAspect: officialRef.current[0]?.aspect ?? null,
           refs: officialRef.current.length,
           hiRes: res?.hiRes ?? null,
+          via: res ? (res.via || 'quad') : null,
+          inliers: res?.inliers ?? null,
         })
       }
 
@@ -619,6 +638,14 @@ export default function Scan() {
                       {/* ★ 卡片小的時候會自動改用高解析度取樣來比對。
                           列出來是為了讓「站遠一點掃不到」的現場看得出它有在工作
                           ——實測佔畫面 30% 時 10/24 → 18/24。 */}
+                      {/* ★ 哪條路線認出來的。兩者的精度差一個數量級
+                          （四角＋dHash 約 1.4px、特徵點約 9~14px），
+                          所以現場一定要分得出來——不然會把「有點歪」誤診成別的問題。 */}
+                      <div><dt>辨識路線</dt>
+                        <dd>{diag.via === 'features'
+                          ? `特徵點備援（inlier ${diag.inliers ?? '—'}，精度較低）`
+                          : diag.via === 'quad' ? '四角＋比對（精度高）' : '—'}</dd></div>
+                      <div><dt>特徵參考</dt><dd>{featureCount} 張已備</dd></div>
                       <div><dt>高解析度比對</dt>
                         <dd>{diag.hiRes == null ? '—' : diag.hiRes
                           ? '啟用（卡片較小）' : '未啟用（卡片夠大）'}</dd></div>

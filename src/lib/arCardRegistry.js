@@ -16,7 +16,8 @@
 //    RECT×RECT。任何一邊改成「保持比例」，兩邊的 dHash 就不在同一個座標系、
 //    永遠對不上——而且是靜默失敗，畫面只會顯示「看到卡片了，但不是登錄過的」。
 // ============================================================================
-import { makeSignature, serializeSig, deserializeSig } from './scanner.js'
+import { makeSignature, serializeSig, deserializeSig, toGray } from './scanner.js'
+import { extractFeatures } from './features.js'
 import { OFFICIAL_CARDS } from '../data/arCards.js'
 
 // ⚠️ 換 key：makeSignature 加了亮度正規化，舊簽名與新的不在同一個座標系。
@@ -119,8 +120,13 @@ function warpToSquare(bmp, size, { yaw, pitch }, aspect) {
   return ctx.getImageData(0, 0, size, size).data
 }
 
-/** 把一張圖壓成 size×size 並算簽名。與 Scan.jsx 的 registerFromFile 同一條路。 */
-export async function signatureFromImage(src, size) {
+/**
+ * 取一張圖並回傳 bitmap（或 <img>）。
+ *
+ * ★ 抽出來共用是**必要的**，不是整理：這裡面藏著一個會誤導人的坑（見下方註解），
+ *   而現在有兩個呼叫端（簽名與特徵點參考）。各寫一份的話遲早只有一邊有防護。
+ */
+export async function fetchImageBitmap(src) {
   let bmp
   if (typeof createImageBitmap === 'function') {
     // ⚠️ 不可用 `cache: 'force-cache'`。目標圖不存在時，SPA fallback 會回傳
@@ -145,6 +151,12 @@ export async function signatureFromImage(src, size) {
       img.src = src
     })
   }
+  return bmp
+}
+
+/** 把一張圖壓成 size×size 並算簽名。與 Scan.jsx 的 registerFromFile 同一條路。 */
+export async function signatureFromImage(src, size) {
+  const bmp = await fetchImageBitmap(src)
   const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight
   if (!w || !h) throw new Error('目標圖尺寸為 0')
   const cv = document.createElement('canvas')
@@ -171,6 +183,54 @@ export async function signatureFromImage(src, size) {
   } catch { /* 縮圖失敗不影響簽名 */ }
   bmp.close?.()
   return { ...sig, sigs, aspect: w / h, poster }
+}
+
+/**
+ * ★★ 算「特徵點參考」——給 arTracker 的備援路線用。
+ *
+ * ⚠️ **刻意不進 localStorage 快取**：900 個點 × 32 bytes 描述子 ≈ 29 KB／張，
+ *    序列化成 base64 之後更大，而 localStorage 全站配額通常只有 5 MB。
+ *    重算只要約 40ms（實測真卡片 640px 寬、6 層金字塔、782 個特徵 = 37ms），
+ *    一個 session 一次，不值得為此吃掉配額並增加一種會過期的快取格式。
+ *
+ * ⚠️ 座標是**兩軸各自正規化**（x/w、y/h），所以卡角在 UV 是 (0,0)(1,0)(1,1)(0,1)。
+ *    下游解出 H 之後要用 `cornersFromH(H, 1)`——傳 1/aspect 會讓四角誤差
+ *    從 13px 變成 55px（實測）。這是這一層最容易搞錯的約定。
+ *
+ * @param refs `loadOfficialRefs()` 的回傳（要有 poster 或 card.target 可以取圖）
+ */
+export async function loadFeatureRefs(refs) {
+  const out = []
+  for (const r of refs || []) {
+    const src = r.poster || r.card?.target
+    if (!src) continue
+    try {
+      // ⚠️ 一定要走 fetchImageBitmap（與 signatureFromImage 同一條路）：它已經處理了
+      //    「檔案不存在時 SPA fallback 回 200 + index.html」那個坑——直接 new Image()
+      //    會讓「找不到檔案」偽裝成「圖片壞掉」。
+      const img = await fetchImageBitmap(src)
+      const iw = img.width || img.naturalWidth, ih = img.height || img.naturalHeight
+      if (!iw || !ih) continue
+      const w = 640, h = Math.max(1, Math.round(640 * ih / iw))
+      const cv = document.createElement('canvas')
+      cv.width = w; cv.height = h
+      const ctx = cv.getContext('2d', { willReadFrequently: true })
+      ctx.drawImage(img, 0, 0, w, h)
+      const gray = toGray(ctx.getImageData(0, 0, w, h).data, w, h)
+      // ⚠️ 參考圖要用**更多層**金字塔（6 層 ≈ 覆蓋 5.4 倍尺度）：卡片在畫面裡
+      //    可能從佔 62% 縮到 20%，跨度 3 倍以上。層數不夠時「小卡片」對不上任何一層
+      //    ——實測 4 層時真卡片是 0/16，而且症狀看起來像「描述子不夠好」。
+      const f = extractFeatures(gray, w, h, {
+        levels: 6, factor: 1.4, maxTotal: 900, maxPerLevel: 180,
+      })
+      if (f.n < 60) continue
+      out.push({
+        id: r.id, ref: r, n: f.n, desc: f.desc,
+        uv: f.pts.map(p => [p.x / w, p.y / h]),
+      })
+    } catch { /* 單張失敗只跳過那一張，不影響別的卡 */ }
+  }
+  return out
 }
 
 /**

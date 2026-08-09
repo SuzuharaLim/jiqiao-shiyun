@@ -838,6 +838,42 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
     '拉正用的角點變數不可與平滑後的 corners 撞名')
   ok(/hiRes,/.test(code), 'track 要回報這一幀有沒有用高解析度（診斷面板與成本量測要看）')
 
+  // ── ★★ 特徵點備援路線的接線 ──
+  //
+  // 實測（真卡片、合成手持晃動、200×150 取樣）：
+  //    情境            總成功    走四角    走特徵點   特徵點四角誤差
+  //    正常佔 62%      12/12      12        0        —（四角路線 1.4px）
+  //    左 30% 被遮   **10/12**     0       10        9~14px
+  //    左 45% 被遮   **10/12**     0       10        9~14px
+  //    佔 20% 太遠      0/12       0        0        —（連特徵點也救不了）
+  // 每幀成本：正常 8ms（備援完全不跑）、遮擋時 15~23ms。
+  //
+  // ⚠️★ **兩條失敗路徑都要 fallback**，這是接線時踩到的坑：
+  //    第一版只在「找不到四邊形」時走備援，但卡片被遮住 30% 時 detectQuad
+  //    **仍然找得到**一個四邊形（可見部分的邊界），於是比對失敗後直接 return null
+  //    ——備援一次都沒被呼叫（12 幀裡走特徵點 0 次、總成功 0/12）。
+  //    症狀與「備援根本沒生效」完全一樣，只能從「走特徵點 = 0」這個計數看出來。
+  ok(/if \(!quad\) return tryFeatures\(/.test(code),
+    '★★ 找不到四邊形時要走特徵點備援')
+  ok(/if \(!best \|\| best\.score < minScore\) return tryFeatures\(/.test(code),
+    '★★ **比對失敗時也要**走特徵點備援（被遮住時四邊形仍找得到，這條漏了備援等於沒接）')
+  // ⚠️ aspect 傳 1：特徵參考點是兩軸各自正規化，卡角在 UV 是 (0,0)(1,0)(1,1)(0,1)。
+  //    傳 1/aspect 會讓四角誤差從 13px 變 55px（實測），而且畫面上看起來只是「有點歪」。
+  ok(/cornersFromH\(H, 1\)/.test(code),
+    '★★ 特徵點路線的 cornersFromH 要傳 aspect=1（參考點是兩軸各自正規化）')
+  ok(/via: 'features'/.test(code),
+    "★ 要標明 via:'features'——兩條路的精度差一個數量級（1.4px vs 13px），不可看起來一樣")
+  // ⚠️ 這兩個下限是誤認防線，不可為了「掃不到」而調低（check-features 有負向對照）
+  ok(/FEATURE_MIN_INLIERS = 10\b/.test(code), '★ 特徵點的 inlier 下限維持 10（誤認防線）')
+  ok(/FEATURE_EVERY = 3\b/.test(code), '★ 特徵點路線要節流（每幀跑會超出手機的 66ms 預算）')
+
+  // Scan.jsx 重建追蹤器時要把特徵參考餵回去，否則切鏡頭後備援會靜默失效
+  const fsS = await import('node:fs')
+  const scanSrc2 = fsS.readFileSync(new URL('../src/screens/Scan.jsx', import.meta.url), 'utf8')
+  ok(/featureRefs: featureRefsRef\.current/.test(scanSrc2),
+    '★★ 重建追蹤器時要餵回特徵參考（漏了會在切鏡頭後靜默失效）')
+  ok(/setFeatureRefs\(fr\)/.test(scanSrc2), '載入完特徵參考要餵進現有的追蹤器')
+
   // 功能測試：不給 sampleHiRes 時不可爆，且行為與以前一致
   const tr = createTracker({ refs: [], rectifySize: 64, minScore: 58 })
   const blank = new Uint8ClampedArray(200 * 150 * 4)
