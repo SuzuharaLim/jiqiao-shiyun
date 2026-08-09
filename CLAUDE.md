@@ -24,6 +24,7 @@
 | 指令 | 作用 | Port |
 | --- | --- | --- |
 | `npm run dev` | 前端開發（Vite，HMR） | 5173 |
+| `npm run dev:lan` | 同上但綁到區網（手機可連）。⚠️ **`/AR` 在區網 IP 下開不了相機**——`getUserMedia` 只在安全內容（HTTPS／localhost）可用，症狀是「相機打不開」不是「掃不到」。要在手機上用相機測 AR，Android 走 `chrome://inspect` 的 USB 埠轉發讓手機看到 `localhost:5173`（那才是安全內容），iPhone 只能部署。見 [docs/指令集.md](docs/指令集.md) §3.4 | 5173 |
 | `npm run dev:server` | 後端開發（`node --watch`） | 8080 |
 | `npm run build` | 打包前端到 `dist/` | — |
 | `npm run preview` | 預覽打包結果 | 4173 |

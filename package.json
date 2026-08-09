@@ -6,6 +6,7 @@
   "description": "機巧時運 — 智慧互動國民曆 App 互動原型 Demo",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host",
     "dev:server": "node --watch server/index.js",
     "build": "node scripts/check-almanac.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && vite build",
     "preview": "vite preview",
