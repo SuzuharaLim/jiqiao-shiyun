@@ -893,6 +893,151 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
     '★ 縮圖後要重驗逐角誤差，沒過就不安裝')
 }
 
+// ── ★★ 端到端：**實際安裝的那張卡片**真的追得到 ────────────────────────────
+//
+// 前面的檢查都是「數學對不對」與「決策有沒有被還原」。這一段補上最重要的一項：
+// **`public/ar/targets/` 裡那張圖，拿真的追蹤器去追，追得到嗎？**
+//
+// ⚠️ 為什麼非做不可：今天踩過的兩個坑都是「圖本身不對」而程式完全正常——
+//    ① 沒有收邊的稿在淺色背景上 0/24（紙緣是白的，沒有邊界可找）
+//    ② 拿加收邊之前的稿登錄、印加收邊之後的卡，一律判定「不是登錄過的目標」
+//    這兩種都不會拋錯、build 也照樣綠燈，只有實際去追一遍才驗得出來。
+//    美術換稿、有人手動塞一張圖進 public/、或把 card:install 的縮圖上限調壞，
+//    都會被這一項擋下來。
+{
+  const fsx = await import('node:fs')
+  const card = OFFICIAL_CARDS[0]
+  const file = new URL('../public' + card.target, import.meta.url)
+
+  if (!fsx.existsSync(file)) {
+    // 目標圖還沒安裝不算失敗（美術還沒交稿的正常狀態），但要講出來。
+    console.log(`  · 略過端到端追蹤測試：public${card.target} 還不存在`)
+  } else {
+    const img = decodePng(fsx.readFileSync(file))
+    const RECT = 64, MIN_SCORE = 58
+
+    // 用目標圖自己算參考簽名（與 arCardRegistry 的正面視角同一套：整張壓成 RECT×RECT）
+    const flatRef = new Uint8Array(RECT * RECT * 4)
+    for (let y = 0; y < RECT; y++) {
+      for (let x = 0; x < RECT; x++) {
+        const sx = Math.min(img.w - 1, Math.floor((x + 0.5) * img.w / RECT))
+        const sy = Math.min(img.h - 1, Math.floor((y + 0.5) * img.h / RECT))
+        const s = (sy * img.w + sx) * 4, d = (y * RECT + x) * 4
+        flatRef[d] = img.rgba[s]; flatRef[d + 1] = img.rgba[s + 1]
+        flatRef[d + 2] = img.rgba[s + 2]; flatRef[d + 3] = 255
+      }
+    }
+    const ref = { id: card.id, name: card.title, card, aspect: img.w / img.h, ...makeSignature(flatRef, RECT, RECT) }
+
+    // ── 軟體光柵器：把目標圖投影到一個透視四邊形上 ──
+    // ⚠️ 用**反向映射**（每個輸出像素回推到來源）而不是正向掃描：
+    //    正向會留下未填的縫（相鄰來源像素在透視下不相鄰），那些縫會被當成邊界。
+    const W = 200, H = 150
+    function renderFrame(quad, deskGray) {
+      const out = new Uint8Array(W * H * 4)
+      for (let i = 0; i < W * H; i++) {
+        out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = deskGray; out[i * 4 + 3] = 255
+      }
+      // 四邊形 → 單位正方形的 homography（反向映射用）
+      const H4 = homography(quad, [[0, 0], [1, 0], [1, 1], [0, 1]])
+      if (!H4) return null
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const px = x + 0.5, py = y + 0.5
+          const w = H4[2][0] * px + H4[2][1] * py + H4[2][2]
+          if (Math.abs(w) < 1e-9) continue
+          const u = (H4[0][0] * px + H4[0][1] * py + H4[0][2]) / w
+          const v = (H4[1][0] * px + H4[1][1] * py + H4[1][2]) / w
+          if (u < 0 || u >= 1 || v < 0 || v >= 1) continue
+          const sx = Math.min(img.w - 1, Math.floor(u * img.w))
+          const sy = Math.min(img.h - 1, Math.floor(v * img.h))
+          const s = (sy * img.w + sx) * 4, d = (y * W + x) * 4
+          out[d] = img.rgba[s]; out[d + 1] = img.rgba[s + 1]; out[d + 2] = img.rgba[s + 2]
+        }
+      }
+      return out
+    }
+
+    // 緩慢晃動的視角（純幾何，與 arSimFrame 的 wobbleQuad 同一個想法但不需要 canvas）
+    const ar = img.w / img.h
+    function wobble(t) {
+      const cx = W / 2 + Math.sin(t * 0.7) * 6, cy = H / 2 + Math.cos(t * 0.5) * 4
+      const hw = W * 0.31, hh = hw / ar
+      const yaw = Math.sin(t * 0.41) * 0.22, pitch = Math.cos(t * 0.33) * 0.17
+      // 透視縮短：左右／上下各乘一個隨深度變化的係數，再解回四角
+      const kL = 1 - Math.sin(yaw) * 0.30, kR = 1 + Math.sin(yaw) * 0.30
+      const kT = 1 - Math.sin(pitch) * 0.26, kB = 1 + Math.sin(pitch) * 0.26
+      return [
+        [cx - hw * kL, cy - hh * kT], [cx + hw * kR, cy - hh * kT],
+        [cx + hw * kR, cy + hh * kB], [cx - hw * kL, cy + hh * kB],
+      ]
+    }
+
+    for (const [deskGray, label, floor] of [[42, '深色桌面', 16], [232, '淺色桌面', 16]]) {
+      const tracker = createTracker({ refs: [ref], rectifySize: RECT, minScore: MIN_SCORE })
+      let hit = 0, best = 0
+      const N = 24
+      for (let f = 0; f < N; f++) {
+        const frame = renderFrame(wobble(f * 0.7), deskGray)
+        if (!frame) continue
+        const r = tracker.track(frame, W, H)
+        if (r) { hit++; best = Math.max(best, r.score) }
+      }
+      ok(hit >= floor,
+        `★★ 已安裝的「${card.title}」在${label}上追得到（${hit}/${N}，門檻 ${floor}，最高分 ${best || '—'}）`)
+    }
+
+    // ── ★★ 對抗性：目標圖必須有「足夠的結構」，不可什麼都認 ──
+    //
+    // ⚠️ 這一段是變異測試逼出來的。上面那項「追得到」單獨用是**不夠**的：
+    //    我拿一張**整張純白**的圖去換，它照樣 24/24 通過——因為均勻圖的 dHash
+    //    也是均勻的，拉正後與均勻白完美吻合，分數很高。
+    //    而那正是最危險的壞法：**它會把任何一張白紙、餐巾紙都認成卡片**，
+    //    症狀是「有時候莫名跳出錯的內容」，比掃不到難查得多。
+    //    所以「追得到」要配一項「不該追到的東西追不到」才有意義。
+
+    // ① dHash 不可退化：均勻圖的 64 bit 會全 0 或全 1
+    const bits = [...ref.hash].map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('')
+    const ones = [...bits].filter(b => b === '1').length
+    ok(ones >= 12 && ones <= 52,
+      `★★ 目標圖的 dHash 有結構（64 bit 中 ${ones} 個 1，須在 12~52 之間；全 0／全 1 代表整張是均勻色塊）`)
+
+    // ② 拿一張「無特徵的空白卡」去掃，**必須追不到**
+    //    （若這一項失敗，代表正式站會把白紙認成卡片）
+    {
+      const tracker = createTracker({ refs: [ref], rectifySize: RECT, minScore: MIN_SCORE })
+      let falseHit = 0, worstScore = 0
+      const N = 12
+      for (let f = 0; f < N; f++) {
+        const quad = wobble(f * 0.7)
+        const frame = new Uint8Array(W * H * 4)
+        for (let i = 0; i < W * H; i++) {
+          frame[i * 4] = frame[i * 4 + 1] = frame[i * 4 + 2] = 42; frame[i * 4 + 3] = 255
+        }
+        // 在深色底上畫一塊「純紙色」的四邊形——形狀對、內容空白
+        const H4 = homography(quad, [[0, 0], [1, 0], [1, 1], [0, 1]])
+        if (!H4) continue
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const px = x + 0.5, py = y + 0.5
+            const w = H4[2][0] * px + H4[2][1] * py + H4[2][2]
+            if (Math.abs(w) < 1e-9) continue
+            const u = (H4[0][0] * px + H4[0][1] * py + H4[0][2]) / w
+            const v = (H4[1][0] * px + H4[1][1] * py + H4[1][2]) / w
+            if (u < 0 || u >= 1 || v < 0 || v >= 1) continue
+            const d = (y * W + x) * 4
+            frame[d] = frame[d + 1] = frame[d + 2] = 250
+          }
+        }
+        const r = tracker.track(frame, W, H)
+        if (r) { falseHit++; worstScore = Math.max(worstScore, r.score) }
+      }
+      ok(falseHit === 0,
+        `★★ 空白卡（形狀對、內容全白）**不可**被認成「${card.title}」（誤判 ${falseHit}/${N}${worstScore ? `，最高分 ${worstScore}` : ''}）`)
+    }
+  }
+}
+
 if (fails.length) {
   console.error(`\n[check-ar] ${fails.length} 項失敗：`)
   fails.forEach(f => console.error('  ✗ ' + f))
