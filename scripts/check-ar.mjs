@@ -873,8 +873,24 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   // ⚠️ 驗證沒過就安裝，等於讓使用者以為圖裝好了，轉而去懷疑光線／角度／手機
   ok(/if\s*\(!after\)[\s\S]{0,500}?process\.exit\(1\)/.test(inst),
     '★ card:install 驗證未過時必須不安裝並以非零碼結束')
-  // 付印稿與登錄目標必須是同一個檔案複製出來的（不可各自產生）
-  ok(/copyFileSync\(\s*dest/.test(inst), '★ 付印稿要從已安裝的目標圖複製，確保兩者同版')
+  // ★ 付印稿與登錄目標必須是**同一份 framed 資料**產生的（內容同版）。
+  //
+  // ⚠️ 這一項原本寫成「付印稿要從已安裝的目標圖 `copyFileSync`」。加了縮圖之後
+  //    那個做法就錯了——登錄目標縮到短邊 900px，從它複製會把一張 900px 的圖
+  //    送去印刷廠。閘門正確地抓到了這次改動，但它鎖的是**實作手段**而不是**不變量**。
+  //    真正的不變量是「兩份輸出的**內容**相同、只差解析度」：
+  //      付印稿 = encodePng(framed…)          ← 原解析度
+  //      登錄目標 = encodePng(downscale(framed)…) ← 短邊 900
+  ok(/writeFileSync\(printCopy,\s*encodePng\(framed\./.test(inst),
+    '★ 付印稿要用原解析度的 framed 寫出（不可從縮小後的登錄目標複製）')
+  ok(/downscale\(framed,\s*TARGET_MAX_SHORT\)/.test(inst),
+    '★ 登錄目標要由同一份 framed 縮出來（確保與付印稿內容同版）')
+  ok(/const TARGET_MAX_SHORT = 900\b/.test(inst),
+    '登錄目標短邊上限 900（實測縮圖對比對成績無影響，省 50% 頻寬）')
+  // ⚠️ 縮完必須重驗：白邊與深色框跟著變窄，解析度偏低的稿可能因此測不過。
+  //    縮圖是為了省頻寬，不是為了讓它變得測不過。
+  ok(/if \(!afterSmall\)[\s\S]{0,400}?process\.exit\(1\)/.test(inst),
+    '★ 縮圖後要重驗逐角誤差，沒過就不安裝')
 }
 
 if (fails.length) {

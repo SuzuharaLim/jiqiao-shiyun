@@ -19,6 +19,50 @@ import { OFFICIAL_CARDS } from '../src/data/arCards.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
+// ★ 登錄目標圖的短邊上限。
+//
+// 為什麼要縮：**每個進 /AR 的人都要下載這張圖**，只為了算一個 64×64 的簽名
+// （追蹤時 rectify 成 RECT=64，原始解析度完全用不到）。實測小寒卡的原稿
+// 加收邊後是 1831×1335 / 1262 KB——那是主 JS bundle（629 KB）的 **2 倍**，
+// 掛在旗艦動線的入口上。
+//
+// 900 的依據：CardPage 的海報在桌機顯示約 710px 寬、熱區校對也是看那張，
+// 900 已有餘裕；再小會讓校對頁的卡面字看不清楚。
+//
+// ⚠️ 縮的**只有登錄目標**。「-付印.png」維持原解析度——那張要拿去印。
+// ⚠️ 必須在**加完收邊之後**才縮：收邊的比例是取短邊的百分比，
+//    先縮再加收邊會得到一樣的比例，但先加再縮可以讓兩份輸出的版面完全一致。
+const TARGET_MAX_SHORT = 900
+
+/**
+ * 面積平均（box）縮圖。
+ * ⚠️ 不可用「最近鄰取樣」：那會讓細線與文字產生鋸齒與摩爾紋，
+ *    而 dHash 比對的就是明暗結構——取樣雜訊會直接變成分數損失。
+ */
+function downscale({ w, h, rgba }, maxShort) {
+  const short = Math.min(w, h)
+  if (short <= maxShort) return { w, h, rgba }
+  const s = maxShort / short
+  const nw = Math.max(1, Math.round(w * s)), nh = Math.max(1, Math.round(h * s))
+  const out = new Uint8Array(nw * nh * 4)
+  for (let y = 0; y < nh; y++) {
+    const y0 = Math.floor(y / s), y1 = Math.min(h, Math.max(y0 + 1, Math.floor((y + 1) / s)))
+    for (let x = 0; x < nw; x++) {
+      const x0 = Math.floor(x / s), x1 = Math.min(w, Math.max(x0 + 1, Math.floor((x + 1) / s)))
+      let r = 0, g = 0, b = 0, a = 0, n = 0
+      for (let yy = y0; yy < y1; yy++) {
+        for (let xx = x0; xx < x1; xx++) {
+          const i = (yy * w + xx) * 4
+          r += rgba[i]; g += rgba[i + 1]; b += rgba[i + 2]; a += rgba[i + 3]; n++
+        }
+      }
+      const o = (y * nw + x) * 4
+      out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n; out[o + 3] = a / n
+    }
+  }
+  return { w: nw, h: nh, rgba: out }
+}
+
 const [inFile, slugArg] = process.argv.slice(2)
 if (!inFile) {
   console.log(`用法：npm run card:install -- <設計稿.png> [slug]
@@ -81,17 +125,37 @@ if (!after) {
   process.exit(1)
 }
 
+// ⚠️ 付印稿要**先**寫出來，而且用**加收邊後的原解析度**——那張是要拿去印的。
+//    順序寫反（先縮再存付印）會把一張 900px 的圖送去印刷廠。
+const printCopy = path.join(path.dirname(inFile), path.basename(inFile, '.png') + '-付印.png')
+fs.writeFileSync(printCopy, encodePng(framed.w, framed.h, framed.rgba))
+
+// 登錄目標縮到短邊 TARGET_MAX_SHORT：每個進 /AR 的人都要下載它，
+// 而追蹤只用得到 64×64 的簽名（理由見檔頭的 TARGET_MAX_SHORT）。
+const small = downscale(framed, TARGET_MAX_SHORT)
+const shrunk = small.w !== framed.w
+if (shrunk) {
+  // 縮完要**重驗一次**：白邊與深色框跟著變窄，若原稿解析度偏低可能不夠偵測。
+  // ⚠️ 這一步不可省。縮圖是為了省頻寬，不是為了讓它變得測不過。
+  const afterSmall = verify(small, `縮到 ${small.w}×${small.h} 之後`)
+  if (!afterSmall) {
+    console.error(`
+✗ 縮圖之後有角偏掉，**沒有安裝**。
+  付印稿已寫出（${printCopy}，原解析度、可正常使用），只是登錄目標沒裝。
+  請把 scripts/install-target.mjs 的 TARGET_MAX_SHORT 調大再試。`)
+    process.exit(1)
+  }
+}
+
 const dest = path.join(ROOT, 'public', card.target)
 fs.mkdirSync(path.dirname(dest), { recursive: true })
-fs.writeFileSync(dest, encodePng(framed.w, framed.h, framed.rgba))
-// 同時留一份在設計稿旁邊當付印稿——付印與登錄必須是同一版
-const printCopy = path.join(path.dirname(inFile), path.basename(inFile, '.png') + '-付印.png')
-fs.copyFileSync(dest, printCopy)
+fs.writeFileSync(dest, encodePng(small.w, small.h, small.rgba))
 
 const shrink = ((framed.quiet + framed.frame) / src.w * 100).toFixed(1)
 console.log(`
-✓ 已安裝：public${card.target}　${(fs.statSync(dest).size / 1024).toFixed(0)} KB
-✓ 付印稿：${printCopy}（與登錄目標同一版）
+✓ 已安裝：public${card.target}　${small.w}×${small.h}　${(fs.statSync(dest).size / 1024).toFixed(0)} KB${
+  shrunk ? `（由 ${framed.w}×${framed.h} 縮下來，省 ${(100 - fs.statSync(dest).size / fs.statSync(printCopy).size * 100).toFixed(0)}% 頻寬）` : ''}
+✓ 付印稿：${printCopy}　${framed.w}×${framed.h}（**原解析度**，內容與登錄目標相同）
 ${before ? '' : '（原稿有角偏掉，收邊確實有必要。）'}
 接下來：
   1. 重新整理 /AR —— 「目標圖尚未安裝」的橫幅會消失，就可以掃了
