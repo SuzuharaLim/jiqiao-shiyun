@@ -62,6 +62,9 @@ export default function Scan() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const grabRef = useRef(null)               // 取樣 canvas + context（只建一次）
+  // 高解析度取樣的 canvas。⚠️ 與上面那張分開，因為兩者尺寸不同而且用途不同：
+  //    小的每幀都用（偵測），大的只在卡片太小時才用（比對）。見 sampleHiRes。
+  const hiGrabRef = useRef(null)
   const trackerRef = useRef(null)
   const stageRef = useRef(null)
   const officialFileRef = useRef(null)
@@ -265,6 +268,50 @@ export default function Scan() {
     return { data: g.ctx.getImageData(0, 0, gw, gh).data, w: gw, h: gh }
   }
 
+  // ── ★ 高解析度取樣器：只有「卡片在畫面裡太小」時才會被追蹤器呼叫 ──
+  //
+  // 為什麼需要：偵測只要邊緣（160px 就夠），比對要紋理。卡片佔畫面 30% 時
+  // 在 160px 的取樣圖裡只有約 60px 寬，拉正成 64×64 是**放大模糊的小圖**。
+  // 實測那個情況下四邊形 23/24 找得到、但追蹤只有 10/24——瓶頸在像素不在演算法。
+  //
+  // ⚠️ **裁切必須與 grabFrame 完全一致**（同一個 cover 計算）。兩邊的裁切區不同
+  //    的話，角點換算永遠對不上——而且不會拋錯，只會讓分數莫名歸零。
+  //    這個坑站上踩過一次（`.scan-video` 是 object-fit:cover，取樣寫死 4:3 時
+  //    scale 變成非等比 2.35×5.01，內容飛出畫面三萬 px）。
+  // ⚠️ 這支**每次呼叫都會 getImageData 一張大圖**，是整條鏈最貴的操作之一。
+  //    絕不可改成每幀都叫——policy 在 arTracker 的 HI_RES_BELOW_AREA。
+  const sampleHiRes = (scale) => {
+    const sim = simRef.current
+    const base = grabRef.current
+    if (sim?.bitmap) {
+      // 模擬模式：用同一組真值四角，只是畫在更大的畫布上
+      const w = Math.round(grabSize.w * scale), h = Math.round(grabSize.h * scale)
+      if (!sim.hiCanvas) sim.hiCanvas = document.createElement('canvas')
+      if (sim.hiCanvas.width !== w || sim.hiCanvas.height !== h) {
+        sim.hiCanvas.width = w; sim.hiCanvas.height = h
+        sim.hiCtx = sim.hiCanvas.getContext('2d', { willReadFrequently: true })
+      }
+      const q = (sim.truthQuad || []).map(([x, y]) => [x * scale, y * scale])
+      if (q.length !== 4) return null
+      return drawSimFrame(sim.hiCtx, sim.bitmap, { w, h, quad: q })
+    }
+    const video = videoRef.current
+    if (!video || video.readyState < 2 || !base) return null
+    const vw = video.videoWidth, vh = video.videoHeight
+    if (!vw || !vh) return null
+    const w = Math.round(base.cv.width * scale), h = Math.round(base.cv.height * scale)
+    let hi = hiGrabRef.current
+    if (!hi || hi.cv.width !== w || hi.cv.height !== h) {
+      const cv = document.createElement('canvas')
+      cv.width = w; cv.height = h
+      hi = hiGrabRef.current = { cv, ctx: cv.getContext('2d', { willReadFrequently: true }) }
+    }
+    const s = Math.max(w / vw, h / vh)
+    const cw = w / s, ch = h / s
+    hi.ctx.drawImage(video, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, w, h)
+    return { data: hi.ctx.getImageData(0, 0, w, h).data, w, h }
+  }
+
   // ---- AR 追蹤迴圈 ----
   // ⚠️ 用 requestAnimationFrame + 節流，不用 setInterval：分頁切到背景時 rAF
   //    會自動停下來，setInterval 不會——那等於在看不見的分頁裡持續跑影像運算。
@@ -285,7 +332,10 @@ export default function Scan() {
       const frame = grabFrame()
       if (!frame) return
       tracker.setRefs(officialRef.current)
-      const res = tracker.track(frame.data, frame.w, frame.h)
+      // ⚠️ 把高解析度取樣器交給追蹤器，但**由追蹤器決定要不要用**
+      //    （policy 在 arTracker 的 HI_RES_BELOW_AREA）。卡片大的時候低解析度
+      //    本來就 24/24，每幀多做一次大圖 getImageData 是白花成本。
+      const res = tracker.track(frame.data, frame.w, frame.h, { sampleHiRes })
       setTrack(res)
       // ⚠️ 官方卡一張都沒載入時（目標圖沒放進 public/ar/targets/），仍然回報
       //    「有沒有看到一張卡片」——否則畫面連「我看到卡了」都不會說，
@@ -337,6 +387,7 @@ export default function Scan() {
           seenAspect: dq ? quadAspect(dq.corners) : null,
           cardAspect: officialRef.current[0]?.aspect ?? null,
           refs: officialRef.current.length,
+          hiRes: res?.hiRes ?? null,
         })
       }
 
@@ -565,6 +616,12 @@ export default function Scan() {
                         <dd>{diag.areaRatio != null ? (diag.areaRatio * 100).toFixed(1) + '%' : '—'}</dd></div>
                       <div><dt>比對分數</dt>
                         <dd>{diag.score != null ? `${diag.score} / 門檻 ${diag.minScore}` : '未達門檻'}</dd></div>
+                      {/* ★ 卡片小的時候會自動改用高解析度取樣來比對。
+                          列出來是為了讓「站遠一點掃不到」的現場看得出它有在工作
+                          ——實測佔畫面 30% 時 10/24 → 18/24。 */}
+                      <div><dt>高解析度比對</dt>
+                        <dd>{diag.hiRes == null ? '—' : diag.hiRes
+                          ? '啟用（卡片較小）' : '未啟用（卡片夠大）'}</dd></div>
                       {/* ★ 判讀「框到的是不是卡片」的依據。並列出來才看得出結論從哪來。 */}
                       <div><dt>四邊形長寬比</dt>
                         <dd>

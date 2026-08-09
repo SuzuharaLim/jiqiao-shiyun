@@ -803,6 +803,51 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(at(spec.quiet + 1, spec.h / 2 | 0) < 60, '白邊內側是深色框')
 }
 
+// ── ★★ 卡片太小時改用高解析度取樣（治「站遠一點就掃不到」）──────────────
+//
+// 病灶：**偵測與比對需要的東西不一樣**。偵測只要邊緣（160px 取樣就夠、而且便宜），
+// 比對要紋理（需要像素）。兩者共用同一張 160px 圖時，卡片佔畫面 30% 就只有
+// 約 60px 寬，拉正成 64×64 等於放大一張模糊的小圖。
+//
+// 實測（真目標圖、合成手持晃動、室內一般＝雜訊 σ6／模糊 1.0、深色桌面、24 幀）：
+//    佔畫面寬度   四邊形偵測   追蹤（改前）   追蹤（改後）   每幀 ms
+//      62%          24/24        22/24          22/24        3.8（不觸發）
+//      45%          24/24        20/24          20/24        2.6（不觸發）
+//      30%          23/24        **10/24**      **18/24**    2.6 → 10.1
+//      24%           —            1/24           4/24        1.9 → 4.5
+// ⚠️ 30% 那一格「偵測 23/24、追蹤 10/24」是關鍵證據：瓶頸在像素不在演算法。
+// ⚠️ 門檻第一版設 0.22，45% 那格**觸發了卻零增益**（20→20）卻花 14.9ms——純浪費。
+//    收到 0.15 之後 45% 不再觸發。所以這個常數不是隨手取的。
+{
+  const { createTracker } = await import('../src/lib/arTracker.js')
+  const trSrc = (await import('node:fs'))
+    .readFileSync(new URL('../src/lib/arTracker.js', import.meta.url), 'utf8')
+  const code = trSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  ok(/HI_RES_BELOW_AREA = 0\.15\b/.test(code),
+    '★ 高解析度門檻是 0.15（0.22 會讓「佔 45%」白花 14.9ms／零增益）')
+  ok(/HI_RES_SCALE = 3\b/.test(code), '★ 放大倍率 3（160 → 480，足以餵滿 64×64 的拉正圖）')
+  ok(/if \(sampleHiRes && quad\.areaRatio < HI_RES_BELOW_AREA\)/.test(code),
+    '★★ 只有在卡片小的時候才索取高解析度（每幀都要就是白花整條鏈最貴的操作）')
+  // ⚠️ 角點沒換算到高解析度座標系的話會拉正到完全錯的區域——而且不拋錯，
+  //    只會讓分數莫名歸零。這是這個改動最容易寫壞的一行。
+  ok(/rectCorners = quad\.corners\.map\(\(\[x, y\]\) => \[x \* k, y \* \(hi\.h \/ h\)\]\)/.test(code),
+    '★★ 角點要換算到高解析度座標系（漏了會拉正到錯的區域且不拋錯）')
+  // ⚠️ 變數不可叫 corners：下面有 `const corners = smoother.push(aligned)`，撞名會直接爆
+  ok(/let src = rgba, sw = w, sh = h, rectCorners = quad\.corners/.test(code),
+    '拉正用的角點變數不可與平滑後的 corners 撞名')
+  ok(/hiRes,/.test(code), 'track 要回報這一幀有沒有用高解析度（診斷面板與成本量測要看）')
+
+  // 功能測試：不給 sampleHiRes 時不可爆，且行為與以前一致
+  const tr = createTracker({ refs: [], rectifySize: 64, minScore: 58 })
+  const blank = new Uint8ClampedArray(200 * 150 * 4)
+  ok(tr.track(blank, 200, 150) === null, '空畫面回 null（沒有 sampleHiRes 也不可拋錯）')
+  ok(tr.track(blank, 200, 150, {}) === null, '傳空 opts 也不可拋錯')
+  // sampleHiRes 回 null（呼叫端拿不到影格）時要安全退回低解析度
+  ok(tr.track(blank, 200, 150, { sampleHiRes: () => null }) === null,
+    'sampleHiRes 回 null 時要安全退回，不可拋錯')
+}
+
 // ── ★★★ 站內出口連結必須帶得到參數 ────────────────────────────────────
 //
 // 這一組是**兩輪人工驗收都沒抓到、而它砸掉整個改版最重要目的**的那個 bug 的閘門。

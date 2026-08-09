@@ -17,6 +17,28 @@ import { homography, poseFromHomography, cssMatrix3dString, makeSmoother } from 
 
 const UNIT_SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]]
 
+// ★ 什麼時候要向呼叫端索取高解析度取樣（見 track() 裡的說明與實測數字）。
+//
+// 0.15：卡片佔畫面**面積**低於這個比例才換高解析度。
+//   面積比與「佔畫面寬度」的對應：62%→0.38、45%→0.20、30%→0.09、24%→0.05。
+//   ⚠️ 第一版設 0.22，結果 45% 那一格**觸發了卻完全沒有增益**
+//      （20/24 → 20/24），每幀卻從 2.5ms 變成 14.9ms——純浪費。
+//      45% 的低解析度本來就夠用，收到 0.15 讓它不再觸發。
+//   實測增益（室內一般：雜訊 σ6、模糊 1.0）：
+//      佔 62%  22/24 → 22/24（不觸發，2.9ms 不變）
+//      佔 45%  20/24 → 20/24（不觸發）
+//      佔 30%  **10/24 → 18/24**   每幀 2.6 → 10.0ms
+//      佔 24%   1/24 → 4/24        每幀 1.9 → 4.2ms
+//   ⚠️ 佔 20% 以下仍是 0——那是被 detectQuad 的 minAreaRatio(0.06) 擋在偵測階段，
+//      高解析度救不到。**刻意不放寬那個下限**：卡片只佔畫面 1/5 已經太遠，
+//      而放寬會讓雜訊區塊有機會被當成卡片——誤認是最難發現的壞法。
+// 3：放大倍率。160px 長邊 → 480px，卡片佔 30% 時從約 60px 變成約 180px 寬，
+//   拉正成 64×64 就變成降採樣（有細節可用）而不是放大模糊的小圖。
+//   ⚠️ 不要再往上加：成本是面積成長（3× 邊長＝9× 像素），而 480 已經足夠
+//      餵滿 64×64 的拉正圖。
+const HI_RES_BELOW_AREA = 0.15
+const HI_RES_SCALE = 3
+
 /** 建立追蹤器。refs 為已登錄卡片（需含 hash / hist，見 scanner.js 的簽名格式）。 */
 export function createTracker({
   refs = [],
@@ -35,17 +57,50 @@ export function createTracker({
     /**
      * 追蹤一幀。
      * @param {Uint8ClampedArray} rgba 取樣畫面（w*h*4）
+     * @param {object} [opts]
+     * @param {(scale:number)=>({data:Uint8ClampedArray,w:number,h:number}|null)} [opts.sampleHiRes]
+     *        「同一個畫面、放大 scale 倍」的取樣器。**只有在卡片太小時才會被呼叫**。
      * @returns {null | {
-     *   ref, score, rotation, corners, H, matrix3d, pose, areaRatio
+     *   ref, score, rotation, corners, H, matrix3d, pose, areaRatio, hiRes
      * }}  corners 為**已對齊參考方向**的四角（模型座標的 0,0 對應 corners[0]）
      */
-    track(rgba, w, h) {
+    track(rgba, w, h, { sampleHiRes } = {}) {
       const gray = toGray(rgba, w, h)
       const quad = detectQuad(gray, w, h)
       if (!quad) { smoother.reset(); lastId = null; return null }
 
+      // ── ★ 卡片小的時候，改用高解析度的取樣來拉正 ──
+      //
+      // ⚠️ 偵測與比對需要的東西不一樣：**偵測只要邊緣**（低解析度就夠，而且便宜），
+      //    **比對要紋理**（需要像素）。兩者共用同一張 160px 取樣圖時，
+      //    卡片一小就沒有細節可比——拉正成 64×64 等於放大一張模糊的小圖。
+      //
+      // 實測（真目標圖、合成手持晃動、深色桌面）：
+      //    卡片佔畫面寬度   四邊形偵測   追蹤成功
+      //      45%             24/24        21/24
+      //      30%             23/24        **10/24**  ← 偵測沒問題，是比對失敗
+      //    也就是「站遠一點就掃不到」的原因不在偵測，而在拉正時可用的像素太少。
+      //
+      // ⚠️ 只在需要時才要高解析度：卡片大的時候低解析度本來就 24/24，
+      //    每幀多做一次大圖 getImageData 是白花成本（那是整條鏈最貴的操作之一）。
+      // ⚠️ 變數不可叫 `corners`：下面第 123 行有 `const corners = smoother.push(aligned)`
+      //    （那是**平滑後、已對齊方向**的四角，語意完全不同）。撞名會直接
+      //    `Identifier 'corners' has already been declared`。這裡叫 rectCorners
+      //    ——它只用來拉正，不是對外回傳的那組。
+      let src = rgba, sw = w, sh = h, rectCorners = quad.corners, hiRes = false
+      if (sampleHiRes && quad.areaRatio < HI_RES_BELOW_AREA) {
+        const hi = sampleHiRes(HI_RES_SCALE)
+        if (hi?.data) {
+          const k = hi.w / w
+          src = hi.data; sw = hi.w; sh = hi.h; hiRes = true
+          // ⚠️ 角點必須跟著換算到高解析度的座標系，否則會拉正到完全錯的區域
+          //    （而且不會拋錯，只會讓分數莫名歸零）。
+          rectCorners = quad.corners.map(([x, y]) => [x * k, y * (hi.h / h)])
+        }
+      }
+
       // 拉正 → 四個方向各比一次（卡片可能被倒著或側著放）
-      const flat = rectify(rgba, w, h, quad.corners, rectifySize)
+      const flat = rectify(src, sw, sh, rectCorners, rectifySize)
       let best = null
       if (refs.length) {
         for (let r = 0; r < 4; r++) {
@@ -94,6 +149,8 @@ export function createTracker({
         //    ref.aspect 由登錄時的目標圖算出（arCardRegistry / registerFromFile）。
         pose: poseFromHomography(H, { width: w, height: h, fovDeg, aspect: best.ref?.aspect || 1 }),
         areaRatio: quad.areaRatio,
+        // 這一幀的比對有沒有用高解析度取樣（給診斷面板顯示，也方便量成本）
+        hiRes,
       }
     },
   }
