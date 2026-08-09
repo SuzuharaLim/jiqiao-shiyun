@@ -6,54 +6,27 @@ import { syncBadges } from '../lib/arBadges.js'
 // ─────────────────────────────────────────────────────────────
 // 網址路由：每個畫面對應一個路徑，與 History API 同步（無 react-router）。
 // 根分頁用 TAB_PATHS；堆疊畫面用 SCREEN_PATH（:param 由 props 帶入，如 /post/:id）。
+//
+// ★ 路徑表與組成邏輯已抽到 `./paths.js`（**純 JS，沒有 React**），
+//   因為那一層是全站最容易靜默壞掉的地方，卻原本 import 不進 build 期的檢查腳本。
+//   詳細理由見 paths.js 的檔頭。**不可在這裡再寫第二份路徑表。**
 // ─────────────────────────────────────────────────────────────
-const TAB_PATHS = ['/', '/explore', '/create', '/almanac', '/me']
-const SCREEN_PATH = {
-  aiChat: '/ai', checkout: '/checkout', workDetail: '/work/:id', postDetail: '/post/:id',
-  newPost: '/new', makeCalendar: '/calendar/make', calendarPreview: '/calendar/preview',
-  myProjects: '/projects', deities: '/deities', zodiac: '/zodiac', dream: '/dream',
-  nameFortune: '/name', matchmaking: '/match', bone: '/bone', proverbs: '/proverbs',
-  festivals: '/festivals', flowers: '/flowers', ingredients: '/ingredients', solarterms: '/solarterms',
-  subscription: '/subscription', wallet: '/wallet', notifications: '/notifications',
-  dms: '/messages', settings: '/settings', records: '/records',
-  creatorConsole: '/creator-console', store: '/store', productDetail: '/store/:slug', orders: '/orders',
-  scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day/:date?',
-  // 條目頁：一個節氣／一位神明／一個夢境各自一個網址（SEO 長尾）
-  termDetail: '/solarterms/:slug', deityDetail: '/deities/:slug', dreamDetail: '/dream/:slug',
-  arCard: '/ar/card/:slug',
-  // 擇日工具：/auspicious/moving 是總表、/auspicious/moving/2026-09 是月份頁
-  auspiciousIndex: '/auspicious', auspicious: '/auspicious/:kind/:ym?',
-  glossary: '/glossary', glossaryDetail: '/glossary/:slug',
-  editorial: '/editorial', myths: '/myths',
-  sunIndex: '/sun', sunTimes: '/sun/:spot',
-  yearAlmanac: '/almanac/year', foodTaboo: '/appendix/food', units: '/appendix/units',
-  ganzhiTable: '/appendix/ganzhi', challenges: '/challenges', challengesBoard: '/leaderboard',
-  creatorPage: '/creator/:user', followList: '/creator/:handle/:rel', prePlan: '/preplan', editProfile: '/edit-profile',
-  about: '/about', accountSecurity: '/security', admin: '/admin',
-  privacy: '/privacy', terms: '/terms', contact: '/contact',
-}
-// 路徑樣板支援兩種參數：`:name`（必填）與 `/:name?`（選填，整段含斜線可省略）。
-// 選填參數是為了「完整國民曆」這種頁面——它既要能用 /almanac/day 代表今天，
-// 也要能用 /almanac/day/2026-08-15 指向特定一天並且可分享。
-const SCREEN_MATCHERS = Object.entries(SCREEN_PATH).map(([screen, tpl]) => {
-  // ⚠️ 參數名稱必須依「樣板裡出現的順序」收集，不能分兩次 replace 各自 push。
-  //    '/auspicious/:kind/:ym?' 若先處理選填的 :ym? 再處理 :kind，
-  //    names 會變成 ['ym','kind']，但 regex 的捕獲組順序是 (kind)(ym)——
-  //    對應就整個錯位，kind 拿到 undefined，畫面顯示「找不到」。
-  //    改成單次掃描，同時決定名稱順序與 regex 片段。
-  const names = []
-  const body = tpl.replace(/\/:(\w+)\?|:(\w+)/g, (_, opt, req) => {
-    names.push(opt || req)
-    return opt ? '(?:/([^/]+))?' : '([^/]+)'
-  })
-  return { screen, rx: new RegExp('^' + body + '/?$'), names }
-})
+import {
+  TAB_PATHS, SCREEN_PATH, SCREEN_MATCHERS, requiredParams, buildPathInfo,
+} from './paths.js'
+export { TAB_PATHS, SCREEN_PATH, requiredParams }
+
+// ⚠️ 開發模式要大聲喊出「誰漏了哪個必填參數」——那個錯誤在畫面上完全看不出來
+//    （文字顯示的值是對的、只有 href 是空的），所以兩輪人工驗收都沒抓到。
 function buildPath(screen, props = {}) {
-  const tpl = SCREEN_PATH[screen]; if (!tpl) return null
-  return tpl
-    // 選填參數沒給值時，連同前面的斜線一起拿掉（否則會產生 /almanac/day/ 這種尾巴）
-    .replace(/\/:(\w+)\?/g, (_, k) => (props?.[k] ? '/' + encodeURIComponent(props[k]) : ''))
-    .replace(/:(\w+)/g, (_, k) => encodeURIComponent(props?.[k] ?? ''))
+  const { path, missing } = buildPathInfo(screen, props)
+  if (import.meta.env?.DEV && missing.length) {
+    console.error(
+      `[nav] buildPath('${screen}') 缺少必填參數 ${missing.join('、')}`
+      + `，會產生壞掉的網址「${path}」。`
+      + ` 檢查 <Link screen="${screen}" params={{ ${missing[0]}: … }}>`)
+  }
+  return path
 }
 // 給 <Link> 產生真實 href 用（SPA 的連結必須是真的 <a href>，才能支援
 // Cmd/Ctrl+click 開新分頁、右鍵複製網址、爬蟲辨識）。

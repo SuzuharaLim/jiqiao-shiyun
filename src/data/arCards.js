@@ -152,7 +152,10 @@ export const CARD_OBJECTS = {
       },
       { label: '節氣俗語', value: '十二白（農曆十二月的白菜最好吃）', source: '站內節氣生活資料庫' },
     ],
-    link: { label: '看小寒完整節氣頁', screen: 'termEntry', props: { slug: 'xiaohan' } },
+    // ⚠️ 畫面名是 `termDetail`。原本寫 `termEntry`——**那個畫面不存在**，
+    //    buildPath 回 null、Link 退回 '/'，於是「看小寒完整節氣頁」點下去回首頁。
+    //    不存在的畫面名不會拋錯也不會有警告，只會靜默地把人送到首頁。
+    link: { label: '看小寒完整節氣頁', screen: 'termDetail', props: { slug: 'xiaohan' } },
     // 小挑戰只考「卡上與站上真的有寫」的東西，不考需要外部查證的數字
     quiz: {
       question: '卡片上寫結球白菜的產地有哪幾個縣市？（可複選）',
@@ -177,7 +180,10 @@ export const CARD_OBJECTS = {
     ],
     // 卡面「生活小叮嚀」那段是真實的冬季安全提醒，照抄不改寫
     warn: '天冷別把門窗關得密不透風，記得保持適度通風，避免使用瓦斯熱水器或燃氣設備時發生一氧化碳中毒。',
-    link: { label: '看小寒完整節氣頁', screen: 'termEntry', props: { slug: 'xiaohan' } },
+    // ⚠️ 畫面名是 `termDetail`。原本寫 `termEntry`——**那個畫面不存在**，
+    //    buildPath 回 null、Link 退回 '/'，於是「看小寒完整節氣頁」點下去回首頁。
+    //    不存在的畫面名不會拋錯也不會有警告，只會靜默地把人送到首頁。
+    link: { label: '看小寒完整節氣頁', screen: 'termDetail', props: { slug: 'xiaohan' } },
   },
   'xiaohan-produce': {
     id: 'xiaohan-produce',
@@ -188,7 +194,9 @@ export const CARD_OBJECTS = {
       { label: '茂谷柑橘', value: '一月當令', source: '農業部開放資料' },
       { label: '文旦', value: '一月當令', source: '農業部開放資料' },
     ],
-    link: { label: '看一月完整當令清單', screen: 'termEntry', props: { slug: 'xiaohan' } },
+    // ⚠️ 這個出口的文字是「當令清單」，就要去當令清單頁（`/ingredients`），
+    //    不可指向節氣頁——文字與去處不一致，使用者會覺得按錯了。
+    link: { label: '看一月完整當令清單', screen: 'ingredients' },
   },
   'xiaohan-almanac': {
     id: 'xiaohan-almanac',

@@ -265,7 +265,7 @@ export default function CardPage({ slug }) {
                 fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} />
             )}
             {obj.link && (
-              <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap cardp-more">
+              <Link screen={obj.link.screen} params={obj.link.props} className="btn-ghost tap cardp-more">
                 {obj.link.label} ›
               </Link>
             )}

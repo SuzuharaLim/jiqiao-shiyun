@@ -803,6 +803,93 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(at(spec.quiet + 1, spec.h / 2 | 0) < 60, '白邊內側是深色框')
 }
 
+// ── ★★★ 站內出口連結必須帶得到參數 ────────────────────────────────────
+//
+// 這一組是**兩輪人工驗收都沒抓到、而它砸掉整個改版最重要目的**的那個 bug 的閘門。
+//
+// 病灶：專案裡曾同時存在兩個 Link 元件——`components/ui.jsx` 的吃 `params`，
+// `components/primitives/Link.jsx`（死碼）吃 `props`。Scan.jsx／CardPage.jsx
+// import 的是前者卻寫 `props={{ slug }}` → 參數是 undefined → buildPath 把
+// 必填參數**靜默換成空字串** → `/ar/card/`（404）、`/almanac/day`（沒帶日期）。
+//
+// ⚠️ 為什麼肉眼驗不出來：畫面上的文字全都顯示**正確的值**（「2027-01-05」
+//    「小寒」「一月」），只有 href 是空的。要把滑鼠移到連結上看狀態列、
+//    或真的點下去才會發現。六個出口有五個壞掉。
+//
+// ⚠️ 而我自己第一次「驗過」也放過了——因為我在測試腳本裡**重新實作了一份
+//    替換邏輯**，測到的是「我對程式的想像」而不是程式。所以現在
+//    `src/store/paths.js` 被抽成純 JS，這裡 **import 真的 buildPath**。
+{
+  const { buildPath, requiredParams, SCREEN_PATH } =
+    await import('../src/store/paths.js')
+
+  // ① 所有帶必填參數的畫面：給了參數要出現在路徑裡、沒給要被 missing 抓到
+  for (const [screen, tpl] of Object.entries(SCREEN_PATH)) {
+    const req = requiredParams(screen)
+    if (!req.length) continue
+    const props = Object.fromEntries(req.map(k => [k, `X${k}X`]))
+    const good = buildPath(screen, props)
+    ok(req.every(k => good.includes(`X${k}X`)),
+      `${screen}（${tpl}）給了參數要組進路徑：${good}`)
+    ok(!/\/$/.test(good) && !/\/\//.test(good),
+      `${screen} 組出的路徑不可有空段：${good}`)
+  }
+
+  // ② 缺參數時必須被 buildPathInfo 的 missing 回報（不可靜默）
+  const { buildPathInfo } = await import('../src/store/paths.js')
+  ok(buildPathInfo('arCard', {}).missing.includes('slug'),
+    '★ arCard 缺 slug 時要回報 missing（不可靜默產出 /ar/card/）')
+  ok(buildPathInfo('termDetail', {}).missing.includes('slug'),
+    '★ termDetail 缺 slug 時要回報 missing')
+  // 選填參數不算缺（/almanac/day 不帶日期＝今天，是刻意的）
+  ok(buildPathInfo('almanacDay', {}).missing.length === 0,
+    'almanacDay 的 :date? 是選填，不給不算缺')
+  ok(buildPathInfo('almanacDay', {}).path === '/almanac/day',
+    'almanacDay 不給日期時不可留下尾斜線')
+
+  // ③ 卡片資料裡每一個出口連結（obj.link）都要能組出完整路徑
+  //    ⚠️ 這是報告 D2 的六個出口。`/flowers` 沒有參數所以本來就對，
+  //       其餘五個當時全壞。
+  let exits = 0
+  for (const obj of Object.values(CARD_OBJECTS)) {
+    const link = obj?.link
+    if (!link?.screen) continue
+    exits++
+    const { path, missing } = buildPathInfo(link.screen, link.props)
+    ok(missing.length === 0,
+      `★★ 出口「${link.label ?? obj.name ?? link.screen}」要帶齊參數（缺 ${missing.join('、') || '無'}）→ ${path}`)
+    ok(path && path !== '/' && !/\/$/.test(path),
+      `★★ 出口「${link.label ?? obj.name ?? link.screen}」的路徑不可退回基底：${path}`)
+  }
+  ok(exits >= 5, `卡片資料裡至少要有 5 個站內出口（實得 ${exits}）`)
+
+  // ④ 呼叫端不可再用 `props=`（那是另一個 Link 的參數名，會靜默失效）
+  const fs2 = await import('node:fs')
+  for (const f of ['../src/screens/Scan.jsx', '../src/screens/CardPage.jsx']) {
+    const s = fs2.readFileSync(new URL(f, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    ok(!/<Link[^>]*\bprops=/.test(s),
+      `★★ ${f.split('/').pop()} 的 <Link> 要用 params=（ui.jsx 的 Link 不吃 props=）`)
+  }
+  // ⑤ ui.jsx 的 Link 兩個名字都要接（防止再犯），且 onClick 也要用合併後的值
+  const uiSrc = fs2.readFileSync(new URL('../src/components/ui.jsx', import.meta.url), 'utf8')
+  ok(/const p = params \?\? props/.test(uiSrc),
+    '★ ui.jsx 的 Link 要同時接受 params 與 props（這個坑吃掉一整輪驗收）')
+  ok(/push\(screen, p \|\| \{\}\)/.test(uiSrc),
+    '★ Link 的 onClick 也要用合併後的參數（只修 href 的話 SPA 點擊仍會掉參數）')
+
+  // ⑥ 沒有相機時的出路（驗收 B3）必須存在，而且要帶得到 slug。
+  //    ⚠️ 這一段的 **live 渲染在瀏覽器窗格裡驗不到**——那個環境的 getUserMedia
+  //       一律成功（status 直接變 ready），走不到 fallback 分支。所以靠這裡守。
+  const scanSrc = fs2.readFileSync(new URL('../src/screens/Scan.jsx', import.meta.url), 'utf8')
+  ok(/scan-fallback-out/.test(scanSrc), '★ 沒有相機時要有出路區塊（原本只有一行字＝死路）')
+  ok(/status !== 'loading' \|\| slowCamera/.test(scanSrc),
+    '★ loading 狀態要等一下才顯示出路（一開就跳「沒有相機？」會讓正在按允許的人以為失敗了）')
+  const outBlock = scanSrc.slice(scanSrc.indexOf('scan-fallback-out'), scanSrc.indexOf('scan-fallback-out') + 900)
+  ok(/params=\{\{ slug: OFFICIAL_CARDS\[0\]\.slug \}\}/.test(outBlock),
+    '★★ 出路的連結要帶 slug（這正是驗收 B1「桌機 100% 撞 404」的那一條）')
+}
+
 // ── ★ 掃描頁：只認官方卡，且「沒有目標圖」必須講出來 ──────────────────────
 //
 // 2026-08 移除了「使用者自己登錄目標」。這一段鎖的不是程式正確性，而是**動線決策**

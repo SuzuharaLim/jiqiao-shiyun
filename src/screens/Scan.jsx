@@ -461,7 +461,7 @@ export default function Scan() {
               {(status !== 'loading' || slowCamera) && OFFICIAL_CARDS[0] && (
                 <div className="scan-fallback-out">
                   {status === 'loading' && <p className="muted">還在等相機權限。沒有相機的話：</p>}
-                  <Link screen="arCard" props={{ slug: OFFICIAL_CARDS[0].slug }} className="btn-primary tap">
+                  <Link screen="arCard" params={{ slug: OFFICIAL_CARDS[0].slug }} className="btn-primary tap">
                     沒有相機？看示範內容 ›
                   </Link>
                   <p className="muted">
@@ -528,7 +528,7 @@ export default function Scan() {
                      否則使用者瞄準白菜卻聽到臘八粥。 */}
               <SpeakButton obj={obj} className="scan-hit-speak" />
               {obj.link && (
-                <Link screen={obj.link.screen} props={obj.link.props} className="btn-ghost tap">
+                <Link screen={obj.link.screen} params={obj.link.props} className="btn-ghost tap">
                   {obj.link.label} ›
                 </Link>
               )}
@@ -673,7 +673,7 @@ export default function Scan() {
                 )}
                 {/* 「沒有卡片？看示範」——導向不需相機的卡片頁（改版文件 §5.1）。
                     ⚠️ 這是真的 <a href>：/ar/card/:slug 允許索引，爬蟲要走得進去。 */}
-                <Link screen="arCard" props={{ slug: c.slug }} className="btn-ghost tap"
+                <Link screen="arCard" params={{ slug: c.slug }} className="btn-ghost tap"
                   style={{ marginTop: 'var(--space-2)' }}>
                   沒有卡片？看示範內容 ›
                 </Link>

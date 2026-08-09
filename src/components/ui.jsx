@@ -79,15 +79,29 @@ export function TabBar() {
 // 行為：一般左鍵 → preventDefault 走 SPA 導覽（不重整）；
 //       中鍵／Cmd／Ctrl／Shift ＋點擊 → 交還瀏覽器原生行為（開新分頁）。
 // href 一律來自 nav.jsx 的 hrefFor*（路徑的唯一真相），不可自己拼字串。
-export function Link({ tab, screen, params, className = '', onNavigate, children, ...rest }) {
+// ★★ `params` 與 `props` 兩個名字都接受。
+//
+// ⚠️ 這不是為了方便，是為了**堵住一個吃掉整輪驗收的坑**：專案裡曾同時存在
+//    兩個 Link——這一支叫 `params`，`components/primitives/Link.jsx` 叫 `props`。
+//    Scan.jsx／CardPage.jsx import 的是這一支卻寫 `props={{ slug }}`，於是
+//    `params === undefined` → buildPath 把必填參數換成空字串 →
+//    `/ar/card/`（404）、`/almanac/day`（沒帶日期）。
+//    **六個站內出口有五個是壞的**，而畫面上的文字全都顯示正確的值
+//    （「2027-01-05」「小寒」），只有 href 是空的——所以肉眼完全看不出來，
+//    而它正好砸掉這次改版最重要的目的之一：把 AR 的流量導回站內內容。
+// ⚠️ 兩個名字都接之後，未來不管誰用哪個習慣都不會再靜默壞掉。
+export function Link({ tab, screen, params, props, className = '', onNavigate, children, ...rest }) {
   const { setTab, push } = useNav()
-  const href = screen != null ? (hrefForScreen(screen, params) || '/') : hrefForTab(tab)
+  const p = params ?? props
+  const href = screen != null ? (hrefForScreen(screen, p) || '/') : hrefForTab(tab)
   return (
     <a href={href} className={className}
       onClick={(e) => {
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
         e.preventDefault()
-        if (screen != null) push(screen, params || {})
+        // ⚠️ 這裡也必須用合併後的 p。只修 href 不修這行的話：
+        //    網址列會對、但 SPA 點擊仍然 push 空 props → 畫面拿不到 slug/date。
+        if (screen != null) push(screen, p || {})
         else setTab(tab)
         onNavigate?.()
       }}
