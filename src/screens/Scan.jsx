@@ -91,6 +91,11 @@ export default function Scan() {
   // ⚠️ 只放**量得準**的觀測值。曾試過反推鏡頭 k1，實測會誤報（見 arDiagnose 檔頭）。
   const [diag, setDiag] = useState(null)
   const [showDiag, setShowDiag] = useState(false)
+  // 「連續找不到四個角」的計數與提示（見追蹤迴圈裡的說明）
+  const noQuadRef = useRef(0)
+  const noQuadAtRef = useRef(0)
+  const [noQuadHint, setNoQuadHint] = useState(false)
+  const noQuadHintRef = useRef(false); noQuadHintRef.current = noQuadHint
   const diagRef = useRef(0)
   const showDiagRef = useRef(false); showDiagRef.current = showDiag
   const latchRef = useRef(null)
@@ -265,6 +270,25 @@ export default function Scan() {
         setSeeCard(!!detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h))
       } else setSeeCard(!!res)
 
+      // ── 「一直找不到四個角」的自動提示 ──
+      //
+      // ⚠️ 為什麼需要這個：實測（合成，24 幀 × 5 種桌面亮度）——
+      //      加收邊版：深黑 23/24、中灰 23/24、淺灰 22/24、淺白 23/24、純白 24/24
+      //      無收邊原稿：深黑 18/24、中灰 13/24、淺灰 0、淺白 0、**純白 0**
+      //    紙的邊緣是白的（實測原稿紙緣內側灰階 254，98% 高於 240），放在淺色桌面
+      //    上「紙與桌面的邊界」根本不存在——這不是對準問題，喬角度永遠不會成功。
+      //    而畫面原本只會一直寫「掃描中」，使用者會一直換角度重試。
+      //    診斷面板早就會講，但那要使用者自己去點開；掃不到的人不會知道有那個面板。
+      //
+      // ⚠️ 節流跑：detectQuad 是整條鏈最貴的一步，不可為了這個提示每幀多跑一次。
+      if (res) { noQuadRef.current = 0; if (noQuadHintRef.current) setNoQuadHint(false) }
+      else if (now - noQuadAtRef.current > 700) {
+        noQuadAtRef.current = now
+        const q = detectQuad(toGray(frame.data, frame.w, frame.h), frame.w, frame.h)
+        if (q) noQuadRef.current = 0
+        else if (++noQuadRef.current >= 8 && !noQuadHintRef.current) setNoQuadHint(true)
+      }
+
       // ── 現場診斷（節流到約每 0.7 秒一次）──
       // ⚠️ 不可每幀跑：measureEdgeBow 會重跑一次前景遮罩，那是整條鏈第二貴的一步。
       if (showDiagRef.current && now - diagRef.current > 700) {
@@ -332,7 +356,10 @@ export default function Scan() {
         : '目標圖尚未安裝——這一頁目前掃不到任何卡片')
       : tracking ? `已對準：${track.ref.name}`
         : seeCard ? '看到卡片了，但不是官方卡片'
-          : '掃描中——把整張卡片放進框內'
+          // ⚠️ 一直找不到四個角時不可只說「掃描中」：那會讓人以為再喬一下就好。
+          //    白紙在淺色桌面上沒有邊界可找，換角度不會有幫助。
+          : noQuadHint ? '找不到卡片的邊界——請把卡片放到深色桌面上，或改用加了收邊的那一版'
+            : '掃描中——把整張卡片放進框內'
 
   return (
     <>
@@ -462,6 +489,30 @@ export default function Scan() {
             </div>
           )}
         </div>
+
+        {/* ── 一直找不到四個角：主動講出兩個真正的原因 ──
+            ⚠️ 這一段刻意**不說「請對準」**。實測紙的邊緣是白的（紙緣內側灰階 254），
+               放在淺色桌面上邊界根本不存在，喬角度永遠不會成功——
+               叫使用者「再對準一點」是把責任推給他，而且是錯的建議。 */}
+        {noQuadHint && !!official.length && (
+          <div className="scan-nofile">
+            <b>一直找不到卡片的四個角。</b>
+            <p>
+              偵測靠的是<b>紙與桌面的邊界</b>。白紙放在淺色桌面（或白色螢幕背景）上
+              沒有邊界可找——這不是沒對準，換角度不會有幫助。
+            </p>
+            <p>
+              <b>兩個都有效：</b>把卡片放到<b>深色桌面</b>上；
+              或改用<b>加了收邊的那一版</b>（`npm run card:install` 產出的
+              「-付印.png」，四邊有白留白邊＋深色實框）。
+            </p>
+            <p className="muted">
+              實測 24 幀 × 5 種桌面亮度：加收邊版在深黑／中灰／淺灰／淺白／純白
+              分別 23／23／22／23／24 中；無收邊原稿是 18／13／0／0／0
+              ——比中灰更淺的背景一次都不會成功。
+            </p>
+          </div>
+        )}
 
         {/* ── 官方卡片：進頁就能掃，不必自己登錄 ── */}
         <div className="scan-official">
