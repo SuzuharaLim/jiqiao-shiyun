@@ -272,42 +272,12 @@ export async function loadOfficialRefs(rectifySize) {
   return { refs, errors }
 }
 
-/**
- * 用「本機的一個檔案」補上某張官方卡的目標圖。
- *
- * 為什麼需要這條路：設計檔還沒進 `public/ar/targets/` 之前（美術還在改稿、
- * 或只是想先試試看），使用者手上就已經有那張圖了。這條路讓他選一次檔案就能掃，
- * 不必動 repo、不必等部署。簽名存進同一份快取，所以與正式版是同一條程式路徑。
- *
- * ⚠️ 正式上線仍應把圖放進 `public/ar/targets/`——localStorage 只在這台裝置上有效，
- *    別人打開網站還是掃不到。所以介面上要講清楚這是「本機測試用」。
- *
- * ⚠️ `source: 'local'` 要記下來：之後 target 路徑真的有圖了，快取的判斷是
- *    `hit.target === card.target`，本機版會用同一個 key 佔住位置。標記來源才能
- *    在介面上區分「這張是我自己指定的」與「這是正式版的」。
- */
-export async function bindLocalTarget(cardId, file, rectifySize) {
-  const card = OFFICIAL_CARDS.find(c => c.id === cardId)
-  if (!card) throw new Error('找不到這張官方卡片')
-  if (!file || !/^image\//.test(file.type)) throw new Error('請選圖片檔（PNG／JPG／WebP）')
-  const url = URL.createObjectURL(file)
-  try {
-    const sig = await signatureFromImage(url, rectifySize)
-    const cache = readCache()
-    cache[card.id] = {
-      target: card.target, aspect: sig.aspect, source: 'local',
-      fileName: file.name || '', poster: sig.poster,
-      sig: serializeSig(sig), sigs: sig.sigs.map(serializeSig),
-    }
-    // ⚠️ 空間不足時先丟掉縮圖再試一次——簽名比縮圖重要得多
-    //    （沒有簽名就完全掃不到；沒有縮圖只是校對頁少一張底圖）。
-    if (!writeCacheSafe(cache, card.id)) throw new Error('儲存空間不足，請先清一些瀏覽器資料')
-    return {
-      id: card.id, name: card.title, official: true, card, local: true,
-      aspect: sig.aspect, poster: sig.poster, hash: sig.hash, hist: sig.hist,
-    }
-  } finally { URL.revokeObjectURL(url) }
-}
+// ⚠️ `bindLocalTarget()`（用本機檔案臨時補上某張官方卡的目標圖）已於
+//    2026-08-10 依需求移除。那是美術改稿期間的工具：簽名只存這台裝置的
+//    localStorage，**別人打開網站還是掃不到**，卻在介面上看起來像一個功能。
+//    現在目標圖一律走 `npm run card:install`／`card:mind` 進 repo。
+//    快取的 `source:'local'` 分支也一併沒有用了，但**讀取端刻意保留寬容**
+//    ——舊裝置上可能還有那種快取，讓它安靜地被當成一般快取用掉就好。
 
 /** 清掉快取（美術換稿但沿用同一個檔名時用）。 */
 export function clearOfficialCache() {

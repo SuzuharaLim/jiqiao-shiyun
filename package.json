@@ -21,7 +21,8 @@
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
     "card:frame": "node scripts/frame-card.mjs",
-    "card:install": "node scripts/install-target.mjs"
+    "card:install": "node scripts/install-target.mjs",
+    "card:mind": "node scripts/compile-mind.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -29,6 +30,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
+    "mind-ar": "^1.2.5",
     "pg": "^8.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

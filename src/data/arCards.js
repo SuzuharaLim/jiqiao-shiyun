@@ -43,8 +43,14 @@ export const CARD_2027_XIAOHAN = {
   subtitle: '一月五日交節',
   term: '小寒',
   year: 2027,
-  // 目標圖：拉正後的正面平整圖。放 public/ 底下，載入時算簽名（見 arCardRegistry.js）
+  // 目標圖：拉正後的正面平整圖。給備援頁的海報與熱區校對用。
   target: '/ar/targets/2027-xiaohan.png',
+  // ★ MindAR 的預編譯目標檔（`npm run card:mind -- 付印稿.png` 產出）。
+  // ⚠️ **必須用與實體卡同一張圖編譯**。MindAR 不需要邊框（它是特徵點比對），
+  //    但 .mind 裡的特徵點位置是那張圖的座標——用原稿編譯、印收邊版的話，
+  //    特徵點會整體偏移，症狀是「追得到但模型貼歪」而不是完全失敗。
+  // 實測這張：773 KB、12 個尺度層、3750 個比對特徵點、69 個追蹤特徵點。
+  mindTarget: '/ar/targets/2027-xiaohan.mind',
   // 實體尺寸（mm）。
   // ⚠️ 這個欄位**唯一的用途**是 `CardPage.jsx` 算海報框的 `aspectRatio`——
   //    比對用的 aspect 是從目標圖本身算的（arCardRegistry），與這裡無關。

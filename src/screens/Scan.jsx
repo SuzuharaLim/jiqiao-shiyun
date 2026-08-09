@@ -6,7 +6,7 @@ import { dayFor, todayOffset } from '../data/almanac.js'
 import { detectQuad } from '../lib/quadDetect.js'
 import { toGray } from '../lib/scanner.js'
 import { createTracker, makeThrottle } from '../lib/arTracker.js'
-import { loadOfficialRefs, bindLocalTarget, loadFeatureRefs } from '../lib/arCardRegistry.js'
+import { loadOfficialRefs, loadFeatureRefs } from '../lib/arCardRegistry.js'
 import { hotspotAtCenter, makeHotspotLatch, screenToCard, hitTest } from '../lib/arHotspot.js'
 import { drawSimFrame, wobbleQuad } from '../lib/arSimFrame.js'
 import { openBackCamera } from '../lib/arCamera.js'
@@ -67,8 +67,6 @@ export default function Scan() {
   const hiGrabRef = useRef(null)
   const trackerRef = useRef(null)
   const stageRef = useRef(null)
-  const officialFileRef = useRef(null)
-  const pendingCardRef = useRef(null)   // 正在等使用者選圖的那張官方卡 id
   // ⚠️ 模擬掃描只在開發模式生效（`/AR?simulate=1`）。正式站絕不可讓使用者
   //    在沒有卡片的情況下看到「掃到了」——那是最糟的假象。
   const simRef = useRef(null)   // { bitmap, canvas, ctx, t0, truthQuad }
@@ -746,49 +744,22 @@ export default function Scan() {
                     <span key={h.id} className={`chip${hotspot?.id === h.id ? ' on' : ''}`}>{h.label}</span>
                   ))}
                 </div>
-                {/* 目標圖還沒進 public/ 時，讓使用者直接指定手邊那張圖。
-                    ⚠️ 只存在這台裝置的 localStorage——正式上線仍要把圖放進
-                       public/ar/targets/，否則別人打開網站還是掃不到。 */}
-                {!loaded && (
-                  <button className="btn-ghost tap" style={{ marginTop: 'var(--space-2)' }}
-                    onClick={() => { pendingCardRef.current = c.id; officialFileRef.current?.click() }}>
-                    指定本機圖片當目標（僅這台裝置）
-                  </button>
-                )}
+                {/* ⚠️ 「指定本機圖片當目標」已於 2026-08-10 依需求移除。
+                    那是美術改稿期間的臨時工具（簽名只存這台裝置的 localStorage），
+                    對使用者沒有意義——別人打開網站還是掃不到，卻看得到一顆
+                    看起來像功能的按鈕。相關的 file input 與 bindLocalTarget 呼叫一併移除。 */}
                 {/* 「沒有卡片？看示範」——導向不需相機的卡片頁（改版文件 §5.1）。
                     ⚠️ 這是真的 <a href>：/ar/card/:slug 允許索引，爬蟲要走得進去。 */}
                 <Link screen="arCard" params={{ slug: c.slug }} className="btn-ghost tap"
                   style={{ marginTop: 'var(--space-2)' }}>
                   沒有卡片？看示範內容 ›
                 </Link>
-                {official.find(o => o.id === c.id)?.local && (
-                  <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>
-                    目前用的是你指定的本機圖片，只在這台裝置有效。
-                  </p>
-                )}
               </div>
             )
           })}
-          <input ref={officialFileRef} type="file" accept="image/*" hidden
-            aria-label="選擇官方卡片的目標圖片"
-            onChange={async (e) => {
-              const f = e.target.files?.[0]; e.target.value = ''
-              const id = pendingCardRef.current; pendingCardRef.current = null
-              if (!f || !id) return
-              try {
-                const ref = await bindLocalTarget(id, f, RECT)
-                const next = [...official.filter(o => o.id !== id), ref]
-                setOfficial(next)
-                setOfficialErr(null)
-                trackerRef.current?.setRefs(next)
-                trackerRef.current?.reset()
-                setToast(`已指定「${ref.name}」的目標圖——把實體卡放進框內試試`)
-              } catch (err) { setToast(err?.message || '這張圖讀不進來') }
-            }} />
           {officialErr && (
             <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-              官方卡包有 {officialErr.length} 張載入失敗（{officialErr.map(e => e.card).join('、')}）——
-              自訂登錄不受影響。
+              官方卡包有 {officialErr.length} 張載入失敗（{officialErr.map(e => e.card).join('、')}）。
             </p>
           )}
         </div>
