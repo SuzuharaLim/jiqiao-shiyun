@@ -24,6 +24,10 @@
 //    worldMatrix → projectionMatrix → 視埠。見 cornersFromWorldMatrix。
 // ============================================================================
 
+import { homography, poseFromHomography, cssMatrix3dString } from './homography.js'
+
+const UNIT_SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]]
+
 /** 4×4 column-major 矩陣乘 4 維向量。 */
 function mulVec4(m, v) {
   const o = [0, 0, 0, 0]
@@ -42,9 +46,16 @@ function mulVec4(m, v) {
  * @param vw,vh 視埠（我們的取樣畫面）尺寸
  * @returns [[x,y] ×4]，順序是卡面的左上、右上、右下、左下
  *
- * ⚠️ **y 要翻轉**：clip space 的 y 向上，畫面座標向下。漏掉的話模型會上下鏡像，
- *    而且「正對著卡片」時看起來幾乎正常——只有斜拍才會發現，正是最難測的那種。
- * ⚠️ w < 0 代表該角在相機背後，這時整個結果不可用（會投影出鏡像的鬼影）。
+ * ⚠️★ **不可再做 y 翻轉**。一般 clip space 的 y 向上、畫面座標向下，所以直覺會想
+ *    寫 `1 - (ndcY*0.5+0.5)`——我第一版就是那樣寫的，而且在註解裡斷言「y 要翻轉」。
+ *    **實測是錯的**：MindAR 的 worldMatrix 已經是 y 向下的座標系。
+ *    用 640×480 的合成畫面（卡片畫在 x 90..550、y 72..408）驗：
+ *      有翻轉：四角 (93,406)(552,407)(551,71)(89,72) → 最大誤差 **337px**
+ *              ——x 對得很準、只有 y 整個鏡像，而且**四角的順序也跟著顛倒**
+ *      沒翻轉：與真值一致
+ *    ⚠️ 這個錯誤的症狀特別惡毒：模型不會消失、大小也對，只是上下顛倒＋角序反了。
+ *       正對著卡片、又是接近對稱的版面時，肉眼很可能看不出來。
+ * ⚠️ w <= 0 代表該角在相機背後，這時整個結果不可用（會投影出鏡像的鬼影）。
  */
 export function cornersFromWorldMatrix(world, proj, mw, mh, vw, vh) {
   const pts = [[0, 0], [mw, 0], [mw, mh], [0, mh]]
@@ -54,7 +65,7 @@ export function cornersFromWorldMatrix(world, proj, mw, mh, vw, vh) {
     const clip = mulVec4(proj, cam)
     if (!(clip[3] > 1e-6)) return null      // 在相機背後或退化
     const ndcX = clip[0] / clip[3], ndcY = clip[1] / clip[3]
-    out.push([(ndcX * 0.5 + 0.5) * vw, (1 - (ndcY * 0.5 + 0.5)) * vh])
+    out.push([(ndcX * 0.5 + 0.5) * vw, (ndcY * 0.5 + 0.5) * vh])
   }
   return out.every(p => p.every(Number.isFinite)) ? out : null
 }
@@ -98,6 +109,11 @@ export async function createMindTracker({ mindUrl, width, height, cards = [], ma
 
   return {
     dimensions,
+    // ⚠️ 露出 controller 是為了**可驗證性**，不是為了讓呼叫端亂用。
+    //    MindAR 的 processVideo 內部走 rAF，所以分頁隱藏（或自動化測試環境）
+    //    時完全不會偵測——那時只能用 `_detectAndMatch` + `getWorldMatrix`
+    //    手動驅動單幀來驗四角投影。這是這一層唯一能離線驗證的路徑。
+    _controller: controller,
     /** 餵一個 <video>：MindAR 自己跑迴圈，結果由 onUpdate 進來。 */
     async start(video) {
       // ⚠️ dummyRun 是**必要的**暖機（編譯 shader、配置 tensor）。少了它第一次
@@ -125,6 +141,12 @@ export async function createMindTracker({ mindUrl, width, height, cards = [], ma
       const corners = cornersFromWorldMatrix(latest.worldMatrix, proj, mw, mh, vw, vh)
       if (!corners) return null
       const card = cards[latest.targetIndex] ?? null
+      // ★ 由四角回推 H（卡面單位正方形 → 取樣畫面），讓輸出與舊路線**完全同形**。
+      //   ⚠️ 這一步不可省：下游（arHotspot 的 screenToCard／hitTest、ARScene 的
+      //      matrix3d、ARCharacter 的 pose）吃的都是 H，不是 worldMatrix。
+      //      少了它就得把三個下游模組全部改成 MindAR 專用，換回去也回不去。
+      const H = homography(UNIT_SQUARE, corners)
+      if (!H) return null
       return {
         // ⚠️ ref 的形狀要與舊路線一致（下游會讀 ref.card / ref.name / ref.aspect）
         ref: card ? { id: card.id, name: card.title, card, aspect: mw / mh } : null,
@@ -133,6 +155,12 @@ export async function createMindTracker({ mindUrl, width, height, cards = [], ma
         score: null,
         rotation: 0,
         corners,
+        H,
+        matrix3d: cssMatrix3dString(H),
+        // ⚠️ aspect 要餵真值：poseFromHomography 假設模型平面是單位正方形，
+        //    非正方形卡片不給 aspect 的話角色會落在卡片外（實測誤差 ~12px）。
+        pose: poseFromHomography(H, { width: vw, height: vh, fovDeg: 60, aspect: mw / mh }),
+        areaRatio: null,
         targetIndex: latest.targetIndex,
         worldMatrix: latest.worldMatrix,
         projectionMatrix: proj,

@@ -100,6 +100,10 @@ export default function Scan() {
   //    ——否則切換相機／改變顯示框大小之後備援路線會靜默失效。
   const featureRefsRef = useRef([])
   const [featureCount, setFeatureCount] = useState(0)
+  // MindAR 追蹤器與它的狀態。⚠️ 用 ref 保存 tracker（rAF 迴圈要讀，
+  //    但它變動時不該重建迴圈）；狀態用 state 因為畫面要顯示。
+  const mindRef = useRef(null)
+  const [mindState, setMindState] = useState('idle') // idle | loading | on | error
   // 命中的卡面熱區（瞄準或點擊卡上的物件）
   const [hotspot, setHotspot] = useState(null)
   // ⚠️ 追蹤迴圈要讀「目前選中哪個熱區」，但**不可把 hotspot 放進 effect 的 deps**
@@ -223,6 +227,69 @@ export default function Scan() {
     return () => { cancelled = true; streamRef.current?.getTracks().forEach(t => t.stop()) }
   }, [])
 
+  // ---- ★★ MindAR：`.mind` 目標檔的追蹤層 ----
+  //
+  // 依需求於 2026-08-10 改用 MindAR。它**自己驅動迴圈**（processVideo 吃 <video>），
+  // 所以不像自研版那樣由我們的 rAF 迴圈餵影格——這裡只管生命週期，
+  // 追蹤結果由下面的 rAF 迴圈用 `mindRef.current.read()` 取。
+  //
+  // ⚠️ 動態 import：mind-ar 帶 TensorFlow.js，controller chunk 約 2.1 MB。
+  //    絕不可讓它進主 bundle——首頁不該為了一個要開相機才用到的功能多背 2 MB。
+  // ⚠️ 模擬模式（?simulate=1）不啟用 MindAR：它需要真的 <video>，
+  //    而模擬模式根本沒有串流。那條路仍走自研版（合成影格）。
+  useEffect(() => {
+    if (status !== 'ready' || SIM_FLAG) return
+    const card = OFFICIAL_CARDS.find(c => c.mindTarget)
+    if (!card) return
+    let cancelled = false
+    let tracker = null
+    ;(async () => {
+      setMindState('loading')
+      try {
+        const { createMindTracker } = await import('../lib/mindTrack.js')
+        if (cancelled) return
+        const video = videoRef.current
+        if (!video) { setMindState('error'); return }
+        // ⚠️ 要等 video 有尺寸才能建 Controller：inputWidth/Height 是建構時就固定的，
+        //    傳 0 進去會讓 MindAR 內部的 tensor 形狀全錯（而且不會拋錯）。
+        if (!video.videoWidth) {
+          await new Promise(res => {
+            const on = () => { video.removeEventListener('loadedmetadata', on); res() }
+            video.addEventListener('loadedmetadata', on)
+            setTimeout(res, 4000)   // 逾時保險：不可無限等
+          })
+        }
+        if (cancelled || !video.videoWidth) { setMindState('error'); return }
+        tracker = await createMindTracker({
+          mindUrl: card.mindTarget,
+          width: video.videoWidth,
+          height: video.videoHeight,
+          // ⚠️ 順序必須與編譯 .mind 時傳入的圖片順序一致，否則會
+          //    「認出 A 卻跳出 B 的內容」——不拋錯，最難發現的壞法。
+          cards: [card],
+        })
+        if (cancelled) { tracker.dispose(); return }
+        await tracker.start(video)
+        if (cancelled) { tracker.dispose(); return }
+        mindRef.current = tracker
+        setMindState('on')
+      } catch (e) {
+        // ⚠️ 失敗要**看得見**並退回自研版，不可靜默——否則使用者只會覺得
+        //    「掃不到」而我們完全不知道 MindAR 根本沒載起來。
+        console.error('[AR] MindAR 載入失敗，退回自研追蹤：', e)
+        if (!cancelled) setMindState('error')
+      }
+    })()
+    return () => {
+      cancelled = true
+      mindRef.current = null
+      // ⚠️ 一定要 dispose：Controller 持有 WebGL context 與 TFJS tensor。
+      //    行動裝置的 context 上限常見 8~16，反覆進出這一頁不釋放的症狀是
+      //    「第 N 次打開變成空白」而前面幾次都正常。
+      try { tracker?.dispose() } catch { /* 已經沒了 */ }
+    }
+  }, [status])
+
   // <video> 在 status==='ready' 才進 DOM → 必須在渲染後才接上 stream
   // （若在 getUserMedia resolve 當下接，videoRef 還是 null，畫面會全黑）
   useEffect(() => {
@@ -325,6 +392,46 @@ export default function Scan() {
   }
 
   // ---- AR 追蹤迴圈 ----
+  // ── 卡面熱區：瞄準卡上的物件就跳內容 ──
+  //
+  // ★ 抽成共用函式：MindAR 與自研版**必須走同一套**遲滯與「預設主物件」邏輯，
+  //   否則兩條路的行為會不一樣，而使用者不知道自己走的是哪一條。
+  //
+  // ⚠️ 一定要走 latch（進入 3 幀／離開 8 幀）。追蹤每秒十幾次、角點有 1px 抖動，
+  //    熱區邊界附近會高頻跳動，而開關內容面板是最貴的操作。
+  //
+  // @param gw,gh 「corners 所在的座標系」的尺寸。⚠️ 兩條路不一樣：
+  //    自研版是取樣畫面（frame.w/h），MindAR 是顯示框（box.width/height）。
+  //    傳錯會讓熱區整體偏移——而畫面上看起來只是「點不太準」。
+  const applyHotspot = (res, gw, gh) => {
+    const card = res?.ref?.card
+    if (card && stageRef.current) {
+      const box = stageRef.current.getBoundingClientRect()
+      const hs = hotspotAtCenter(res.H, card.hotspots, {
+        dispW: box.width, dispH: box.height, grabW: gw, grabH: gh,
+      })
+      const out = latchRef.current.push(hs?.id ?? null)
+      if (out.changed) {
+        setHotspot(out.id ? card.hotspots.find(h => h.id === out.id) ?? null : null)
+      }
+      // ★ 追到卡片但還沒瞄到任何熱區時，預設選中**主物件**（白菜）。
+      //
+      // ⚠️ 為什麼需要這個：選取只看「畫面正中心」落在哪個熱區，而白菜的 rect 是
+      //    x 0.058~0.214（卡片最左），**不含卡片中心 (0.5,0.5)**。使用者最自然的
+      //    動作是把整張卡對準畫面中央——那樣瞄到的永遠是身體保健／曆頁，
+      //    **白菜的 3D 永遠不會出現**。而「掃到卡片就看到白菜」正是這張卡的主軸
+      //    （卡面上白紙黑字印著「掃描主物件：結球白菜」）。
+      //    /ar/card/:slug 早就是「進頁預設選主物件」，這裡對齊那個行為。
+      if (!out.changed && !latchRef.current.current && !hotspotRef.current) {
+        const primary = card.hotspots.find(h => h.primary)
+        if (primary) setHotspot(primary)
+      }
+    } else if (latchRef.current.current) {
+      latchRef.current.reset()
+      setHotspot(null)
+    }
+  }
+
   // ⚠️ 用 requestAnimationFrame + 節流，不用 setInterval：分頁切到背景時 rAF
   //    會自動停下來，setInterval 不會——那等於在看不見的分頁裡持續跑影像運算。
   //    節流器以「上次完成」計時，某一幀跑太久也不會排隊堆積。
@@ -344,6 +451,29 @@ export default function Scan() {
       if (!alive) return
       raf = requestAnimationFrame(loop)
       if (!shouldRun(now)) return
+
+      // ── ★★ MindAR 就緒時走它，不跑自研的偵測鏈 ──
+      //
+      // ⚠️ 不可兩條都跑：自研版每幀要 grabFrame + getImageData + 四角偵測，
+      //    那是整條鏈最貴的部分。MindAR 已經自己在處理 <video>，
+      //    再跑一次等於白花一倍的 CPU（手機直接掉幀）。
+      // ⚠️ `read()` 只是讀最近一次 onUpdate 的結果，很便宜——所以照樣每幀讀，
+      //    追蹤的流暢度才跟得上 MindAR 內部的更新頻率。
+      const mind = mindRef.current
+      if (mind) {
+        const box = stageRef.current?.getBoundingClientRect()
+        const vw = box?.width || grabSize.w, vh = box?.height || grabSize.h
+        const res = mind.read(vw, vh)
+        setTrack(res)
+        setSeeCard(!!res)
+        // ⚠️ 熱區換算要用**同一組 vw/vh**：read() 回的 corners 已經是這個座標系，
+        //    再拿 grabSize 去換算會差一個縮放（症狀是熱區整體偏移）。
+        applyHotspot(res, vw, vh)
+        // MindAR 追不到時不需要「一直找不到四邊形」那套提示——它沒有四邊形的概念
+        if (res && noQuadHintRef.current) setNoQuadHint(false)
+        return
+      }
+
       const frame = grabFrame()
       if (!frame) return
       tracker.setRefs(officialRef.current)
@@ -408,36 +538,7 @@ export default function Scan() {
         })
       }
 
-      // ── 卡面熱區：瞄準卡上的物件就跳內容 ──
-      // ⚠️ 一定要走 latch（進入 3 幀／離開 8 幀）。追蹤每秒 15 次、四角偵測有
-      //    1px 抖動，熱區邊界附近會高頻跳動，而開關內容面板是最貴的操作。
-      const card = res?.ref?.card
-      if (card && stageRef.current) {
-        const box = stageRef.current.getBoundingClientRect()
-        const hs = hotspotAtCenter(res.H, card.hotspots, {
-          dispW: box.width, dispH: box.height, grabW: frame.w, grabH: frame.h,
-        })
-        const out = latchRef.current.push(hs?.id ?? null)
-        if (out.changed) {
-          setHotspot(out.id ? card.hotspots.find(h => h.id === out.id) ?? null : null)
-        }
-        // ★ 追到卡片但還沒瞄到任何熱區時，預設選中**主物件**（白菜）。
-        //
-        // ⚠️ 為什麼需要這個：選取只看「畫面正中心」落在哪個熱區，而白菜的 rect 是
-        //    x 0.058~0.214（卡片最左），**不含卡片中心 (0.5,0.5)**。使用者最自然的
-        //    動作是把整張卡對準畫面中央——那樣瞄到的永遠是身體保健／曆頁，
-        //    **白菜的 3D 永遠不會出現**。而「掃到卡片就看到白菜」正是這張卡的主軸
-        //    （卡面上白紙黑字印著「掃描主物件：結球白菜」）。
-        //    要用中心瞄到白菜，得把卡片擺到畫面右側又不能出框——沒有人會這樣拿。
-        //    /ar/card/:slug 早就是「進頁預設選主物件」，這裡對齊那個行為。
-        if (!out.changed && !latchRef.current.current && !hotspotRef.current) {
-          const primary = card.hotspots.find(h => h.primary)
-          if (primary) setHotspot(primary)
-        }
-      } else if (latchRef.current.current) {
-        latchRef.current.reset()
-        setHotspot(null)
-      }
+      applyHotspot(res, frame.w, frame.h)
     }
     raf = requestAnimationFrame(loop)
     return () => { alive = false; cancelAnimationFrame(raf) }
