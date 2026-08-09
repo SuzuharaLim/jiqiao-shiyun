@@ -3629,7 +3629,14 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   background: #17181A;
 }
 .cardp-big img {
-  max-width: 100%; max-height: 72dvh; object-fit: contain;
+  max-width: 100%;
+  /* ⚠️ 不可只寫 `max-height:72dvh`：加上三條操作步驟之後總高會超出視窗，
+     實測 1280×720 下內容需 772px → **圖片被推出上緣、關閉鈕掉到視窗下方**。
+     這裡扣掉文字與按鈕實際需要的高度，並讓圖片可收縮（flex 預設 shrink 是 1，
+     但 `min-height:auto` 會擋住收縮，要顯式歸零）。 */
+  max-height: min(60dvh, calc(100dvh - 260px));
+  flex: 0 1 auto; min-height: 0;
+  object-fit: contain;
   /* 白邊要看得出來，所以不加任何邊框或陰影 */
 }
 .cardp-big p {
@@ -3637,6 +3644,38 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   font-size: var(--text-xs); line-height: 1.7; max-width: 46ch;
 }
 .cardp-big p .muted { color: #A8A29B; }
+.cardp-big p.muted { color: #A8A29B; }
+/* 操作步驟：這一段是功能性指示不是裝飾，要看得清楚 */
+.cardp-big-steps {
+  margin: 0; padding-left: 1.4em; max-width: 52ch;
+  color: #F2F0EC; font-size: var(--text-xs); line-height: 1.75;
+}
+.cardp-big-steps li + li { margin-top: 4px; }
+.cardp-big-steps b { color: #FFD9B0; }
+.cardp-big-side {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-3); min-width: 0;
+}
+/* ⚠️ 矮視窗（橫向手機、拉扁的瀏覽器）：**只留最關鍵的第一條**，不要硬塞完整說明。
+   試過左右並排，兩個做法都失敗而且都不會報錯：
+   ① 只寫 `max-width:56%` → 圖片的 `flex-basis:auto` 取原生寬度 1831px，把可用空間
+      吃成負值，於是 `flex-basis:0` 的側欄成長不了 → **寬度 0**，
+      中文逐字換行把它撐成 4546px 高
+   ② 改成 `flex:0 1 56%` ＋ 側欄 `min-width:240px` → 側欄有寬度了，但三條步驟＋說明
+      ＋按鈕在 390px 高裡仍需 427px，圖片反而被壓到 187×137
+   結論：矮視窗放不下完整說明，硬排只會兩邊都爛。第一條是**決定成敗**的那一條
+   （讓螢幕邊框落在取景框外：不做 0/24、做了 17~24/24），其餘兩條是最佳化。
+   ⚠️ 一欄到底時圖片也曾被壓到 84×61px——那時三個元素都還「在框內」，
+      **只驗可見性驗不出這個 bug**，要一併量圖片尺寸。
+   ⚠️ 選擇器要對到包裝層：那個 <p> 在 .cardp-big-side 裡，
+      寫成 `.cardp-big > p.muted` 會完全選不到（而且不會有任何錯誤）。 */
+@media (max-height: 640px) {
+  .cardp-big { gap: var(--space-2); padding: var(--space-2); }
+  .cardp-big img { max-height: 58dvh; }
+  .cardp-big-side { gap: var(--space-2); }
+  .cardp-big-steps li:not(:first-child) { display: none; }
+  .cardp-big-side > p.muted { display: none; }
+}
 
 /* 「目標圖尚未安裝」——這是「再怎麼喬角度都不會成功」的狀態，
    要看得出它與一般提示不同，所以用橙色左邊條（--ji 是填色用的原色橙）。

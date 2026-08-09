@@ -181,13 +181,28 @@ export default function CardPage({ slug }) {
         {bigScan && poster && createPortal(
           <div className="cardp-big" role="dialog" aria-modal="true" aria-label="放大卡面，供另一台裝置掃描">
             <img src={poster} alt={`${card.title} 卡面（放大）`} />
-            <p>
-              用另一台裝置的 <b>/AR</b> 對著這張圖。<br />
-              <span className="muted">
-                背景刻意是深色的——白紙的邊緣在白色背景上偵測不到，
+            {/* ⚠️ 這三條是量出來的，不是「一般建議」。少講第一條會直接失敗：
+                   實測若讓整個螢幕入鏡、而螢幕四周是淺色牆，偵測器找到的是
+                   **螢幕的邊界**（深色螢幕 vs 淺色牆是最強的邊界）而不是卡片，
+                   拉正整個 16:9 畫面當然對不上卡片簽名 → **0/24**。
+                   只有深色底填滿取景框時才會找到卡片（17~24/24）。 */}
+            {/* ⚠️ 說明與按鈕包一層：矮視窗（橫向手機、拉扁的瀏覽器）要改成左右並排。
+                   直接堆成一欄時實測 844×390 下圖片被壓到 **84×61px**——
+                   對「給另一台裝置拍」這個用途等於壞掉。 */}
+            <div className="cardp-big-side">
+              <ol className="cardp-big-steps">
+                <li><b>靠近一點</b>，讓螢幕的邊框落在取景框<b>外面</b>——取景框裡只要有深色底和卡片。</li>
+                <li>卡片佔畫面寬度大約 <b>五到八成</b>（實測 50%→23/24、62%→24/24、72%→24/24，但 90% 掉到 15/24）。</li>
+                <li><b>把螢幕亮度開高</b>（實測亮度偏暗 0.8× 時掉到 6/24，偏亮 1.25× 仍是 24/24）。</li>
+              </ol>
+              <p className="muted">
+                背景刻意是深色的：白紙的邊緣在白色背景上偵測不到，
                 這是四角偵測的原理限制，不是對不準。
-              </span>
-            </p>
+              </p>
+              <button className="btn-primary tap" autoFocus onClick={() => setBigScan(false)}>
+                關閉
+              </button>
+            </div>
             <button className="btn-primary tap" autoFocus onClick={() => setBigScan(false)}>
               關閉
             </button>
