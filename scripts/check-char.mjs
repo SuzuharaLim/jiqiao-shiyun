@@ -194,6 +194,35 @@ char.dispose()
 disposeRampCache()
 ok(rampCacheSize() === 0, 'disposeRampCache() 清空共用快取')
 
+// ── ★ 舞台的兩件效能／正確性紀律（驗收報告 M5／M6）──
+{
+  const fs = await import('node:fs')
+  const src = fs.readFileSync(new URL('../src/components/ProduceStage.jsx', import.meta.url), 'utf8')
+  // ⚠️ 「某個舊寫法不可出現」這類檢查一定要**先剝掉註解**：說明「原本怎麼寫、
+  //    為什麼不行」的註解本身就含有那個舊寫法，直接 grep 會抓到自己的說明。
+  //    這是這個專案第三次踩到（check-ar 兩次：三個已移除按鈕、simRef 判斷），
+  //    所以這裡不再逐處重寫，統一用這個。
+  //    近似即可（不處理字串裡的 `//`），對「識別字有沒有被使用」足夠。
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  // M6：three 0.185 起 `PCFSoftShadowMap` 已棄用，會印 warn 並**自動退回**
+  //     PCFShadowMap——留著它等於「拿不到柔和陰影還多吃一個警告」，兩邊都輸。
+  ok(!/PCFSoftShadowMap/.test(code), '★ 不可用已棄用的 PCFSoftShadowMap（three 會自動退回並印警告）')
+  ok(/shadowMap\.type = PCFShadowMap/.test(src), '陰影型別用 PCFShadowMap')
+
+  // M5：`visibilitychange` 只涵蓋「分頁切到背景」，**不涵蓋「還開著但捲出畫面」**。
+  //     卡片頁很長，看完 3D 往下讀時舞台早就在畫面外，迴圈卻還在每秒算 60 次。
+  ok(/new IntersectionObserver/.test(src), '★ 舞台捲出視野時要停止算圖（不只看 document.hidden）')
+  ok(/if \(hidden \|\| !onScreen\)/.test(src), '★ 迴圈要同時檢查分頁可見性與是否在視野內')
+  // ⚠️ 暫停時一定要更新 last，否則回到畫面時 delta 是整段離開的時間，
+  //    actor 會一次前進好幾秒（動作瞬間跳到未來，看起來像壞掉）。
+  ok(/if \(hidden \|\| !onScreen\) \{ last = now; return \}/.test(src),
+    '★ 暫停時要把 last 推到現在（否則回來時 actor 會一次跳好幾秒）')
+  ok(/io\?\.disconnect\(\)/.test(src), 'IntersectionObserver 要在卸載時斷開')
+  // ⚠️ 初值必須先假設看得見：IO 第一次回呼是非同步的，給 false 會吃掉進場動畫開頭。
+  ok(/let onScreen = true/.test(src), '★ onScreen 初值為 true（IO 首次回呼前不可停算圖）')
+}
+
 if (fails.length) {
   console.error(`✗ 角色層檢查失敗 ${fails.length} 項：`)
   for (const f of fails) console.error('  · ' + f)

@@ -39,9 +39,29 @@ export default function TermDetail({ slug }) {
   }
   const g = (guides || []).find(x => x.term === a.term)
   const ty = new Date().getFullYear()
-  const years = [ty - 1, ty, ty + 1, ty + 2]
-    .map(y => { const t = termTable(y).find(x => x.name === a.term); return t && { y, m: t.m, d: t.d } })
-    .filter(Boolean)
+  // ★ 「近年交節日期」必須用 termTable 回傳的**真實年份** `t.y`，
+  //    不可拿迴圈的 y 當標籤。
+  //
+  // ⚠️ `termTable(y)` 的索引是「**立春起算**」（0=立春 … 22=小寒、23=大寒），
+  //    所以小寒與大寒那兩筆落在**下一個公曆年**。原本寫成
+  //      .map(y => { const t = termTable(y).find(…); return { y, m: t.m, d: t.d } })
+  //    ——月日取自 t、年份卻用迴圈的 y，於是**每一列都錯一年**。
+  //    實測 termTable(2027) 的小寒真實是 2028-01-06，畫面卻標成「2027 年 1 月 6 日」，
+  //    而 2027 小寒實際是 **01-05**（`termFromDate(2027,1,5).startsToday === true`）。
+  //    這讓 /solarterms/xiaohan 與 AR 卡片、曆頁互相矛盾——對一個以「節氣實算」
+  //    為賣點的站是硬傷，而且 24 個節氣裡有 2 個中彈、每頁 4 列全錯。
+  //    ⚠️ 立春等前 22 個節氣剛好不跨年，所以**抽查前幾個節氣永遠驗不出這個 bug**。
+  //
+  // 作法：掃一個比目標區間寬的 termTable 年份範圍，用 `t.y` 對齊要顯示的公曆年。
+  const wantYears = [ty - 1, ty, ty + 1, ty + 2]
+  const years = (() => {
+    const found = new Map()
+    for (let y = ty - 3; y <= ty + 3; y++) {
+      const t = termTable(y).find(x => x.name === a.term)
+      if (t && !found.has(t.y)) found.set(t.y, { y: t.y, m: t.m, d: t.d })
+    }
+    return wantYears.map(y => found.get(y)).filter(Boolean)
+  })()
   // 前後節氣：讓爬蟲與使用者能一路走完 24 個
   const order = TERM_ARTICLES.map(x => x.term)
   const i = order.indexOf(a.term)

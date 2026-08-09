@@ -76,6 +76,16 @@ export default function Scan() {
   //    掛載後先照顯示框比例算一次，第一幀之前就是對的。
   const [grabSize, setGrabSize] = useState({ w: GRAB_LONG, h: GRAB_LONG })
   const [status, setStatus] = useState('loading') // loading | ready | denied | unsupported
+  // ⚠️ getUserMedia 在某些環境**既不 resolve 也不 reject**（權限提示一直開著、
+  //    或裝置被別的程式佔用），這一頁就會永遠停在「正在開啟鏡頭…」。
+  //    不改 status（那會在使用者正要按「允許」時謊報失敗），只在等太久之後
+  //    多給一條出路。
+  const [slowCamera, setSlowCamera] = useState(false)
+  useEffect(() => {
+    if (status !== 'loading') { setSlowCamera(false); return }
+    const t = setTimeout(() => setSlowCamera(true), 4000)
+    return () => clearTimeout(t)
+  }, [status])
   // track：追蹤結果（含 matrix3d / pose / corners），null＝目前沒追到
   const [track, setTrack] = useState(null)
   const [seeCard, setSeeCard] = useState(false)   // 有沒有看到「一張卡片」（不論認不認得）
@@ -438,8 +448,27 @@ export default function Scan() {
               <p>
                 {status === 'loading' && '正在開啟鏡頭…'}
                 {status === 'denied' && '尚未允許使用相機。請在瀏覽器允許相機權限後再試。'}
-                {status === 'unsupported' && '此裝置或環境無法使用相機（需 HTTPS 與相機硬體）。'}
+                {status === 'unsupported' && '這台裝置沒有相機，或這個環境不允許使用（需 HTTPS）。'}
               </p>
+              {/* ── 不要讓這裡變成死路 ──
+                  ⚠️ 桌機、拒絕權限、或 getUserMedia 一直不回應時，這一頁原本
+                     **只有一行字**：沒有相機的人到這裡就走不下去了（驗收報告 B3）。
+                  ⚠️ 但也**不自動導走**：`denied` 常常只是還沒按「允許」，
+                     把人直接送去別的頁面等於替他放棄那條路，而且他不會知道為什麼
+                     畫面突然跳掉。給出路、讓他選。
+                  ⚠️ `loading` 要等一下才顯示：一開就跳出「沒有相機？」會讓正在
+                     看權限提示的人以為已經失敗了。 */}
+              {(status !== 'loading' || slowCamera) && OFFICIAL_CARDS[0] && (
+                <div className="scan-fallback-out">
+                  {status === 'loading' && <p className="muted">還在等相機權限。沒有相機的話：</p>}
+                  <Link screen="arCard" props={{ slug: OFFICIAL_CARDS[0].slug }} className="btn-primary tap">
+                    沒有相機？看示範內容 ›
+                  </Link>
+                  <p className="muted">
+                    那一頁不用相機也能走完：卡面、六個物件、3D 白菜、小挑戰、徽章都在。
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {/* AR 疊加層：內容直接貼在被追蹤到的卡片上（CSS 3D matrix3d） */}

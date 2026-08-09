@@ -7,6 +7,8 @@
 //
 // 用法：node scripts/check-almanac.mjs（build 前跑，或加進 CI）
 import { dayFor, offsetFromDate, nayinOf } from '../src/data/almanac.js'
+import { termTable, termFromDate, TERM_NAMES } from '../src/data/lunisolar.js'
+import fs from 'node:fs'
 
 const G = '甲乙丙丁戊己庚辛壬癸'
 const Z = '子丑寅卯辰巳午未申酉戌亥'
@@ -71,6 +73,49 @@ for (let i = 0; i < 60; i++) {
   const self = d.ganzhi.replace('日', '')
   const diff = ((sex(self) - sex(d.chong.gz)) % 60 + 60) % 60
   if (diff !== 6) { fail++; console.log(`✗ 沖煞 ${self} → ${d.chong.gz}，序數差 ${diff}（應為 6）`) }
+}
+
+// ── ★ 5. termTable 的「真實年份」不可與索引年份混用 ──
+//
+// `termTable(y)` 的索引是**立春起算**（0=立春 … 22=小寒、23=大寒），
+// 所以小寒與大寒那兩筆落在**下一個公曆年**——回傳物件裡的 `t.y` 才是真年份。
+// ⚠️ `/solarterms/:slug` 的「近年交節日期」原本寫成
+//      .map(y => { const t = termTable(y).find(…); return { y, m: t.m, d: t.d } })
+//    月日取自 t、年份卻用迴圈的 y，於是**每一列都錯一年**：
+//    實測 termTable(2027) 的小寒真實是 2028-01-06，畫面標成「2027 年 1 月 6 日」，
+//    而 2027 小寒實際是 01-05 → 節氣頁與 AR 卡片、曆頁互相矛盾。
+// ⚠️ **這個 bug 只在 24 個節氣裡的 2 個現形**（小寒、大寒），
+//    抽查立春／大暑那種不跨年的永遠驗不出來——所以這裡逐個節氣都驗。
+{
+  let off = 0
+  for (let i = 0; i < 24; i++) {
+    for (const y of [2025, 2026, 2027, 2028]) {
+      const t = termTable(y).find(x => x.name === TERM_NAMES[i])
+      if (!t) { fail++; console.log(`✗ termTable(${y}) 找不到 ${TERM_NAMES[i]}`); continue }
+      // 每一筆都要能被 termFromDate 反向確認「那天真的是該節氣的第一天」
+      const v = termFromDate(t.y, t.m, t.d)
+      if (v?.term !== t.name || !v.startsToday) {
+        fail++
+        console.log(`✗ ${t.name} ${t.y}-${t.m}-${t.d} 無法被 termFromDate 確認（得到 ${v?.term}／startsToday=${v?.startsToday}）`)
+      }
+      if (t.y !== y) off++
+    }
+  }
+  if (off === 0) {
+    fail++
+    console.log('✗ 預期會有節氣的真實年份不等於索引年份（小寒／大寒跨年），一筆都沒有代表這項檢查失去意義')
+  }
+  // 畫面那一段不可再拿迴圈的 y 當標籤
+  const td = fs.readFileSync(new URL('../src/screens/TermDetail.jsx', import.meta.url), 'utf8')
+  if (/return t && \{ y, m: t\.m, d: t\.d \}/.test(td)) {
+    fail++
+    console.log('✗ TermDetail 又把迴圈的 y 當年份標籤了（要用 termTable 回傳的 t.y）')
+  }
+  if (!/found\.set\(t\.y/.test(td)) {
+    fail++
+    console.log('✗ TermDetail 的近年交節日期要以 termTable 的真實年份 t.y 對齊')
+  }
+  console.log(`✓ 24 節氣 × 4 年（96 筆）交節日期都能被 termFromDate 反向確認；其中 ${off} 筆跨年`)
 }
 
 console.log(fail ? `\n✗ 共 ${fail} 項不通過` : '\n✓ 納音 60、胎神 60、400 天一致性、60 天沖煞 全部通過')

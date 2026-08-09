@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Scene, PerspectiveCamera, WebGLRenderer, Group, Vector3,
-  HemisphereLight, DirectionalLight, PCFSoftShadowMap, NeutralToneMapping, Color,
+  HemisphereLight, DirectionalLight, PCFShadowMap, NeutralToneMapping, Color,
 } from 'three'
 import { buildCharacter, NAPA_CABBAGE } from '../lib/char/factory.js'
 import { createActor, ACTIONS } from '../lib/char/actor.js'
@@ -57,7 +57,12 @@ export default function ProduceStage({
     // 裝置像素比上限 2：3x 的螢幕算 9 倍像素，中階手機直接掉到 20fps
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2))
     renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = PCFSoftShadowMap
+    // ⚠️ 不可用 `PCFSoftShadowMap`：three 0.185 起它**已棄用**，會印
+    //    「WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.」
+    //    並自動退回 PCFShadowMap。也就是留著它的下場是
+    //    **拿不到柔和陰影、還多吃一個警告**——兩邊都輸，不是「暫時還能用」。
+    //    （已在 node_modules/three/build/three.core.js 確認那行 warn 存在。）
+    renderer.shadowMap.type = PCFShadowMap
     renderer.toneMapping = NeutralToneMapping
     renderer.toneMappingExposure = 0.95
     host.appendChild(renderer.domElement)
@@ -108,6 +113,21 @@ export default function ProduceStage({
     const onVis = () => { hidden = document.hidden }
     document.addEventListener('visibilitychange', onVis)
 
+    // ★ 捲出視野時也要停。
+    //
+    // ⚠️ `visibilitychange` 只涵蓋「分頁切到背景」，**不涵蓋「分頁還開著但
+    //    3D 已經捲出畫面」**——而後者在卡片頁很常發生（那頁很長，看完 3D 往下
+    //    讀知識卡、小挑戰時舞台早就在畫面外了），迴圈卻還在每秒算 60 次。
+    //    驗收報告 M5 觀察到「截圖 3 次逾時（renderer 忙碌）」，這是其中一個成因。
+    // ⚠️ 初值必須是 `true`（先假設看得見）：IntersectionObserver 的第一次回呼是
+    //    非同步的，初值給 false 會讓第一幀之前完全不算——3D 進場動畫的開頭
+    //    會被吃掉，看起來像「一載入就已經站好了」。
+    let onScreen = true
+    const io = typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver(es => { onScreen = es.some(e => e.isIntersecting) }, { threshold: 0 })
+      : null
+    io?.observe(host)
+
     // ── 標籤定位：每幀把 3D 錨點投影到螢幕座標 ──
     // ⚠️ 直接寫 DOM 的 style，不走 React state：這是每秒 60 次的更新，
     //    每次 setState 會讓整棵樹重繪，中階手機直接掉幀。
@@ -132,8 +152,10 @@ export default function ProduceStage({
 
     const loop = (now) => {
       raf = requestAnimationFrame(loop)
-      // 分頁在背景時不算不畫——否則使用者切走之後手機還在燒電
-      if (hidden) { last = now; return }
+      // 分頁在背景、或舞台已捲出畫面時不算不畫——否則手機還在燒電。
+      // ⚠️ 一定要更新 `last`，否則回到畫面時 `now - last` 會是整段離開的時間，
+      //    actor 會一次前進好幾秒——動作瞬間跳到未來，看起來像壞掉。
+      if (hidden || !onScreen) { last = now; return }
       actor.update(now - last)
       last = now
       renderer.render(scene, camera)
@@ -145,6 +167,7 @@ export default function ProduceStage({
     return () => {
       cancelAnimationFrame(raf)
       ro?.disconnect()
+      io?.disconnect()
       document.removeEventListener('visibilitychange', onVis)
       actorRef.current = null
       char?.dispose()

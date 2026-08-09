@@ -3617,6 +3617,14 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* AR 命中面板裡的同一顆按鈕：那塊面板本來就窄，收一點上緣間距 */
 .scan-hit-speak { margin-top: var(--space-2); }
 
+/* 沒有相機時的出路（驗收 B3：原本這裡只有一行字，等於死路）。
+   ⚠️ 這一區在深色的取景框裡，字色不可用 --ink（深色會看不見）。 */
+.scan-fallback-out {
+  margin-top: var(--space-3); display: flex; flex-direction: column;
+  align-items: center; gap: var(--space-2); max-width: 34ch;
+}
+.scan-fallback-out p { margin: 0; font-size: var(--text-2xs); line-height: 1.6; text-align: center; }
+
 /* 放大卡面給另一台裝置掃描。
    ⚠️ 底色**必須是深色**，那是這個模式存在的唯一理由：四角偵測找的是紙與桌面的
       邊界，白紙的紙緣在白底上沒有對比（實測白／淺白／淺灰背景全部 0/24）。
