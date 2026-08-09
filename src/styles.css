@@ -3617,6 +3617,27 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* AR 命中面板裡的同一顆按鈕：那塊面板本來就窄，收一點上緣間距 */
 .scan-hit-speak { margin-top: var(--space-2); }
 
+/* 放大卡面給另一台裝置掃描。
+   ⚠️ 底色**必須是深色**，那是這個模式存在的唯一理由：四角偵測找的是紙與桌面的
+      邊界，白紙的紙緣在白底上沒有對比（實測白／淺白／淺灰背景全部 0/24）。
+   ⚠️ 不用 var(--color-bg)：深色模式才深、淺色模式是白的，那就失去意義了。寫死深色。
+   ⚠️ 圖不可被裁切（object-fit:contain）：少了任何一角就偵測不到。 */
+.cardp-big {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-4); padding: var(--space-4);
+  background: #17181A;
+}
+.cardp-big img {
+  max-width: 100%; max-height: 72dvh; object-fit: contain;
+  /* 白邊要看得出來，所以不加任何邊框或陰影 */
+}
+.cardp-big p {
+  margin: 0; text-align: center; color: #F2F0EC;
+  font-size: var(--text-xs); line-height: 1.7; max-width: 46ch;
+}
+.cardp-big p .muted { color: #A8A29B; }
+
 /* 「目標圖尚未安裝」——這是「再怎麼喬角度都不會成功」的狀態，
    要看得出它與一般提示不同，所以用橙色左邊條（--ji 是填色用的原色橙）。
    ⚠️ 文字不可用 --ji（深色模式當文字會掉到 3.18），用 --orange-ink。 */

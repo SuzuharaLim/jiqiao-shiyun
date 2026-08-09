@@ -1,4 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+// ⚠️ 放大模式必須 portal 到 body，不可留在元件樹裡——見它的 JSX 上方的說明。
+import { createPortal } from 'react-dom'
 import { TopBar, SectionHead, Link, Breadcrumb, Disclaimer } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import AnimatedText from '../components/AnimatedText.jsx'
@@ -30,6 +32,7 @@ export default function CardPage({ slug }) {
   const [hotId, setHotId] = useState(null)
   const [poster, setPoster] = useState(null)
   const [showBox, setShowBox] = useState(false)   // 校對模式：把 rect 數值標出來
+  const [bigScan, setBigScan] = useState(false)   // 深色滿版大圖：給另一台裝置掃
   const [want3d, setWant3d] = useState(false)
 
   // 卡面圖：優先用官方目標圖的靜態路徑，其次才是 localStorage 的縮圖快取。
@@ -56,6 +59,20 @@ export default function CardPage({ slug }) {
       .then(url => { if (!cancelled) setPoster(url || cachedPoster(card.id)) })
     return () => { cancelled = true }
   }, [card])
+
+  // 放大模式：Esc 關閉 ＋ 關閉後把焦點還給觸發按鈕（浮層一律要有，站上統一規則）
+  // ⚠️ 不還焦點的話它會掉回 <body>，鍵盤使用者關掉浮層後要從整頁最開頭重新 Tab。
+  const bigTriggerRef = useRef(null)
+  useEffect(() => {
+    if (!bigScan) return
+    const onKey = e => { if (e.key === 'Escape') setBigScan(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      // 卸載時還焦點。用 try：按鈕可能已經不在（例如同時切了畫面）
+      try { bigTriggerRef.current?.focus() } catch { /* 沒得還就算了 */ }
+    }
+  }, [bigScan])
 
   // 預設選中主物件——進頁就有東西看，不必先猜要點哪裡
   useEffect(() => {
@@ -139,7 +156,44 @@ export default function CardPage({ slug }) {
           <button className="btn-ghost tap" onClick={() => setShowBox(v => !v)}>
             {showBox ? '關閉' : '開啟'}熱區校對（顯示座標）
           </button>
+          {/* ── 沒有印表機也要能測 AR ──
+              ⚠️ 為什麼需要這個：四角偵測找的是**紙與桌面的邊界**，而卡面的紙緣是白的
+                 （實測原稿紙緣內側灰階 254、98% 高於 240）。在瀏覽器裡直接看這張圖時
+                 周圍是白色頁面背景 → 邊界不存在 → 用另一台裝置怎麼掃都是 0。
+                 實測 24 幀 × 5 種背景亮度：白／淺白／淺灰全都 0/24。
+                 這個模式把圖放到**深色滿版底**上，邊界就出現了（深色底實測 18~23/24）。 */}
+          {poster && (
+            <button className="btn-ghost tap" ref={bigTriggerRef} onClick={() => setBigScan(true)}>
+              放大給另一台裝置掃描
+            </button>
+          )}
         </div>
+
+        {/* ── 放大給另一台裝置掃描 ──
+            ⚠️ **必須 createPortal 到 body**：`.screen` 有進場動畫留下的
+               `transform: translateY(8px)`，而**任何非 none 的 transform 都會成為
+               `position:fixed` 的容器塊**。留在元件樹裡時實測浮層 rect 是
+               `132,−684 1000×1462`（視窗是 1280×720）——既不滿版、在捲動過的頁面上
+               還整個跑到視窗外，症狀是**按了按鈕看起來什麼都沒發生**。
+            ⚠️ 浮層要有 Esc、role="dialog"、開啟時把焦點移進來（站上統一規則）。
+            ⚠️ 不做進退場動畫：它的用途是「被另一台裝置拍」，
+               任何淡入都可能剛好被拍到半透明的那一幀。 */}
+        {bigScan && poster && createPortal(
+          <div className="cardp-big" role="dialog" aria-modal="true" aria-label="放大卡面，供另一台裝置掃描">
+            <img src={poster} alt={`${card.title} 卡面（放大）`} />
+            <p>
+              用另一台裝置的 <b>/AR</b> 對著這張圖。<br />
+              <span className="muted">
+                背景刻意是深色的——白紙的邊緣在白色背景上偵測不到，
+                這是四角偵測的原理限制，不是對不準。
+              </span>
+            </p>
+            <button className="btn-primary tap" autoFocus onClick={() => setBigScan(false)}>
+              關閉
+            </button>
+          </div>,
+          document.body,
+        )}
 
         {/* ── 命中的物件 ── */}
         {obj && (
