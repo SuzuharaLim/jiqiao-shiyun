@@ -850,6 +850,21 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   //    （使用者只覺得「有時候跳出錯的內容」）。正解是多存視角簽名（33% → 80%，誤判 0）。
   ok(/const MIN_SCORE = 58\b/.test(scan), '★ MIN_SCORE 必須維持 58（調低會讓正式站亂認）')
 
+  // ── ★ 模擬模式必須「不用相機」就能跑 ──
+  // 那是它存在的理由（拿不到卡片、或在拒絕相機權限的環境下驗追蹤鏈）。
+  // ⚠️ 原本寫 `if (simRef.current) return`，有兩個問題疊在一起：
+  //    ① 沒有 setStatus → status 永遠停在 'loading'，而追蹤迴圈是
+  //       `if (status !== 'ready') return` → 永遠不啟動
+  //    ② simRef.current 有競態：載目標圖的 effect 是 async，相機 effect 跑的時候
+  //       它還是 null，所以其實照樣去開了相機——在有相機的開發機上看不出問題
+  ok(/if \(SIM_FLAG\) \{ setStatus\('ready'\); return \}/.test(scan),
+    '★ 模擬模式要用 SIM_FLAG（模組層、無競態）判斷並直接進 ready，不開相機')
+  // ⚠️ 用剝掉註解的 `code`，不可用 `scan`：說明「原本怎麼寫、為什麼不行」的註解
+  //    本身就含有舊寫法，對原始碼直接 grep 會抓到自己的說明。
+  //    （這是這支檔案裡第二次踩到同一個坑，見上面三個按鈕那組。）
+  ok(!/if \(simRef\.current\) return/.test(code),
+    '★ 不可用 simRef.current 判斷是否開相機（async 載圖有競態）')
+
   // 安裝工具：路徑必須從 arCards.js 讀，不可寫死——寫死就會與 target 分岔，
   // 而分岔的症狀是「圖裝了卻還是掃不到」。
   const inst = fsx.readFileSync(new URL('./install-target.mjs', import.meta.url), 'utf8')

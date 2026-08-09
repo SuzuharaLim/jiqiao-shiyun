@@ -167,7 +167,17 @@ export default function Scan() {
   useEffect(() => {
     let cancelled = false
     async function start() {
-      if (simRef.current) return          // 模擬模式不開相機
+      // ── 模擬模式：不開相機，直接進 ready ──
+      // ⚠️ 原本寫 `if (simRef.current) return`，有兩個問題，合起來讓模擬模式
+      //    **在沒有相機／拒絕權限時完全跑不動**——而那正是最需要它的時候：
+      //    ① 這一句沒有 `setStatus`，status 永遠停在 'loading'，
+      //       而追蹤迴圈是 `if (status !== 'ready') return` → 永遠不啟動
+      //    ② `simRef.current` 有競態：載入目標圖的 effect 是 async，
+      //       這個 effect 跑的時候它還是 null，所以其實**照樣去開了相機**，
+      //       只是在有相機的開發機上會變成 ready 而看不出問題
+      //    改用模組層的 SIM_FLAG（載入時就決定，沒有時序問題）。
+      //    grabFrame 在模擬模式完全不碰 <video>，所以不需要串流。
+      if (SIM_FLAG) { setStatus('ready'); return }
       if (!navigator.mediaDevices?.getUserMedia) { setStatus('unsupported'); return }
       try {
         // ★ 避開超廣角鏡頭（畸變容忍上限只有 k1 ≈ −0.04，超廣角遠超過）。
