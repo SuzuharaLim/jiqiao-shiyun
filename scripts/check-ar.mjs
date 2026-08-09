@@ -850,6 +850,72 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   //    （使用者只覺得「有時候跳出錯的內容」）。正解是多存視角簽名（33% → 80%，誤判 0）。
   ok(/const MIN_SCORE = 58\b/.test(scan), '★ MIN_SCORE 必須維持 58（調低會讓正式站亂認）')
 
+  // ── ★★ 主物件（白菜）一定要看得到 ──
+  //
+  // 這張卡的主軸是「掃到卡片就看到白菜」（卡面上白紙黑字印著「掃描主物件：結球白菜」）。
+  // ⚠️ 但熱區選取只看**畫面正中心**落在哪個 rect，而白菜的 rect 是 x 0.058~0.214
+  //    ——**不含卡片中心 (0.5,0.5)**。使用者最自然的動作是把整張卡對準畫面中央，
+  //    那樣瞄到的永遠是身體保健／曆頁，**白菜的 3D 永遠不會出現**。
+  //    要用中心瞄到白菜得把卡片擺到畫面右側又不能出框，沒有人會這樣拿。
+  // 所以需要兩條退路，缺一條這張卡的主軸就等於失效：
+  {
+    const napa = OFFICIAL_CARDS[0].hotspots.find(h => h.primary)
+    ok(napa, '主物件熱區存在（primary）')
+    // 先把「中心瞄不到主物件」這個前提本身鎖起來——它是上面兩條退路的理由。
+    // 若哪天版面改了、主物件真的蓋到中心，這一項會失敗並提醒重新檢視。
+    const coversCenter = napa
+      && 0.5 >= napa.rect.x && 0.5 <= napa.rect.x + napa.rect.w
+      && 0.5 >= napa.rect.y && 0.5 <= napa.rect.y + napa.rect.h
+    ok(!coversCenter,
+      '（前提）主物件不在卡片中心——這是「預設選中」與「可點選」兩條退路存在的理由')
+    ok(/const primary = card\.hotspots\.find\(h => h\.primary\)/.test(scan),
+      '★★ 追到卡片但還沒瞄到熱區時要預設選中主物件（否則白菜的 3D 永遠不出現）')
+    ok(/onPointerDown=\{tracking \? onStageTap : undefined\}/.test(scan),
+      '★★ 取景框要可點選熱區（用中心瞄不到卡片邊緣的物件）')
+    // ⚠️ 這一項原本是 grep 字串，**給了假的信心**：我第一版把參數順序寫錯
+    //    （`screenToCard(H, x, y, layout)`、`hitTest(uv, hotspots)`——實際是
+    //    `screenToCard(H, {x,y}, layout)`、`hitTest(hotspots, u, v)`），
+    //    每一次點都回 null、點了完全沒反應、也不會拋錯，而 grep 照樣通過。
+    //    改成**真的把六個熱區各點一次**，順序錯了就一定失敗。
+    {
+      const grabW = 160, grabH = 91, dispW = 320, dispH = 182
+      const q = [[22, 14], [138, 12], [141, 78], [19, 76]]
+      const Hc = homography([[0, 0], [1, 0], [1, 1], [0, 1]], q)   // 卡面 uv → 取樣座標
+      const toScreen = (u, v) => {
+        const w = Hc[2][0] * u + Hc[2][1] * v + Hc[2][2]
+        return {
+          x: ((Hc[0][0] * u + Hc[0][1] * v + Hc[0][2]) / w) * (dispW / grabW),
+          y: ((Hc[1][0] * u + Hc[1][1] * v + Hc[1][2]) / w) * (dispH / grabH),
+        }
+      }
+      const layout = { dispW, dispH, grabW, grabH }
+      let allOk = true
+      for (const h of OFFICIAL_CARDS[0].hotspots) {
+        const pt = toScreen(h.rect.x + h.rect.w / 2, h.rect.y + h.rect.h / 2)
+        const uv = screenToCard(Hc, pt, layout)
+        const got = uv ? hitTest(OFFICIAL_CARDS[0].hotspots, uv[0], uv[1]) : null
+        if (got?.id !== h.id) { allOk = false; break }
+      }
+      ok(allOk, '★★ 點卡面上任一熱區的中心，都要選到那一個（真的呼叫 screenToCard + hitTest）')
+      // 主物件是這張卡的主軸，單獨再驗一次並指名
+      const napa = OFFICIAL_CARDS[0].hotspots.find(h => h.primary)
+      const pt = toScreen(napa.rect.x + napa.rect.w / 2, napa.rect.y + napa.rect.h / 2)
+      const uv = screenToCard(Hc, pt, layout)
+      ok(uv && hitTest(OFFICIAL_CARDS[0].hotspots, uv[0], uv[1])?.id === napa.id,
+        `★★ 點卡面上的「${napa.label}」要選到它（這是「掃到卡片就看到白菜」的操作路徑）`)
+    }
+    // ⚠️ 上面那個功能測試是直接呼叫函式，**抓不到呼叫端把參數順序寫錯**
+    //    （實測：把 Scan.jsx 改回錯的順序，功能測試照樣全過）。
+    //    所以 grep 要斷言**正確的形狀**而不只是「名字有出現」——
+    //    這是「grep 型閘門給假信心」的具體修法。
+    ok(/screenToCard\(track\.H,\s*\{\s*x:/.test(scan),
+      '★★ screenToCard 的第二個參數必須是 {x,y} 物件（寫成 (H,x,y,layout) 會永遠回 null）')
+    ok(/hitTest\(card\.hotspots,\s*uv\[0\],\s*uv\[1\]\)/.test(scan),
+      '★★ hitTest 的熱區陣列必須在第一個參數（寫成 (uv, hotspots) 會永遠回 null）')
+    ok(/點卡面上的物件可以換內容/.test(scan),
+      '★ 畫面要講出「可以點」——不講使用者不會知道有這個操作')
+  }
+
   // ── ★ 模擬模式必須「不用相機」就能跑 ──
   // 那是它存在的理由（拿不到卡片、或在拒絕相機權限的環境下驗追蹤鏈）。
   // ⚠️ 原本寫 `if (simRef.current) return`，有兩個問題疊在一起：

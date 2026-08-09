@@ -87,6 +87,10 @@ export default function Scan() {
   const [officialErr, setOfficialErr] = useState(null)
   // 命中的卡面熱區（瞄準或點擊卡上的物件）
   const [hotspot, setHotspot] = useState(null)
+  // ⚠️ 追蹤迴圈要讀「目前選中哪個熱區」，但**不可把 hotspot 放進 effect 的 deps**
+  //    ——那會讓每次換熱區都重建 tracker 與 rAF 迴圈（追蹤狀態、平滑器全部重置，
+  //    畫面會抖一下）。用 ref 鏡射。
+  const hotspotRef = useRef(null); hotspotRef.current = hotspot
   // 現場診斷：拿實體卡掃不到時，讓畫面自己說出「觀測到什麼」而不是只說失敗。
   // ⚠️ 只放**量得準**的觀測值。曾試過反推鏡頭 k1，實測會誤報（見 arDiagnose 檔頭）。
   const [diag, setDiag] = useState(null)
@@ -339,6 +343,19 @@ export default function Scan() {
         if (out.changed) {
           setHotspot(out.id ? card.hotspots.find(h => h.id === out.id) ?? null : null)
         }
+        // ★ 追到卡片但還沒瞄到任何熱區時，預設選中**主物件**（白菜）。
+        //
+        // ⚠️ 為什麼需要這個：選取只看「畫面正中心」落在哪個熱區，而白菜的 rect 是
+        //    x 0.058~0.214（卡片最左），**不含卡片中心 (0.5,0.5)**。使用者最自然的
+        //    動作是把整張卡對準畫面中央——那樣瞄到的永遠是身體保健／曆頁，
+        //    **白菜的 3D 永遠不會出現**。而「掃到卡片就看到白菜」正是這張卡的主軸
+        //    （卡面上白紙黑字印著「掃描主物件：結球白菜」）。
+        //    要用中心瞄到白菜，得把卡片擺到畫面右側又不能出框——沒有人會這樣拿。
+        //    /ar/card/:slug 早就是「進頁預設選主物件」，這裡對齊那個行為。
+        if (!out.changed && !latchRef.current.current && !hotspotRef.current) {
+          const primary = card.hotspots.find(h => h.primary)
+          if (primary) setHotspot(primary)
+        }
       } else if (latchRef.current.current) {
         latchRef.current.reset()
         setHotspot(null)
@@ -359,6 +376,33 @@ export default function Scan() {
   const d = dayFor(todayOffset())
   const tracking = !!track
 
+  // ★ 點取景框裡的物件就選它（不必用畫面中心去瞄）。
+  //
+  // ⚠️ `screenToCard` 與 `hitTest` 先前**被 import 但完全沒用到**——也就是掃描時
+  //    唯一的選取方式是「把熱區移到畫面正中心」。對這張卡來說那條路走不通：
+  //    白菜在卡片最左（x 0.058~0.214），要讓它落在畫面中心就得把卡片擺到右側
+  //    又不能出框，而整張卡出框就偵測不到。手指直接點它才是自然動作。
+  // ⚠️ 點擊要落在 `.scan-stage` 上，而 AR 疊加層是 `pointer-events:none`
+  //    （否則它會吃掉整個取景畫面的點擊——那個坑 CLAUDE.md 記過）。
+  const onStageTap = (e) => {
+    const card = track?.ref?.card
+    if (!card || !track?.H || !stageRef.current) return
+    const box = stageRef.current.getBoundingClientRect()
+    // ⚠️ 參數順序踩過一次：`screenToCard(H, {x,y}, layout)` 的第二個參數是**物件**，
+    //    而 `hitTest(hotspots, u, v)` 的熱區陣列在**第一個**。
+    //    我第一版寫成 `screenToCard(H, x, y, layout)` 與 `hitTest(uv, hotspots)`，
+    //    兩個都錯，結果每一次點都回 null（點了完全沒反應，而且不會拋錯）。
+    //    check-ar 當時只 grep 字串所以照樣綠燈——那一項現在改成真的呼叫一次。
+    const uv = screenToCard(track.H, { x: e.clientX - box.left, y: e.clientY - box.top }, {
+      dispW: box.width, dispH: box.height, grabW: grabSize.w, grabH: grabSize.h,
+    })
+    if (!uv) return
+    const hs = hitTest(card.hotspots, uv[0], uv[1])
+    // ⚠️ 點到卡片以外（uv 落在 0..1 之外或沒命中任何熱區）時**不清掉現有選擇**：
+    //    手持會抖，誤觸空白處就把內容關掉會讓人以為壞了。
+    if (hs) { latchRef.current.reset(); setHotspot(hs) }
+  }
+
   // aria-live 只播報「階段」不播分數——追蹤是每秒 15 次，播分數會變成朗讀轟炸
   // ⚠️ 這段以前是講「登錄」的（「按下方登錄這張卡片」），但那顆按鈕已經移除。
   //    照舊留著會叫使用者去按一個不存在的東西——比不給提示更糟。
@@ -369,7 +413,9 @@ export default function Scan() {
       ? (seeCard
         ? '看到一張卡片了，但目標圖尚未安裝，所以認不出它是哪一張'
         : '目標圖尚未安裝——這一頁目前掃不到任何卡片')
-      : tracking ? `已對準：${track.ref.name}`
+      // ⚠️ 追到卡片時要講「可以點」：選取不只有「用畫面中心瞄」一種，
+      //    而中心瞄不到白菜（它在卡片最左）。不講的話使用者不會知道能點。
+      : tracking ? `已對準：${track.ref.name}——點卡面上的物件可以換內容`
         : seeCard ? '看到卡片了，但不是官方卡片'
           // ⚠️ 一直找不到四個角時不可只說「掃描中」：那會讓人以為再喬一下就好。
           //    白紙在淺色桌面上沒有邊界可找，換角度不會有幫助。
@@ -380,7 +426,11 @@ export default function Scan() {
     <>
       <TopBar title="AR 掃描｜卡片一入鏡就跳出內容" onBack />
       <div className="body scan-body">
-        <div className="scan-stage" ref={stageRef}>
+        {/* ⚠️ 取景框可點：追到卡片時點卡上的物件就選它，不必用畫面中心去瞄。
+            白菜在卡片最左，用中心瞄不到（見 onStageTap 的說明）。
+            ⚠️ 用 onPointerDown 不用 onClick：手持時手指會微移，
+               click 需要 down/up 在同一點附近，容易漏掉。 */}
+        <div className="scan-stage" ref={stageRef} onPointerDown={tracking ? onStageTap : undefined}>
           {status === 'ready' && <video ref={videoRef} className="scan-video" autoPlay playsInline muted />}
           {status !== 'ready' && (
             <div className="scan-fallback">
