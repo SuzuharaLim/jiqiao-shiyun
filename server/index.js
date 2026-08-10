@@ -1,4 +1,4 @@
-// 機巧時運 —— 後端（Express + PostgreSQL/SQLite + bcrypt + 伺服器端 Session Cookie）
+﻿// 機巧時運 —— 後端（Express + PostgreSQL/SQLite + bcrypt + 伺服器端 Session Cookie）
 // 認證/授權、密碼雜湊、Session、速率限制、鎖定、防列舉、CSRF、安全標頭、Email 驗證、
 // 忘記/重設密碼、稽核、RBAC、GDPR 刪除帳號 + 社群內容（貼文/留言/讚/追蹤）+ 參考內容。
 // 資料層見 db.js（正式 Cloud SQL Postgres，開發 SQLite 後備），所有查詢皆 async。
@@ -123,6 +123,20 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:', ...ANALYTICS_HOSTS],  // blob:＝相機拍照/錄影預覽；data:＝縮圖
       mediaSrc: ["'self'", 'blob:', 'data:'],      // 錄影 blob 播放
       connectSrc: ["'self'", ...ANALYTICS_HOSTS],
+      // ★★ AR 的比對跑在 **Web Worker** 裡，而 MindAR 是用 `blob:` URL 建立那個 worker 的。
+      //
+      // ⚠️ 沒有這兩行的話 worker 會被 CSP 擋掉，而失效方式**完全靜默**：
+      //    相機開得起來、畫面正常、掃描線在動、也沒有任何使用者看得到的錯誤，
+      //    但 `_workerMatch` 永遠不 resolve → 處理迴圈卡在第一輪 →
+      //    `onUpdate` 一次都不會進來 → **永遠不會認出卡片**。
+      //    症狀與「沒對準／光線不夠／目標檔沒裝」一模一樣。
+      // ⚠️ 而且**只有正式站會壞**：Vite dev server 不送 CSP，所以本機 `npm run dev`
+      //    一切正常，一部署就掃不到。用 dev server 驗 AR 驗不出這個問題。
+      // ⚠️ `worker-src` 沒設時瀏覽器會退回 `script-src`（Chrome 的錯誤訊息會明講
+      //    「Note that 'worker-src' was not explicitly set」）——所以不能只放寬 script-src，
+      //    那等於為了 worker 把整個腳本來源打開。`childSrc` 是給不認得 worker-src 的舊瀏覽器。
+      workerSrc: ["'self'", 'blob:'],
+      childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'self'"],

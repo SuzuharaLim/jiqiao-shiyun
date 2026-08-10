@@ -139,7 +139,27 @@ ok(/nofile/.test(scan), '★ 目標檔缺失要有專屬狀態與說明')
 ok(!/track\.score|\{.*score.*\}%/.test(scan),
   '★ 不可顯示相似度數值（MindAR 是 inlier 式判定，沒有這個數字）')
 
-// ── 5. 目標檔 ──
+// ── ★★★ 5. CSP 必須放行 blob: 的 Web Worker ──
+//
+// MindAR 的比對跑在 **Web Worker** 裡，而那個 worker 是用 `blob:` URL 建立的。
+// 沒有 workerSrc 的話 CSP 會擋掉它，而失效方式**完全靜默**：
+//   相機開得起來、畫面正常、掃描線在動、console 只有一行 CSP 警告，
+//   但 `_workerMatch` 永遠不 resolve → 處理迴圈卡在第一輪 →
+//   `onUpdate` 一次都不會進來 → **永遠不會認出卡片**。
+//   （實測：加這兩行之前 onUpdate 0 次；加之後 15 秒內 processDone 23／updateMatrix 18。）
+// ⚠️ 而且**只有正式站會壞**：Vite dev server 不送 CSP，所以 `npm run dev` 一切正常，
+//    一部署就掃不到。這是「用 dev server 驗 AR」驗不出來的一類問題。
+// ⚠️ 不可改成放寬 scriptSrc：worker-src 沒設時瀏覽器才退回 script-src，
+//    為了 worker 打開整個腳本來源是把安全性換掉。
+{
+  const srv = strip(read('../server/index.js'))
+  ok(/workerSrc:\s*\["'self'",\s*'blob:'\]/.test(srv),
+    "★★★ CSP 要有 workerSrc: [\"'self'\", 'blob:']（少了它正式站的 AR 永遠掃不到，而且是靜默的）")
+  ok(/childSrc:\s*\["'self'",\s*'blob:'\]/.test(srv),
+    '★ 也要給 childSrc（不認得 worker-src 的舊瀏覽器會退回它）')
+}
+
+// ── 6. 目標檔 ──
 {
   const card = OFFICIAL_CARDS[0]
   ok(!!card.mindTarget && /\.mind$/.test(card.mindTarget), 'arCards 要有 .mind 目標')
