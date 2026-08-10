@@ -59,6 +59,25 @@ add(mind.status === 200 && !ct.includes('text/html') && len > 100_000,
 const card = await head('/ar/card/2027-xiaohan')
 add(card.status === 200, '無相機時的替代頁可以打開', 'HTTP ' + card.status)
 
+// ── ★★★ 線上跑的是不是「本機這一版」 ──
+//
+// ⚠️ 這一項是 2026-08-10 補的，因為缺了它讓我**連續兩次判斷錯誤**：
+//    只驗標頭與檔案存在，會看到「CSP 對了、.mind 在、頁面開得起來」就以為沒事，
+//    但線上其實跑著一個**較舊的建置**——標頭是伺服器送的（新的），
+//    前端 bundle 卻是舊的，兩者可以不同步。
+//    比對 bundle 檔名是最直接的判準（Vite 的檔名含內容雜湊）。
+try {
+  const localHtml = await import('node:fs').then(fs => fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8'))
+  const localJs = localHtml.match(/\/assets\/(index-[A-Za-z0-9_-]+\.js)/)?.[1]
+  const liveHtml = await (await fetch(BASE + '/AR')).text()
+  const liveJs = liveHtml.match(/\/assets\/(index-[A-Za-z0-9_-]+\.js)/)?.[1]
+  add(!!localJs && !!liveJs && localJs === liveJs,
+    '線上跑的是本機這一版',
+    localJs === liveJs ? `同版 ${liveJs}` : `線上 ${liveJs ?? '?'}　本機 ${localJs ?? '?'}　★ 尚未部署最新版`)
+} catch (e) {
+  add(false, '線上跑的是本機這一版', '無法比對（先跑 npm run build）：' + e.message)
+}
+
 // ⚠️ 不要用 padEnd 對齊：中文是全形，字元數與顯示寬度不一樣，補出來一定歪。
 console.log(`\n正式站檢查：${BASE}\n`)
 for (const r of rows) {
