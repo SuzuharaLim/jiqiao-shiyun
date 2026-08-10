@@ -651,18 +651,37 @@ export default function Scan() {
         {/* 即時狀態列 */}
         <div className="scan-status">
           <span aria-live="polite">{phaseText}</span>
-          {tracking && <span aria-hidden="true">　相似度 <b>{track.score}%</b></span>}
+          {/* ⚠️ MindAR 沒有「相似度」這個概念（它是 inlier 式判定，score 恆為 null），
+              照舊寫死會顯示「相似度 %」——一個空的數字比不顯示更像壞掉。 */}
+          {tracking && track.score != null && (
+            <span aria-hidden="true">　相似度 <b>{track.score}%</b></span>
+          )}
         </div>
 
         {/* ── 角色站在卡片上（命中有模型的熱區才載入）── */}
         {(() => {
-          const o = hotspot ? objectForHotspot(hotspot) : null
+          // ★★ 3D **不可綁「目前選中的熱區」**。
+          //
+          // ⚠️ 使用者最自然的動作是把整張卡擺在畫面正中央，而畫面中心對到的是
+          //    卡面 (0.5,0.5)——那正好落在身體保健區（x 0.224~0.728、y 0.258~0.510）。
+          //    那一區沒有 `model`，於是**白菜永遠不會出現**，而卡面上白紙黑字
+          //    印著「掃描主物件：結球白菜」。
+          // ⚠️ 上面 applyHotspot 的「預設主物件」保底解不掉這件事：它的條件是
+          //    「完全沒瞄到任何熱區」，而這裡是**瞄到了另一個沒有模型的熱區**。
+          //    註解寫對了問題、程式卻沒解到，是這個 bug 藏起來的原因。
+          // 規則：選中的熱區自己有模型就用它（未來多模型的卡片才對），
+          //      否則退回卡片的主物件——「掃到卡片就看到主角」。
+          const selected = hotspot ? objectForHotspot(hotspot) : null
+          const spot = selected?.model
+            ? hotspot
+            : (track?.ref?.card?.hotspots?.find(h => h.primary) ?? null)
+          const o = spot ? objectForHotspot(spot) : null
           if (!o?.model || !track?.pose) return null
           return (
             <Suspense fallback={null}>
               <ARCharacter
                 track={track} grabW={grabSize.w} grabH={grabSize.h}
-                anchorUV={[hotspot.rect.x + hotspot.rect.w / 2, hotspot.rect.y + hotspot.rect.h / 2]}
+                anchorUV={[spot.rect.x + spot.rect.w / 2, spot.rect.y + spot.rect.h / 2]}
                 action="present"
               />
             </Suspense>

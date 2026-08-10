@@ -3,7 +3,7 @@
 // ⚠️ 這一層**不能在 Node 裡跑真的偵測**（mind-ar 的 Controller 要 WebGL 與 video），
 //    所以這裡驗的是「純數學」與「不可退回的決策」。真偵測的驗證見檔尾的說明。
 import fs from 'node:fs'
-import { OFFICIAL_CARDS } from '../src/data/arCards.js'
+import { OFFICIAL_CARDS, objectForHotspot } from '../src/data/arCards.js'
 
 let pass = 0
 const fails = []
@@ -84,6 +84,36 @@ ok(/applyHotspot\(res, frame\.w, frame\.h\)/.test(scanCode), '★ 自研路徑�
 ok(/console\.error\('\[AR\] MindAR 載入失敗/.test(scan),
   '★ MindAR 載入失敗要留下錯誤紀錄（靜默退回會讓人完全查不到原因）')
 
+// ── ★★ 6b. 3D 角色不可綁「目前選中的熱區」 ──
+//
+// 使用者最自然的動作是把整張卡擺在畫面正中央 → 畫面中心對到卡面 (0.5, 0.5)。
+// 下面用真的熱區資料算一次：那個點落在哪個熱區、那一區有沒有模型。
+// 實測 2027 小寒卡：落在「身體保健」，而那一區**沒有** model
+// → 3D 若綁選中的熱區，白菜就永遠不會出現（而卡面上印著「掃描主物件：結球白菜」）。
+{
+  const card = OFFICIAL_CARDS[0]
+  const inRect = (r, u, v) => u >= r.x && u <= r.x + r.w && v >= r.y && v <= r.y + r.h
+  const atCentre = card.hotspots.find(h => inRect(h.rect, 0.5, 0.5)) || null
+  const centreObj = atCentre ? objectForHotspot(atCentre) : null
+  const primary = card.hotspots.find(h => h.primary) || null
+
+  ok(!!primary, '卡片要有 primary 熱區（3D 的退路）')
+  ok(!!objectForHotspot(primary)?.model,
+    '★ primary 熱區的物件必須有 model，否則那個退路沒有意義')
+  // 這一項不是要求，而是把「為什麼需要退路」的事實釘住：
+  // 若哪天版面改成中心就是主物件，這項會失敗，提醒回來重新評估上面的邏輯。
+  ok(atCentre && !centreObj?.model,
+    `★ 記錄事實：畫面中心 (0.5,0.5) 落在「${atCentre?.label ?? '無'}」且該區沒有 model` +
+    '——這正是 3D 不可綁選中熱區的理由')
+  ok(/h => h\.primary/.test(scanCode) && /anchorUV=\{\[spot\.rect/.test(scanCode),
+    '★★ 選中的熱區沒有 model 時，3D 要退回卡片主物件並錨在主物件的熱區上')
+}
+
+// ⚠️ MindAR 是 inlier 式判定、沒有「相似度」，score 恆為 null。
+//    照舊寫死 `相似度 {track.score}%` 會顯示「相似度 %」——空的數字比不顯示更像壞掉。
+ok(/track\.score != null/.test(scanCode),
+  '★ 顯示相似度前要判斷 score 不是 null（MindAR 沒有這個數字）')
+
 // ── 7. 已移除的功能不可回來 ──
 ok(!/bindLocalTarget/.test(scanCode), '「指定本機圖片當目標」已移除，不可回來')
 // ⚠️ 這裡要用**剝過註解**的 scanCode。我第一版寫成 `scan`（原始檔），結果抓到
@@ -101,7 +131,8 @@ if (fails.length) {
 console.log(`✓ MindAR 層 ${pass} 項檢查全部通過（四角投影約定、輸出同形、生命週期、接線、.mind 存在）
 
 ⚠️ 這一層**沒有**在 CI 裡跑真的偵測（Controller 要 WebGL 與 video）。
-   真偵測已在瀏覽器手動驗過一次：640×480 合成畫面、卡片佔 72%，
-   偵測成功（98ms），並據此抓出上面那個 y 翻轉的錯誤。
-   ⚠️ 但**修正之後沒有重新跑過**（環境的分頁隱藏讓 rAF 停擺、TFJS 卡住），
-      所以「y 不翻轉」目前是靠算術推導（480−406=74 vs 真值 72）而非重測確認。`)
+   真偵測已在瀏覽器手動驗過（1280×960 合成畫面、卡片佔 55%）：
+     · 收邊版目標圖 12/12、未收邊原稿也 12/12（MindAR 的特徵點對多一圈外框不敏感）
+     · ★ 四角回推**已用產品程式碼 cornersFromWorldMatrix 對過真值：最大誤差 1.6px**
+       （有 y 翻轉時是 337px）——「y 不翻轉」現在是**實測確認**，不再是算術推導。
+   ⚠️ 仍未驗：真實相機下的追蹤穩定度、手機實際幀率、4G 下 1.7MB 的等待時間。`)
