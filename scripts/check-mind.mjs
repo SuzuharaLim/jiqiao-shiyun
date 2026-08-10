@@ -130,6 +130,19 @@ ok(/rotation\.x = CALIB\.outAxis \* Math\.PI \/ 2/.test(scene),
 }
 // 遲滯：追蹤每秒十幾次、邊界附近會高頻跳動，而開關內容面板是最貴的操作
 ok(/makeHotspotLatch\(\)/.test(scene), '★ 熱區命中要走遲滯')
+
+// ── ★★★ 出現門檻：預設要連續 6 幀才算認出來，低幀率手機跨不過去 ──
+//
+// MindAR 的 DEFAULT_WARMUP_TOLERANCE = 5，判斷式是 `trackCount > warmupTolerance`
+// ⇒ 要**連續 6 幀**都追到。手持＋卡片會動＋手機每秒只處理個位數幀時，
+//   那是很高的門檻，而且**暖機期間畫面完全沒有回饋**——使用者可能已經追到好幾次，
+//   每次都沒撐到第 6 幀，看起來就是「完全掃不到」。
+// ⚠️ 這不是調低比對門檻：MindAR 是 inlier 式判定，比對本身沒有分數可調。
+//    warmup 只是防抖，降低它不會讓它認錯目標。
+ok(/warmupTolerance: 1\b/.test(scene),
+  '★★★ warmupTolerance 要降到 1（預設 5＝連續 6 幀，低幀率手機跨不過去）')
+ok(/missTolerance: 10\b/.test(scene),
+  '★★ 相對放寬漏幀容忍（低幀率下偶爾漏幀正常，容忍太小會讓內容一直閃）')
 // 手動點選必須撐得住，否則 3 幀後就被中心瞄準蓋掉
 ok(/MANUAL_HOLD_MS/.test(scene) && /performance\.now\(\) < manualUntil/.test(scene),
   '★★ 手動點選之後要暫停中心瞄準（只 reset 遲滯會在約 0.3 秒後被蓋回去）')

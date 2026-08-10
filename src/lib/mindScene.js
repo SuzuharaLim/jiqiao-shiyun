@@ -102,6 +102,20 @@ export async function createMindScene({
     //    （置中的掃描框動畫），與本站的紙感介面對不上，而且會蓋住我們自己的提示。
     uiLoading: 'no', uiScanning: 'no', uiError: 'no',
     environmentDeviceId: deviceId || null,
+    // ★★★ 出現門檻：MindAR 預設要**連續 6 幀**都追到才判定「認出來」
+    //    （DEFAULT_WARMUP_TOLERANCE = 5，判斷式是 trackCount > warmupTolerance）。
+    //
+    // ⚠️ 手持、卡片會動、而手機每秒可能只處理個位數幀——連續 6 幀完美追蹤是很高的門檻。
+    //    更糟的是**暖機期間畫面完全沒有回饋**：使用者可能已經追到好幾次，
+    //    每次都沒撐到第 6 幀，於是看起來就是「完全掃不到」。
+    //    降到 1（連續 2 幀）讓它快很多。
+    // ⚠️ 這**不是**在調低比對門檻——MindAR 是 inlier 式判定，比對本身沒有分數可調。
+    //    warmup 只是防抖（debounce），降低它不會讓它認錯目標，只會讓「已經對的」更快出現。
+    //    （本專案的原則是「絕不可為了掃不到而調低比對門檻」，這一項不牴觸。）
+    warmupTolerance: 1,
+    // ⚠️ 相對地把「漏幀容忍」放寬：低幀率下偶爾漏一兩幀很正常，
+    //    容忍太小會讓內容一直閃動——而閃動比慢半拍更惱人。
+    missTolerance: 10,
   })
 
   const { renderer, scene, camera } = mindar
