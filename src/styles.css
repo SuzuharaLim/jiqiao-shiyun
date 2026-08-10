@@ -3594,6 +3594,9 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   margin: var(--space-2) 0 0; padding-top: var(--space-2);
   border-top: 1px solid var(--line); line-height: 1.7;
 }
+/* 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開的那顆按鈕與判讀 */
+.scan-diag-self { margin: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.scan-diag-self > button { align-self: flex-start; }
 .scan-diag-verdict.ok b { color: var(--teal-ink); }
 .scan-diag-verdict.warn b { color: var(--orange-ink); }
 .scan-diag-verdict.error b { color: var(--on-ji); }

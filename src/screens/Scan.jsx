@@ -67,6 +67,8 @@ export default function Scan() {
   const [hotspot, setHotspot] = useState(null)
   const [showDiag, setShowDiag] = useState(false)
   const [diag, setDiag] = useState(null)
+  // 自我測試：'idle' | 'running' | 結果物件
+  const [selfTest, setSelfTest] = useState('idle')
   // ★★ 「相機開了但比對根本沒在跑」的偵測。null＝正常；'csp'＝抓到 CSP 擋掉；
   //    'quiet'＝沒抓到明確原因，但心跳是 0。
   const [stall, setStall] = useState(null)
@@ -380,6 +382,46 @@ export default function Scan() {
                   <div><dt>命中熱區</dt><dd>{diag.hotspot}</dd></div>
                 </dl>
               )}
+              {/* ── ★★★ 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開 ── */}
+              <div className="scan-diag-self">
+                <button
+                  className="btn-primary tap"
+                  disabled={status !== 'ready' || selfTest === 'running'}
+                  onClick={async () => {
+                    const s = sceneRef.current
+                    if (!s?.selfTest) return
+                    setSelfTest('running')
+                    setSelfTest(await s.selfTest({ seconds: 8 }))
+                  }}
+                >
+                  {selfTest === 'running' ? '測試中…（約 8 秒）' : '用內建卡面圖自我測試'}
+                </button>
+                {/* ⚠️ 判讀一定要給**下一步動作**。只說「成功／失敗」等於沒有診斷
+                    ——使用者還是不知道該調什麼。 */}
+                {selfTest === 'running' && (
+                  <p className="muted">正在把內建的卡面圖接到辨識流程上，請稍候（畫面會暫時變成那張圖）。</p>
+                )}
+                {selfTest !== 'idle' && selfTest !== 'running' && (
+                  selfTest.ok ? (
+                    <p className="scan-diag-verdict ok">
+                      <b>辨識流程在這台裝置上正常</b>（{selfTest.ms} ms 內認出）。
+                      <br />所以掃不到的原因在<b>相機拍到的畫面</b>，可以依序試：
+                      <br />① 讓卡片<b>佔滿畫面一半以上</b>——太遠是最常見的原因
+                      <br />② 光線要夠，且避免<b>反光</b>（卡片正對燈或窗會整片泛白）
+                      <br />③ 等對焦完成再停住，手別抖
+                      <br />④ 確認手上這張卡與網站上的卡面是<b>同一版</b>
+                    </p>
+                  ) : (
+                    <p className="scan-diag-verdict error">
+                      <b>辨識流程在這台裝置上就沒有成功</b>
+                      （{selfTest.reason === 'timeout' ? '8 秒內沒有認出內建圖' : selfTest.reason}）。
+                      <br />這代表問題**不在**你怎麼拿卡片，而在這台裝置或瀏覽器
+                      （WebGL／Web Worker／效能）。請把這一頁的診斷數值截圖給我們。
+                    </p>
+                  )
+                )}
+              </div>
+
               <p className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                 追蹤由 MindAR 的特徵點比對負責，沒有「相似度分數」可以顯示
                 （它是 inlier 式判定：追到就是追到）。

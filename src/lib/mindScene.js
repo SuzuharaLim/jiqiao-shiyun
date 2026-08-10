@@ -265,6 +265,63 @@ export async function createMindScene({
       manualUntil = performance.now() + MANUAL_HOLD_MS
       onHotspot?.(hs ?? null)
     },
+    /**
+     * ★★★ 自我測試：用**內建的卡面圖**餵給這台裝置的辨識流程。
+     *
+     * 為什麼需要：使用者回報「掃不到」時，光看畫面分不出三種完全不同的原因——
+     *   ① 這台裝置根本跑不起辨識（WebGL／Worker／效能）
+     *   ② 辨識正常，但**相機拍到的畫面**不夠好（光線、距離、對焦、反光）
+     *   ③ 印出來的卡片與目標圖不是同一版
+     * 這個測試把 ① 單獨切出來：把一張「保證正確」的畫面接到同一條管線上，
+     * 成功＝管線沒問題，問題在 ② 或 ③；失敗＝問題在這台裝置本身。
+     *
+     * ⚠️ 做法是暫時把 video 的 srcObject 換成 canvas 串流再換回來——
+     *    Controller 是**持續**從 video 元素讀取的，換 srcObject 就等於換輸入源，
+     *    不需要重建整個場景（重建會重新要相機權限，在 iOS 上很容易失敗）。
+     */
+    async selfTest({ seconds = 8 } = {}) {
+      const v = mindar.video
+      if (!v || !card?.target) return { ok: false, reason: 'no-video' }
+      const orig = v.srcObject
+      let timer = 0
+      try {
+        const img = await new Promise((res, rej) => {
+          const i = new Image()
+          i.onload = () => res(i); i.onerror = () => rej(new Error('poster'))
+          i.src = card.target
+        })
+        const cvs = document.createElement('canvas')
+        cvs.width = v.videoWidth || 1280
+        cvs.height = v.videoHeight || 960
+        const ctx = cvs.getContext('2d')
+        let n = 0
+        const draw = () => {
+          ctx.fillStyle = '#8a8a8a'; ctx.fillRect(0, 0, cvs.width, cvs.height)
+          const w = cvs.width * 0.55, h = w * (img.height / img.width)
+          // ⚠️ 要有微幅位移：MindAR 的偵測走 detectMoving，完全靜止不是它預期的輸入
+          ctx.drawImage(img, (cvs.width - w) / 2 + Math.sin(n / 12) * 4,
+            (cvs.height - h) / 2 + Math.cos(n / 15) * 4, w, h)
+          n++
+        }
+        draw()
+        timer = setInterval(draw, 33)
+        v.srcObject = cvs.captureStream(30)
+        await v.play().catch(() => {})
+
+        const t0 = performance.now()
+        while (performance.now() - t0 < seconds * 1000) {
+          if (anchor.visible) return { ok: true, ms: Math.round(performance.now() - t0) }
+          await new Promise(r => setTimeout(r, 120))
+        }
+        return { ok: false, ms: seconds * 1000, reason: 'timeout' }
+      } catch (e) {
+        return { ok: false, reason: e?.message || 'error' }
+      } finally {
+        if (timer) clearInterval(timer)
+        // ⚠️ 一定要把相機接回去，否則測完之後畫面就凍在那張圖上
+        try { v.srcObject = orig; await v.play().catch(() => {}) } catch { /* ignore */ }
+      }
+    },
     /** 給測試用：直接問「卡面 UV 落在哪個熱區」。 */
     _hotspotAtUv: (u, v) => hitTest(card?.hotspots ?? [], u, v),
     dispose() {
