@@ -121,6 +121,12 @@ export class MindARThree {
       //    所以「已對準」「熱區命中」「3D 有在算繪」全部量得到，畫面卻是黑的。
       //    ——驗 AR 不能只驗數字，一定要真的看畫面。
       // ⚠️ 也不可只把 `.scan-stage` 的背景拿掉：那是相機還沒開起來時的底色。
+      //
+      // ★ 實測（用瀏覽器自己的命中測試，它依循的正是繪製順序）：
+      //   在取景框正中心呼叫 document.elementFromPoint，並暫時隱藏 3D canvas——
+      //     z-index: 0  → 最上層是 **VIDEO**
+      //     z-index: -2 → 最上層是 **DIV.scan-stage**   ← 影像掉到容器底下
+      //   也就是 -2 時 video 確實被容器（背景 #0C0A08）蓋住＝黑畫面。
       this.video.style.zIndex = '0'
       this.container.appendChild(this.video)
 
