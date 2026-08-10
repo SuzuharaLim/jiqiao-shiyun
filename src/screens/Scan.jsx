@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
+import { useNav } from '../store/nav.jsx'
 import { pickMainCameraId } from '../lib/arCamera.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -59,6 +60,7 @@ async function guessMainCameraId() {
 }
 
 export default function Scan() {
+  const { setToast } = useNav()
   const stageRef = useRef(null)
   const sceneRef = useRef(null)
   // loading | ready | denied | unsupported | nofile
@@ -421,6 +423,35 @@ export default function Scan() {
               )}
               {/* ── ★★★ 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開 ── */}
               <div className="scan-diag-self">
+                {/* ⚠️ 一鍵複製：要人「截圖傳給我們」的門檻其實很高（要截、要找、要傳），
+                    而這幾個數字才是唯一能定位問題的東西。降到一次點擊。
+                    ⚠️ 連 userAgent 一起帶：iOS/Android、Safari/Chrome 的差異很大
+                       （例如 autoplay 與鏡頭選擇的行為完全不同）。 */}
+                <button
+                  className="btn-ghost tap"
+                  onClick={() => {
+                    const s = sceneRef.current
+                    const lines = [
+                      '【機巧時運 AR 診斷】',
+                      `鏡頭：${diag?.camera ?? '—'}`,
+                      `解析度：${diag?.res ?? '—'}`,
+                      `處理幀率：${diag?.fps ?? '—'}`,
+                      `目標圖：${diag?.target ?? '—'}　高寬比 ${diag?.hw ?? '—'}`,
+                      `目前追到：${diag?.visible ?? '—'}　命中熱區：${diag?.hotspot ?? '—'}`,
+                      `自我測試：${selfTest === 'idle' ? '尚未執行'
+                        : selfTest === 'running' ? '執行中'
+                          : selfTest.ok ? `成功（${selfTest.ms} ms）` : `失敗（${selfTest.reason}）`}`,
+                      `心跳累計：${s?.ticks?.() ?? '—'}`,
+                      `裝置：${navigator.userAgent}`,
+                    ]
+                    const text = lines.join('\n')
+                    navigator.clipboard?.writeText(text)
+                      .then(() => setToast('診斷資料已複製，貼給我們就好'))
+                      .catch(() => setToast('複製失敗，請改用截圖'))
+                  }}
+                >
+                  複製診斷資料
+                </button>
                 <button
                   className="btn-primary tap"
                   disabled={status !== 'ready' || selfTest === 'running'}
