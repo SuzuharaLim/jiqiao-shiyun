@@ -272,6 +272,29 @@ ok(/finally \{[\s\S]{0,400}?v\.srcObject = orig/.test(scene),
 // ⚠️ 要有微幅位移：MindAR 的偵測走 detectMoving，完全靜止不是它預期的輸入
 ok(/Math\.sin\(n \/ 12\)/.test(scene), '★ 自我測試的畫面要有微幅位移（detectMoving）')
 ok(/自我測試/.test(scan), '★ 診斷面板要有自我測試的入口')
+
+// ── ★★★ 內建瀏覽器 & 使用者手勢：兩個「怎麼改程式都不會好」的入口問題 ──
+//
+// 參考 gitlab.com/suzuharalim/24vr 的 ar-experience.html（同團隊已能運作的實作）。
+// ⚠️ LINE／FB／IG 的內建 WebView 常擋掉或閹割 getUserMedia／WebGL，而且**靜默**。
+//    使用者從 LINE 訊息點進來是最常見的入口，不主動講就永遠查不到。
+// ⚠️★ 這一項要查**原始碼**（scanSrc）不是剝過註解的版本——這次是剝註解器**反過來**
+//    咬到我：`/\bLine\//i` 這個正則字面量裡就含有 `//`（`\/` 之後的收尾斜線），
+//    行尾剝除規則把整行後半段當註解吃掉，於是 `return 'LINE'` 消失 → **誤報**。
+//    （先前四次是「抓到自己的註解」＝假通過，這次是假失敗，同一個根因。）
+//    這幾個關鍵字夠特殊，直接對原始碼比對不會誤中註解。
+ok(['MicroMessenger', 'FBAN', 'Instagram', 'Line'].every(k => scanSrc.includes(k))
+  && scanSrc.includes("return 'LINE'"),
+  '★★★ 要偵測 LINE／FB／IG／微信 的內建瀏覽器並主動警告')
+ok(/用預設瀏覽器開啟/.test(scan), '★★ 警告要給出**具體操作**（用預設瀏覽器開啟），不是只說不支援')
+// ⚠️ iOS 上 getUserMedia 與 video.play() 在使用者手勢的呼叫堆疊裡可靠得多；
+//    自動啟動容易拿到權限卻播不動——而那是靜默失敗。
+ok(/const \[armed, setArmed\] = useState\(false\)/.test(scan) && /if \(!armed\) return/.test(scan),
+  '★★★ AR 必須由使用者手勢啟動（iOS 上自動啟動容易靜默失敗）')
+ok(/允許相機並開始掃描/.test(scan), '★ 要有明確的啟動按鈕')
+// ⚠️ 猜錯時不可把人擋在門外：警告歸警告，按鈕照樣要能按
+ok(!/inApp &&[\s\S]{0,200}?return null/.test(scan),
+  '★ 偵測到內建瀏覽器只警告，不可直接擋掉（UA 判斷會猜錯）')
 // ⚠️ 處理幀率是判斷「裝置算不算得動」最直接的數字。解析度拉高會讓每幀更重，
 //    中階手機可能掉到每秒一兩幀——那時對得再準也幾乎不可能命中，而畫面上看不出來。
 //    （桌機實測 1280×960 下 31.5 幀/秒。）

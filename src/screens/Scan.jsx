@@ -25,6 +25,25 @@ import SpeakButton from '../components/SpeakButton.jsx'
 const CARD = OFFICIAL_CARDS[0] ?? null
 
 /**
+ * ★★★ 內建瀏覽器（LINE／FB／IG／微信…）偵測。
+ *
+ * ⚠️ 這是「怎麼改程式都不會好」的一類失敗：那些 App 內建的 WebView 常常
+ *    擋掉或閹割 `getUserMedia`／WebGL／Web Worker，而**失敗方式往往是靜默的**
+ *    ——相機看似開了卻沒有影像，或 WebGL context 拿不到。
+ *    使用者從 LINE 的訊息點進來是**最常見的入口**，所以這一定要主動講。
+ * ⚠️ 只能靠 userAgent 猜（沒有標準 API），所以文案要寫成「可能」而不是斷定，
+ *    而且**不擋人繼續嘗試**——猜錯時把人擋在門外比誤報更糟。
+ */
+function inAppBrowser() {
+  const ua = navigator.userAgent || ''
+  if (/\bLine\//i.test(ua)) return 'LINE'
+  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'Facebook'
+  if (/Instagram/i.test(ua)) return 'Instagram'
+  if (/MicroMessenger/i.test(ua)) return '微信'
+  return null
+}
+
+/**
  * 目標檔是否真的存在。
  * ⚠️ 只看 `res.ok` 不夠：檔案不存在時 SPA fallback 會回 **200 + index.html**，
  *    MindAR 拿到那份 HTML 只會丟一個看起來像「檔案壞掉」的錯，而真正的原因是
@@ -63,8 +82,18 @@ export default function Scan() {
   const { setToast } = useNav()
   const stageRef = useRef(null)
   const sceneRef = useRef(null)
-  // loading | ready | denied | unsupported | nofile
-  const [status, setStatus] = useState('loading')
+  // ★★★ `idle` 是新的**初始**狀態：等使用者按下按鈕才開相機。
+  //
+  // ⚠️ 原本是進頁就自動 start()。在 iOS Safari 上，`getUserMedia` 與隨後的
+  //    `video.play()` 在**使用者手勢的呼叫堆疊裡**可靠得多；自動啟動很容易
+  //    拿到權限卻播不動，或根本不跳權限提示——而那兩種都是靜默失敗。
+  //    （參考 gitlab.com/suzuharalim/24vr 的 ar-experience.html：它也是
+  //     「允許並開始」按鈕之後才 start()。）
+  // ⚠️ 順帶解決一個體驗問題：原本一進頁就跳系統的相機權限對話框，
+  //    使用者還沒理解這頁要做什麼就被問，拒絕率會高。
+  // idle | loading | ready | denied | unsupported | nofile
+  const [status, setStatus] = useState('idle')
+  const [inApp] = useState(() => inAppBrowser())
   const [tracking, setTracking] = useState(false)
   const [hotspot, setHotspot] = useState(null)
   const [showDiag, setShowDiag] = useState(false)
@@ -130,7 +159,10 @@ export default function Scan() {
     return () => clearTimeout(t)
   }, [status])
 
+  // ★ 由使用者按下按鈕才啟動（見上方 status 的說明）。
+  const [armed, setArmed] = useState(false)
   useEffect(() => {
+    if (!armed) return
     const host = stageRef.current
     if (!host || !CARD?.mindTarget) { setStatus('nofile'); return }
 
@@ -189,7 +221,7 @@ export default function Scan() {
       try { (sceneRef.current ?? scene)?.dispose() } catch { /* ignore */ }
       sceneRef.current = null
     }
-  }, [])
+  }, [armed])
 
   // 診斷資料：只在打開面板時取樣，而且只放**量得準**的觀測值。
   // ⚠️ 這一版刻意不再顯示「比對分數」與「找到四邊形」——MindAR 是 inlier 式判定，
@@ -284,11 +316,44 @@ export default function Scan() {
             <div className="scan-fallback">
               <Icon name="camera" style={{ width: 46, height: 46, stroke: 'var(--pfg)' }} />
               <p>
+                {status === 'idle' && '把實體卡片準備好，按下方按鈕開始。'}
                 {status === 'loading' && '正在開啟鏡頭…'}
                 {status === 'denied' && '尚未允許使用相機。請在瀏覽器允許相機權限後再試。'}
                 {status === 'unsupported' && '這台裝置沒有相機，或這個環境不允許使用（需 HTTPS）。'}
                 {status === 'nofile' && '目標檔尚未安裝，掃描不會有任何反應。'}
               </p>
+
+              {/* ── ★★★ 內建瀏覽器警告：這是「怎麼改程式都不會好」的一類 ── */}
+              {inApp && status !== 'nofile' && (
+                <p className="scan-diag-verdict warn" style={{ textAlign: 'left' }}>
+                  <b>你正在用 {inApp} 的內建瀏覽器開這一頁。</b>
+                  <br />那些 App 內建的瀏覽器常常擋掉或閹割相機與 3D 繪圖，
+                  AR 很可能無法運作，而且**不會出現任何錯誤訊息**。
+                  <br /><b>請點右上角的「⋯」選「用預設瀏覽器開啟」</b>
+                  （Safari 或 Chrome），再試一次。
+                </p>
+              )}
+
+              {/* ★ 由使用者手勢啟動：iOS 上 getUserMedia 與 video.play() 在手勢的
+                  呼叫堆疊裡可靠得多；自動啟動容易拿到權限卻播不動（靜默失敗）。 */}
+              {status === 'idle' && (
+                <button
+                  className="btn-primary tap"
+                  onClick={() => { setArmed(true); setStatus('loading') }}
+                  style={{ marginTop: 'var(--space-3)' }}
+                >
+                  允許相機並開始掃描
+                </button>
+              )}
+              {status === 'denied' && (
+                <button
+                  className="btn-primary tap"
+                  onClick={() => { setStatus('loading'); setArmed(false); setTimeout(() => setArmed(true), 0) }}
+                  style={{ marginTop: 'var(--space-3)' }}
+                >
+                  再試一次
+                </button>
+              )}
               {/* ── 不要讓這裡變成死路 ──
                   ⚠️ 桌機、拒絕權限、或 getUserMedia 一直不回應時，這一頁原本
                      只有一行字：沒有相機的人到這裡就走不下去了。

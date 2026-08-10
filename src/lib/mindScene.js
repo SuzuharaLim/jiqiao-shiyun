@@ -119,7 +119,10 @@ export async function createMindScene({
   })
 
   const { renderer, scene, camera } = mindar
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2))
+  // ⚠️ 裝置像素比上限壓到 1.25（不是 2）：3x 螢幕在 2 的上限下等於算 4 倍像素，
+  //    而 AR 要與追蹤搶同一顆 GPU——掉幀對追蹤的傷害遠大於畫面銳利度的差異。
+  //    （參考 gitlab.com/suzuharalim/24vr 的 ar-experience.html 也是壓到 1.25。）
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25))
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = PCFShadowMap       // PCFSoftShadowMap 在 three 0.185 已棄用
   renderer.toneMapping = NeutralToneMapping
