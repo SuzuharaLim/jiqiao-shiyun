@@ -30,14 +30,48 @@ const ULTRA_RE = /ultra|超廣|廣角|wide.?angle|0\.5/i
  * @param devices MediaDeviceInfo[]（或任何有 kind/label/deviceId 的物件）
  * @returns {string|null} deviceId，挑不出來回 null
  */
+/**
+ * ★★★ Android 的 label 常常是「camera2 2, facing back」這種**完全沒有語意**的字串
+ *    ——沒有 ultra／廣角／0.5x 可以比對，所以純關鍵字的排除法會**整個失效**。
+ *    2026-08-11 實測使用者的 Samsung：診斷面板顯示正在用 `camera 2, facing back`。
+ *
+ * Android 的慣例是**編號越小越接近主鏡頭**（0 通常是主鏡頭，較大的編號是
+ * 超廣角／望遠／深度）。所以在沒有語意可用時，改用「取編號最小的後鏡頭」。
+ * ⚠️ 這仍然是**啟發式**：沒有標準 API 能問「哪一顆是主鏡頭」。猜錯不會比
+ *    現況更糟（現況等於隨便拿第一顆），而且呼叫端有 fallback。
+ */
+function labelIndex(label) {
+  // 「camera2 2, facing back」「camera 0, facing back」→ 2 / 0
+  const m = /camera\d*\s+(\d+)/i.exec(label || '')
+  return m ? Number(m[1]) : Number.POSITIVE_INFINITY
+}
+
 export function pickMainCameraId(devices) {
   const cams = (devices || []).filter(d => d?.kind === 'videoinput' && d.label)
   // 只有一顆就沒得挑；沒有 label 代表還沒授權，這時猜不了
   if (cams.length < 2) return null
   const back = cams.filter(d => BACK_RE.test(d.label))
   const pool = back.length ? back : cams
-  const main = pool.find(d => !ULTRA_RE.test(d.label))
-  return main?.deviceId ?? null
+  // ① 先排掉 label 上看得出來是超廣角的
+  //    ⚠️ 全部都被排掉時要回 **null**，不可硬選一顆——那等於指定一顆已知不好的鏡頭。
+  //       回 null 讓呼叫端退回 facingMode，至少由瀏覽器決定（有東西總比沒有好）。
+  const candidates = pool.filter(d => !ULTRA_RE.test(d.label))
+  if (!candidates.length) return null
+  // ② 剩下的取「編號最小」那一顆（Android 慣例＝主鏡頭）
+  //    ⚠️ 用穩定排序：編號相同時維持列舉順序，不要引入不可預期的挑選。
+  const sorted = candidates
+    .map((d, i) => ({ d, i, n: labelIndex(d.label) }))
+    .sort((a, b) => (a.n - b.n) || (a.i - b.i))
+  return sorted[0]?.d.deviceId ?? null
+}
+
+/** 給診斷面板列出可選的後鏡頭（讓使用者自己換一顆試）。 */
+export function listBackCameras(devices) {
+  return (devices || [])
+    .filter(d => d?.kind === 'videoinput' && d.label)
+    .filter(d => BACK_RE.test(d.label) || !/front|user|前/i.test(d.label))
+    .map(d => ({ deviceId: d.deviceId, label: d.label, index: labelIndex(d.label) }))
+    .sort((a, b) => a.index - b.index)
 }
 
 /**

@@ -82,6 +82,24 @@ ok(/environmentDeviceId/.test(three) && /environmentDeviceId: deviceId/.test(sce
   '★ 要保留 environmentDeviceId 這條路（避開超廣角：k1 −0.07 之後辨識率是 0）')
 ok(/pickMainCameraId/.test(scan), '★ Scan 要猜主鏡頭的 deviceId 往下傳')
 
+// ── ★★★ 手動換鏡頭：Android 的 label 沒有語意，自動判斷必然是啟發式 ──
+//
+// 2026-08-11 使用者的 Samsung 實測：診斷顯示正在用 `camera 2, facing back`，
+// 而 Android 慣例是編號越小越接近主鏡頭（0＝主鏡頭，較大的是超廣角／望遠）。
+// 超廣角的桶狀畸變實測會讓辨識率歸零，症狀是「對得很準卻一直認不出來」
+// ——與「沒對準」完全分不出來。所以一定要能當場換一顆試。
+{
+  const cam = strip(read('../src/lib/arCamera.js'))
+  ok(/camera\\d\*\\s\+\(\\d\+\)/.test(cam) || /labelIndex/.test(cam),
+    '★★★ 要能從「camera2 2, facing back」這種 label 取出編號')
+  ok(/if \(!candidates\.length\) return null/.test(cam),
+    '★★ 全部都是超廣角時要回 null（交給 facingMode），不可硬選一顆已知不好的')
+  ok(/export function listBackCameras/.test(cam), '★ 要能列出後鏡頭給使用者自己選')
+}
+ok(/const \[camId, setCamId\] = useState\(null\)/.test(scan) && /\[armed, camId\]/.test(scan),
+  '★★★ 診斷要能手動指定鏡頭，且換鏡頭要重建場景（Controller 綁在那一路串流上）')
+ok(/超廣角/.test(scan), '★ 要向使用者說明為什麼要換鏡頭（否則他不會去按）')
+
 // ── ★★ 2. 座標校正：只能量，不能推 ──
 //
 // postMatrix 是「區域y → 像素y = W·y + H/2」而像素 y 在圖上朝下，

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { pickMainCameraId } from '../lib/arCamera.js'
+import { pickMainCameraId, listBackCameras } from '../lib/arCamera.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import SpeakButton from '../components/SpeakButton.jsx'
 
@@ -161,6 +161,13 @@ export default function Scan() {
 
   // ★ 由使用者按下按鈕才啟動（見上方 status 的說明）。
   const [armed, setArmed] = useState(false)
+  // ★★★ 手動指定鏡頭（null＝自動猜）。
+  // ⚠️ Android 的 label 是「camera2 2, facing back」這種沒有語意的字串，
+  //    自動判斷**必然**是啟發式的。與其讓使用者卡在「就是掃不到」，
+  //    不如讓他當場換一顆試——這是唯一能當場證實「是不是鏡頭選錯」的方法。
+  const [camId, setCamId] = useState(null)
+  const [cams, setCams] = useState([])
+
   useEffect(() => {
     if (!armed) return
     const host = stageRef.current
@@ -180,7 +187,14 @@ export default function Scan() {
       }
       if (cancelled) return
 
-      const deviceId = await guessMainCameraId()
+      // 手動指定優先；沒指定才自動猜。
+      const deviceId = camId ?? await guessMainCameraId()
+      if (cancelled) return
+      // 列出可選鏡頭給診斷面板（此時多半已有權限，label 讀得到）
+      try {
+        const devs = await navigator.mediaDevices.enumerateDevices()
+        if (!cancelled) setCams(listBackCameras(devs))
+      } catch { /* 列不出來不影響掃描 */ }
       if (cancelled) return
 
       try {
@@ -221,7 +235,9 @@ export default function Scan() {
       try { (sceneRef.current ?? scene)?.dispose() } catch { /* ignore */ }
       sceneRef.current = null
     }
-  }, [armed])
+    // ⚠️ camId 進 deps：換鏡頭時整個場景要重建（MindARThree 的 video 與 Controller
+    //    都綁在那一路串流上，只換 srcObject 不會改變 Controller 的 inputWidth/Height）。
+  }, [armed, camId])
 
   // 診斷資料：只在打開面板時取樣，而且只放**量得準**的觀測值。
   // ⚠️ 這一版刻意不再顯示「比對分數」與「找到四邊形」——MindAR 是 inlier 式判定，
@@ -502,6 +518,35 @@ export default function Scan() {
                   <div><dt>WebGL2</dt><dd>{diag.webgl2}　像素比 {diag.dpr}</dd></div>
                 </dl>
               )}
+              {/* ── ★★★ 換一顆鏡頭試試 ──
+                  ⚠️ Android 的 label 是「camera2 2, facing back」這種沒有語意的字串，
+                     自動判斷必然是啟發式的（慣例是編號越小越接近主鏡頭）。
+                     超廣角的桶狀畸變實測會讓辨識率直接歸零，而症狀正是
+                     「對得很準卻一直認不出來」——與「沒對準」完全分不出來。
+                     所以一定要讓使用者能當場換一顆試，那是唯一的直接證據。 */}
+              {cams.length > 1 && (
+                <div className="scan-diag-self">
+                  <p className="muted" style={{ margin: 0 }}>
+                    這台裝置有 {cams.length} 顆後鏡頭。
+                    <b>掃不到時請換一顆試</b>——超廣角鏡頭的變形會讓辨識完全失效。
+                  </p>
+                  <div className="scan-card-spots">
+                    {cams.map((c, i) => (
+                      <button
+                        key={c.deviceId || i}
+                        className={`chip${camId === c.deviceId ? ' on' : ''}`}
+                        onClick={() => setCamId(c.deviceId)}
+                      >
+                        {c.label || `鏡頭 ${i + 1}`}
+                      </button>
+                    ))}
+                    <button className={`chip${camId === null ? ' on' : ''}`} onClick={() => setCamId(null)}>
+                      自動
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* ── ★★★ 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開 ── */}
               <div className="scan-diag-self">
                 {/* ⚠️ 一鍵複製：要人「截圖傳給我們」的門檻其實很高（要截、要找、要傳），
