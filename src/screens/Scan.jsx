@@ -195,14 +195,27 @@ export default function Scan() {
   //    比不顯示更讓人以為壞了。
   useEffect(() => {
     if (!showDiag) return
+    // ★★ 處理幀率：**這是判斷「裝置跑不跑得動」最直接的數字**。
+    //
+    // ⚠️ 追蹤靠的是「每秒能處理幾幀」，不是解析度有多高。解析度拉高會讓每幀更重，
+    //    在中階手機上可能掉到每秒一兩幀——那時就算對得再準也幾乎不可能命中，
+    //    而畫面上完全看不出來。把它列出來，才分得出「拍得不好」與「算不動」。
+    let prevTicks = sceneRef.current?.ticks?.() ?? 0
+    let prevAt = performance.now()
     const tick = () => {
       const s = sceneRef.current
       if (!s) { setDiag(null); return }
       const v = s.mindar.video
       const trackEl = v?.srcObject?.getVideoTracks?.()[0]
+      const now = performance.now()
+      const n = s.ticks?.() ?? 0
+      const fps = now > prevAt ? ((n - prevTicks) * 1000) / (now - prevAt) : 0
+      prevTicks = n; prevAt = now
       setDiag({
         camera: trackEl?.label || '（未授權時看不到名稱）',
         res: v ? `${v.videoWidth}×${v.videoHeight}` : '—',
+        fps: n === 0 ? '0（完全沒在處理）' : fps.toFixed(1) + ' 幀/秒'
+          + (fps > 0 && fps < 3 ? '　★ 太低，這台裝置算不動' : ''),
         target: s.mindar.imageTargetDimensions?.[0]?.join(' × ') ?? '—',
         hw: s.hw?.toFixed(3) ?? '—',
         visible: s.anchor?.visible ? '是' : '否',
@@ -210,7 +223,7 @@ export default function Scan() {
       })
     }
     tick()
-    const t = setInterval(tick, 700)
+    const t = setInterval(tick, 1000)
     return () => clearInterval(t)
   }, [showDiag, hotspot])
 
@@ -376,6 +389,7 @@ export default function Scan() {
                 <dl className="scan-diag-kv">
                   <div><dt>鏡頭</dt><dd>{diag.camera}</dd></div>
                   <div><dt>解析度</dt><dd>{diag.res}</dd></div>
+                  <div><dt>處理幀率</dt><dd>{diag.fps}</dd></div>
                   <div><dt>目標圖尺寸</dt><dd>{diag.target}</dd></div>
                   <div><dt>卡片高寬比</dt><dd>{diag.hw}</dd></div>
                   <div><dt>目前追到</dt><dd>{diag.visible}</dd></div>
