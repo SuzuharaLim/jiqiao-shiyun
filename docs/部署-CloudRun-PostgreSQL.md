@@ -194,16 +194,50 @@ curl -s "$URL/api/content/proverbs" | head -c 200
 - 首頁曆頁顯示**今天的日期**（非固定 6/6）。
 - 用 `newuser@example.com` / `secret12345` 登入 → 貼文、按讚、留言、下單都會寫進 Cloud SQL。
 
+### 5.1 ★ AR（`/AR`）專用驗證——**不做這一步會漏掉一整類靜默故障**
+
+```bash
+npm run check:live            # 預設打 https://chengqi.tw；可加參數指定其他網址
+```
+
+五項全 ✓ 才算過。最關鍵的是第一項 **CSP 是否允許 `blob:` 的 Web Worker**。
+
+> **為什麼要單獨列這一項（2026-08-10 的實際事故）**
+>
+> MindAR 的影像比對跑在 **Web Worker** 裡，而那個 worker 是用 `blob:` URL 建立的。
+> CSP 少了 `worker-src 'self' blob:`（或 `child-src`）時，worker 被瀏覽器擋掉 →
+> 比對的 Promise 永遠不 resolve → **永遠不會認出卡片**。
+>
+> ⚠️ 失效方式**完全靜默**：相機開得起來、掃描線在動、`.mind` 目標檔也載入了、
+> 頁面沒有任何錯誤訊息。症狀與「沒對準／光線不夠」一模一樣，使用者只會一直換角度重試。
+>
+> ⚠️ 而且**只有正式站會壞**：Vite dev server 不送 CSP，所以本機 `npm run dev`
+> 一切正常。**驗 AR 一律要 `npm run build && npm run start`，或部署後跑 `check:live`。**
+>
+> ⚠️ **CSP 是伺服器送的回應標頭——只改 `server/index.js` 而不重新部署，線上不會變。**
+
+### 5.2 ⚠️ 「push 到 GitHub」不等於「已部署」
+
+實測過：檔案 commit＋push 一小時後，正式站仍是舊版建置。
+判斷有沒有真的換版，比對 bundle 檔名最準（`/api/health` 只證明服務活著，不含版本資訊）：
+
+```bash
+curl -s "$URL/AR" | grep -o '/assets/index-[A-Za-z0-9_-]*\.js'   # 與本機 dist/index.html 裡的比對
+```
+
 ---
 
 ## 6. 之後要更新（改了程式碼）
 
-重新壓 zip 上傳（或用 Cloud Shell Editor 直接改），然後：
+**現在有 GitHub repo 了，直接 `git pull` 比重壓 zip 快得多**（早期文件寫的 zip 流程仍可用，但已非首選）：
 
 ```bash
-cd ~/jiqiao   # 專案根
+cd ~/chengqi-main && git pull
 gcloud run deploy "$SERVICE" --source . --region="$REGION"   # 沿用先前的環境變數/密碼
 ```
+
+部署完**務必回頭跑一次 5.1 的 `npm run check:live`**——特別是這次改動有碰到
+`server/index.js` 的 helmet／CSP、快取或任何回應標頭時。
 
 若只改內容種子：重跑「第 3 節」即可。
 
