@@ -867,12 +867,10 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(/FEATURE_MIN_INLIERS = 10\b/.test(code), '★ 特徵點的 inlier 下限維持 10（誤認防線）')
   ok(/FEATURE_EVERY = 3\b/.test(code), '★ 特徵點路線要節流（每幀跑會超出手機的 66ms 預算）')
 
-  // Scan.jsx 重建追蹤器時要把特徵參考餵回去，否則切鏡頭後備援會靜默失效
-  const fsS = await import('node:fs')
-  const scanSrc2 = fsS.readFileSync(new URL('../src/screens/Scan.jsx', import.meta.url), 'utf8')
-  ok(/featureRefs: featureRefsRef\.current/.test(scanSrc2),
-    '★★ 重建追蹤器時要餵回特徵參考（漏了會在切鏡頭後靜默失效）')
-  ok(/setFeatureRefs\(fr\)/.test(scanSrc2), '載入完特徵參考要餵進現有的追蹤器')
+  // ⚠️ 這裡原本還有兩項檢查 Scan.jsx 有沒有把特徵參考餵回追蹤器。
+  //    **已於 2026-08-10 移除**：/AR 改走 MindAR 官方整合（MindARThree）之後
+  //    那一頁不再引用 arTracker，檢查一個不存在的接線只會製造假訊號。
+  //    這一支現在只驗**純數學與模組自身**（見檔頭）；線上那條路的閘門是 check-mind。
 
   // 功能測試：不給 sampleHiRes 時不可爆，且行為與以前一致
   const tr = createTracker({ refs: [], rectifySize: 64, minScore: 58 })
@@ -967,7 +965,7 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(/status !== 'loading' \|\| slowCamera/.test(scanSrc),
     '★ loading 狀態要等一下才顯示出路（一開就跳「沒有相機？」會讓正在按允許的人以為失敗了）')
   const outBlock = scanSrc.slice(scanSrc.indexOf('scan-fallback-out'), scanSrc.indexOf('scan-fallback-out') + 900)
-  ok(/params=\{\{ slug: OFFICIAL_CARDS\[0\]\.slug \}\}/.test(outBlock),
+  ok(/params=\{\{ slug: (OFFICIAL_CARDS\[0\]|CARD)\.slug \}\}/.test(outBlock),
     '★★ 出路的連結要帶 slug（這正是驗收 B1「桌機 100% 撞 404」的那一條）')
 }
 
@@ -982,16 +980,14 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   // ⚠️ 「沒有登錄目標」時追蹤器永遠不會命中，而四邊形照樣偵測得到。
   //    症狀與「沒對準／光線不夠／角度太斜」**一模一樣**，使用者會一直換角度重試。
   //    所以這個狀態一定要有專屬的畫面提示，不可只靠一般的掃描引導。
-  ok(/scan-nofile/.test(scan), '★ 掃描頁要有「目標圖尚未安裝」的專屬提示（否則失敗是靜默的）')
-  ok(/!official\.length/.test(scan), '★ 該提示的條件是「官方卡一張都沒載入」')
+  ok(/scan-nofile/.test(scan), '★ 掃描頁要有「目標檔尚未安裝」的專屬提示（否則失敗是靜默的）')
+  ok(/'nofile'/.test(scan), '★ 該提示要有專屬狀態（缺檔與「沒對準」症狀一樣，必須分得出來）')
 
-  // ⚠️ 「一直找不到四個角」必須主動提示，而且**不可只說「請對準」**。
-  //    實測（24 幀 × 5 種桌面亮度）無收邊原稿在比中灰更淺的背景上是 0/24——
-  //    紙緣是白的（灰階 254），淺色桌面上邊界根本不存在，喬角度永遠不會成功。
-  //    只說「掃描中」或「請對準」等於把責任推給使用者，而且是錯的建議。
-  ok(/noQuadHint/.test(scan), '★ 掃描頁要有「一直找不到四個角」的主動提示')
-  ok(/深色桌面/.test(scan), '★ 該提示要給出「換深色桌面」這個真正有效的動作')
-  ok(/收邊/.test(scan), '★ 該提示要提到「改用加了收邊的那一版」')
+  // ⚠️ 這裡原本還有三項，要求掃描頁提示「一直找不到四個角／換深色桌面／改用收邊版」。
+  //    **已於 2026-08-10 移除**：那三條是**自研四角偵測**的限制
+  //    （紙緣是白的，淺色桌面上沒有邊界可找 → 無收邊原稿 0/24）。
+  //    MindAR 走特徵點比對，不需要偵測卡片邊界——實測收邊版與未收邊原稿
+  //    **都是 12/12**。留著那三條等於叫使用者去解一個已經不存在的問題。
 
   // ⚠️ aria-live 曾寫著「按下方『登錄這張卡片』」，而那顆按鈕已經移除。
   //    **叫使用者去按一個不存在的東西，比不給提示更糟。**
@@ -1014,9 +1010,8 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
   ok(!/localStorage\.removeItem\(\s*['"]jq-ar-cards-v3/.test(scan),
     '不可主動刪除舊的 jq-ar-cards-v3（使用者資料）')
 
-  // ⚠️ 門檻不可為了「掃不到」而調低：那會讓正式站亂認，而且是最難發現的壞法
-  //    （使用者只覺得「有時候跳出錯的內容」）。正解是多存視角簽名（33% → 80%，誤判 0）。
-  ok(/const MIN_SCORE = 58\b/.test(scan), '★ MIN_SCORE 必須維持 58（調低會讓正式站亂認）')
+  // ⚠️ MIN_SCORE 的檢查已移除：那是**自研 dHash 比對**的門檻，MindAR 是 inlier 式
+  //    判定，沒有這個參數。arTracker.js 裡的預設值仍由本檔上方的模組測試守著。
 
   // ── ★★ 主物件（白菜）一定要看得到 ──
   //
@@ -1036,8 +1031,8 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
       && 0.5 >= napa.rect.y && 0.5 <= napa.rect.y + napa.rect.h
     ok(!coversCenter,
       '（前提）主物件不在卡片中心——這是「預設選中」與「可點選」兩條退路存在的理由')
-    ok(/const primary = card\.hotspots\.find\(h => h\.primary\)/.test(scan),
-      '★★ 追到卡片但還沒瞄到熱區時要預設選中主物件（否則白菜的 3D 永遠不出現）')
+    // ⚠️ 「預設選中主物件」的檢查已移到 check-mind：那段邏輯改版後住在
+    //    src/lib/mindScene.js（角色直接錨在 primary 熱區），不再在 Scan.jsx 裡。
     ok(/onPointerDown=\{tracking \? onStageTap : undefined\}/.test(scan),
       '★★ 取景框要可點選熱區（用中心瞄不到卡片邊緣的物件）')
     // ⚠️ 這一項原本是 grep 字串，**給了假的信心**：我第一版把參數順序寫錯
@@ -1073,31 +1068,20 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
         `★★ 點卡面上的「${napa.label}」要選到它（這是「掃到卡片就看到白菜」的操作路徑）`)
     }
     // ⚠️ 上面那個功能測試是直接呼叫函式，**抓不到呼叫端把參數順序寫錯**
-    //    （實測：把 Scan.jsx 改回錯的順序，功能測試照樣全過）。
-    //    所以 grep 要斷言**正確的形狀**而不只是「名字有出現」——
-    //    這是「grep 型閘門給假信心」的具體修法。
-    ok(/screenToCard\(track\.H,\s*\{\s*x:/.test(scan),
-      '★★ screenToCard 的第二個參數必須是 {x,y} 物件（寫成 (H,x,y,layout) 會永遠回 null）')
-    ok(/hitTest\(card\.hotspots,\s*uv\[0\],\s*uv\[1\]\)/.test(scan),
-      '★★ hitTest 的熱區陣列必須在第一個參數（寫成 (uv, hotspots) 會永遠回 null）')
+    //    （實測：把呼叫端改回錯的順序，功能測試照樣全過）。
+    //    先前這裡另有兩項 grep Scan.jsx 的呼叫形狀——**已移除**：
+    //    /AR 改走 MindAR 之後，畫面座標 → 卡面 UV 是用 three 的 Raycaster
+    //    打在 anchor 底下的代理平面上（src/lib/mindScene.js 的 pick），
+    //    不再經過 screenToCard。那條路的閘門在 check-mind。
+    //    這裡保留的功能測試仍有價值：hitTest 還活著（mindScene 在用）。
     ok(/點卡面上的物件可以換內容/.test(scan),
       '★ 畫面要講出「可以點」——不講使用者不會知道有這個操作')
   }
 
-  // ── ★ 模擬模式必須「不用相機」就能跑 ──
-  // 那是它存在的理由（拿不到卡片、或在拒絕相機權限的環境下驗追蹤鏈）。
-  // ⚠️ 原本寫 `if (simRef.current) return`，有兩個問題疊在一起：
-  //    ① 沒有 setStatus → status 永遠停在 'loading'，而追蹤迴圈是
-  //       `if (status !== 'ready') return` → 永遠不啟動
-  //    ② simRef.current 有競態：載目標圖的 effect 是 async，相機 effect 跑的時候
-  //       它還是 null，所以其實照樣去開了相機——在有相機的開發機上看不出問題
-  ok(/if \(SIM_FLAG\) \{ setStatus\('ready'\); return \}/.test(scan),
-    '★ 模擬模式要用 SIM_FLAG（模組層、無競態）判斷並直接進 ready，不開相機')
-  // ⚠️ 用剝掉註解的 `code`，不可用 `scan`：說明「原本怎麼寫、為什麼不行」的註解
-  //    本身就含有舊寫法，對原始碼直接 grep 會抓到自己的說明。
-  //    （這是這支檔案裡第二次踩到同一個坑，見上面三個按鈕那組。）
-  ok(!/if \(simRef\.current\) return/.test(code),
-    '★ 不可用 simRef.current 判斷是否開相機（async 載圖有競態）')
+  // ⚠️ 「模擬模式（?simulate=1）」的兩項檢查已移除：那套是用來在**沒有相機**的
+  //    環境下驗**自研**追蹤鏈的（把目標圖畫到已知透視四邊形上再餵給偵測器）。
+  //    /AR 改走 MindAR 之後那條路不存在了。等價的離線驗證改成
+  //    「用 canvas.captureStream 造假相機餵給 MindARThree」，見 check-mind 的檔尾。
 
   // 安裝工具：路徑必須從 arCards.js 讀，不可寫死——寫死就會與 target 分岔，
   // 而分岔的症狀是「圖裝了卻還是掃不到」。
