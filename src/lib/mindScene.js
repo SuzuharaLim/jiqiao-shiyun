@@ -300,51 +300,99 @@ export async function createMindScene({
      * 這個測試把 ① 單獨切出來：把一張「保證正確」的畫面接到同一條管線上，
      * 成功＝管線沒問題，問題在 ② 或 ③；失敗＝問題在這台裝置本身。
      *
-     * ⚠️ 做法是暫時把 video 的 srcObject 換成 canvas 串流再換回來——
-     *    Controller 是**持續**從 video 元素讀取的，換 srcObject 就等於換輸入源，
-     *    不需要重建整個場景（重建會重新要相機權限，在 iOS 上很容易失敗）。
+     * 做法：暫停即時迴圈 → 把畫面直接餵給 Controller 比對 → 恢復即時迴圈。
+     * 完全不經過 <video>，所以沒有自動播放、串流支援度這些變數。
      */
-    async selfTest({ seconds = 8 } = {}) {
-      const v = mindar.video
-      if (!v || !card?.target) return { ok: false, reason: 'no-video' }
-      const orig = v.srcObject
-      let timer = 0
+    async selfTest({ frames = 10 } = {}) {
+      const c = mindar.controller
+      if (!c || !card?.target) return { ok: false, stage: 'setup', reason: '場景尚未就緒' }
+
+      // ⚠️★ **絕不要走 `canvas.captureStream()` ＋ 換 video srcObject** 那條路。
+      //    我第一版是那樣寫的，在桌機通過、**在手機上回報失敗**——但那是**我的測試
+      //    自己壞掉**，不是裝置壞掉：iOS Safari 對 canvas.captureStream 的支援一向
+      //    不穩，而且 `video.play()` 在非使用者手勢的情境會被擋 → 影格永遠不更新
+      //    → 逾時。一個會給假失敗的診斷比沒有診斷更糟：它會把人推去換手機。
+      //    正解是**完全不經過 video**，直接把畫面餵給 Controller——那才是真正在測
+      //    WebGL／Web Worker／TFJS 這條鏈，而且沒有自動播放與串流的變數。
+      let img
       try {
-        const img = await new Promise((res, rej) => {
+        img = await new Promise((res, rej) => {
           const i = new Image()
-          i.onload = () => res(i); i.onerror = () => rej(new Error('poster'))
+          i.onload = () => res(i)
+          i.onerror = () => rej(new Error('卡面圖載入失敗'))
           i.src = card.target
         })
-        const cvs = document.createElement('canvas')
-        cvs.width = v.videoWidth || 1280
-        cvs.height = v.videoHeight || 960
-        const ctx = cvs.getContext('2d')
-        let n = 0
-        const draw = () => {
-          ctx.fillStyle = '#8a8a8a'; ctx.fillRect(0, 0, cvs.width, cvs.height)
-          const w = cvs.width * 0.55, h = w * (img.height / img.width)
-          // ⚠️ 要有微幅位移：MindAR 的偵測走 detectMoving，完全靜止不是它預期的輸入
-          ctx.drawImage(img, (cvs.width - w) / 2 + Math.sin(n / 12) * 4,
-            (cvs.height - h) / 2 + Math.cos(n / 15) * 4, w, h)
-          n++
-        }
-        draw()
-        timer = setInterval(draw, 33)
-        v.srcObject = cvs.captureStream(30)
-        await v.play().catch(() => {})
-
-        const t0 = performance.now()
-        while (performance.now() - t0 < seconds * 1000) {
-          if (anchor.visible) return { ok: true, ms: Math.round(performance.now() - t0) }
-          await new Promise(r => setTimeout(r, 120))
-        }
-        return { ok: false, ms: seconds * 1000, reason: 'timeout' }
       } catch (e) {
-        return { ok: false, reason: e?.message || 'error' }
+        return { ok: false, stage: 'image', reason: e.message }
+      }
+
+      const W = c.inputWidth || 1280, H = c.inputHeight || 960
+      const cvs = document.createElement('canvas')
+      cvs.width = W; cvs.height = H
+      const ctx = cvs.getContext('2d')
+      if (!ctx) return { ok: false, stage: 'canvas', reason: '取不到 2D context' }
+
+      // ★★★ 測試期間**必須先停掉即時處理迴圈**。
+      //
+      // ⚠️ Controller 的 `workerMatchDone` 是**單一欄位**（不是佇列）：
+      //      _workerMatch() { this.workerMatchDone = resolve; worker.postMessage(...) }
+      //    即時迴圈與自我測試同時送 `match` 時，後者會覆蓋前者的 resolver，
+      //    **前一個 Promise 永遠不 resolve** → 自我測試卡在「測試中…」不回來。
+      //    （這是我這支自我測試的第二個 bug；第一個是 captureStream。
+      //     兩個都會讓診斷本身變成假象——所以每改一次都要真的跑一遍。）
+      const wasProcessing = c.processingVideo
+      try { c.stopProcessVideo() } catch { /* ignore */ }
+      // 讓正在飛的那一輪先結束，避免它的回呼與我們搶同一個欄位
+      await new Promise(r => setTimeout(r, 120))
+
+      const t0 = performance.now()
+      try {
+        for (let i = 0; i < frames; i++) {
+          ctx.fillStyle = '#8a8a8a'; ctx.fillRect(0, 0, W, H)
+          const w = W * 0.55, h = w * (img.height / img.width)
+          // ⚠️ 每幀給一點位移：偵測走 detectMoving，完全靜止不是它預期的輸入
+          ctx.drawImage(img, (W - w) / 2 + Math.sin(i * 0.9) * 6, (H - h) / 2 + Math.cos(i * 0.7) * 6, w, h)
+          let inputT = null
+          try {
+            inputT = c.inputLoader.loadInput(cvs)
+            const r = await c._detectAndMatch(inputT, [0])
+            if (r && r.targetIndex !== -1 && r.modelViewTransform) {
+              return { ok: true, ms: Math.round(performance.now() - t0), frames: i + 1 }
+            }
+          } catch (e) {
+            // ⚠️ 這裡拋例外＝**這台裝置跑不起這條鏈**（WebGL context、TFJS kernel、
+            //    Worker 被擋…）。與「跑得起來但沒認出」是完全不同的結論，要分開回報。
+            return { ok: false, stage: 'pipeline', reason: e?.message || String(e), frames: i + 1 }
+          } finally {
+            try { inputT?.dispose?.() } catch { /* ignore */ }
+          }
+        }
+        return { ok: false, stage: 'match', reason: `跑完 ${frames} 幀都沒認出`, ms: Math.round(performance.now() - t0) }
       } finally {
-        if (timer) clearInterval(timer)
-        // ⚠️ 一定要把相機接回去，否則測完之後畫面就凍在那張圖上
-        try { v.srcObject = orig; await v.play().catch(() => {}) } catch { /* ignore */ }
+        // ⚠️ 一定要把即時追蹤接回去，否則測完之後這一頁就再也不會追蹤了。
+        //    每一條 return 路徑都要經過這裡，所以用 finally 而不是逐處呼叫。
+        if (wasProcessing && mindar.video) {
+          try { c.processVideo(mindar.video) } catch { /* ignore */ }
+        }
+      }
+    },
+    /** 診斷用的裝置資訊：一張截圖就能看出關鍵環境。 */
+    deviceInfo() {
+      const gl = renderer.getContext()
+      let vendor = '—', model = '—'
+      try {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+        if (dbg) {
+          vendor = gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) || '—'
+          model = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '—'
+        }
+      } catch { /* 部分瀏覽器擋這個擴充 */ }
+      return {
+        gpu: `${vendor} / ${model}`,
+        webgl2: typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext ? '是' : '否',
+        maxTex: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+        dpr: (devicePixelRatio || 1).toFixed(2),
+        ua: navigator.userAgent,
       }
     },
     /** 給測試用：直接問「卡面 UV 落在哪個熱區」。 */

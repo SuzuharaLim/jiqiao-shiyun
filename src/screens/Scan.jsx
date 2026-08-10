@@ -254,6 +254,18 @@ export default function Scan() {
         hw: s.hw?.toFixed(3) ?? '—',
         visible: s.anchor?.visible ? '是' : '否',
         hotspot: hotspot?.label ?? '—',
+        // ★ 裝置資訊：一張截圖就能看出關鍵環境（GPU／WebGL2／內建瀏覽器）。
+        //   先前的診斷只有相機與目標檔，回報「掃不到」時完全看不出裝置端狀況。
+        ...(() => {
+          let dev = null
+          try { dev = s.deviceInfo?.() ?? null } catch { /* 取不到不影響其他欄位 */ }
+          return {
+            gpu: dev?.gpu ?? '—',
+            webgl2: dev?.webgl2 ?? '—',
+            dpr: dev?.dpr ?? '—',
+            browser: inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器',
+          }
+        })(),
       })
     }
     tick()
@@ -484,6 +496,10 @@ export default function Scan() {
                   <div><dt>卡片高寬比</dt><dd>{diag.hw}</dd></div>
                   <div><dt>目前追到</dt><dd>{diag.visible}</dd></div>
                   <div><dt>命中熱區</dt><dd>{diag.hotspot}</dd></div>
+                  {/* ★ 裝置端環境：回報「掃不到」時，這三行往往比相機資訊更能定位問題 */}
+                  <div><dt>瀏覽器</dt><dd>{diag.browser}</dd></div>
+                  <div><dt>繪圖晶片</dt><dd>{diag.gpu}</dd></div>
+                  <div><dt>WebGL2</dt><dd>{diag.webgl2}　像素比 {diag.dpr}</dd></div>
                 </dl>
               )}
               {/* ── ★★★ 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開 ── */}
@@ -503,9 +519,14 @@ export default function Scan() {
                       `處理幀率：${diag?.fps ?? '—'}`,
                       `目標圖：${diag?.target ?? '—'}　高寬比 ${diag?.hw ?? '—'}`,
                       `目前追到：${diag?.visible ?? '—'}　命中熱區：${diag?.hotspot ?? '—'}`,
+                      `瀏覽器：${diag?.browser ?? '—'}`,
+                      `繪圖晶片：${diag?.gpu ?? '—'}　WebGL2 ${diag?.webgl2 ?? '—'}　像素比 ${diag?.dpr ?? '—'}`,
                       `自我測試：${selfTest === 'idle' ? '尚未執行'
                         : selfTest === 'running' ? '執行中'
-                          : selfTest.ok ? `成功（${selfTest.ms} ms）` : `失敗（${selfTest.reason}）`}`,
+                          // ⚠️ 一定要帶 stage：「跑不起來」與「跑得起來但沒認出」
+                          //    是完全不同的結論，只寫「失敗」等於把最有用的資訊丟掉。
+                          : selfTest.ok ? `成功（第 ${selfTest.frames} 幀 / ${selfTest.ms} ms）`
+                            : `失敗［${selfTest.stage}］${selfTest.reason}`}`,
                       `心跳累計：${s?.ticks?.() ?? '—'}`,
                       `裝置：${navigator.userAgent}`,
                     ]
@@ -537,19 +558,32 @@ export default function Scan() {
                 {selfTest !== 'idle' && selfTest !== 'running' && (
                   selfTest.ok ? (
                     <p className="scan-diag-verdict ok">
-                      <b>辨識流程在這台裝置上正常</b>（{selfTest.ms} ms 內認出）。
+                      <b>辨識流程在這台裝置上正常</b>
+                      （第 {selfTest.frames} 幀、{selfTest.ms} ms 內認出）。
                       <br />所以掃不到的原因在<b>相機拍到的畫面</b>，可以依序試：
                       <br />① 讓卡片<b>佔滿畫面一半以上</b>——太遠是最常見的原因
                       <br />② 光線要夠，且避免<b>反光</b>（卡片正對燈或窗會整片泛白）
                       <br />③ 等對焦完成再停住，手別抖
                       <br />④ 確認手上這張卡與網站上的卡面是<b>同一版</b>
                     </p>
+                  ) : selfTest.stage === 'pipeline' ? (
+                    <p className="scan-diag-verdict error">
+                      <b>這台裝置跑不起辨識運算</b>（第 {selfTest.frames} 幀就中斷）。
+                      <br /><code>{selfTest.reason}</code>
+                      <br />問題<b>不在</b>你怎麼拿卡片。常見原因：用了 App 的內建瀏覽器、
+                      瀏覽器停用了 WebGL、或裝置記憶體不足。
+                      <br />請先改用 <b>Safari 或 Chrome 直接開網站</b>再試一次。
+                    </p>
+                  ) : selfTest.stage === 'match' ? (
+                    <p className="scan-diag-verdict warn">
+                      <b>運算跑得起來，但連內建的卡面圖都沒認出</b>（{selfTest.ms} ms）。
+                      <br />這通常代表<b>目標檔與卡面圖不是同一版</b>，或這台裝置的
+                      算力不足以在幾幀內完成比對。請把整頁診斷截圖給我們，這一項最有價值。
+                    </p>
                   ) : (
                     <p className="scan-diag-verdict error">
-                      <b>辨識流程在這台裝置上就沒有成功</b>
-                      （{selfTest.reason === 'timeout' ? '8 秒內沒有認出內建圖' : selfTest.reason}）。
-                      <br />這代表問題**不在**你怎麼拿卡片，而在這台裝置或瀏覽器
-                      （WebGL／Web Worker／效能）。請把這一頁的診斷數值截圖給我們。
+                      <b>測試沒能開始</b>（{selfTest.stage}）：{selfTest.reason}
+                      <br />這多半是網路或資源載入的問題，請重新整理再試一次。
                     </p>
                   )
                 )}

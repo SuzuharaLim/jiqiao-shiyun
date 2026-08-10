@@ -266,11 +266,33 @@ ok(/這不是沒對準/.test(scan),
 // 實測（本機正式 build，故意讓相機拍不到卡片）：即時追蹤失敗、自我測試 6716ms 成功，
 // 判讀正確指向「問題在相機畫面」，且測完相機有接回去。
 ok(/async selfTest\(/.test(scene), '★★★ 場景層要提供 selfTest')
-// ⚠️ 換 srcObject 之後**一定要在 finally 接回相機**，否則測完畫面就凍在那張圖上
-ok(/finally \{[\s\S]{0,400}?v\.srcObject = orig/.test(scene),
-  '★★ selfTest 必須在 finally 把相機接回去（否則畫面凍住）')
+// ★★★ 自我測試**不可**走 canvas.captureStream ＋ 換 video srcObject 那條路。
+// ⚠️ 我第一版就是那樣寫的：桌機通過、**手機回報失敗**——但那是**測試自己壞掉**，
+//    不是裝置壞掉。iOS Safari 對 canvas.captureStream 支援不穩，且 video.play()
+//    在非使用者手勢情境會被擋 → 影格永遠不更新 → 逾時。
+//    **一個會給假失敗的診斷比沒有診斷更糟**：它會把人推去換手機。
+//    正解是直接把畫面餵給 Controller，完全不經過 video。
+ok(!/captureStream/.test(scene), '★★★ selfTest 不可用 captureStream（iOS 上會給假失敗）')
+ok(!/srcObject = /.test(scene), '★★★ selfTest 不可換 video 的 srcObject')
+ok(/c\.inputLoader\.loadInput\(cvs\)/.test(scene) && /_detectAndMatch/.test(scene),
+  '★★ selfTest 要直接餵 Controller（那才是真的在測 WebGL／Worker／TFJS）')
 // ⚠️ 要有微幅位移：MindAR 的偵測走 detectMoving，完全靜止不是它預期的輸入
-ok(/Math\.sin\(n \/ 12\)/.test(scene), '★ 自我測試的畫面要有微幅位移（detectMoving）')
+ok(/Math\.sin\(i \* 0\.9\)/.test(scene), '★ 自我測試的畫面要有微幅位移（detectMoving）')
+// ★★★ Controller 的 workerMatchDone 是**單一欄位**（不是佇列）：即時迴圈與自我測試
+//     同時送 match 時，後者覆蓋前者的 resolver → 前一個 Promise 永遠不 resolve
+//     → 自我測試卡在「測試中…」不回來（實測踩過）。所以測試期間要停掉即時迴圈。
+ok(/c\.stopProcessVideo\(\)/.test(scene),
+  '★★★ selfTest 期間要停掉即時迴圈（否則與它搶同一個 workerMatchDone 而卡死）')
+ok(/finally \{[\s\S]{0,300}?c\.processVideo\(mindar\.video\)/.test(scene),
+  '★★ 測完要在 finally 把即時迴圈接回去（每條 return 路徑都要經過）')
+// ⚠️ 「跑不起來」與「跑得起來但沒認出」是完全不同的結論，必須分開回報
+ok(/stage: 'pipeline'/.test(scene) && /stage: 'match'/.test(scene),
+  "★★ 失敗要分級（pipeline／match），只說「失敗」會把最有用的資訊丟掉")
+ok(/selfTest\.stage === 'pipeline'/.test(scan) && /selfTest\.stage === 'match'/.test(scan),
+  '★★ 畫面要分別解讀那兩種失敗')
+// 裝置端環境：回報「掃不到」時往往比相機資訊更能定位問題
+ok(/deviceInfo\(\)/.test(scene) && /繪圖晶片/.test(scan),
+  '★ 診斷要帶裝置資訊（GPU／WebGL2／是否內建瀏覽器）')
 ok(/自我測試/.test(scan), '★ 診斷面板要有自我測試的入口')
 
 // ── ★★★ 內建瀏覽器 & 使用者手勢：兩個「怎麼改程式都不會好」的入口問題 ──
