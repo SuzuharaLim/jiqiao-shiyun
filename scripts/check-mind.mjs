@@ -56,6 +56,28 @@ ok(/dummyRun/.test(three), '★ 要 dummyRun 暖機（少了它第一次偵測�
 ok(/this\.video\?\.srcObject/.test(three), '★ stop() 要防 srcObject 是 null（start 失敗時）')
 // ⚠️ 這條要查 mindarThree（接收端）與 mindScene（傳入端），不是 Scan.jsx
 //    ——Scan 只負責猜出 deviceId 並往下傳。
+// ── ★★★ 相機約束：解析度與鏡頭選擇（真實手機上「掃不到」的兩大主因）──
+//
+// ⚠️ MindAR 原版的 getUserMedia **完全沒有指定解析度**，只有 facingMode。
+//    行動瀏覽器在那種情況下預設回 **640×480**——卡片就算佔滿半個畫面也只有
+//    約 320px 寬，特徵點根本不夠，症狀是「對得很準卻一直認不出來」。
+//    （本專案在相機工作室已踩過同一個坑，記在 CLAUDE.md。）
+ok(/width: \{ ideal: 1280 \}/.test(three) && /height: \{ ideal: 960 \}/.test(three),
+  '★★★ 必須明確要求解析度（不給的話行動瀏覽器預設 640×480，AR 會掃不到）')
+// ⚠️ 一定要 ideal 不可 exact：exact 在裝置不支援時直接丟 OverconstrainedError
+//    ＝相機完全開不起來（黑畫面），比解析度低更糟。
+ok(!/width: \{ exact:/.test(three), '★★ 解析度不可用 exact（不支援時會讓相機開不起來）')
+ok(/focusMode: 'continuous'/.test(three), '★ 要求連續對焦（手持距離一直在變）')
+// deviceId exact 在鏡頭被佔用時會 reject → 沒有退路就是「相機打不開」
+ok(/facingMode: this\.shouldFaceUser \? 'user' : 'environment'/.test(three),
+  '★★ deviceId 失敗要退回 facingMode（三層 fallback）')
+// ⚠️ 授權前 enumerateDevices 的 label 是空的 → 第一次只能用 facingMode，
+//    而那在多鏡頭手機上可能選到超廣角（實測 k1 −0.07 → 辨識率 0%）。
+ok(/retuneCamera\(/.test(three) && /retuneCamera\(pickMainCameraId\)/.test(scene),
+  '★★★ 取得權限後要重新挑鏡頭（這是唯一能真正避開超廣角的時機）')
+ok(/this\.resize\(\)/.test(three.slice(three.indexOf('retuneCamera'))),
+  '★★ 換鏡頭後要 resize（解析度可能不同，投影矩陣要重算否則模型偏掉）')
+
 ok(/environmentDeviceId/.test(three) && /environmentDeviceId: deviceId/.test(scene),
   '★ 要保留 environmentDeviceId 這條路（避開超廣角：k1 −0.07 之後辨識率是 0）')
 ok(/pickMainCameraId/.test(scan), '★ Scan 要猜主鏡頭的 deviceId 往下傳')

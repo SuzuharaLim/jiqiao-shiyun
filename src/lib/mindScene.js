@@ -124,6 +124,14 @@ export async function createMindScene({
   // ── 啟動（MindARThree 會開相機、建 controller、載 .mind、暖機、開始處理）──
   await mindar.start()
 
+  // ★★ 拿到權限之後才重新挑鏡頭：授權前 enumerateDevices 的 label 是空的，
+  //    猜不出主鏡頭，只能退回 facingMode——而那在多鏡頭手機上可能選到超廣角。
+  //    超廣角的桶狀畸變實測會讓辨識率掉到 0%，症狀正是「對得很準卻認不出來」。
+  try {
+    const { pickMainCameraId } = await import('./arCamera.js')
+    await mindar.retuneCamera(pickMainCameraId)
+  } catch { /* 換不成就沿用原本那顆 */ }
+
   // ⚠️ 卡片尺寸只能在 start() 之後拿：postMatrixs 是 _startAR 裡才建的。
   //    position.x = W/2、position.y = H/2（化簡後），所以反推得到 W 與 H。
   const pm = mindar.postMatrixs?.[0]

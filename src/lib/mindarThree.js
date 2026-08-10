@@ -135,7 +135,20 @@ export class MindARThree {
         return
       }
 
-      const constraints = { audio: false, video: {} }
+      // ★★★ 解析度必須明講——**原版沒有指定，這是 AR 掃不到的高機率主因**。
+      //
+      // ⚠️ 只給 `facingMode` 的話，行動瀏覽器預設回 **640×480**（本專案在相機工作室
+      //    那邊已經踩過同一個坑並記在 CLAUDE.md）。640×480 下，卡片就算佔滿半個畫面
+      //    也只有約 320px 寬——MindAR 要在上面找出足以比對的特徵點非常吃力，
+      //    症狀就是「對得很準卻一直認不出來」。
+      // ⚠️ 一定要用 `ideal` **不可用 `exact`**：exact 在裝置不支援該解析度時會直接
+      //    丟 OverconstrainedError，結果是**整個相機開不起來**（黑畫面），
+      //    比解析度低得多還糟。ideal 由瀏覽器夾到該裝置能給的最接近值。
+      // ⚠️ 也不要開到 4K：MindAR 每幀都要把整張影像送進 TFJS，解析度愈高愈可能掉幀，
+      //    而追蹤靠的是「每秒能處理幾幀」。1280×960 是偵測品質與幀率的平衡點
+      //    （離線量測就是用這個尺寸，12/12）。
+      const RES = { width: { ideal: 1280 }, height: { ideal: 960 } }
+      const constraints = { audio: false, video: { ...RES } }
       if (this.shouldFaceUser) {
         if (this.userDeviceId) constraints.video.deviceId = { exact: this.userDeviceId }
         else constraints.video.facingMode = 'user'
@@ -145,15 +158,30 @@ export class MindARThree {
         if (this.environmentDeviceId) constraints.video.deviceId = { exact: this.environmentDeviceId }
         else constraints.video.facingMode = 'environment'
       }
+      // 連續自動對焦：拿在手上的卡片距離一直在變，固定對焦會糊掉。
+      // ⚠️ 放在 advanced 裡：不支援的瀏覽器會**忽略**它而不是整組拒絕。
+      constraints.video.advanced = [{ focusMode: 'continuous' }]
+      this._lastConstraints = constraints
 
-      navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+      const attach = (stream) => {
         this.video.addEventListener('loadedmetadata', () => {
           this.video.setAttribute('width', this.video.videoWidth)
           this.video.setAttribute('height', this.video.videoHeight)
           resolve()
         })
         this.video.srcObject = stream
-      }).catch(reject)
+      }
+      // ⚠️ 三層 fallback 缺一不可（本專案在 arCamera 已量過）：
+      //    `deviceId: {exact}` 在該鏡頭被別的程式佔用時會**直接 reject**，
+      //    那時若不退回 facingMode，使用者看到的就是「相機打不開」。
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(attach)
+        .catch(() => {
+          const relaxed = { audio: false, video: { ...RES, facingMode: this.shouldFaceUser ? 'user' : 'environment' } }
+          return navigator.mediaDevices.getUserMedia(relaxed).then(attach)
+        })
+        .catch(() => navigator.mediaDevices.getUserMedia({ audio: false, video: true }).then(attach))
+        .catch(reject)
     })
   }
 
@@ -276,6 +304,40 @@ export class MindARThree {
       console.warn('[AR] 同源 worker 建立失敗，沿用內建的 blob worker', err)
       this.sameOriginWorker = false
     }
+  }
+
+  /**
+   * ★★ 取得權限**之後**才重新挑鏡頭——這是唯一能真正避開超廣角的時機。
+   *
+   * ⚠️ `enumerateDevices()` 在授權前 label 一律是空字串，所以第一次進來時
+   *    `pickMainCameraId()` 猜不出東西，只能退回 `facingMode:'environment'`——
+   *    而那在多鏡頭手機上**有機會選到超廣角**。超廣角的桶狀畸變沒有被 ISP 校正
+   *    （k1 常在 −0.25~−0.4），實測 k1 −0.07 之後辨識率就掉到 **0%**，
+   *    症狀是「對得很準卻怎麼都認不出來」——與這次回報的狀況一致。
+   * ⚠️ 只換 `srcObject`，不重建 Controller：重建要重新要權限，iOS 上很容易失敗。
+   * @returns 有沒有真的換過
+   */
+  async retuneCamera(pickMainCameraId) {
+    try {
+      if (this.shouldFaceUser || !navigator.mediaDevices?.enumerateDevices) return false
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const wanted = pickMainCameraId(devices)
+      if (!wanted) return false
+      const cur = this.video?.srcObject?.getVideoTracks?.()[0]
+      if (!cur || cur.getSettings?.().deviceId === wanted) return false
+
+      const next = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { deviceId: { exact: wanted }, width: { ideal: 1280 }, height: { ideal: 960 }, advanced: [{ focusMode: 'continuous' }] },
+      })
+      const old = this.video.srcObject
+      this.video.srcObject = next
+      await this.video.play().catch(() => {})
+      try { old?.getTracks?.().forEach(t => t.stop()) } catch { /* ignore */ }
+      // ⚠️ 換鏡頭後解析度可能不同 → 投影矩陣要跟著重算，否則模型會整個偏掉
+      this.resize()
+      return true
+    } catch { return false }      // 換不成就沿用原本那顆，絕不可因此讓相機掛掉
   }
 
   /** 原版沒有這個。SPA 反覆進出這一頁不釋放 WebGL context 會「第 N 次變空白」。 */
