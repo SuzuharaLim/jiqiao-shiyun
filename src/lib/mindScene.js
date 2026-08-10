@@ -230,6 +230,12 @@ export async function createMindScene({
     mindar, anchor, hw, char, actor,
     setAction: (a) => actor.setAction(a),
     /**
+     * 處理迴圈跑了幾輪。**恆為 0 代表比對根本沒在跑**，而不是「沒對準」。
+     * ⚠️ 這是把一個靜默失敗變成可觀測事實的唯一鉤子——CSP 擋掉 blob: worker 時，
+     *    相機、畫面、掃描線、.mind 載入全部正常，只有這個數字是 0。
+     */
+    ticks: () => mindar.tickCount ?? 0,
+    /**
      * 使用者直接點卡面上的物件 → 回傳那個熱區。
      * ⚠️ 這條路不可省：白菜在卡片最左（x 0.058~0.214），要讓它落在畫面正中心
      *    就得把整張卡擺到畫面右側又不能出框——實務上做不到。手指點它才是自然動作。

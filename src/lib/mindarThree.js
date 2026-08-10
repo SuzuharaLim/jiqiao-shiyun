@@ -51,6 +51,9 @@ export class MindARThree {
     this.environmentDeviceId = environmentDeviceId
     this.userDeviceId = userDeviceId
     this.shouldFaceUser = false
+    // ★ 處理迴圈的心跳。呼叫端用它判斷「相機開了、但比對根本沒在跑」——
+    //   那正是 CSP 擋掉 blob: worker 時的樣子（畫面完全正常，只是永遠不命中）。
+    this.tickCount = 0
 
     this.scene = new Scene()
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true })
@@ -146,6 +149,7 @@ export class MindARThree {
       missTolerance: this.missTolerance,
       maxTrack: this.maxTrack,
       onUpdate: (data) => {
+        this.tickCount++          // 心跳：processDone 與 updateMatrix 都算
         if (data.type !== 'updateMatrix') return
         const { targetIndex, worldMatrix } = data
         for (let i = 0; i < this.anchors.length; i++) {

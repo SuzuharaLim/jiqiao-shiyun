@@ -118,7 +118,13 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       // ⚠️ 分析工具的載入器是 inline script，需要 'unsafe-inline'。只在真的設了 ID
       //    時才放行——沒設分析工具時 scriptSrc 維持最嚴格的 'self'。
-      scriptSrc: ["'self'", ...(ANALYTICS_HOSTS.length ? ["'unsafe-inline'", ...ANALYTICS_HOSTS] : [])],
+      // ★ `'wasm-unsafe-eval'`：AR 的 TensorFlow.js 會嘗試編譯 WebAssembly。
+      //   實測 `securitypolicyviolation` 事件確實回報 `blockedURI: 'wasm-eval'`。
+      //   目前**不致命**（TFJS 會退回 WebGL 後端，我們量到追蹤仍然成功），
+      //   但那等於堵死一條退路——WebGL 弱或不可用的裝置就沒得退了。
+      //   ⚠️ 這個關鍵字**只允許編譯 WebAssembly，不允許 `eval()` 字串**，
+      //      與 `'unsafe-eval'` 是兩回事，不可為了省事改成後者。
+      scriptSrc: ["'self'", "'wasm-unsafe-eval'", ...(ANALYTICS_HOSTS.length ? ["'unsafe-inline'", ...ANALYTICS_HOSTS] : [])],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', ...ANALYTICS_HOSTS],  // blob:＝相機拍照/錄影預覽；data:＝縮圖
       mediaSrc: ["'self'", 'blob:', 'data:'],      // 錄影 blob 播放
@@ -134,7 +140,11 @@ app.use(helmet({
       //    一切正常，一部署就掃不到。用 dev server 驗 AR 驗不出這個問題。
       // ⚠️ `worker-src` 沒設時瀏覽器會退回 `script-src`（Chrome 的錯誤訊息會明講
       //    「Note that 'worker-src' was not explicitly set」）——所以不能只放寬 script-src，
-      //    那等於為了 worker 把整個腳本來源打開。`childSrc` 是給不認得 worker-src 的舊瀏覽器。
+      //    那等於為了 worker 把整個腳本來源打開。
+      // ⚠️ `childSrc` 不是可有可無的裝飾：CSP3 的回退順序是
+      //    worker-src → child-src → script-src，實測**只留 childSrc 也能跑**。
+      //    但明確寫 workerSrc 才是現行規範的做法，兩條都給是最穩的組合。
+      //    （做變異測試時要注意：只拿掉 workerSrc 是「弄不壞」的，要兩條都拿掉。）
       workerSrc: ["'self'", 'blob:'],
       childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],

@@ -67,6 +67,43 @@ export default function Scan() {
   const [hotspot, setHotspot] = useState(null)
   const [showDiag, setShowDiag] = useState(false)
   const [diag, setDiag] = useState(null)
+  // ★★ 「相機開了但比對根本沒在跑」的偵測。null＝正常；'csp'＝抓到 CSP 擋掉；
+  //    'quiet'＝沒抓到明確原因，但心跳是 0。
+  const [stall, setStall] = useState(null)
+
+  // ── ★★★ 把靜默失敗變成看得見的診斷 ──
+  //
+  // 2026-08-10 實測踩到：CSP 沒放行 `blob:` 的 Web Worker 時，MindAR 的比對
+  // 永遠不會執行——而**畫面上完全看不出來**（相機正常、掃描線在動、.mind 載入了、
+  // 診斷面板每一欄都正常）。使用者只會一直換角度重試，而那永遠不會成功。
+  // ⚠️ 而且這個問題**只在正式站出現**（dev server 不送 CSP），所以不能指望
+  //    開發時會發現。頁面必須自己講出來。
+  useEffect(() => {
+    // `securitypolicyviolation` 是**確定性**訊號（不是推論）：直接說出哪一條被擋。
+    const onViolation = (e) => {
+      const uri = e.blockedURI || ''
+      const dir = e.violatedDirective || ''
+      // ⚠️ `blockedURI` 是 **`'blob'`（沒有冒號）**，不是完整的 `blob:` 網址——
+      //    Chrome 對不透明來源只回報 scheme。我第一版寫 `startsWith('blob:')`，
+      //    於是實測時看門狗只跳出泛用的那一則，抓不到真正的原因。
+      //    （這也說明「診斷本身一定要實際觸發過一次」。）
+      // ⚠️ 只認 worker/child 那組。同一頁還會出現 `wasm-eval` 被 script-src 擋下的
+      //    事件，但那個**不致命**（TFJS 會退回 WebGL），拿它跳「AR 壞了」是誤報。
+      if (/^blob/.test(uri) && /worker-src|child-src/.test(dir)) setStall('csp')
+    }
+    document.addEventListener('securitypolicyviolation', onViolation)
+    return () => document.removeEventListener('securitypolicyviolation', onViolation)
+  }, [])
+
+  useEffect(() => {
+    if (status !== 'ready') return
+    // 心跳看門狗：追蹤開始後心跳仍是 0 → 比對沒在跑（原因未必是 CSP，但一定不是「沒對準」）。
+    // ⚠️ 要給足暖機時間：dummyRun 約 1.2 秒，再加第一批影格。
+    const t = setTimeout(() => {
+      if ((sceneRef.current?.ticks?.() ?? 0) === 0) setStall(s => s ?? 'quiet')
+    }, 8000)
+    return () => clearTimeout(t)
+  }, [status])
 
   // ⚠️ getUserMedia 在某些環境**既不 resolve 也不 reject**（權限提示一直開著、
   //    或裝置被別的程式佔用），這一頁就會永遠停在「正在開啟鏡頭…」。
@@ -265,6 +302,38 @@ export default function Scan() {
             </div>
           )
         })()}
+
+        {/* ── ★★★ 比對根本沒在跑：這是最惡毒的一種失敗，畫面上完全看不出來 ── */}
+        {stall && status === 'ready' && (
+          <div className="scan-nofile">
+            <b>相機開起來了，但比對程序沒有在執行——這不是沒對準。</b>
+            {stall === 'csp' ? (
+              <>
+                <p>
+                  瀏覽器回報：本站的<b>內容安全政策（CSP）</b>擋掉了從
+                  <code>blob:</code> 建立的 Web Worker。AR 的比對就跑在那個 worker 裡，
+                  被擋掉之後它<b>永遠不會回應</b>，所以再怎麼喬角度都不會認出卡片。
+                </p>
+                <p>
+                  <b>解法（伺服器設定，不是使用者能處理的）：</b>
+                  <code>server/index.js</code> 的 helmet CSP 要有
+                  <code>workerSrc: ["'self'", 'blob:']</code> 與同值的 <code>childSrc</code>，
+                  然後<b>重新部署</b>。⚠️ 只改程式碼不重新部署不會生效——CSP 是伺服器送的標頭。
+                </p>
+              </>
+            ) : (
+              <p>
+                追蹤的處理迴圈啟動後<b>一輪都沒有跑完</b>。常見原因是瀏覽器擋掉了
+                Web Worker 或 WebGL，或這台裝置的資源不足。
+                請打開下方「掃描診斷」把畫面截給我們，那比描述症狀有用得多。
+              </p>
+            )}
+            <p className="muted">
+              這個提示存在的理由：這種失敗<b>看起來完全正常</b>——相機在動、掃描線在跑、
+              目標檔也載入了。不主動講出來的話，只會讓人以為是自己沒對準。
+            </p>
+          </div>
+        )}
 
         {/* ── 目標檔沒裝：這種失敗是靜默的，一定要主動講出來 ── */}
         {status === 'nofile' && (

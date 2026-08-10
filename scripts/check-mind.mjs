@@ -159,6 +159,22 @@ ok(!/track\.score|\{.*score.*\}%/.test(scan),
     '★ 也要給 childSrc（不認得 worker-src 的舊瀏覽器會退回它）')
 }
 
+// ── ★★★ 5b. 就算 CSP 又被改壞，畫面也要自己講出來 ──
+//
+// 上面那條閘門守的是「設定不要壞」，這一組守的是「壞掉時不要靜默」。
+// ⚠️ 這種失敗看起來完全正常（相機在動、掃描線在跑、.mind 載入了、診斷面板每欄都對），
+//    使用者只會一直換角度重試。而它**只在正式站發生**，開發時不會遇到。
+ok(/tickCount/.test(three), '★ MindARThree 要有處理迴圈的心跳計數')
+ok(/ticks:\s*\(\)\s*=>/.test(scene), '★ 場景層要把心跳露出來給呼叫端判斷')
+ok(/securitypolicyviolation/.test(scan),
+  '★★★ 要監聽 securitypolicyviolation（這是確定性訊號，不是推論）')
+ok(/blob:/.test(scan) && /workerSrc/.test(scan),
+  '★★ 抓到 CSP 擋 worker 時，畫面要講出確切的修法（含 workerSrc）')
+ok(/ticks\?\.\(\)\s*\?\?\s*0\)\s*===\s*0/.test(scan),
+  '★★ 要有心跳看門狗：心跳恆 0 代表「比對沒在跑」，與「沒對準」是兩回事')
+ok(/這不是沒對準/.test(scan),
+  '★ 文案要明講「不是沒對準」——否則使用者會一直喬角度，而那永遠不會成功')
+
 // ── 6. 目標檔 ──
 {
   const card = OFFICIAL_CARDS[0]
