@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+﻿import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { dayFor, todayOffset, parseDateParam } from '../data/almanac.js'
 import { api, setCsrf } from '../api.js'
 import { syncBadges } from '../lib/arBadges.js'
@@ -251,7 +251,22 @@ export function NavProvider({ children }) {
   //    歸零是錯的——底部分頁列的心智模型是「五個並排的房間」，不是五條瀏覽紀錄。
   //    每次回來都被丟回門口，而且 paneIn 的上滑還會強化「這是全新頁面」的錯覺。
   const scrollMemo = useRef({})
-  const scroller = () => document.querySelector('.device .body')
+  // ⚠️ 捲動容器是誰**隨斷點而變**，不可用「這個元素存不存在」當判準。
+  //    手機／矮視窗：`.body` 是 `overflow-y:auto`，捲的是它。
+  //    桌機（`.stage.signed-in .body { overflow:visible; height:auto }`）：`.body`
+  //    仍然在 DOM 裡，但捲的是整份文件。
+  //    原本只寫 `document.querySelector('.device .body')`，於是桌機拿到一個
+  //    **永遠捲不動**的元素：readScroll 一律讀到 0（記憶存的全是 0）、
+  //    writeScroll 又把 window 捲到 0 → **桌機的捲動記憶整個失效，每次返回或
+  //    切分頁都被丟回頁首**，正是這段程式碼寫來要避免的那件事。
+  //    實測 1280×720：`.body` 的 overflowY=visible、scrollHeight−clientHeight=0，
+  //    而 documentElement 是 2165 vs 720。
+  const scroller = () => {
+    const el = document.querySelector('.device .body')
+    if (!el) return null
+    const oy = getComputedStyle(el).overflowY
+    return (oy === 'auto' || oy === 'scroll') ? el : null
+  }
   const scrollKey = (t, depth) => `t${t}:${depth}`
   const readScroll = () => { const el = scroller(); return el ? el.scrollTop : window.scrollY }
   const writeScroll = (y) => {
@@ -270,21 +285,42 @@ export function NavProvider({ children }) {
     restoreTimers.current = []
     const y = scrollMemo.current[scrollKey(t, depth)] ?? 0
     if (!y) { writeScroll(0); return }
-    const attempt = () => {
+    // ⚠️ 「已經到位」與「容器還沒長高」在當下**分辨不出來**：兩者都是
+    //    `scrollMax() <= y`。原本（以及我第一版的修正）把它當成成功而不再重試，
+    //    於是返回時頁面只要還沒 fetch 完就永遠停在頁首。
+    //    所以改成：**一律把重試排完**，只有真的量到位了才提前收工。
+    //    成本是最多 4 次寫入，而寫 scrollTop 是同步且極廉價的。
+    const landed = () => {
       const el = scroller()
-      writeScroll(y)
-      // 已到位（或容器就是沒那麼長）→ 不用再試
-      return !el || Math.abs(el.scrollTop - y) < 2 || el.scrollHeight - el.clientHeight <= y
+      return Math.abs((el ? el.scrollTop : window.scrollY) - y) < 2
     }
-    requestAnimationFrame(() => {
-      if (attempt()) return
-      restoreTimers.current = [80, 200, 400].map(ms => setTimeout(attempt, ms))
-    })
+    const attempt = () => {
+      writeScroll(y)
+      if (landed()) { restoreTimers.current.forEach(clearTimeout); restoreTimers.current = [] }
+    }
+    // ⚠️ 重試的排程**不可放在 rAF 回呼裡**。分頁在背景時 rAF 完全不觸發
+    //    （實測 `visibilityState:'hidden'` 下 300ms 內一次都沒跑），排程若在裡面
+    //    就等於整個還原一次都不會發生。setTimeout 在背景仍會跑（只是被節流），
+    //    所以計時器先排、rAF 只當「畫面有在更新時更快到位」的快路徑。
+    restoreTimers.current = [80, 200, 400].map(ms => setTimeout(attempt, ms))
+    requestAnimationFrame(attempt)
   }
   useEffect(() => () => restoreTimers.current.forEach(clearTimeout), [])
 
+  // ⚠️★ `remember()` **絕不可放進 setState 的更新函式裡**。
+  //    React 在 **render 階段**才執行更新函式，而事件處理函式裡緊接在後面的
+  //    `writeScroll(0)` 是**當下就跑**的——順序是「先歸零、後記憶」，於是
+  //    記下來的永遠是 0。原本 push/setTab 兩處都是這樣寫的，**捲動記憶因此
+  //    從來沒有生效過**（不分斷點，手機也一樣），而症狀只是「返回後回到頁首」
+  //    ——看起來就像本來就沒做這個功能，不會有人回報成 bug。
+  //    正解是在 dispatch **之前**用 ref 讀當前堆疊深度。
+  const stackRef = useRef(stack)
+  const tabRef = useRef(tab)
+  useEffect(() => { stackRef.current = stack; tabRef.current = tab }, [stack, tab])
+
   const push = useCallback((screen, props = {}) => {
-    setStack(s => { remember(tab, s.length); return [...s, { screen, props }] })
+    remember(tab, stackRef.current.length)           // ★ 必須在 writeScroll(0) 之前
+    setStack(s => [...s, { screen, props }])
     writeScroll(0)                                   // 新畫面 → 從頭看
   }, [tab])
   // 就地換掉堆疊最上層（同一個畫面換參數用，例如完整曆頁翻日）。
@@ -295,11 +331,16 @@ export function NavProvider({ children }) {
     setStack(s => (s.length ? [...s.slice(0, -1), { screen, props }] : [{ screen, props }]))
   }, [])
   const pop = useCallback(() => {
-    setStack(s => { const next = s.slice(0, -1); restore(tab, next.length); return next })
+    // ⚠️ 同上：restore 也不可放在更新函式裡（那會讓它在 render 階段跑，
+    //    而 React 可能為了併發而重跑更新函式——副作用會被執行不只一次）。
+    const next = stackRef.current.slice(0, -1)
+    setStack(next)
+    restore(tab, next.length)
   }, [tab])
   const popAll = useCallback(() => { setStack([]); restore(tab, 0) }, [tab])
   const setTab = useCallback((i) => {
-    setStack(s => { remember(tab, s.length); return [] })
+    remember(tab, stackRef.current.length)           // ★ 必須在 restore 之前
+    setStack([])
     setTabRaw(i)
     restore(i, 0)
   }, [tab])
@@ -334,6 +375,10 @@ export function NavProvider({ children }) {
   useEffect(() => {
     const onPop = (e) => {
       const r = (e.state && typeof e.state.tab === 'number') ? e.state : routeFromPath(window.location.pathname)
+      // 先記住正要離開的這一頁，否則按「下一頁」回來時一樣被丟回頁首。
+      // ⚠️ 這個 effect 的 deps 是 []，閉包裡的 tab/stack 是第一次 render 的值，
+      //    所以必須讀 ref。
+      remember(tabRef.current, stackRef.current.length)
       suppressSync.current = true
       setTabRaw(r.tab); setStack(r.stack || [])
       // ⚠️ 日期也要跟著還原，否則按上一頁網址變回 `/` 但畫面還停在 8/31。
@@ -341,7 +386,14 @@ export function NavProvider({ children }) {
       const hd = (e.state && 'homeDate' in e.state) ? e.state.homeDate : homeDateFromSearch(window.location.search)
       lastHomeDate.current = hd || null
       setHomeDate(hd || null)
-      scrollTop()
+      // ⚠️ 這裡原本寫成 `scrollTop()`——一個**根本不存在的函式**，於是每按一次
+      //    上一頁/下一頁就丟一個 ReferenceError。而它是靜默的：前面三行 setState
+      //    都已經跑完了，畫面照樣切過去，只有捲動位置沒被處理、console 多一筆錯誤。
+      //    「畫面看起來正常」正是這個 bug 活了這麼久的原因。
+      // ⚠️ 也不可改成 writeScroll(0)：popstate 是「返回」那一類，一律歸零等於
+      //    使用者從貼文按上一頁回到探索頁時被丟回頁首（本專案已明訂 push 歸零、
+      //    pop/setTab 還原）。restore 在沒有記憶時本來就會寫 0，兩種情況都對。
+      restore(r.tab, (r.stack || []).length)
     }
     window.addEventListener('popstate', onPop)
     try { window.history.replaceState({ tab, stack, homeDate }, '', pathFromState(tab, stack, homeDate)) } catch { /* ignore */ }

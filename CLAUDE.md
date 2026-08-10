@@ -206,7 +206,14 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - 例外是 **transition 驅動**的 `.reveal`：它的基礎必須隱形才有東西可過場，但 class 由 JS 加上，所以「JS 沒跑 ⇒ 沒有 class ⇒ 內容正常顯示」，失效方向是安全的。**切勿把 `.reveal` 寫進 JSX 的靜態 className**，那就變成「JS 沒跑就永久隱形」。
 - **載入中不可顯示空狀態**：`usePagedList` 的 `loading` 初值必須是 `true`（元件掛載後一定會發首次請求）。若從 `false` 開始，第一幀是「loading=false 且 items=[]」，呼叫端會判成「沒有資料」而顯示「找不到任何作品」——在資料還在路上時就跟使用者說這裡是空的，對剛起步的社群是最糟的第一印象。載入中請用 `.ui-skeleton` 骨架（同時預留版面）。
 - **每一條 `:hover` 都要包 `@media (hover:hover) and (pointer:fine)`**：觸控裝置沒有真正的 hover，點一下之後狀態會**黏住**直到點別處——使用者會看到某張卡莫名一直亮著。全站 27 條（含 `styles/components.css` 的 9 條）都已包好，新增時別漏。
-- **捲動位置：`push` 歸零、`pop`/`setTab` 還原**。底部分頁列的心智模型是「五個並排的房間」，不是五條瀏覽紀錄，每次回來被丟回門口很惱人。兩個雷：(1) **手機捲的是 `.device .body` 不是 `window`**，`window.scrollTo` 對它完全沒作用；(2) **還原不能只做一次**——切分頁時 `.body` 整個重掛，貼文/作品又是 fetch 回來才長高，第一幀容器還很矮，寫進去的 `scrollTop` 會被夾成 0（實測捲到 400 切走再切回仍是 0）。要用 rAF ＋ 幾次重試直到到位。
+- **捲動位置：`push` 歸零、`pop`/`setTab`/`popstate` 還原**（`scripts/check-nav.mjs`，7 項，掛在 build 上）。底部分頁列的心智模型是「五個並排的房間」，不是五條瀏覽紀錄，每次回來被丟回門口很惱人。**2026-08-10 實測發現這個功能其實從來沒生效過**，五個獨立的 bug 疊在一起，而且每一個的症狀都只是「返回後回到頁首」——與「本來就沒做這個功能」無從分辨，所以沒有人會回報：
+  - **★★ `remember()` 絕不可放進 `setState` 的更新函式裡**。原本寫成 `setStack(s => { remember(tab, s.length); return [...] })` 後面接 `writeScroll(0)`。**React 在 render 階段才執行更新函式**，而 `writeScroll(0)` 是當下就跑的——順序是「先歸零、後記憶」，記下來的**永遠是 0**。要在 dispatch 之前用 ref 讀堆疊深度。（另一個獨立理由：更新函式必須是純函式，React 可能為了併發重跑它，副作用會執行不只一次。）
+  - **★★ `scroller()` 不可只判斷「元素存不存在」**：捲動容器隨斷點而變——手機是 `.body`（`overflow-y:auto`），桌機是**整份文件**（`.stage.signed-in .body { overflow:visible }`）。只寫 `querySelector('.device .body')` 的話桌機拿到一個**永遠捲不動**的元素，讀永遠是 0、寫又順手把 window 捲到 0。要檢查 `getComputedStyle(el).overflowY`。實測 1280×720：`.body` 的 `scrollHeight − clientHeight = 0`，而 `documentElement` 是 2165 − 720。
+  - **★ popstate 處理函式裡曾經呼叫 `scrollTop()`——一個根本不存在的函式**，每按一次上一頁/下一頁就丟 ReferenceError。它活這麼久是因為 throw 發生在三行 `setState` 之後，畫面照樣切過去。
+  - **重試的 `setTimeout` 排程不可放在 rAF 回呼裡**：分頁在背景時 rAF **完全不觸發**（實測 `visibilityState:'hidden'` 下 300ms 內一次都沒跑），排在裡面等於整個還原一次都不會發生。計時器先排、rAF 只當快路徑。
+  - **不可用「容器沒那麼長」提前判定成功**：那與「頁面還沒 fetch 完、還沒長高」當下分辨不出來，一提前收工就永遠停在頁首。一律把 80/200/400ms 三次重試排完，真的量到位才提前清掉。
+  - 另兩個既有的雷仍然成立：**手機捲的是 `.device .body` 不是 `window`**（`window.scrollTo` 對它完全沒作用）；**還原不能只做一次**（切分頁時 `.body` 整個重掛，貼文/作品是 fetch 回來才長高）。
+  - 驗證方式：捲到 600 → 點站內連結進子頁（應為 0）→ 上一頁（**應回到 600**）→ 下一頁（應為 0）。`check-nav.mjs` 已做過變異測試，三個主要檢查各自都抓得到對應的錯誤寫法。
 - **浮層退場中一律 `pointer-events:none`**：遮罩淡到看不見但節點還在時，它照樣蓋住全畫面吃掉點擊——使用者會覺得「有時候按不動」，而畫面看起來完全正常，不會被回報成 bug。另外 `animationend` 在**分頁切到背景時不保證觸發**，`SheetMask` 另有 300ms 硬性 fallback。
 - **`will-change` 不可常駐**：只掛在 `.calpage.tear-next/prev` 這種「正在動」的狀態上；常駐會讓該元素永久佔一張合成圖層白吃記憶體。大角度 3D 翻轉另需 `backface-visibility:hidden`（中低階 Android 會閃現反轉文字）。
 - **JS 驅動的動畫要自己讀 reduce-motion**：CSS 的全域覆寫碰不到 `setInterval`。`AnimatedText` 的打字機就漏過——使用者開了「減少動態」文字還是一個字一個字跳。（karaoke/neon 走 CSS animation，會被全域覆寫接住。）
