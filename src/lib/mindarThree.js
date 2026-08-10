@@ -167,6 +167,12 @@ export class MindARThree {
         this.video.addEventListener('loadedmetadata', () => {
           this.video.setAttribute('width', this.video.videoWidth)
           this.video.setAttribute('height', this.video.videoHeight)
+          // ★ 明確呼叫 play()。原版只靠 autoplay 屬性——在 iOS Safari 上
+          //   （尤其是從 SPA 導頁進來、不是整頁載入時）autoplay 不一定會啟動，
+          //   而 video 沒有在播的話 Controller 每幀都讀到同一張靜止影像，
+          //   偵測永遠不會成功，畫面卻是「有影像」的（第一幀）。
+          //   ⚠️ 這裡不可 await：play() 被擋時會 reject，而那不該讓整個 AR 失敗。
+          this.video.play().catch(() => {})
           resolve()
         })
         this.video.srcObject = stream

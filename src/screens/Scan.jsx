@@ -241,11 +241,34 @@ export default function Scan() {
     if (hs) s.forceHotspot(hs)
   }
 
+  // ── ★★ 一直掃不到時，輪流給**具體可執行**的提示 ──
+  //
+  // ⚠️ 原本從頭到尾只有一句「把卡片放進框內」。對正在失敗的人那句話沒有任何資訊
+  //    ——他已經把卡片放進框內了。真正決定成敗的是距離、反光、對焦，而那些
+  //    使用者不會自己想到。實測影響最大的是**距離**：卡片佔畫面愈大，
+  //    可用的特徵點愈多（同一張圖佔 55% 與 30% 的差別很明顯）。
+  // ⚠️ 只在「已經失敗一段時間」之後才開始輪播：一進來就洗提示會很吵，
+  //    而且多數人前幾秒就掃到了。
+  const HINTS = [
+    '拿近一點——讓卡片佔滿畫面一半以上',
+    '避開反光：卡片正對燈或窗會整片泛白',
+    '停住等一下，讓鏡頭對到焦',
+    '把卡片平放在桌上，鏡頭平行對著它',
+  ]
+  const [hintIdx, setHintIdx] = useState(-1)
+  useEffect(() => {
+    if (status !== 'ready' || tracking) { setHintIdx(-1); return }
+    const start = setTimeout(() => setHintIdx(0), 6000)
+    const spin = setInterval(() => setHintIdx(i => (i < 0 ? 0 : (i + 1) % HINTS.length)), 10000)
+    return () => { clearTimeout(start); clearInterval(spin) }
+  }, [status, tracking])
+
   const phaseText = status === 'nofile'
     ? '目標檔尚未安裝——這一頁目前掃不到任何卡片'
     : status !== 'ready' ? '　'
       : tracking ? `已對準：${CARD.title}——點卡面上的物件可以換內容`
-        : '掃描中——把卡片放進框內（不必對齊四個角）'
+        : hintIdx >= 0 ? `還沒認出來——試試：${HINTS[hintIdx]}`
+          : '掃描中——把卡片放進框內（不必對齊四個角）'
 
   return (
     <>
