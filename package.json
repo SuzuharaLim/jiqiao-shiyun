@@ -19,6 +19,7 @@
     "push:keys": "node server/push-keys.js",
     "check:almanac": "node scripts/check-almanac.mjs",
     "check:nav": "node scripts/check-nav.mjs",
+    "check:live": "node scripts/check-live.mjs",
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
     "card:frame": "node scripts/frame-card.mjs",
