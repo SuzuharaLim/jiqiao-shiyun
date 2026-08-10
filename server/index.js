@@ -145,6 +145,10 @@ app.use(helmet({
       //    worker-src → child-src → script-src，實測**只留 childSrc 也能跑**。
       //    但明確寫 workerSrc 才是現行規範的做法，兩條都給是最穩的組合。
       //    （做變異測試時要注意：只拿掉 workerSrc 是「弄不壞」的，要兩條都拿掉。）
+      // ★★★ 2026-08-10 起這兩行變成**第二道保險**而不是唯一命脈：
+      //    前端已改用**同源** worker（src/lib/mindarThree.js 的 _useSameOriginWorker），
+      //    實測把這兩行完全拿掉，AR 仍然追得到（狀態列「已對準：2027 小寒」）。
+      //    兩層都留著：這一層讓「用回原版 blob worker」也能跑，那一層讓「設定漏了」也能跑。
       workerSrc: ["'self'", 'blob:'],
       childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],

@@ -164,14 +164,42 @@ ok(!/track\.score|\{.*score.*\}%/.test(scan),
 // 上面那條閘門守的是「設定不要壞」，這一組守的是「壞掉時不要靜默」。
 // ⚠️ 這種失敗看起來完全正常（相機在動、掃描線在跑、.mind 載入了、診斷面板每欄都對），
 //    使用者只會一直換角度重試。而它**只在正式站發生**，開發時不會遇到。
+// ★★★ 同源 worker：讓 AR 不再依賴伺服器的 CSP 設定
+// mind-ar 的 controller.js 第 4 行是 `?worker&inline`，inline 會把 worker 內嵌成 blob，
+// 那正是需要 `worker-src blob:` 的原因。改成 `?worker`（不 inline）會產出同源的 .js，
+// `script-src 'self'` 本來就允許。實測：CSP 完全拿掉 worker-src 與 child-src，
+// AR 仍然追得到（狀態列「已對準：2027 小寒」）。
+ok(/controller\.worker\.js\?worker'/.test(three),
+  "★★★ 要用同源 worker（`?worker`），**不可**是 `?worker&inline`（inline＝blob，會被 CSP 擋）")
+ok(!/\?worker&inline/.test(three), '★★ 不可用 ?worker&inline')
+ok(/_useSameOriginWorker\(\)/.test(three), '★ 要真的呼叫 _useSameOriginWorker')
+// ⚠️ setup 訊息（含 matchingDataList）是在 addImageTargets 裡才 postMessage 的，
+//    換晚了新 worker 收不到目標資料 → 永遠比對不出東西。
+{
+  const iUse = three.indexOf('this._useSameOriginWorker()')
+  const iAdd = three.indexOf('addImageTargets(this.imageTargetSrc)')
+  ok(iUse > 0 && iAdd > 0 && iUse < iAdd,
+    '★★★ 換 worker 必須在 addImageTargets 之前（setup 訊息在那裡才送）')
+}
+ok(/workerMatchDone/.test(three) && /workerTrackDone/.test(three),
+  '★★ onmessage 兩個分支都要接（漏一個會讓對應的 Promise 永遠不 resolve）')
+
 ok(/tickCount/.test(three), '★ MindARThree 要有處理迴圈的心跳計數')
 ok(/ticks:\s*\(\)\s*=>/.test(scene), '★ 場景層要把心跳露出來給呼叫端判斷')
 ok(/securitypolicyviolation/.test(scan),
-  '★★★ 要監聽 securitypolicyviolation（這是確定性訊號，不是推論）')
+  '★★★ 要監聽 securitypolicyviolation（用來把失敗原因講精確）')
 ok(/blob:/.test(scan) && /workerSrc/.test(scan),
   '★★ 抓到 CSP 擋 worker 時，畫面要講出確切的修法（含 workerSrc）')
-ok(/ticks\?\.\(\)\s*\?\?\s*0\)\s*===\s*0/.test(scan),
-  '★★ 要有心跳看門狗：心跳恆 0 代表「比對沒在跑」，與「沒對準」是兩回事')
+// ★★★ 換成同源 worker 之後，「blob worker 被擋」**不再代表 AR 壞了**
+//     （實測 CSP 完全拿掉仍然追得到）。所以 CSP 事件只能記旗標，
+//     失敗判準只有「心跳是 0」。直接由 CSP 事件跳橫幅就是**誤報**，
+//     而誤報比不報更糟——使用者會去追一個不存在的問題。
+ok(/cspBlockedRef\.current = true/.test(scan),
+  '★★★ CSP 違規只能記旗標，不可直接判定 AR 失敗（同源 worker 會接住）')
+ok(/ticks\?\.\(\)\s*\?\?\s*0\)\s*>\s*0\)\s*return/.test(scan),
+  '★★ 失敗判準只有「心跳是 0」；心跳有跳就一律不報')
+ok(/setStall\(cspBlockedRef\.current \? 'csp' : 'quiet'\)/.test(scan),
+  '★ CSP 旗標只用來分類原因，不用來判定失敗')
 ok(/這不是沒對準/.test(scan),
   '★ 文案要明講「不是沒對準」——否則使用者會一直喬角度，而那永遠不會成功')
 

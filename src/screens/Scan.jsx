@@ -70,6 +70,8 @@ export default function Scan() {
   // ★★ 「相機開了但比對根本沒在跑」的偵測。null＝正常；'csp'＝抓到 CSP 擋掉；
   //    'quiet'＝沒抓到明確原因，但心跳是 0。
   const [stall, setStall] = useState(null)
+  // 有沒有看到「blob worker 被 CSP 擋掉」。⚠️ 這**本身不代表壞了**——見下方說明。
+  const cspBlockedRef = useRef(false)
 
   // ── ★★★ 把靜默失敗變成看得見的診斷 ──
   //
@@ -89,7 +91,14 @@ export default function Scan() {
       //    （這也說明「診斷本身一定要實際觸發過一次」。）
       // ⚠️ 只認 worker/child 那組。同一頁還會出現 `wasm-eval` 被 script-src 擋下的
       //    事件，但那個**不致命**（TFJS 會退回 WebGL），拿它跳「AR 壞了」是誤報。
-      if (/^blob/.test(uri) && /worker-src|child-src/.test(dir)) setStall('csp')
+      // ★★★ 只**記下來**，不直接判定失敗。
+      // ⚠️ 這一版把比對 worker 換成同源的（見 mindarThree 的 _useSameOriginWorker），
+      //    所以「內建的 blob worker 被擋」已經**不代表 AR 壞了**——實測 CSP 完全
+      //    拿掉時仍然追得到（狀態列「已對準」）。若照舊直接跳「AR 壞了」就是**誤報**，
+      //    而誤報比不報更糟：使用者會去追一個根本不存在的問題。
+      //    真正的判準只有一個：**心跳是不是 0**。這個旗標只用來在真的壞掉時
+      //    把原因講得更精確。
+      if (/^blob/.test(uri) && /worker-src|child-src/.test(dir)) cspBlockedRef.current = true
     }
     document.addEventListener('securitypolicyviolation', onViolation)
     return () => document.removeEventListener('securitypolicyviolation', onViolation)
@@ -100,7 +109,9 @@ export default function Scan() {
     // 心跳看門狗：追蹤開始後心跳仍是 0 → 比對沒在跑（原因未必是 CSP，但一定不是「沒對準」）。
     // ⚠️ 要給足暖機時間：dummyRun 約 1.2 秒，再加第一批影格。
     const t = setTimeout(() => {
-      if ((sceneRef.current?.ticks?.() ?? 0) === 0) setStall(s => s ?? 'quiet')
+      // ★ 唯一的失敗判準是「心跳是 0」。CSP 違規只用來**分類原因**，不用來判定失敗。
+      if ((sceneRef.current?.ticks?.() ?? 0) > 0) return
+      setStall(cspBlockedRef.current ? 'csp' : 'quiet')
     }, 8000)
     return () => clearTimeout(t)
   }, [status])

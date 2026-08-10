@@ -32,6 +32,11 @@
 // ============================================================================
 
 import { Matrix4, Vector3, Quaternion, Scene, WebGLRenderer, PerspectiveCamera, Group, SRGBColorSpace } from 'three'
+// ★★ 同源 worker（見 _useSameOriginWorker 的說明）。
+// ⚠️ 是 `?worker` **不是** `?worker&inline`：inline 會把 worker 內嵌成 blob，
+//    那正是 CSP 要 `worker-src blob:` 的原因。不加 inline 時 Vite 會產出一個
+//    **同源的 .js 檔**，`script-src 'self'` 本來就允許。
+import ControllerWorker from 'mind-ar/src/image-target/controller.worker.js?worker'
 
 const invisibleMatrix = new Matrix4().set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 
@@ -176,6 +181,13 @@ export class MindARThree {
       },
     })
 
+    // ★★★ 把比對用的 worker 換成**同源**的，讓 AR 不再依賴 CSP 的 `worker-src blob:`。
+    //
+    // ⚠️ 一定要在 addImageTargets **之前**做：`setup` 訊息（含 matchingDataList）
+    //    是在那支方法裡才 postMessage 的（controller.js 第 100 行）。
+    //    換晚了，新 worker 收不到目標資料 → 永遠比對不出東西。
+    this._useSameOriginWorker()
+
     this.resize()
 
     const { dimensions: imageTargetDimensions } = await this.controller.addImageTargets(this.imageTargetSrc)
@@ -206,6 +218,44 @@ export class MindARThree {
     //    會卡住好幾百毫秒，症狀是「打開相機後畫面凍住一下」。
     await this.controller.dummyRun(this.video)
     this.controller.processVideo(this.video)
+  }
+
+  /**
+   * ★★★ 用**同源** worker 取代 MindAR 內建的 blob worker。
+   *
+   * 病灶：mind-ar 的 controller.js 第 4 行是
+   *     import ControllerWorker from "./controller.worker.js?worker&inline"
+   * `inline` 讓 Vite 把 worker 內嵌成 **blob**，於是 CSP 必須放行
+   * `worker-src blob:`。少了那一行 worker 被擋掉，比對的 Promise 永遠不 resolve
+   * → **永遠掃不到，而畫面完全正常**（2026-08-10 的正式站事故）。
+   *
+   * 這裡改用 `?worker`（不 inline）→ Vite 產出一個**同源的 .js**，
+   * `script-src 'self'` 本來就允許 ⇒ **AR 不再依賴伺服器的 CSP 設定**。
+   * ⚠️ CSP 的 `workerSrc` 仍然保留（server/index.js），兩層一起才穩：
+   *    這一層讓「設定漏了也能跑」，那一層讓「用回原版 blob worker 也能跑」。
+   *
+   * ⚠️ onmessage 的兩個分支要與原版逐字一致（controller.js 第 60–67 行）：
+   *    `workerMatchDone` / `workerTrackDone` 是 Controller 內部的 callback，
+   *    漏接任何一個都會讓對應的 Promise 永遠不 resolve——又是一個靜默死結。
+   */
+  _useSameOriginWorker() {
+    const c = this.controller
+    if (!c) return
+    try {
+      const w = new ControllerWorker()
+      w.onmessage = (e) => {
+        if (e.data.type === 'matchDone' && c.workerMatchDone !== null) c.workerMatchDone(e.data)
+        if (e.data.type === 'trackUpdateDone' && c.workerTrackDone !== null) c.workerTrackDone(e.data)
+      }
+      // 內建那顆（可能已被 CSP 擋掉、也可能好好的）一律收掉，避免兩顆同時在跑
+      try { c.worker?.terminate?.() } catch { /* 被擋掉的那顆本來就沒起來 */ }
+      c.worker = w
+      this.sameOriginWorker = true
+    } catch (err) {
+      // 換不成就沿用內建的 blob worker——那條路需要 CSP 放行 worker-src blob:
+      console.warn('[AR] 同源 worker 建立失敗，沿用內建的 blob worker', err)
+      this.sameOriginWorker = false
+    }
   }
 
   /** 原版沒有這個。SPA 反覆進出這一頁不釋放 WebGL context 會「第 N 次變空白」。 */
