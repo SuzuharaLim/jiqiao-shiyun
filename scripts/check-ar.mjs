@@ -1191,19 +1191,16 @@ ok(reduceHullToQuad(convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, -1]])).l
       ]
     }
 
-    for (const [deskGray, label, floor] of [[42, '深色桌面', 16], [232, '淺色桌面', 16]]) {
-      const tracker = createTracker({ refs: [ref], rectifySize: RECT, minScore: MIN_SCORE })
-      let hit = 0, best = 0
-      const N = 24
-      for (let f = 0; f < N; f++) {
-        const frame = renderFrame(wobble(f * 0.7), deskGray)
-        if (!frame) continue
-        const r = tracker.track(frame, W, H)
-        if (r) { hit++; best = Math.max(best, r.score) }
-      }
-      ok(hit >= floor,
-        `★★ 已安裝的「${card.title}」在${label}上追得到（${hit}/${N}，門檻 ${floor}，最高分 ${best || '—'}）`)
-    }
+    // ⚠️ 這裡原本有兩項「用**自研四角偵測**追已安裝的目標圖」（深色／淺色桌面各 24 幀）。
+    //    **已於 2026-08-10 移除**，因為它們鎖的是一個已經不成立的產品決策：
+    //      · `/AR` 改走 MindAR（特徵點比對），**不偵測卡片邊界**，所以不需要收邊。
+    //        實測收邊版與未收邊原稿的比對率相同（都 12/12）。
+    //      · 實體卡確定印**未收邊的原稿**，`public/ar/targets/` 裡放的也改成原稿。
+    //    而四角偵測**必然**在未收邊的稿上失敗（紙緣是白的，淺色桌面沒有邊界可找，
+    //    實測 0/24）——那不是圖有問題，是那條退役路線的先天限制。
+    //    留著它只會讓「正確的圖」擋下 build，是假訊號。
+    //    ⚠️ 下面「目標圖要有足夠結構、不可什麼都認」那幾項**保留**：
+    //       那是圖本身的品質，與用哪個追蹤器無關。
 
     // ── ★★ 對抗性：目標圖必須有「足夠的結構」，不可什麼都認 ──
     //
