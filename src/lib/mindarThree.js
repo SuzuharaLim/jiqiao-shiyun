@@ -68,6 +68,8 @@ export class MindARThree {
     this.anchors = []
 
     this.renderer.domElement.style.position = 'absolute'
+    // ★★★ 疊層順序必須**明寫**，不可沿用原版的隱含順序。見 _startVideo 的說明。
+    this.renderer.domElement.style.zIndex = '1'      // 3D 疊在影像之上
     this.container.appendChild(this.renderer.domElement)
 
     this._onResize = this.resize.bind(this)
@@ -107,7 +109,19 @@ export class MindARThree {
       this.video.style.position = 'absolute'
       this.video.style.top = '0px'
       this.video.style.left = '0px'
-      this.video.style.zIndex = '-2'
+      // ★★★ 原版是 `z-index: -2`，**在本站會讓取景畫面全黑**，必須改成 0。
+      //
+      // ⚠️ 依 CSS 繪製順序，負 z-index 的定位子元素畫在「第 2 步」，而
+      //    `.scan-stage` 是 `position:relative; z-index:auto`（不建立堆疊脈絡），
+      //    所以它自己畫在祖先脈絡的「第 6 步」——**它的深色背景
+      //    （--cam-bg-deep #0C0A08）會整片蓋在 video 上面**。
+      //    官方範例的容器沒有背景色，所以踩不到；本站的取景框有。
+      // ⚠️ 這個 bug 特別難發現：**追蹤完全不需要 video 被看見**
+      //    （MindAR 是直接讀 video 元素的像素，不是讀螢幕上畫出來的結果），
+      //    所以「已對準」「熱區命中」「3D 有在算繪」全部量得到，畫面卻是黑的。
+      //    ——驗 AR 不能只驗數字，一定要真的看畫面。
+      // ⚠️ 也不可只把 `.scan-stage` 的背景拿掉：那是相機還沒開起來時的底色。
+      this.video.style.zIndex = '0'
       this.container.appendChild(this.video)
 
       if (!navigator.mediaDevices?.getUserMedia) {

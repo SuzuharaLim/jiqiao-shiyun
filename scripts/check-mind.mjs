@@ -184,6 +184,26 @@ ok(/_useSameOriginWorker\(\)/.test(three), '★ 要真的呼叫 _useSameOriginWo
 ok(/workerMatchDone/.test(three) && /workerTrackDone/.test(three),
   '★★ onmessage 兩個分支都要接（漏一個會讓對應的 Promise 永遠不 resolve）')
 
+// ── ★★★ 疊層：取景畫面必須真的看得見 ──
+//
+// 原版把 <video> 設成 `z-index:-2`。依 CSS 繪製順序，負 z-index 的定位子元素
+// 畫在「第 2 步」，而 `.scan-stage`（position:relative、z-index:auto）自己畫在
+// 祖先脈絡的「第 6 步」——它的深色背景 --cam-bg-deep 會整片蓋在 video 上面，
+// **取景畫面全黑**。官方範例的容器沒有背景色，所以踩不到；本站的有。
+// ⚠️ 這個 bug 極難從數字上發現：**追蹤不需要 video 被看見**（MindAR 讀的是
+//    video 元素的像素，不是螢幕上畫出來的結果），所以「已對準」「熱區命中」
+//    「3D 有在算繪」全部量得到，畫面卻是黑的。
+ok(!/zIndex = '-/.test(three), "★★★ video 不可用負 z-index（會被 .scan-stage 的深色背景蓋掉＝全黑）")
+ok(/this\.video\.style\.zIndex = '0'/.test(three), '★★ video 的 z-index 要明寫 0')
+ok(/renderer\.domElement\.style\.zIndex = '1'/.test(three), '★★ 3D canvas 要明寫 z-index 1（疊在影像之上）')
+{
+  const css = fs.readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  // MindAR 是 append 進容器的，DOM 上排在 React 子元素之後 → 不明寫 z-index 就會蓋住它們
+  ok(/\.scan-frame \{[^}]*z-index:2/.test(css), '★★ .scan-frame 要 z-index:2（否則被後 append 的 canvas 蓋掉）')
+  ok(/\.scan-fallback \{[^}]*position:relative;\s*z-index:3/.test(css),
+    '★★ .scan-fallback 要 position:relative + z-index:3（非定位元素會被畫在所有定位元素底下）')
+}
+
 ok(/tickCount/.test(three), '★ MindARThree 要有處理迴圈的心跳計數')
 ok(/ticks:\s*\(\)\s*=>/.test(scene), '★ 場景層要把心跳露出來給呼叫端判斷')
 ok(/securitypolicyviolation/.test(scan),
