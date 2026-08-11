@@ -290,6 +290,16 @@ const W = 1831, H = 1335
   ok(/getWorldMatrix\(r\.modelViewTransform/.test(SRC.tracker),
     '★★ 攔截後要自己把 modelViewTransform 換成 worldMatrix（上游只在 showing 時才做）')
   ok(/matches: \(\) => matches/.test(SRC.tracker), '★ 對外要吐比對成功次數（診斷用）')
+  // ★★★ selfTest 餵的是**內建卡面圖**，絕不可走被攔截的版本——否則自我測試
+  //   一成功就會宣告「認出來了」並跳去模型頁，而使用者的卡片根本沒被認出來。
+  //   那是假成功，而且自我測試是自動跑的，會發生在最不該被誤導的那群人身上。
+  {
+    const self = SRC.tracker.slice(SRC.tracker.indexOf('async selfTest'))
+    ok(/origDetectAndMatch\(inputT, \[0\]\)/.test(self),
+      '★★★ selfTest 必須呼叫未被攔截的 origDetectAndMatch（否則會假成功並誤跳轉）')
+    ok(!/await controller\._detectAndMatch/.test(self),
+      '★★★ selfTest 不可呼叫被攔截的 controller._detectAndMatch')
+  }
 
   // ★★ three 的矩陣是 column-major，裁切修正改的是**列**：0,4,8,12 與 1,5,9,13。
   //    寫成行的話橫向與縱向的修正會互換，正方形畫面上完全看不出來。

@@ -247,7 +247,16 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
           let inputT = null
           try {
             inputT = controller.inputLoader.loadInput(cvs)
-            const r = await controller._detectAndMatch(inputT, [0])
+            // ★★★ 一定要走**未被攔截**的原函式。
+            //
+            // ⚠️ 上面那個攔截會「比對一成功就宣告認出來」，而自我測試餵的是
+            //    **內建的卡面圖**——走攔截版的話，自我測試一成功就會讓整個
+            //    session 進入 locked、然後跳去模型頁，**而使用者的卡片根本
+            //    沒有被認出來**。那是假成功：畫面宣告成功、實際上什麼都沒發生，
+            //    正是這一層存在的理由要消滅的東西。
+            //    更糟的是自我測試現在是**自動**跑的（卡住時觸發），所以這個
+            //    假跳轉會發生在「一直掃不到」的人身上——最不該被誤導的那群人。
+            const r = await origDetectAndMatch(inputT, [0])
             if (r && r.targetIndex !== -1 && r.modelViewTransform) {
               return { ok: true, ms: Math.round(performance.now() - t0), frames: i + 1 }
             }
