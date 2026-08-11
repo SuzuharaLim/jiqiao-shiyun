@@ -47,10 +47,15 @@ ok(NAPA_CABBAGE.layers.reduce((a, L) => a + L.n, 0) === 54, '葉片總數 54')
 ok(NAPA_CABBAGE.layers.slice(3).reduce((a, L) => a + L.n, 0) === 27, '描邊層（最外兩層）共 27 片')
 
 // ⚠️ 幾何快取：每層 3 種高度變體，臉那片另算一份（faceClear 不同）。
-//    5 層 × 3 ＝ 15，＋臉葉 1 ＝ 16；再加芯 1、四肢 4、菜根 1、臉貼片 1、陰影 1 ＝ 24。
+//    5 層 × 3 ＝ 15，＋臉葉 1 ＝ 16；再加芯 1、四肢 4、菜根 1、頂芽 1、臉貼片 1、陰影 1 ＝ 25。
 //    ⚠️ 臉葉的 key 一定要含 face 旗標，共用到別片會讓其他葉子中間出現一塊白色平面。
-ok(st.geometries === 24,
-  `幾何份數 ${st.geometries}（應為 24：葉 15 ＋ 臉葉 1 ＋ 芯 1 ＋ 四肢 4 ＋ 根 1 ＋ 臉貼片 1 ＋ 陰影 1）`)
+ok(st.geometries === 25,
+  `幾何份數 ${st.geometries}（應為 25：葉 15 ＋ 臉葉 1 ＋ 芯 1 ＋ 四肢 4 ＋ 根 1 ＋ **頂芽 1** ＋ 臉貼片 1 ＋ 陰影 1）`)
+// ⚠️ 這個數字先前是 24，而 24 剛好是「有陰影、**沒有頂芽**」的數字——
+//    也就是這條檢查把一個缺件**鎖了起來**。2026-08-11 才發現 demo 的頂芽
+//    （擋葉尖收攏處那道縫的小綠球）從來沒被移植。
+//    ⇒ 教訓：這種「總數對不對」的檢查只能抓「多了或少了」，抓不到「本來就漏掉」。
+//      真正該鎖的是**逐項的位置與尺寸**（見下方 DEMO6 對照表）。
 ok(st.triangles > 0 && Number.isFinite(st.triangles), `三角形數 ${st.triangles.toLocaleString()}`)
 
 // ⚠️ 包圍盒是「位置陣列全對但矩陣壞掉」唯一驗得出來的地方。
@@ -65,6 +70,107 @@ ok(st.triangles > 0 && Number.isFinite(st.triangles), `三角形數 ${st.triangl
   const size = box.getSize(new Vector3())
   ok(size.y > 0.8 && size.y < 2.0, `角色高度 ${size.y.toFixed(3)}（合理範圍 0.8–2.0）`)
   ok(Math.abs(box.min.y + box.max.y) < 0.6, `角色大致繞原點置中（y 中心 ${((box.min.y + box.max.y) / 2).toFixed(3)}）`)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ★★★★ 逐項對照 demo `_6` 的節點變換
+//
+// 這一段是 2026-08-11 那次事故的直接產物。當時使用者回報「手的位置不對」，
+// 追出來的原因是：**菜身逐字取自 `大白菜擬人-動作展示_6.html`，四肢／接觸陰影／
+// 相機卻是從另一支 demo `白菜擬人-cel-demo_4.html` 抄的**（該檔 1107–1111 行的
+// `limbs` preset，armX 0.382／armY 0.600／handR 0.072／footSc '1 0.60 1.35'…
+// 一個不差）。而那支 demo 的原點是「腳踩 y = 0」，`_6` 是「地面在 −0.785」，
+// **兩套座標系差 0.785**。後果：手臂長在頭頂（使用者說的「天線」）、
+// 兩條腿整個埋在菜身裡看不到、接觸陰影變成套在腰上的呼拉圈。
+//
+// ⚠️ 當時所有既有檢查**全部通過**：mesh 數對、幾何份數對、包圍盒非 NaN、
+//    高度 1.334 落在「合理範圍 0.8–2.0」內、y 中心 −0.008 也「大致置中」。
+//    ⇒ 總量型的檢查抓不到「零件位置錯了」。只有逐項對照才抓得到。
+//
+// ⚠️ 下面的值是把 `_6` **跑起來之後從 object3D 直接讀出來的**，不是抄原始碼
+//    （抄原始碼會再犯一次同樣的錯：抄到別支檔案也看不出來）。
+//    重新量的方法見 CLAUDE.md「3D 角色層」那一節。
+// ════════════════════════════════════════════════════════════════════════════
+{
+  const DEMO6 = {
+    arm:  { pos: [0.398, -0.307, 0.118] },                       // x 取絕對值（左右對稱）
+    hip:  { pos: [0.116, -0.512, 0.044], rotYDeg: 10 },
+    upperArm: { pos: [0, -0.098, 0] },
+    hand: { pos: [0, -0.212, 0], scale: [1, 0.96, 0.98] },
+    thigh: { pos: [0, -0.100, 0] },
+    foot: { pos: [0, -0.208, 0.036], scale: [1.02, 0.80, 1.58] },
+    bud:  { pos: [0, 0.523, 0], scale: [1, 0.80, 1] },
+    rootBall: { pos: [0, -0.575, 0], scale: [1, 0.60, 1] },
+    blobY: -0.785,                                                // 腳底高度
+    bboxY: [-0.774, 0.660],
+  }
+  const EPS = 0.002
+  const near3 = (v, e) => v.every((x, i) => Math.abs(x - e[i]) <= EPS)
+  const P = (o) => o.position.toArray()
+  const S = (o) => o.scale.toArray()
+
+  // 手臂：char.arms 是兩個樞紐 Group，[0] 是左（x<0）
+  const armL = char.arms[0]
+  ok(near3([Math.abs(P(armL)[0]), P(armL)[1], P(armL)[2]], DEMO6.arm.pos),
+    `手臂樞紐 ${P(armL).map(v => v.toFixed(3))}（demo ∓${DEMO6.arm.pos.join(' / ')}）`
+    + '　★ 錯了就是「手長在頭頂」')
+  const [upper, hand] = armL.children
+  ok(near3(P(upper), DEMO6.upperArm.pos), `上臂位置 ${P(upper).map(v => v.toFixed(3))}`)
+  ok(near3(P(hand), DEMO6.hand.pos), `手掌位置 ${P(hand).map(v => v.toFixed(3))}`)
+  ok(near3(S(hand), DEMO6.hand.scale), `手掌 scale ${S(hand).map(v => v.toFixed(2))}（demo 1／0.96／0.98）`)
+
+  // 腿
+  const hipL = char.hips[0]
+  ok(near3([Math.abs(P(hipL)[0]), P(hipL)[1], P(hipL)[2]], DEMO6.hip.pos),
+    `髖關節 ${P(hipL).map(v => v.toFixed(3))}（demo ∓${DEMO6.hip.pos.join(' / ')}）`
+    + '　★ 錯了就是「腿埋在菜身裡看不到」')
+  ok(Math.abs(Math.abs(hipL.rotation.y * 180 / Math.PI) - DEMO6.hip.rotYDeg) < 0.5,
+    `髖關節外八 ${(hipL.rotation.y * 180 / Math.PI).toFixed(1)}°（demo ∓10°；小腿不可自己 rotation.z）`)
+  const [thigh, foot] = hipL.children
+  ok(Math.abs(thigh.rotation.z) < 1e-6, '小腿不可有 rotation.z（那是另一支 demo 的做法）')
+  ok(near3(P(thigh), DEMO6.thigh.pos), `大腿位置 ${P(thigh).map(v => v.toFixed(3))}`)
+  ok(near3(P(foot), DEMO6.foot.pos), `腳掌位置 ${P(foot).map(v => v.toFixed(3))}`)
+  ok(near3(S(foot), DEMO6.foot.scale), `腳掌 scale ${S(foot).map(v => v.toFixed(2))}（demo 1.02／0.80／1.58）`)
+
+  // ★★ 尺寸也要鎖，不能只鎖位置。四肢的**每一個半徑與長度**都被抄成
+  //    cel-demo_4 的值：手掌大 20%、腳掌寬 16%、小腿短 23%、上臂長 12.5%。
+  //    只驗位置的話這些全部通過（變異測試證實過）。
+  const sphereR = (o) => o.geometry?.parameters?.radius ?? null
+  const lathe = (o) => {                       // soft-limb 沒有 parameters，量包圍盒
+    o.geometry.computeBoundingBox()
+    const b = o.geometry.boundingBox
+    return { len: +(b.max.y - b.min.y).toFixed(4), r: +Math.max(b.max.x, -b.min.x).toFixed(4) }
+  }
+  ok(Math.abs(sphereR(hand) - 0.060) < 1e-6, `手掌半徑 ${sphereR(hand)}（demo 0.060；cel-demo_4 是 0.072）`)
+  ok(Math.abs(sphereR(foot) - 0.068) < 1e-6, `腳掌半徑 ${sphereR(foot)}（demo 0.068；cel-demo_4 是 0.080）`)
+  {
+    const a = lathe(upper), l = lathe(thigh)
+    // 上臂 len 0.120 ＋ 兩端球冠 rBot 0.042 / rTop 0.051 ＝ 0.213
+    ok(Math.abs(a.len - 0.213) < 0.002, `上臂全長 ${a.len}（demo 0.213；cel-demo_4 是 0.230）`)
+    ok(Math.abs(a.r - 0.051) < 0.002, `上臂最粗處 ${a.r}（demo 0.051）`)
+    // 小腿 len 0.130 ＋ 0.050 ＋ 0.058 ＝ 0.238
+    ok(Math.abs(l.len - 0.238) < 0.002, `小腿全長 ${l.len}（demo 0.238；cel-demo_4 是 0.204）`)
+    ok(Math.abs(l.r - 0.058) < 0.002, `小腿最粗處 ${l.r}（demo 0.058）`)
+  }
+
+  // 頂芽（先前整顆漏掉）
+  const bud = char.body.children.find(o => o.name === 'bud')
+  ok(!!bud, '★★ 一定要有頂芽（擋葉尖收攏處的縫；demo 有、移植曾整顆漏掉）')
+  if (bud) {
+    ok(near3(P(bud), DEMO6.bud.pos), `頂芽位置 ${P(bud).map(v => v.toFixed(3))}`)
+    ok(near3(S(bud), DEMO6.bud.scale), `頂芽 scale ${S(bud).map(v => v.toFixed(2))}`)
+  }
+
+  // 接觸陰影：**必須在腳底**，不是在腰上
+  ok(Math.abs(char.blob.position.y - DEMO6.blobY) <= EPS,
+    `接觸陰影高度 ${char.blob.position.y.toFixed(3)}（demo −0.785 ＝ 腳底）`
+    + '　★ 錯了就是「一圈半透明圓盤從腰部橫向突出」')
+
+  // 整體包圍盒（含四肢）——這是上面每一項的總和檢查
+  char.root.updateMatrixWorld(true)
+  const b2 = new Box3().setFromObject(char.body)
+  ok(Math.abs(b2.min.y - DEMO6.bboxY[0]) < 0.02 && Math.abs(b2.max.y - DEMO6.bboxY[1]) < 0.02,
+    `菜身＋四肢的 y 範圍 ${b2.min.y.toFixed(3)}~${b2.max.y.toFixed(3)}（demo ${DEMO6.bboxY.join('~')}）`)
 }
 
 // 效能預算：全解析度超出策畫書 §6.1 的 180k（那份預算按舊版 29 片葉估的）。
@@ -95,7 +201,8 @@ ok(char.blob.parent !== char.body, '接觸陰影不可掛在 body 底下')
 
 // ── 材質快取 ──────────────────────────────────────────────────────────
 // 單隻角色有 20+ 個材質，但 steps|shadowFloor 的組合只有一種
-ok(rampCacheSize() === 1, `toon ramp 快取 ${rampCacheSize()} 張（20+ 個材質應共用 1 張）`)
+// 身體共用一張（5 階／0.58），臉另外一張（3 階／0.66，demo 特地把臉調亮）。
+ok(rampCacheSize() === 2, `toon ramp 快取 ${rampCacheSize()} 張（身體 1 ＋ 臉 1；20+ 個材質不可各建一張）`)
 ok(makeToonRamp(3, 0.46) === makeToonRamp(3, 0.46), '相同參數回傳同一個 ramp 實例')
 ok(makeToonRamp(4, 0.46) !== makeToonRamp(3, 0.46), '不同參數不可共用 ramp')
 
@@ -111,7 +218,13 @@ for (const a of ACTIONS) {
   }
   ok(bad === null, `動作「${a.name}」跑 3 秒不產生 NaN（第 ${bad} 幀）`)
 }
-ok(ACTIONS.length === 16, `動作數 ${ACTIONS.length}（原有 12 ＋ 策畫書新增 present/point/celebrate/think）`)
+ok(ACTIONS.length === 18,
+  `動作數 ${ACTIONS.length}（demo 的 12 ＋ 策畫書新增 present/point/celebrate/think）`)
+// ★ demo `_6` 的 12 個動作**一個都不能少**。dance／bow 先前整個沒移植，
+//   而「動作數 16」那條檢查因為多了 4 個新增動作，剛好把缺的 2 個蓋過去了。
+for (const id of ['idle','wave','nod','shake','jump','walk','dance','spin','bow','shy','angry','sleep']) {
+  ok(ACTIONS.some(a => a.id === id), `demo 的動作「${id}」必須存在`)
+}
 
 // sy 是縮放，絕不可 ≤0（負縮放會把法線翻面，模型變成內外顛倒）
 {
@@ -208,7 +321,11 @@ ok(rampCacheSize() === 0, 'disposeRampCache() 清空共用快取')
   // M6：three 0.185 起 `PCFSoftShadowMap` 已棄用，會印 warn 並**自動退回**
   //     PCFShadowMap——留著它等於「拿不到柔和陰影還多吃一個警告」，兩邊都輸。
   ok(!/PCFSoftShadowMap/.test(code), '★ 不可用已棄用的 PCFSoftShadowMap（three 會自動退回並印警告）')
-  ok(/shadowMap\.type = PCFShadowMap/.test(src), '陰影型別用 PCFShadowMap')
+  // ★★★ demo `_6` **沒有**真實陰影貼圖（實測 renderer.shadowMap.enabled === false）。
+  //   MeshToonMaterial 的 gradientMap 套在已乘過陰影衰減的光照上 ⇒ 被遮蔽處直接
+  //   掉進最暗那一階，畫面上是大塊硬邊的深色斑，把頂點色畫出來的假 AO 蓋掉。
+  ok(/shadowMap\.enabled = false/.test(src), '不可開真實陰影貼圖（demo 沒有，賽璐璐靠假 AO）')
+  ok(!/PCFShadowMap/.test(src), '陰影既然關掉，就不該還留著 PCFShadowMap')
 
   // M5：`visibilitychange` 只涵蓋「分頁切到背景」，**不涵蓋「還開著但捲出畫面」**。
   //     卡片頁很長，看完 3D 往下讀時舞台早就在畫面外，迴圈卻還在每秒算 60 次。

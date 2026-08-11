@@ -167,6 +167,9 @@ async function ensureAframe() {
     AFRAME.registerComponent('jq-fit', {
       // margin：留白倍率。1.0 ＝ 剛好貼邊（自轉到某個角度就會擦到邊）。
       // maxPitch：與 jq-drag-rotate 的夾角上限一致。
+      // ⚠️ fov 要與 ProduceStage／demo 一致（44）。描邊 shader 的位移量投影後
+      //    ∝ 焦距 ∝ 1/tan(fov/2)**與距離無關**，所以 fov 40 會讓這一頁的描邊
+      //    比卡片頁粗 11%——同一隻角色兩頁看起來線條不一樣粗。
       schema: { margin: { default: 1.1 }, maxPitch: { default: 35 } },
       init() {
         this.metrics = null
@@ -290,19 +293,24 @@ export default function ArModel({ slug, hotspot }) {
         //      裝置上現形。`check-ar.mjs` 已鎖「自帶的那份 A-Frame 有這個元件」。
         scene.setAttribute('xr-mode-ui', 'enabled: false')
         scene.setAttribute('device-orientation-permission-ui', 'enabled: false')
-        // ⚠️ `antialias` 與 `colorManagement` 要明講：A-Frame 的預設值與本站
-        //    其他 3D（ProduceStage／AR 舞台）不同，不設會兩邊看起來不一樣。
-        scene.setAttribute('renderer', 'colorManagement: true; antialias: true; alpha: true')
+        // ⚠️ `antialias`／`colorManagement`／**`toneMapping`** 都要明講。
+        //    A-Frame 1.8 的 renderer 預設**不做 tone mapping**，而主光 2.15 ＋
+        //    半球 1.45 打在 #FFFDF0 的葉柄上會超過 1.0 被直接裁掉 ⇒ 受光面削平
+        //    成純白、皺褶與圓肋的層次全部消失。先前這一頁漏了，於是同一隻白菜在
+        //    `/ar/card/:slug`（有 Neutral）與這裡看起來是兩種材質。
+        scene.setAttribute('renderer',
+          'colorManagement: true; antialias: true; alpha: true; toneMapping: neutral; exposure: 1.00')
         scene.setAttribute('background', 'transparent: true')
+        // ★★★ 四盞燈逐項對齊 demo `_6:62-65`（先前四盞全部漂掉，見 ProduceStage 的註解）
         scene.innerHTML = `
-          <a-entity light="type: hemisphere; color: #FFF6EC; groundColor: #8E96D6; intensity: 1.55"></a-entity>
-          <a-entity light="type: directional; color: #FFF6EA; intensity: 2.30" position="-2.4 3.4 2.6"></a-entity>
-          <a-entity light="type: directional; color: #CFE0FF; intensity: 0.30" position="2.8 1.2 2.2"></a-entity>
-          <a-entity light="type: directional; color: #FFE6F0; intensity: 0.45" position="0.6 3.0 -3.4"></a-entity>
+          <a-entity light="type: hemisphere; color: #FFFDF0; groundColor: #AFC3DE; intensity: 1.45"></a-entity>
+          <a-entity light="type: directional; color: #FFFDF4; intensity: 2.15" position="-2.4 3.4 3.6"></a-entity>
+          <a-entity light="type: directional; color: #DDE9FF; intensity: 0.55" position="3.4 1.0 1.6"></a-entity>
+          <a-entity light="type: directional; color: #EEFFD2; intensity: 0.70" position="1.6 2.6 -3.2"></a-entity>
           <a-entity id="jq-rig" jq-drag-rotate>
             <a-entity jq-character="lod: 0.85; outline: 2"></a-entity>
           </a-entity>
-          <a-entity camera="fov: 40" jq-fit look-controls="enabled: false" wasd-controls="enabled: false"></a-entity>
+          <a-entity camera="fov: 44" jq-fit look-controls="enabled: false" wasd-controls="enabled: false"></a-entity>
         `
         hostRef.current.appendChild(scene)
         const done = () => { if (!cancelled) setPhase('ready') }

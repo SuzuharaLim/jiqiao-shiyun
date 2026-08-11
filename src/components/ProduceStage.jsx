@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Scene, PerspectiveCamera, WebGLRenderer, Group, Vector3,
-  HemisphereLight, DirectionalLight, PCFShadowMap, NeutralToneMapping, Color,
+  HemisphereLight, DirectionalLight, NeutralToneMapping, Color,
 } from 'three'
 import { buildCharacter, NAPA_CABBAGE } from '../lib/char/factory.js'
 import { createActor, ACTIONS } from '../lib/char/actor.js'
@@ -56,35 +56,33 @@ export default function ProduceStage({
     }
     // 裝置像素比上限 2：3x 的螢幕算 9 倍像素，中階手機直接掉到 20fps
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2))
-    renderer.shadowMap.enabled = true
-    // ⚠️ 不可用 `PCFSoftShadowMap`：three 0.185 起它**已棄用**，會印
-    //    「WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.」
-    //    並自動退回 PCFShadowMap。也就是留著它的下場是
-    //    **拿不到柔和陰影、還多吃一個警告**——兩邊都輸，不是「暫時還能用」。
-    //    （已在 node_modules/three/build/three.core.js 確認那行 warn 存在。）
-    renderer.shadowMap.type = PCFShadowMap
+    // ★★★ **不要開真實陰影貼圖**：demo `_6` 完全沒有（實測 shadowMap.enabled=false）。
+    //   MeshToonMaterial 的 gradientMap 是套在「已經乘過陰影衰減」的光照上 ⇒
+    //   被遮蔽的區域會直接掉進最暗那一階，畫面上是白菜表面出現大塊、硬邊、
+    //   不隨曲面走的深色斑（手臂下方、葉片重疊處、腿與菜身之間）。
+    //   賽璐璐的立體感是靠頂點色畫出來的假 AO，真陰影只會把它蓋掉。
+    renderer.shadowMap.enabled = false
     renderer.toneMapping = NeutralToneMapping
-    renderer.toneMappingExposure = 0.95
+    renderer.toneMappingExposure = 1.00        // demo：exposure 1.00（先前 0.95）
     host.appendChild(renderer.domElement)
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block'
 
     const scene = new Scene()
     const camera = new PerspectiveCamera(44, 1, 0.1, 40)
 
-    // 賽璐璐怕多光源疊出多重明暗交界 → 主光獨大，補光壓很低
-    scene.add(new HemisphereLight(new Color('#FFF6EC'), new Color('#8E96D6'), 1.55))
-    const key = new DirectionalLight(new Color('#FFF6EA'), 2.30)
-    key.position.set(-2.4, 3.4, 2.6)
-    key.castShadow = true
-    key.shadow.mapSize.set(2048, 2048)
-    key.shadow.bias = -0.0006
-    key.shadow.normalBias = 0.02
-    key.shadow.intensity = 0.55
-    Object.assign(key.shadow.camera, { left: -2.2, right: 2.2, top: 2.6, bottom: -1.4, near: 1.0, far: 10 })
-    key.shadow.camera.updateProjectionMatrix()
+    // ★★★ 四盞燈的顏色、強度、位置逐項對齊 demo `_6:62-65`。
+    //   賽璐璐怕多光源疊出多重明暗交界 → 主光獨大，補光壓很低。
+    // ⚠️ 移植時四盞全部漂掉了，方向一致地讓角色變暗、變粉：
+    //     半球的地面色 #AFC3DE（淡藍灰）→ #8E96D6（飽和藍紫）⇒ 下半身染紫
+    //     背光 #EEFFD2（淡黃綠，模擬「陽光透過菜葉」）→ #FFE6F0（粉紅）且弱 36%
+    //     補光強度砍到 55%、主光 z 從 3.6 縮到 2.6（入射角變成接近正上方 ⇒ 臉變暗）
+    //   再乘上 ramp 暗部從 0.58 掉到 0.46，整隻明顯暗一階。
+    scene.add(new HemisphereLight(new Color('#FFFDF0'), new Color('#AFC3DE'), 1.45))
+    const key = new DirectionalLight(new Color('#FFFDF4'), 2.15)
+    key.position.set(-2.4, 3.4, 3.6)
     scene.add(key)
-    const fill = new DirectionalLight(new Color('#CFE0FF'), 0.30); fill.position.set(2.8, 1.2, 2.2)
-    const rim = new DirectionalLight(new Color('#FFE6F0'), 0.45); rim.position.set(0.6, 3.0, -3.4)
+    const fill = new DirectionalLight(new Color('#DDE9FF'), 0.55); fill.position.set(3.4, 1.0, 1.6)
+    const rim = new DirectionalLight(new Color('#EEFFD2'), 0.70); rim.position.set(1.6, 2.6, -3.2)
     scene.add(fill, rim)
 
     const pivot = new Group(); scene.add(pivot)
@@ -98,10 +96,15 @@ export default function ProduceStage({
       const w = Math.max(1, r.width), h = Math.max(1, r.height)
       renderer.setSize(w, h, false)
       camera.aspect = w / h
-      // 窄螢幕要退遠一點，否則角色被裁掉頭
+      // ★★★ 注視點 −0.09，不是 +0.66。
+      //   demo `_6` 的軌道中心在世界 y=0.70、hero 在 0.79 ⇒ 相對角色 **−0.09**
+      //   （略低於菜身中央）。先前的 0.66 來自另一支 demo（cel-demo_4 的
+      //   `cam: { y: 0.62 }`），那支的角色是**腳踩 y=0**，座標系整組差 0.785。
+      //   實測後果：角色 bbox 中心在 −0.008，注視點卻在 +0.66 ⇒ 高出一個半身高，
+      //   角色掉到畫面下半部、上半張畫面全空。與 /ar/model 先前的框景 bug 同源。
       const dist = 3.05 * Math.max(1, 1.35 / Math.max(0.35, camera.aspect))
-      camera.position.set(0, 1.55, dist)
-      camera.lookAt(0, 0.66, 0)
+      camera.position.set(0, 0.12, dist)
+      camera.lookAt(0, -0.09, 0)
       camera.updateProjectionMatrix()
     }
     fit()

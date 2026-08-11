@@ -28,7 +28,7 @@ import {
   PAL, DEG, buildLeafGeometry, buildCoreGeometry, buildLimbGeometry,
   buildFacePatch, buildRootBall,
 } from './geometry.js'
-import { makeToonMaterial, addOutline, makeToonRamp } from './material.js'
+import { makeToonMaterial, addOutline, makeToonRamp, FACE_TOON } from './material.js'
 import { faceTexture, disposeFaceCache } from './face.js'
 import { MeshToonMaterial } from 'three'
 
@@ -57,7 +57,9 @@ export const NAPA_CABBAGE = {
   core: { radius: 0.238, height: 1.185 },
   rootBall: { radius: 0.168, squashY: 0.60, lift: 0.020 },
   face: { azHalf: 44, uLo: 0.14, uHi: 0.62, extra: 0.011, segX: 44, segY: 40 },
-  blob: { radius: 0.58, opacity: 0.30, color: PAL.blob },
+  // demo `_6` 的 blob-shadow：plane 1.30×1.30（半徑 0.65）、opacity 0.26。
+  // groundY ＝ 腳底高度（demo：blob 世界 y 0.005 − bodyRoot 0.790 ＝ −0.785）。
+  blob: { radius: 0.65, opacity: 0.26, color: PAL.blob, groundY: -0.785 },
 }
 
 // ⚠️ 同層每片往外推一階（3 階循環，葉數都取 3 的倍數，接縫才不會兩片同高）。
@@ -66,24 +68,36 @@ const R_STEP = 0.0200
 // 3 種高度輪替（打散「頂端排成一圈尖刺」的規律性），每層只多 2 份 geometry。
 const HV = [1.00, 0.958, 0.983]
 
-function makeBlobShadow({ radius, opacity, color }) {
+/**
+ * 接觸陰影。**每個數字都對齊 demo `_6` 的 `blob-shadow` 元件**：
+ * 128px 貼圖、漸層 0→1／0.42→0.72／1→0、plane 1.30×1.30、opacity 0.26。
+ *
+ * ⚠️ 顏色走 `color` 而不是烘進 canvas：demo 是「白色漸層貼圖 × material.color」，
+ *    烘進去的話 `PAL.blob` 就沒有作用了。
+ * ⚠️ `groundY` 是**角色腳底的高度**，不是 0。demo 的 blob 在世界 y=0.005 而
+ *    bodyRoot 在 0.790 ⇒ 相對角色 −0.785。移植時誤用了另一支 demo 的
+ *    「腳踩 y=0」座標系而寫成 +0.006，結果是一圈半透明圓盤從白菜**腰部**
+ *    橫向突出（實測該高度葉外緣 0.434、陰影半寬 0.58，凸出 0.15 一整圈）。
+ */
+function makeBlobShadow({ radius, opacity, color, groundY }) {
   let map = null
   if (typeof document !== 'undefined') {
     const size = 128, cv = document.createElement('canvas'); cv.width = cv.height = size
     const ctx = cv.getContext('2d')
-    const c = new Color(color).convertLinearToSRGB()
-    const rgb = [c.r * 255 | 0, c.g * 255 | 0, c.b * 255 | 0].join(',')
     const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-    g.addColorStop(0.0, `rgba(${rgb},1)`)
-    g.addColorStop(0.5, `rgba(${rgb},0.75)`)
-    g.addColorStop(1.0, `rgba(${rgb},0)`)
+    g.addColorStop(0.00, 'rgba(255,255,255,1)')
+    g.addColorStop(0.42, 'rgba(255,255,255,0.72)')
+    g.addColorStop(1.00, 'rgba(255,255,255,0)')
     ctx.fillStyle = g; ctx.fillRect(0, 0, size, size)
     map = new CanvasTexture(cv); map.colorSpace = SRGBColorSpace
   }
   const m = new Mesh(
     new PlaneGeometry(radius * 2, radius * 2),
-    new MeshBasicMaterial({ map, transparent: true, opacity, depthWrite: false, toneMapped: false }))
-  m.rotation.x = -Math.PI / 2; m.position.y = 0.006; m.renderOrder = -1
+    new MeshBasicMaterial({
+      map, color: new Color(color), transparent: true, opacity,
+      depthWrite: false, toneMapped: false,
+    }))
+  m.rotation.x = -Math.PI / 2; m.position.y = groundY; m.renderOrder = -50
   m.name = 'blob'
   return m
 }
@@ -129,7 +143,10 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
     const layerRoot = new Group()
     layerRoot.position.y = baseY
     body.add(layerRoot)
-    leafRoots.push({ node: layerRoot, phase: li * 1.1, amp: P.layerAmp[li] })
+    // ⚠️ `index` 是**層序號**，demo 的擺動相位直接用它（x 軸 L*0.9、z 軸 L*1.4），
+    //    兩軸的相位偏移不一樣。先前存的 `phase = li * 1.1` 是移植時自己編的
+    //    單一相位，兩軸只好共用 ⇒ 五層變成同步擺動而不是依序traveling。
+    leafRoots.push({ node: layerRoot, index: li, amp: P.layerAmp[li] })
 
     for (let i = 0; i < L.n; i++) {
       const isFace = L.out && i === 0
@@ -186,19 +203,25 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
   })
 
   // ── 菜根：葉片底端是平的開口，要有東西蓋住 ──
+  // ⚠️ **不描邊**：demo 的 outline 是 `enabled: false`（建了殼但隱藏，只有 UI 勾
+  //    「內層也描邊」才會亮）。無條件描邊的話，菜根只從葉子底下露出約 0.03 的
+  //    一小圈，那一圈幾乎整條變成 #7E9450 深綠線，底部看起來像有一道髒接縫。
   const rb = mkMesh(buildRootBall({ radius: P.rootBall.radius, segW: seg(30), segH: seg(20) }),
-    makeToonMaterial({ color: PAL.cream, rimAmount: 0.14 }), oLimb)
+    makeToonMaterial({ color: PAL.cream, rimAmount: 0.14 }))
   rb.position.y = baseY + P.rootBall.lift
   rb.scale.set(1, P.rootBall.squashY, 1)
   body.add(rb)
 
+  // ★★★ 四肢的每一個數字都來自 demo `_6`（2026-08-11 從跑起來的 demo 實測，
+  //   不是從原始碼讀的）。**不要憑感覺調**——見下方 ARM/HIP 的長註解。
+  //
   // 四肢的幾何左右同形（鏡像靠位置與旋轉做），建一次共用即可——
   // 與葉片快取同一個道理，各建一份等於白白多四份幾何。
   const limbGeo = {
-    leg: buildLimbGeometry({ rBot: 0.048, rTop: 0.056, len: 0.10, segR: seg(26) }),
-    foot: new SphereGeometry(0.080, seg(26), seg(18)),
-    arm: buildLimbGeometry({ rBot: 0.042, rTop: 0.053, len: 0.135, segR: seg(26) }),
-    hand: new SphereGeometry(0.072, seg(26), seg(18)),
+    leg: buildLimbGeometry({ rBot: 0.050, rTop: 0.058, len: 0.130, segR: seg(24), segV: seg(10) }),
+    foot: new SphereGeometry(0.068, seg(26), seg(18)),
+    arm: buildLimbGeometry({ rBot: 0.042, rTop: 0.051, len: 0.120, segR: seg(26), segV: seg(12) }),
+    hand: new SphereGeometry(0.060, seg(26), seg(18)),
   }
   owned.geometries.push(...Object.values(limbGeo))
 
@@ -211,17 +234,46 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
     return mesh
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★★★ 四肢的座標系：**只能來自 `大白菜擬人-動作展示_6.html`**
+  //
+  // 2026-08-11 使用者回報「手的位置不對」，追出來的原因是：
+  // 菜身（菜心／5 層葉／菜根／臉貼片）逐字取自 `_6`，**四肢、接觸陰影、相機
+  // 卻是從另一支 demo `白菜擬人-cel-demo_4.html` 抄來的**（該檔第 1107–1111 行
+  // 的 `limbs` preset：armX 0.382／armY 0.600／armR 0.053／armL 0.135／
+  // handR 0.072／handY −0.222／legR 0.056／legL 0.100／legX 0.112／
+  // footR 0.080／footSc '1 0.60 1.35'／cam.y 0.62 —— 一個不差，全部對得上）。
+  //
+  // ⚠️ 那支 demo 的**原點完全不同**：它的菜身基準是 `baseY = +0.19`、角色腳踩
+  //    在 y = 0；`_6` 的菜身基準是 −0.595、地面在 bodyRoot 空間的 y = −0.785。
+  //    兩套座標系混在一起的後果（實測）：
+  //      手臂樞紐 y = +0.600 ⇒ 落在身高 1.19 的 **100%** 處
+  //                          ⇒ 兩隻手從菜頂兩側戳出來，就是使用者說的「天線」
+  //      髖關節   y = +0.218 ⇒ 身高的 68% ⇒ 兩條腿整個包在菜心與內層葉之間，
+  //                          從外面一根都看不到（白菜看起來沒有腿）
+  //      接觸陰影 y = +0.006 ⇒ 一圈半透明圓盤從腰部橫向突出（呼拉圈）
+  //    這**不是三個獨立的 typo，是同一個成因**。
+  //
+  // ⚠️ 所以：改這一段之前，先確認你手上的數字是從 `_6` 來的。
+  //    驗證方式（不必開瀏覽器）：`scripts/check-char.mjs` 有一張 DEMO6 對照表，
+  //    那些值是把 `_6` 跑起來之後從 `object3D` 直接讀出來的，不是抄原始碼。
+  // ══════════════════════════════════════════════════════════════════════════
+
   // ── 腿（包一層髖關節，動作才能繞著髖部擺動）──
   const hips = []
   for (const s of [-1, 1]) {
     const hip = new Group()
-    hip.position.set(s * 0.112, 0.218, 0.02)
+    hip.position.set(s * 0.116, -0.512, 0.044)
+    // ★ 外八是靠**髖的 y 軸**旋轉做的（demo 建立時寫死 ∓10°，actor 只寫
+    //   rotation.x，所以這個值永遠留著）。先前移植成「小腿自己 rotation.z 傾 7°」
+    //   ——那是 cel-demo_4 的做法，而且腳掌不會跟著轉，膠囊下端會偏離腳掌中心。
+    hip.rotation.y = s * 10 * DEG
     body.add(hip); hips.push(hip)
-    const leg = mkShared(limbGeo.leg, makeToonMaterial({ color: PAL.limb }), oLimb)
-    leg.position.y = -0.106; leg.rotation.z = -s * 7 * DEG
+    const leg = mkShared(limbGeo.leg, makeToonMaterial({ color: PAL.limb, rimAmount: 0.16 }), oLimb)
+    leg.position.y = -0.100
     hip.add(leg)
-    const foot = mkShared(limbGeo.foot, makeToonMaterial({ color: PAL.limb }), oLimb)
-    foot.scale.set(1, 0.60, 1.35); foot.position.set(0, -0.173, 0.038)
+    const foot = mkShared(limbGeo.foot, makeToonMaterial({ color: PAL.limb, rimAmount: 0.18 }), oLimb)
+    foot.scale.set(1.02, 0.80, 1.58); foot.position.set(0, -0.208, 0.036)
     hip.add(foot)
   }
 
@@ -229,16 +281,33 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
   const arms = []
   for (const s of [-1, 1]) {
     const holder = new Group()
-    holder.position.set(s * 0.382, 0.600, 0.06)
+    // ⚠️ z = 0.118 不是隨便的：demo 的註解寫「樞紐要貼著表面，不然一抬手就沒入菜身」。
+    holder.position.set(s * 0.398, -0.307, 0.118)
+    // actor 每幀會覆寫成 s*(44 + armA)；這裡先給 44 只是為了「actor 還沒跑第一幀
+    // 之前手臂不會直挺挺垂著」，兩者是指派不是相加，不會打架。
     holder.rotation.z = s * 44 * DEG
     body.add(holder); arms.push(holder)
-    const upper = mkShared(limbGeo.arm, makeToonMaterial({ color: PAL.limb }), oLimb)
-    upper.position.y = -0.10
+    const upper = mkShared(limbGeo.arm, makeToonMaterial({ color: PAL.limb, rimAmount: 0.18 }), oLimb)
+    upper.position.y = -0.098
     holder.add(upper)
-    const hand = mkShared(limbGeo.hand, makeToonMaterial({ color: PAL.limb }), oLimb)
-    hand.position.y = -0.222
+    const hand = mkShared(limbGeo.hand, makeToonMaterial({ color: PAL.limb, rimAmount: 0.20 }), oLimb)
+    hand.position.y = -0.212
+    hand.scale.set(1, 0.96, 0.98)
     holder.add(hand)
   }
+
+  // ── 頂芽 ──
+  // ★ demo 的註解逐字寫了理由：「葉尖在頂點收攏處會留下小縫，塞一顆小球擋住」。
+  //   這一顆在移植時**整個漏掉了**，而 check-char 的「幾何份數 24」還把這個
+  //   缺件鎖了起來（24 剛好是「有陰影、沒頂芽」的數字）。實測 y=1.18 處菜心
+  //   已收到半徑 0.0156、最近的葉面還在 0.0578 ⇒ 頭頂正中央有一圈寬 0.042 的凹坑。
+  const bud = mkMesh(
+    new SphereGeometry(0.098, seg(24), seg(16)),
+    makeToonMaterial({ color: PAL.greenHi, rimAmount: 0.16 }))
+  bud.position.y = baseY + 1.118
+  bud.scale.set(1, 0.80, 1)
+  bud.name = 'bud'
+  body.add(bud)
 
   // ── 臉：掛在有 face 旗標的葉層底下（layerRoot 的位移先扣回去）──
   // ── 臉部貼片：貼在最外層那片「臉葉」的曲面上 ──
@@ -246,9 +315,11 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
   //    臉必須跟著那片葉子動，否則葉子擺動時五官會滑出去。
   const faceLayerIdx = P.layers.findIndex(L => L.out)
   const FL = P.layers[faceLayerIdx]
+  // ⚠️ 臉用**自己的** ramp（3 階、暗部 0.66），不可與身體共用。
+  //    demo 特地把臉的 lo 反向調高就是為了讓五官永遠亮著（見 FACE_TOON 的註解）。
   const faceMat = new MeshToonMaterial({
     map: faceTexture(P.id, 'normal'), transparent: true, depthWrite: false,
-    gradientMap: makeToonRamp(3, 0.46),
+    gradientMap: makeToonRamp(FACE_TOON.steps, FACE_TOON.shadowFloor),
   })
   const faceGeo = buildFacePatch({
     radius: FL.r, height: FL.h, flare: FL.flare, thickness: 0.020,
@@ -257,7 +328,10 @@ export function buildCharacter(preset = NAPA_CABBAGE, { lod = 1, outlineLayers =
     extra: P.face.extra, segX: seg(P.face.segX), segY: seg(P.face.segY),
   })
   const faceMesh = new Mesh(faceGeo, faceMat)
-  faceMesh.renderOrder = 2
+  // demo 是 5。目前場景裡只有臉與接觸陰影兩個透明物，2 也排得對，
+  // 但 5 留的餘裕大得多——日後再加任何透明疊層（特效、標籤、AR 疊加），
+  // 2 很容易被蓋過去。
+  faceMesh.renderOrder = 5
   owned.geometries.push(faceGeo); owned.materials.push(faceMat)
   ;(leafRoots[faceLayerIdx].faceNode ?? leafRoots[faceLayerIdx].node).add(faceMesh)
 
