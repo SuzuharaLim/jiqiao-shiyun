@@ -117,13 +117,35 @@ export default function Scan() {
     return () => clearTimeout(t)
   }, [phase, push])
 
-  // 找了一段時間還沒認出來 —— 用來把毫無資訊的「掃描中」升級成講得出原因的訊息
+  // 找了一段時間還沒認出來 —— 用來把毫無資訊的「掃描中」升級成講得出原因的訊息。
+  // ⚠️ 這一段**必須**放在下面 `stuck` 之前：`stuck` 讀 `longSearch`，而 `const` 有
+  //    暫時性死區（TDZ）。順序反過來會丟「Cannot access before initialization」，
+  //    整個畫面被 ErrorBoundary 接走，而 `npm run build` 一個字都不會報。
   const [longSearch, setLongSearch] = useState(false)
   useEffect(() => {
     if (phase !== 'searching') { setLongSearch(false); return }
     const t = setTimeout(() => setLongSearch(true), 8000)
     return () => clearTimeout(t)
   }, [phase])
+
+  // ★★★ 「卡住」的定義：找了一段時間 ＋ 畫面夠清楚 ＋ 比對迴圈在跑 ＋ 就是沒命中。
+  //   這三個條件同時成立時，前面所有常見原因（當機／太暗／手震／太遠）都已被排除，
+  //   所以畫面**必須**改口說別的——原本它還在講「把卡片放進框內」，那是廢話。
+  const stuck = longSearch
+    && features !== null && features >= FEAT_GOOD
+    && (st.tps ?? 0) > 0
+
+  // 到了那個狀態就**自動**跑一次自我測試。
+  // ⚠️ 不要叫使用者自己去找按鈕：他正處在「一直失敗」的情緒裡，而這個測試的
+  //    結果是把原因一刀切成兩半的唯一資訊（裝置運算壞掉 vs 圖不對）。
+  // ⚠️ 只跑一次（`autoTestedRef`）：它會暫停即時迴圈，反覆跑會讓畫面一直頓。
+  const autoTestedRef = useRef(false)
+  useEffect(() => {
+    if (!stuck || autoTestedRef.current || !sessionRef.current || !CARD) return
+    autoTestedRef.current = true
+    setSelfTest('running')
+    sessionRef.current.selfTest(CARD.target).then(setSelfTest).catch(() => setSelfTest('idle'))
+  }, [stuck])
 
   // 轉向／版面改變要重算投影，否則 3D 與影像對不上。
   useEffect(() => {
@@ -244,23 +266,52 @@ export default function Scan() {
             {/* ★★★ 畫面很好、迴圈也在跑，卻一直認不出來 —— 這種狀態原本沒有任何訊息，
                 使用者只會看到「掃描中」跑到天荒地老，然後以為是自己沒對準。
                 但特徵點與心跳這兩個數字已經把原因縮到只剩一個了，就該直接講出來。 */}
-            {longSearch && features !== null && features >= FEAT_GOOD && (st.tps ?? 0) > 0 && (
+            {stuck && (
               <div className="scan-nofile">
                 <b>比對程序在跑（{st.tps} 輪/秒），畫面也夠清楚（特徵點 {features}），但一直對不上。</b>
-                <p>
-                  可以確定<b>不是當機、也不是光線太暗或手震</b>。剩下三種可能，
-                  由容易到難依序試：
-                </p>
-                <p>
-                  ① <b>讓卡片佔滿畫面</b>——特徵點會數到整個畫面，包含桌面、邊框、
-                  背景，所以數字高不代表「卡片本身」被看清楚了。把卡片拉近到填滿取景框。
-                  <br />② <b>換一顆後鏡頭</b>（下方診斷面板）——超廣角的變形會讓辨識完全失效。
-                  <br />③ <b>手上這張卡與網站的目標檔不是同一版</b>——這個只能由我們確認。
-                </p>
-                <p className="muted">
-                  試完還是不行，請按下方「掃描診斷 → 複製診斷資料」貼給我們，
-                  並說明你掃的是實體卡還是螢幕上的哪一個檔案。
-                </p>
+
+                {/* ★★★ 到這裡就**自動跑一次自我測試**，不要叫使用者自己去找按鈕。
+                    它拿「網站自己那張卡面圖」走完全相同的辨識流程，於是把剩下的
+                    可能一刀切成兩半——而這是使用者無論如何都問不出來的資訊。 */}
+                {(selfTest === 'idle' || selfTest === 'running') && (
+                  <p className="muted">正在自動檢查這台裝置的辨識運算…（約 3 秒，畫面會暫停一下）</p>
+                )}
+
+                {selfTest !== 'idle' && selfTest !== 'running' && (selfTest.ok ? (
+                  <>
+                    <p>
+                      <b>✓ 這台裝置的辨識運算正常</b>——它認得出網站內建的那張卡面圖
+                      （第 {selfTest.frames} 幀、{selfTest.ms} ms）。
+                      所以問題<b>不在</b>你的手機，也不在光線或手震。
+                    </p>
+                    <p>
+                      剩下兩種可能，由容易到難：
+                      <br />① <b>讓卡片佔滿取景框</b>——特徵點會數到整個畫面（桌面、邊框、
+                      背景都算），所以 {features} 這個數字高，不代表「卡片本身」佔得夠大。
+                      <br />② <b>你掃的那張圖與網站的目標檔不是同一版</b>。
+                      最快的驗證法：直接用這支手機打開
+                      <b> chengqi.tw/ar/card/{CARD?.slug} </b>
+                      看網站上的卡面長什麼樣，再跟你螢幕上那張比對。
+                    </p>
+                  </>
+                ) : selfTest.stage === 'match' ? (
+                  <>
+                    <p>
+                      <b>✗ 這台裝置連網站內建的卡面圖都認不出來</b>（{selfTest.ms} ms）。
+                      也就是說<b>問題不在你的卡片</b>——同一張保證正確的圖，在這台裝置上
+                      也比對不出來。
+                    </p>
+                    <p className="muted">
+                      這是裝置端的辨識運算問題（GPU 精度或驅動），我們需要你的診斷資料才能修。
+                      請按下方「掃描診斷 → 複製診斷資料」貼給我們。
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    <b>✗ 辨識運算在這台裝置上跑不起來</b>（{selfTest.stage}）：
+                    <code>{selfTest.reason}</code>
+                  </p>
+                ))}
               </div>
             )}
           </>

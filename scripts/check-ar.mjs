@@ -351,6 +351,22 @@ const W = 1831, H = 1335
     '★★★ 看門狗要判「心跳有沒有前進」，不可只判總數是否為 0（worker 中途死掉會漏掉）')
   ok(/tps/.test(SRC.session), '★★ 要算並回報心跳速率（輪/秒）')
   ok(/輪\/秒/.test(SRC.scan), '★★ 心跳速率要顯示在使用者看得到的地方，不可只藏在診斷面板')
+  // ★★★ 「畫面夠清楚＋迴圈在跑＋就是沒命中」時要**自動**跑自我測試：
+  //   那個結果是把原因一刀切成兩半的唯一資訊（裝置運算壞掉 vs 掃的圖不對），
+  //   而使用者不可能自己問得出來，也不該被要求去找按鈕。
+  ok(/const stuck = longSearch/.test(SRC.scan), '★★ 要有「卡住」的明確定義')
+  // ★★★ TDZ：`stuck` 讀 `longSearch`，所以宣告順序不可顛倒。
+  //   `const` 有暫時性死區，倒過來會丟「Cannot access before initialization」，
+  //   **整個畫面被 ErrorBoundary 接走，而 npm run build 一個字都不會報**。
+  //   這個坑在本專案已經咬過兩次（PostDetail 的 hook 順序、這裡），所以上閘門。
+  {
+    const iLong = SRC.scan.indexOf('const [longSearch')
+    const iStuck = SRC.scan.indexOf('const stuck = longSearch')
+    ok(iLong > 0 && iStuck > 0 && iLong < iStuck,
+      '★★★ longSearch 必須宣告在 stuck 之前（TDZ；順序錯了 build 不報但整頁掛掉）')
+  }
+  ok(/autoTestedRef/.test(SRC.scan) && /selfTest\(CARD\.target\)/.test(SRC.scan),
+    '★★★ 卡住時要自動跑一次自我測試（只跑一次）')
 
   // ★ 解析度必須明講；ideal 不可換成 exact（exact 不支援時相機完全開不起來）
   ok(/width:\s*\{\s*ideal:\s*1280\s*\}/.test(SRC.camera) && /height:\s*\{\s*ideal:\s*960\s*\}/.test(SRC.camera),
