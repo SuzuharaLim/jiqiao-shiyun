@@ -378,6 +378,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
     - ⚠️ **目前卡面的 QR 只編了站台首頁，認不出是哪一張卡**。只有一張官方卡時可以推斷；**多張時一律不猜**（猜錯會把人帶到別張卡的內容，比沒反應更糟）。**出第二張卡之前，印刷稿的 QR 必須改成帶 slug 的網址**（如 `https://chengqi.tw/ar/model/2027-xiaohan`），`matchCardFromQr` 已先支援。
     - ⚠️ 一定要 `getSupportedFormats()` feature-detect（iOS Safari 沒有這個 API），且**失敗一律靜默略過**——它是備援，不可反過來影響主路徑。偵測也不可重疊呼叫（部分實作會拋 `InvalidStateError` 然後靜默死掉）。
     - `matchCardFromQr` 是純函式，閘門在 node 裡直接測（含「多張卡時不可亂猜」的反例）。⚠️ 所以它不可相依 `location`——要防呆。
+    - **★★★ 啟動流程最後那句 `to('searching')` 必須先確認不是已經 `locked`**：QR 通常比追蹤引擎（1.7 MB）先有結果，它一命中就設 `locked`，但啟動流程跑完會把狀態蓋回 `searching` ⇒ Scan.jsx 的跳轉 effect 因為 phase 變了而 cleanup 掉計時器，而一次性旗標已是 true ⇒ **跳轉永遠不會發生**。症狀是「QR 明明認出來了，畫面卻退回掃描中然後什麼都沒發生」。**實測踩到**（第一次接上 QR 就是這樣沒反應）。與「hotspot 進 deps」同一類：狀態被後到的寫入蓋掉。
+    - **實測（正式 build）**：相機餵完全不是卡片的畫面 ＋ 模擬原生偵測器 → **1.6 秒由 QR 認出並跳轉**，狀態列正確顯示「用卡片上的 QR」；拿掉模擬偵測器改餵真卡片 → MindAR 1.6 秒認出，且**不會誤稱是 QR**。
   - **★★ 相容模式（`src/ar/tfjsCompat.js`）**：給「特徵點抓得到、比對永遠 0 次、連自我測試都失敗」的裝置（實測 Samsung Xclipse 540 / ANGLE on Vulkan）。TFJS **只在模組初始化那一刻**讀網址的 `tfjsflags`，所以旗標必須在 `await import(mindar)` **之前**塞進網址、import 完立刻還原。開啟必須**重新載入**（已初始化就不再讀）。⚠️ 實測 `?tfjsflags=HAS_WEBGL:false` 會讓 Controller 直接建構失敗——MindAR 硬相依 WebGL 後端，**純 CPU 那條路走不通，不要再試**。
   - **★★★ 負向檢查（「原始碼不可出現 X」）必須先證明自己抓得到**：`check-ar.mjs` 的 `MIN_NUM_INLIERS` 那條原本寫成 `[0-5]`，但產生檔案時 `` 被寫成**真正的退格字元 0x08**，於是 regex 永遠不匹配 ⇒ **閘門恆為通過**。變異測試當場抓到它沒反應。現在所有負向 regex 都先對一個「應該被抓到的樣本」自我驗證。**一個永遠通過的檢查比沒有檢查更糟。**
   - **MindAR 沒有「相似度」分數可顯示**（inlier 式判定，`score` 恆為 `null`）：狀態列若照舊寫死 `相似度 {track.score}%` 會顯示「相似度 **%**」——一個空的數字比不顯示更像壞掉。

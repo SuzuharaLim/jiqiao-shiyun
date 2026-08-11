@@ -277,7 +277,15 @@ export function createSession({ video, canvas, container, card, onState }) {
         await stage.mountCharacter(card.hotspots?.find(h => h.primary) ?? card.hotspots?.[0] ?? null)
         if (disposed) return
 
-        to('searching')
+        // ★★★ 這裡**不可以無條件**設回 searching。
+        //
+        // ⚠️ QR 備援是與啟動流程並行跑的，而且它通常比追蹤引擎（1.7 MB）先有結果。
+        //    它一命中就 `to('locked')`，但啟動流程跑完後這一句會把狀態蓋回
+        //    `searching` ⇒ Scan.jsx 的跳轉 effect 因為 phase 變了而 cleanup 掉計時器，
+        //    而一次性旗標已經是 true ⇒ **跳轉永遠不會發生**。
+        //    症狀：QR 明明認出來了，畫面卻退回「掃描中」然後什麼都沒發生。
+        //    （與先前「hotspot 進 deps」那個坑同一類：狀態被後到的寫入蓋掉。）
+        if (phase !== 'locked') to('searching')
         raf = requestAnimationFrame(loop)
 
         // ★★★ 心跳看門狗：判準是「心跳**有沒有在前進**」，不是「總數是不是 0」。

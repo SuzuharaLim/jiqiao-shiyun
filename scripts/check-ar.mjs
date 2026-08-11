@@ -599,6 +599,11 @@ const W = 1831, H = 1335
     '★★ QR 偵測要包 try/catch/finally（失敗靜默略過，不可影響 MindAR 主路徑）')
   ok(/viaQr/.test(SRC.session) && /viaQr/.test(SRC.scan),
     '★ 要能分辨「靠 QR 認出的」並在畫面上講出來')
+  // ★★★ QR 通常比追蹤引擎（1.7 MB）先有結果，所以啟動流程最後那句
+  //   `to('searching')` 不可無條件執行——否則會把 QR 已經設好的 locked 蓋掉，
+  //   跳轉 effect 隨即 cleanup 掉計時器而一次性旗標已是 true ⇒ 永遠不跳。
+  ok(/if \(phase !== 'locked'\) to\('searching'\)/.test(SRC.session),
+    '★★★ 啟動流程設回 searching 前要先確認不是已經 locked（否則 QR 命中會被蓋掉）')
 }
 
 // ── F. 官方卡包 ──────────────────────────────────────────────────────────
