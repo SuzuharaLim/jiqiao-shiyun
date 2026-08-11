@@ -395,6 +395,13 @@ export function createSession({ video, canvas, container, card, onState }) {
         tps,
         matches: tracker?.matches?.() ?? 0,
         qr: qrReady ? (viaQr ? '有（已由 QR 認出）' : '有') : '不支援',
+        scaleFix: (() => {
+          const f = tracker?.inputScaleFix?.()
+          if (!f) return '不需要'
+          return f.applied
+            ? `已校正 ×${f.factor < 1 ? '1/255' : '255'}（${Math.round(f.before)} → ${Math.round(f.after)}）`
+            : `偵測到異常但校正無效（${Math.round(f.before)}）`
+        })(),
         inputRange: inputRange
           ? `${inputRange.min}~${inputRange.max}（平均 ${inputRange.mean}）`
             + (inputRange.max <= 1.5 || inputRange.max > 1000 ? '　★ 異常！' : '')

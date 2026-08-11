@@ -290,6 +290,17 @@ const W = 1831, H = 1335
   ok(/getWorldMatrix\(r\.modelViewTransform/.test(SRC.tracker),
     '★★ 攔截後要自己把 modelViewTransform 換成 worldMatrix（上游只在 showing 時才做）')
   ok(/matches: \(\) => matches/.test(SRC.tracker), '★ 對外要吐比對成功次數（診斷用）')
+  // ★★ 灰階尺度自動校正：只在結構性偏差（差 255 倍）時才動，且要能還原。
+  //   ⚠️ 實測（注入 0~1 的壞 shader）：尺度壞掉時**特徵點會是 0**，
+  //      所以「特徵點很多卻比對不到」的裝置**不是**這個成因——別搞混。
+  ok(/autoFixInputScale/.test(SRC.tracker), '★ 要有灰階尺度自動校正')
+  ok(/before\.max <= 1\.5[\s\S]{0,60}before\.max > 1000/.test(SRC.tracker),
+    '★★ 只在明顯結構性偏差時才校正（不可把「畫面本來就暗」誤判成要校正）')
+  ok(/loader\.program = original/.test(SRC.tracker), '★★ 校正沒效要還原，不可留下改過卻沒用的 shader')
+  // 校正要包住整個 setOutput 運算式，不可去字串比對 `* 255.0`
+  //（上游改寫法時字串比對會靜默失效）。用單純的子字串檢查，避免把 regex 寫壞。
+  ok(SRC.tracker.includes('setOutput') && !SRC.tracker.includes(".replace('* 255.0'"),
+    '★ 校正要包住整個 setOutput 運算式，不可字串比對 `* 255.0`（上游改寫法會靜默失效）')
   // ★★ 繞過 warmup 之後要自己把「防誤判」補回來：上游的 warmupTolerance 身兼
   //   「等光流穩定」與「去抖動」兩職，只認一次比對就跳轉會把後者一起丟掉，
   //   而這條動線誤跳的代價是直接把人送到另一頁。

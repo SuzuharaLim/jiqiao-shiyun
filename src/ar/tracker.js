@@ -172,9 +172,77 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   const { dimensions } = await controller.addImageTargets(mindUrl)
   const [W, H] = dimensions[0] ?? [1, 1]
 
+  // ★★★ 灰階轉換的數值尺度自動校正。
+  //
+  // ⚠️ `InputLoader` 的自訂 shader 是：
+  //        setOutput((0.299*r + 0.587*g + 0.114*b) * 255.0)
+  //    它**假設** `texture()` 讀回來的是 0~1。這在絕大多數驅動上成立，但不是
+  //    規格保證的——若某個實作回的是 0~255，輸出就會變成 0~65025。
+  //    兩種偏差下 Laplacian 門檻（3.0）都會失去意義：
+  //      太大 ⇒ 到處都「是特徵」，數量看起來很健康但**全是雜訊**
+  //      太小 ⇒ 幾乎抓不到特徵
+  //    前者正好符合實測到的「特徵點 372 很漂亮、比對成功 0 次」
+  //    （Samsung Xclipse 540 on Vulkan，相容模式與換 worker 都無效）。
+  //
+  // ★ 既然 `inputLoader.program` 是每次 `loadInput` 都會讀的普通物件，
+  //   就可以在執行期把 shader 換成帶補償係數的版本——tfjs 以 shader 原始碼
+  //   為快取鍵，改了字串就會編譯成新程式。
+  //
+  // ⚠️ **只在數值明顯結構性偏掉時才動**（≤1.5 或 >1000）。那兩種是「乘錯 255」
+  //    的特徵，與「畫面本來就暗」完全不同量級——後者絕不可誤判成需要校正，
+  //    否則會把正常裝置弄壞。
+  // ⚠️ 校正後要**重新量一次**確認真的修好了；沒修好就還原，不要留下一個
+  //    改過卻沒用的 shader（那會讓之後的診斷更難讀）。
+  let inputScaleFix = null
+  const measureRange = async () => {
+    let t = null, a = null, b = null
+    try {
+      t = controller.inputLoader.loadInput(video)
+      a = t.min(); b = t.max()
+      const [mn, mx] = await Promise.all([a.data(), b.data()])
+      return { min: mn[0], max: mx[0] }
+    } catch { return null }
+    finally { for (const x of [t, a, b]) { try { x?.dispose?.() } catch { /* ignore */ } } }
+  }
+
+  async function autoFixInputScale() {
+    const before = await measureRange()
+    if (!before) return
+    // 正常範圍：最大值應該接近 255。只處理「差了 255 倍」這種結構性偏差。
+    const factor = before.max <= 1.5 ? 255 : (before.max > 1000 ? 1 / 255 : 0)
+    if (!factor) return
+    const loader = controller.inputLoader
+    const original = loader.program
+    try {
+      // ⚠️ 不可去字串比對 `* 255.0`——上游改寫法（或別的偏差成因）時就會靜默失效。
+      //    改成把整個 setOutput 的運算式包起來乘上係數，與內部寫法無關。
+      const patched = original.userCode.replace(
+        /setOutput\(([\s\S]*?)\);/,
+        (_, expr) => `setOutput((${expr}) * ${factor.toFixed(8)});`)
+      if (patched === original.userCode) {
+        inputScaleFix = { applied: false, before: before.max, after: null, why: '找不到 setOutput' }
+        return
+      }
+      loader.program = { ...original, userCode: patched }
+      const after = await measureRange()
+      if (!after || after.max <= 1.5 || after.max > 1000) {
+        loader.program = original            // 沒修好就還原
+        inputScaleFix = { applied: false, before: before.max, after: after?.max ?? null }
+      } else {
+        inputScaleFix = { applied: true, factor, before: before.max, after: after.max }
+        console.warn('[AR] 偵測到灰階數值尺度異常，已自動校正', inputScaleFix)
+      }
+    } catch {
+      loader.program = original
+    }
+  }
+
   // ⚠️ dummyRun 是必要的暖機（編譯 shader、配置 tensor）。少了它第一次偵測會卡
   //    好幾百毫秒，症狀是「打開相機後畫面凍住一下」。
   await controller.dummyRun(video)
+  if (disposed) { try { controller.dispose() } catch { /* ignore */ } ; return null }
+  // ⚠️ 一定要在 processVideo 之前：迴圈跑起來之後再換 shader 會與正在飛的那一輪打架。
+  await autoFixInputScale()
   if (disposed) { try { controller.dispose() } catch { /* ignore */ } ; return null }
   controller.processVideo(video)
 
@@ -196,6 +264,8 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
      *    拿掉，留著這個計數是為了萬一還有殘留問題時分得出來）。
      */
     matches: () => matches,
+    /** 灰階尺度有沒有被自動校正過（診斷用；null＝數值正常，沒動過）。 */
+    inputScaleFix: () => inputScaleFix,
 
     /**
      * ★★★ 即時特徵點探測 —— 這一版最重要的新東西。

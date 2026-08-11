@@ -465,6 +465,7 @@ export default function Scan() {
                       max ≤ 1 或 > 1000 代表 InputLoader 的 shader 在這個驅動上
                       算錯了，那是所有後續運算的源頭（特徵點會全是雜訊）。 */}
                   <div><dt>影像數值範圍</dt><dd>{info.inputRange ?? '—'}</dd></div>
+                  <div><dt>尺度自動校正</dt><dd>{info.scaleFix ?? '—'}</dd></div>
                   <div><dt>QR 備援</dt><dd>{info.qr ?? '—'}</dd></div>
                   <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
@@ -514,7 +515,7 @@ export default function Scan() {
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
-                      `影像數值範圍：${i.inputRange ?? '—'}`,
+                      `影像數值範圍：${i.inputRange ?? '—'}　尺度自動校正：${i.scaleFix ?? '—'}`,
                       `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}　QR 備援：${i.qr ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
