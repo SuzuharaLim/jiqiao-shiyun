@@ -33,9 +33,30 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 if command -v gcloud >/dev/null && gcloud beta billing projects describe "$PROJECT_ID" --format='value(billingEnabled)' 2>/dev/null | grep -qi false; then
   echo "   ⚠️ 此專案尚未綁定帳單帳戶！請先： gcloud billing projects link $PROJECT_ID --billing-account=XXXX-XXXX-XXXX"
 fi
-gcloud services enable run.googleapis.com sqladmin.googleapis.com \
-  cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com
-echo "   等待 API 生效（避免下一步 SERVICE_DISABLED 競態）…"; sleep 15
+# ★★ 只啟用「還沒啟用」的 API。
+#
+# ⚠️ 原本是無條件 `gcloud services enable`（5 個 API）。站已經在跑的時候那些
+#    早就啟用了，這一步純粹是多餘的呼叫——但它算在
+#    `serviceusage.googleapis.com` 的 **Mutate requests per minute（120/分）**
+#    配額裡，於是重跑幾次腳本就會撞到：
+#      ERROR: (gcloud.services.enable) ... 429 RESOURCE_EXHAUSTED
+#      Quota exceeded for quota metric 'Mutate requests'
+#    而那個錯誤訊息看起來像「部署失敗」，實際上跟程式碼、跟服務本身都無關，
+#    很容易讓人以為是自己的改動有問題。2026-08-11 實際踩到。
+# ⚠️ 而且它是**第一步**，撞到就整支腳本中止，後面什麼都不會跑。
+NEED_API=""
+ENABLED="$(gcloud services list --enabled --format='value(config.name)' 2>/dev/null || true)"
+for api in run.googleapis.com sqladmin.googleapis.com \
+           cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com; do
+  grep -qx "$api" <<<"$ENABLED" || NEED_API="$NEED_API $api"
+done
+if [ -n "$NEED_API" ]; then
+  echo "   啟用尚未開啟的 API：$NEED_API"
+  gcloud services enable $NEED_API
+  echo "   等待 API 生效（避免下一步 SERVICE_DISABLED 競態）…"; sleep 15
+else
+  echo "   5 個 API 都已啟用，略過（避免撞到 serviceusage 的每分鐘配額）"
+fi
 
 echo "== [1/6] Cloud SQL（PostgreSQL）=="
 if ! gcloud sql instances describe "$SQL_INSTANCE" >/dev/null 2>&1; then
