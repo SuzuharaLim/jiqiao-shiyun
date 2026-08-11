@@ -72,7 +72,9 @@ chengqi-main/
 │  │  └─ almanac.js        任意日期生國民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
 │  │                        ★todayOffset() 讓 App 開在真實今日；dayFor 回傳完整傳統項目（三柱干支動態年份/建除/星宿/彭祖/胎神/沖煞歲數/財喜貴方位/十二時辰/特殊日）；另 export yearOverview
 │  ├─ lib/
-│  │  ├─ scanner.js        ★自研影像辨識（dHash＋直方圖＋清晰度，純陣列運算零相依，可直接 Node 測試）
+│  │  ├─ mindarThree.js    ★AR 追蹤：官方 MindARThree 的在地化版本（three 0.185 相容）
+│  │  ├─ mindScene.js      ★AR 接線層：角色掛 anchor.group、Raycaster 打熱區（唯一接線點）
+│  │  ├─ scanner.js        dHash＋直方圖（已非 /AR 追蹤路徑，僅 arCardRegistry 使用）
 │  │  ├─ speak.js          ★語音導覽（Web Speech API 零相依）：切短句避開 Chrome 15 秒看門狗、挑中文語音、離開必 cancel
 │  │  └─ shareCard.js      ★成果圖卡（純 canvas 1080×1080 零素材）＋ Web Share／下載三段 fallback
 │  ├─ components/
@@ -619,7 +621,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **真實圖片上傳（2026-07）**：`images` 表（base64 TEXT，pg/sqlite 通用）＋`POST /api/images`（登入者上傳，前端 canvas 壓縮 ≤1600px JPEG，後端驗 MIME 魔數、3MB 上限、只能掛自己的圖）＋`GET /api/images/:id` 同源供圖（CSP `img-src 'self'` 相容、immutable 快取）。`posts.image_id`/`works.image_id` 經 db.js 輕量 ALTER 遷移（**免砍本機 DB**）。前端 `PhotoImg`（ui.jsx）在 `.ph/.img/.gimg` 佔位框內覆蓋顯示，有圖顯圖、無圖回退 emoji。**⚠️ 用 `PhotoImg` 的畫面務必 import**——漏了只有「有照片時」才會崩（無照片走 emoji 分支不會踩到），症狀是點進詳情頁整頁空白但網址與標題已變（WorkDetail/PostDetail 曾雙雙漏掉）——涵蓋 Feed/Explore/TodayShots/PostDetail/WorkDetail/Profile/CreatorPage/MakeCalendar/Leaderboard。NewPost「上傳照片」＋勾「上架市集」會真的 `POST /api/works`（同一張圖）。**排行榜改 `GET /api/leaderboard` 依真實 like_count 即時計算**（ref_items 的 leaderboard 清單已不被前端使用）。
 - nav context 單一 provider 全樹重繪（原型可接受）。
 - 已處理（2026-07 全面總檢）：法務三頁（privacy/terms/contact）、帳號安全 UI（改密/匯出/刪帳）、訂單後端化（orders 表+API+確認信+防連點）、robots.txt、503.html、API 錯誤中介層、fetch 逾時+友善網路錯誤、註冊 honeypot、每頁 title、main 地標、prefers-reduced-motion、表單 aria-label、曆頁星期對齊真實日期、react vendor chunk 分割。
-- 已處理（2026-07 國民曆內容補全）：自研影像辨識掃描（`lib/scanner.js`＋`Scan.jsx`，零相依裝置端）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整國民曆」＋占卜「國民曆·曆頁」「附錄·查詢表」入口。
+- 已處理（2026-07 國民曆內容補全）：影像辨識掃描（`lib/scanner.js`＋`Scan.jsx`，零相依裝置端；**2026-08-10 起 `/AR` 已改走 MindAR**）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整國民曆」＋占卜「國民曆·曆頁」「附錄·查詢表」入口。
 - 已處理（2026-07 資料庫化＋部署）：App 開在**真實今日**（`todayOffset`，年柱動態）；後端由 SQLite 抽象為 **pg(Cloud SQL)/sqlite 雙驅動**（`db.js`＋`schema.sql`，全 async）；社群內容 DB 化（`posts/comments/post_likes/works/follows/notifications` 表＋API＋前端 `useApi` hooks，`mock.js` 降為種子）；`npm run seed`；**Cloud Run + Cloud SQL 部署 runbook＋一鍵腳本**（全程 Cloud Shell、免本機安裝、免 GitHub）。
 - 已處理（2026-07 相機/帳號/金流大版）：**相機工作室**（`Camera.jsx`：拍攝單點照/長按錄、2–6格版面拼貼、建立限動[漸層+文字+票選/問答/倒數]、滑動濾鏡、貼文經典濾鏡+強度滑桿、特效庫、搖晃顯影[DeviceMotion]、動態文字[打字機/卡拉OK/霓虹]；**純瀏覽器 API 零第三方**；濾鏡/特效/漸層/字體設定存 DB `ref_items`、可經 CMS 改）；**註冊自訂 handle**（唯一索引＋即時可用性）；**Email 驗證**（`VerifyBanner`＋重寄）；**RBAC 四級**（user/creator/moderator/admin，`Admin.jsx` 後台改角色/內容）；**新增地點**（`LocationPicker`：OSM 搜尋/反查/圖磚全走後端代理、Geolocation、`user_places` 常用位置）；**金流 scaffold**（`/api/payments/intent`+`webhook`+`PAY_PROVIDER`，串接指南見文件）。臉部 AR 為 CSS 疊加近似（無第三方 face-tracking）。
 - 已處理（2026-07 每頁獨立網址＋上線）：路由由「單一 URL」改為**每畫面一個網址**（`nav.jsx` 的 `TAB_PATHS`/`SCREEN_PATH`＋History API 同步；`vite.config.js` `base:'/'`），deep-link/上一頁/下一頁皆可；**已部署 Cloud Run + Cloud SQL 並綁自訂網域 `chengqi.tw`**。AI 顧問接 OpenAI（`/api/ai/chat`，未設金鑰回 fallback；金鑰走 Secret Manager）。
