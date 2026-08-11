@@ -6,7 +6,8 @@
 //
 // 這支在 Node 跑（BufferGeometry 不需要 WebGL context），所以掛在 build 前面。
 // 執行：node scripts/check-char.mjs
-import { Box3, Vector3 } from 'three'
+import fs from 'node:fs'
+import { Box3, Vector3, PerspectiveCamera } from 'three'
 import { buildCharacter, NAPA_CABBAGE } from '../src/lib/char/factory.js'
 import { createActor, ACTIONS } from '../src/lib/char/actor.js'
 import { rampCacheSize, disposeRampCache, makeToonRamp } from '../src/lib/char/material.js'
@@ -171,6 +172,63 @@ ok(st.triangles > 0 && Number.isFinite(st.triangles), `三角形數 ${st.triangl
   const b2 = new Box3().setFromObject(char.body)
   ok(Math.abs(b2.min.y - DEMO6.bboxY[0]) < 0.02 && Math.abs(b2.max.y - DEMO6.bboxY[1]) < 0.02,
     `菜身＋四肢的 y 範圍 ${b2.min.y.toFixed(3)}~${b2.max.y.toFixed(3)}（demo ${DEMO6.bboxY.join('~')}）`)
+}
+
+// ── ProduceStage 的相機框景（`/ar/card/:slug` 的 3D 抽屜）─────────────────
+//
+// ★★★ 這一段是「相機注視點也在錯誤座標系裡」那個嚴重項的閘門。
+//   `lookAt(0, 0.66, 0)` 來自 cel-demo_4 的 `cam: { y: 0.62 }`，那支的角色是
+//   **腳踩 y = 0**；本專案的角色中心在 −0.057 ⇒ 注視點高出約一個半身高。
+//   實測（把 fit() 的算式照抄過來投影包圍盒八個角）：
+//     aspect 1.18 → 上留白 45.6%、下留白 **−6.4%（裁掉）**
+//     aspect 1.50 → 上留白 44.5%、下留白 **−13.4%（裁掉）**
+//   與 `/ar/model` 先前那個「上方留白 52.6%、下緣被裁」是同一個成因。
+//
+// ⚠️ 這個檢查在 Node 就能跑（相機數學是純函式），不需要 WebGL。
+//    也就是說它**本來就抓得到**——只是先前沒有人寫。
+{
+  const src = fs.readFileSync(new URL('../src/components/ProduceStage.jsx', import.meta.url), 'utf8')
+  const aimY = Number(/camera\.lookAt\(0,\s*(-?[\d.]+),\s*0\)/.exec(src)?.[1])
+  const camY = Number(/camera\.position\.set\(0,\s*(-?[\d.]+),\s*dist\)/.exec(src)?.[1])
+  const fov = Number(/new PerspectiveCamera\((\d+)/.exec(src)?.[1])
+  ok(Number.isFinite(aimY) && Number.isFinite(camY) && Number.isFinite(fov),
+    `從 ProduceStage 讀得到相機參數（fov ${fov}／camY ${camY}／aimY ${aimY}）`)
+  ok(fov === 44, `ProduceStage 的 fov ${fov}（要與 demo／ArModel 一致＝44，否則描邊粗細兩頁不同）`)
+
+  char.root.updateMatrixWorld(true)
+  const bb = new Box3().setFromObject(char.body)
+  const frame = (aspect) => {
+    const cam = new PerspectiveCamera(fov, aspect, 0.1, 40)
+    const dist = 3.05 * Math.max(1, 1.35 / Math.max(0.35, aspect))
+    cam.position.set(0, camY, dist); cam.lookAt(0, aimY, 0)
+    cam.updateProjectionMatrix(); cam.updateMatrixWorld(true)
+    let lo = 1, hi = -1, L = 1, R = -1
+    for (const x of [bb.min.x, bb.max.x]) for (const y of [bb.min.y, bb.max.y]) for (const z of [bb.min.z, bb.max.z]) {
+      const v = new Vector3(x, y, z).project(cam)
+      lo = Math.min(lo, v.y); hi = Math.max(hi, v.y); L = Math.min(L, v.x); R = Math.max(R, v.x)
+    }
+    return { top: (1 - hi) / 2 * 100, bottom: (lo + 1) / 2 * 100, left: (L + 1) / 2 * 100, right: (1 - R) / 2 * 100 }
+  }
+  // ★★ 俯角也要鎖。只驗「上下留白對稱」抓不到相機高度——把相機拉高、注視點
+  //    跟著對，框景仍然是對稱的，但視角會從 demo 的平視變成由上往下俯瞰。
+  //    demo `_6` 的軌道相機仰角約 4°（幾乎平視），這是 Q 版角色該有的視角：
+  //    俯得太多會看到頭頂一大片葉子、臉被壓縮，「擬人」的感覺就沒了。
+  {
+    const dist = 3.05 * Math.max(1, 1.35 / 1.18)
+    const elevDeg = Math.atan2(camY - aimY, dist) * 180 / Math.PI
+    ok(elevDeg >= 0 && elevDeg <= 10,
+      `相機俯角 ${elevDeg.toFixed(1)}°（demo 約 4°，允許 0–10°；相機 y=1.55 那個舊值是 25°）`)
+  }
+
+  // 三種長寬比：直立手機、抽屜的實際比例、寬螢幕
+  for (const a of [0.75, 1.18, 1.5]) {
+    const f = frame(a)
+    ok(f.top > 3 && f.bottom > 3 && f.left > 3 && f.right > 3,
+      `aspect ${a}：四邊留白 上${f.top.toFixed(1)} 下${f.bottom.toFixed(1)} 左${f.left.toFixed(1)} 右${f.right.toFixed(1)}（都要 > 3%，負數＝被裁掉）`)
+    // 上下留白差太多＝注視點錯了（舊值在 aspect 1.18 是 45.6 vs −6.4）
+    ok(Math.abs(f.top - f.bottom) < 8,
+      `aspect ${a}：上下留白要對稱（差 ${Math.abs(f.top - f.bottom).toFixed(1)}%；注視點在錯的座標系時會差 50% 以上）`)
+  }
 }
 
 // 效能預算：全解析度超出策畫書 §6.1 的 180k（那份預算按舊版 29 片葉估的）。
