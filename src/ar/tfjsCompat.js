@@ -39,6 +39,20 @@ export function isCompat() {
 }
 
 /**
+ * ★ 相容模式也要**改用 MindAR 內建的 blob worker**，不要用我們自己建的同源 worker。
+ *
+ * 為什麼：比對是在 worker 裡跑的。我們平常用 Vite 的 `?worker` 從上游原始碼
+ * 自己建一份（為了不依賴 CSP 的 `worker-src blob:`），而 MindAR 內建的那顆是
+ * 它自己預先打包好的。兩者理論上等價，但**那是理論**——使用者的裝置回報
+ * 「比對 worker：同源」且比對成功 0 次，所以「換成內建那顆」是一個還沒被
+ * 排除、而且成本極低的變因。
+ *
+ * ⚠️ 內建那顆是 blob worker，需要 CSP 放行 `worker-src blob:`——`server/index.js`
+ *    本來就保留著（`npm run check:live` 也會驗），所以這條退路是通的。
+ */
+export const useBuiltinWorker = isCompat
+
+/**
  * 開啟相容模式並重新載入。
  * ⚠️ 一定要重新載入：TFJS 已經初始化過就不會再讀旗標了，不重載等於沒開。
  */

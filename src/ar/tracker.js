@@ -28,7 +28,7 @@
 
 // ⚠️ 是 `?worker` **不是** `?worker&inline`（見上）。
 import ControllerWorker from 'mind-ar/src/image-target/controller.worker.js?worker'
-import { withCompatFlags } from './tfjsCompat.js'
+import { withCompatFlags, useBuiltinWorker } from './tfjsCompat.js'
 
 /** 出現／消失門檻。理由見 createTracker 的註解。 */
 const WARMUP = 1
@@ -147,7 +147,11 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   //    （controller.js 第 100 行）。換晚了，新 worker 收不到目標資料
   //    ⇒ 永遠比對不出東西，而且完全沒有錯誤訊息。
   let sameOriginWorker = false
+  // ★ 相容模式下**不換 worker**，直接沿用 MindAR 內建的那顆（見 tfjsCompat.js）。
+  //   這是「同源 worker 與內建 worker 行為不同」這個假設的唯一測試方式，
+  //   而它在使用者的裝置上還沒被排除過。
   try {
+    if (useBuiltinWorker()) throw new Error('相容模式：沿用內建 worker')
     const w = new ControllerWorker()
     // ⚠️ 兩個分支要與上游逐字一致（controller.js 第 60–67 行）：
     //    workerMatchDone／workerTrackDone 漏接任何一個，對應的 Promise 就
@@ -160,8 +164,9 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     controller.worker = w
     sameOriginWorker = true
   } catch (err) {
-    // 換不成就沿用內建的 blob worker——那條路需要 CSP 放行 worker-src blob:
-    console.warn('[AR] 同源 worker 建立失敗，沿用內建的 blob worker', err)
+    // 換不成（或相容模式刻意不換）就沿用內建的 blob worker
+    // ——那條路需要 CSP 放行 worker-src blob:（server/index.js 有保留）
+    if (!useBuiltinWorker()) console.warn('[AR] 同源 worker 建立失敗，沿用內建的 blob worker', err)
   }
 
   const { dimensions } = await controller.addImageTargets(mindUrl)

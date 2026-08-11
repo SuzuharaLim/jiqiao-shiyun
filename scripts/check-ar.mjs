@@ -557,6 +557,10 @@ const W = 1831, H = 1335
     '★★ 一定要回傳「還原網址」的函式（tfjsflags 留在網址上會被分享出去）')
   ok(/reload\(\)/.test(compat),
     '★★ 開啟相容模式必須重新載入（TFJS 初始化過就不再讀旗標，不重載＝沒開）')
+  // ★ 相容模式也要改用 MindAR 內建的 blob worker：「同源 worker 與內建 worker
+  //   行為不同」是使用者裝置上唯一還沒被排除、成本又極低的變因。
+  ok(/useBuiltinWorker/.test(compat) && /useBuiltinWorker/.test(SRC.tracker),
+    '★ 相容模式要能改用 MindAR 內建的 blob worker')
   const trk = SRC.tracker
   ok(/withCompatFlags\(\)[\s\S]{0,400}?await import\('mind-ar\/dist\/mindar-image\.prod\.js'\)/.test(trk),
     '★★★ 旗標必須在 import MindAR **之前**套用（TFJS 只在模組初始化那一刻讀）')
