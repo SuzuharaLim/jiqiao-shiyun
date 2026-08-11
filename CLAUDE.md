@@ -282,6 +282,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **★★ 「畫面夠清楚 ＋ 迴圈在跑 ＋ 就是沒命中」時要自動跑自我測試**（`Scan.jsx` 的 `stuck`）：那個結果是把原因一刀切成兩半的唯一資訊（**裝置的辨識運算壞掉** vs **掃的圖與目標檔不同版**），而使用者不可能自己問得出來，也不該被要求去找按鈕。⚠️ 只跑一次（會暫停即時迴圈）。
   - **★★★ `stuck` 讀 `longSearch`，所以 `longSearch` 必須宣告在它之前**（TDZ）。順序顛倒會丟 `Cannot access before initialization`、**整頁被 ErrorBoundary 接走，而 `npm run build` 一個字都不會報**。這個坑在本專案已經咬過兩次（PostDetail 的 hook 順序、這裡），`check-ar.mjs` 已上閘門並做過變異測試。
   - **★★ JSX 的文字節點裡不可以寫 markdown 的 `**粗體**`**：`.scan-nofile` 是一般 DOM 不會 render markdown，星號會原樣印在使用者眼前。要用 `<b>`。（註解裡的 `**` 沒關係。）
+  - **★★★ 「認出來」只看比對，不等上游的光流追蹤**（`tracker.js` 攔截 `_detectAndMatch`）。上游要判定「認出來了」其實有**兩道**關卡（`controller.js` 的 `startProcessing`）：① `_detectAndMatch()` 比對成功；② 接著**同一幀**馬上跑 `_trackAndUpdate()`（光流／模板追蹤），而且要連續 `warmupTolerance+1` 幀都成功，才會把 `showing` 設成 true、才會發出帶 worldMatrix 的 `updateMatrix`。
+    ⇒ **比對成功但光流追蹤跟不上時，畫面上永遠不會有任何反應**：狀態列一直寫「掃描中」、心跳正常、特徵點正常，而它其實每一輪都認出來了。
+    ⚠️ **這個失敗模式的離線測試完全看不到**——`check-ar` 與我所有手動實驗都只呼叫 `_detectAndMatch`，從來沒有跑過 `_trackAndUpdate`。所以「離線每種條件都 4/4、實機永遠掃不到」是**完全可能**的，不要再把離線全過當成「管線沒問題」。
+    ⚠️ 這一版的動線**根本不需要追蹤**（認出一次就跳模型頁），所以直接繞過第②關：包住 `_detectAndMatch`，比對一成功就自己 `getWorldMatrix()` 並宣告 found。順帶讓辨識快很多（不必等暖機）。
+    ★ 驗法（只能在瀏覽器做）：把 `Controller.prototype._trackAndUpdate` 覆寫成 `async () => null`（＝光流永遠失敗），舊邏輯**必定**永遠認不出來；新版實測仍 **1.5 秒認出並跳轉**。未打 patch 的正常路徑 2.2 秒。
   - **`warmupTolerance: 1`／`missTolerance: 10`**：上游預設要**連續 6 幀**都追到才算認出（`DEFAULT_WARMUP_TOLERANCE=5`），手持低幀率下是很高的門檻，而暖機期間畫面完全沒有回饋，看起來就是「完全掃不到」。⚠️ 這**不是**調低比對門檻——MindAR 是 inlier 式判定，比對本身沒有分數可調；warmup 只是防抖。
   - **★★ 3D 角色錨在 `primary` 熱區，不可綁「目前選中的熱區」**：使用者最自然的動作是把整張卡擺在畫面正中央 ⇒ 中心落在「身體保健」區（那一區沒有 model）⇒ **白菜永遠不出現**，而卡面上白紙黑字印著「掃描主物件：結球白菜」。`check-ar.mjs` 用真的熱區資料算出「中心落在哪一區」把這個事實釘住。
   - **★★ 主 bundle 不可牽進 three/TFJS**：`Scan.jsx` 靜態 import `session.js`，所以 session **只能靜態 import 輕量模組**（camera／cardSpace）。實測不小心靜態 import 了 `stage.js`（只為了一個 `hasWebGL`），主 bundle 就從 **458 kB 變成 976 kB**。`tracker`/`stage` 一律 `await import()`，閘門有鎖。目前：主 bundle 460 kB／gzip 195、three 511 kB、`mindar-image.prod` 1,759 kB（都懶載入，且要相機真的開起來才下載）。

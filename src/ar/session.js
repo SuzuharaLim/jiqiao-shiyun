@@ -351,6 +351,7 @@ export function createSession({ video, canvas, container, card, onState }) {
         target: tracker?.targetSize?.join(' × ') ?? '—',
         ticks: tracker?.ticks() ?? 0,
         tps,
+        matches: tracker?.matches?.() ?? 0,
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
       }

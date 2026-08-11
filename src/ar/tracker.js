@@ -55,6 +55,13 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   let ticks = 0
   let visible = false
 
+  // 單一入口切換「有沒有認出來」，避免 onUpdate 與比對攔截兩條路各自維護狀態。
+  const setVisible = (v) => {
+    if (v === visible) return
+    visible = v
+    v ? onFound?.() : onLost?.()
+  }
+
   const controller = new Controller({
     inputWidth: video.videoWidth,
     inputHeight: video.videoHeight,
@@ -76,11 +83,43 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
       if (data.type === 'processDone') { onTick?.(); return }
       if (data.type !== 'updateMatrix') return
       const m = data.worldMatrix
-      if (m && !visible) { visible = true; onFound?.() }
-      if (!m && visible) { visible = false; onLost?.() }
+      if (m) { setVisible(true) } else if (visible) { setVisible(false) }
       onPose?.(m ?? null)
     },
   })
+
+  // ★★★ 「認出來」**只看比對，不等追蹤**。
+  //
+  // 上游要判定「認出來了」其實有兩道關卡（controller.js 的 startProcessing）：
+  //   ① `_detectAndMatch()` 比對成功（targetIndex !== -1）
+  //   ② 接著**同一幀**馬上跑 `_trackAndUpdate()`（光流／模板追蹤），而且要
+  //      連續 `warmupTolerance + 1` 幀都成功，才會把 `showing` 設成 true、
+  //      才會發出帶 worldMatrix 的 updateMatrix。
+  // 也就是說：**比對成功但光流追蹤跟不上時，畫面上永遠不會有任何反應**——
+  // 狀態列一直寫「掃描中」，而其實它每一輪都認出來了。
+  //
+  // ⚠️ 這個失敗模式我的離線測試**完全看不到**，因為那些測試只呼叫
+  //    `_detectAndMatch`，從來沒有跑過 `_trackAndUpdate`。所以「離線 4/4 全過、
+  //    實機永遠掃不到」是完全可能的，而我一度以為那代表管線沒問題。
+  //
+  // ★ 而這一版的動線**根本不需要追蹤**：認出一次就跳到模型頁，之後看模型不再
+  //   依賴相機。所以直接把第②關拿掉——包住 `_detectAndMatch`，比對一成功就
+  //   自己算出 worldMatrix 並宣告 found。這同時讓辨識快很多（不必等暖機）。
+  let matches = 0
+  const origDetectAndMatch = controller._detectAndMatch.bind(controller)
+  controller._detectAndMatch = async (inputT, targetIndexes) => {
+    const r = await origDetectAndMatch(inputT, targetIndexes)
+    if (!disposed && r && r.targetIndex !== -1 && r.modelViewTransform) {
+      matches++
+      if (!visible) {
+        setVisible(true)
+        // ⚠️ 這裡要自己把 modelViewTransform 換成 worldMatrix：上游只有在
+        //    `showing` 為 true 時才會做這件事，而我們就是不想等它。
+        try { onPose?.(controller.getWorldMatrix(r.modelViewTransform, r.targetIndex)) } catch { /* 姿態拿不到不影響「認出來」 */ }
+      }
+    }
+    return r
+  }
 
   // ★★★ 換成同源 worker，**必須在 addImageTargets 之前**：
   //    `setup` 訊息（含 matchingDataList）是在那支方法裡才 postMessage 的
@@ -124,6 +163,13 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
      */
     ticks: () => ticks,
     tracking: () => visible,
+    /**
+     * 比對成功過幾次。
+     * ⚠️ 這個數字與「有沒有認出來」是**兩件事**：上游還要光流追蹤連續成功才算數。
+     *    `matches > 0` 卻一直沒認出來 ⇒ 問題在追蹤不在比對（這一版已經把那道關卡
+     *    拿掉，留著這個計數是為了萬一還有殘留問題時分得出來）。
+     */
+    matches: () => matches,
 
     /**
      * ★★★ 即時特徵點探測 —— 這一版最重要的新東西。

@@ -280,6 +280,17 @@ const W = 1831, H = 1335
   ok(!/captureStream/.test(SRC.tracker),
     '★★ selfTest 不可走 canvas.captureStream（iOS 支援不穩，會給假失敗）')
 
+  // ★★★ 「認出來」只能看比對，不可等上游的光流追蹤。
+  //   上游要 showing=true 需要：比對成功 ＋ 同一幀 `_trackAndUpdate` 成功 ＋
+  //   連續 warmupTolerance+1 幀。比對成功但光流跟不上時，畫面上**永遠沒有反應**，
+  //   而這個失敗模式只呼叫 `_detectAndMatch` 的離線測試完全看不到。
+  //   我們的動線只需要認出一次就跳走，所以直接繞過那道關卡。
+  ok(/controller\._detectAndMatch = async/.test(SRC.tracker),
+    '★★★ 必須攔截 _detectAndMatch，比對一成功就宣告 found（不等光流追蹤）')
+  ok(/getWorldMatrix\(r\.modelViewTransform/.test(SRC.tracker),
+    '★★ 攔截後要自己把 modelViewTransform 換成 worldMatrix（上游只在 showing 時才做）')
+  ok(/matches: \(\) => matches/.test(SRC.tracker), '★ 對外要吐比對成功次數（診斷用）')
+
   // ★★ three 的矩陣是 column-major，裁切修正改的是**列**：0,4,8,12 與 1,5,9,13。
   //    寫成行的話橫向與縱向的修正會互換，正方形畫面上完全看不出來。
   ok(/\[0,\s*4,\s*8,\s*12\][\s\S]{0,80}kx/.test(SRC.stage)

@@ -402,6 +402,9 @@ export default function Scan() {
                   <div><dt>目標圖尺寸</dt><dd>{info.target}</dd></div>
                   <div><dt>心跳累計</dt><dd>{info.ticks}{info.ticks === 0 ? '（完全沒在處理）' : ''}</dd></div>
                   <div><dt>比對速率</dt><dd>{info.tps ?? '—'} 輪/秒{(info.tps ?? 0) === 0 ? '　★ 迴圈卡住了' : ''}</dd></div>
+                  {/* ★ 比對成功次數與「有沒有認出來」是兩件事（上游還要光流追蹤跟上）。
+                      這一版已經把那道關卡拿掉，這個數字留著是為了萬一還有殘留問題時分得出來。 */}
+                  <div><dt>比對成功</dt><dd>{info.matches ?? '—'} 次</dd></div>
                   <div><dt>畫面特徵點</dt><dd>{features ?? '—'}</dd></div>
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
@@ -450,7 +453,7 @@ export default function Scan() {
                       `狀態：${phase}`,
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
-                      `畫面特徵點：${features ?? '—'}`,
+                      `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
                       `比對 worker：${i.worker ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
