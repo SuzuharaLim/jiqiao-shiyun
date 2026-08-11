@@ -436,7 +436,9 @@ export default function Scan() {
                   <div><dt>比對成功</dt><dd>{info.matches ?? '—'} 次</dd></div>
                   <div><dt>畫面特徵點</dt><dd>{features ?? '—'}</dd></div>
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
-                  <div><dt>相容模式</dt><dd>{info.compat ?? '—'}</dd></div>
+                  {/* ⚠️ 相容模式會用回 MindAR 內建的 worker，而那顆帶原廠門檻（0.7），
+                      不是我們放寬的 0.75——判讀時要算進去，見 tfjsCompat.js。 */}
+                  <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
                   <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
                   <div><dt>WebGL2</dt><dd>{info.webgl2 ?? '—'}　像素比 {info.dpr ?? '—'}</dd></div>

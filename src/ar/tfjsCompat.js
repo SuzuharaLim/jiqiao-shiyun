@@ -49,6 +49,13 @@ export function isCompat() {
  *
  * ⚠️ 內建那顆是 blob worker，需要 CSP 放行 `worker-src blob:`——`server/index.js`
  *    本來就保留著（`npm run check:live` 也會驗），所以這條退路是通的。
+ *
+ * ⚠️⚠️ **交互作用（必須知道）**：`vite.config.js` 把 Lowe 比值放寬到 0.75 的
+ *    建置期替換，只作用在**我們自己建的那顆 worker** 上。內建的 blob worker
+ *    是 MindAR 預先打包好的，帶的是**原廠 0.7**。
+ *    也就是說相容模式在「比對門檻」這一項其實是**比較嚴格**的。
+ *    這不是 bug（相容模式的目的是換掉 GPU 設定與 worker 實作這兩個變因），
+ *    但判讀結果時一定要把它算進去：相容模式失敗不代表「放寬門檻也沒用」。
  */
 export const useBuiltinWorker = isCompat
 
