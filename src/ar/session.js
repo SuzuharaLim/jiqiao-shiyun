@@ -56,6 +56,13 @@ function hasWebGL() {
 
 /** 心跳看門狗：心跳連續這麼久沒有前進，就不是「沒對準」的問題了。 */
 const STALL_MS = 12000
+/**
+ * ★★ CPU 後備上要放寬很多。一輪偵測在 CPU 上要 3~8 秒（慢的手機更久），
+ * 12 秒的門檻會把「正常但很慢」誤判成「比對迴圈卡死」——而那個畫面寫的是
+ * 「相機開起來了，但比對程序一輪都沒跑完」，等於斬釘截鐵地告訴使用者
+ * 一件不是事實的事，還把他導去複製診斷資料。
+ */
+const STALL_MS_CPU = 45000
 /** 手動點選之後暫停中心瞄準多久。 */
 const MANUAL_HOLD_MS = 4000
 /** 即時特徵點探測的間隔（只在還沒追到時跑）。 */
@@ -126,6 +133,8 @@ export function createSession({ video, canvas, container, card, onState }) {
   let disposed = false
 
   let qrReady = false
+  let backend = 'webgl'       // 'webgl'｜'cpu'，見 cpuPipeline.js
+  let switching = false
   let inputRange = null       // 偵測器實際讀到的灰階範圍（診斷用）
   let hotspot = null
   let features = null            // 即時特徵點數（null＝還沒量到）
@@ -145,6 +154,8 @@ export function createSession({ video, canvas, container, card, onState }) {
       tps,
       viaQr,
       qrReady,
+      backend,
+      switching,
       matches: tracker?.matches?.() ?? 0,
       sameOriginWorker: tracker?.sameOriginWorker ?? null,
     })
@@ -205,6 +216,23 @@ export function createSession({ video, canvas, container, card, onState }) {
     stage.render()
   }
 
+  /**
+   * 建一個追蹤器。抽出來是為了讓 `switchBackend()` 能用**完全一樣**的接線
+   * 重建——這幾個回呼漏接任何一個，症狀都是「掃到了但畫面沒反應」。
+   */
+  const makeTracker = (backendName) => createTrackerLazy({
+    video,
+    mindUrl: card.mindTarget,
+    backend: backendName,
+    onFound: () => { if (!disposed) to('locked') },
+    onLost: () => {
+      if (disposed) return
+      latch.reset(); hotspot = null; manualUntil = 0
+      to('searching')
+    },
+    onPose: (m) => stage?.setPose(m),
+  })
+
   return {
     /** ⚠️ 一定要在使用者手勢的呼叫堆疊裡呼叫（見檔頭）。 */
     async start({ deviceId = null } = {}) {
@@ -255,17 +283,7 @@ export function createSession({ video, canvas, container, card, onState }) {
         } catch { /* 沒有原生 QR 偵測就算了 */ }
 
         to('loading')
-        tracker = await createTrackerLazy({
-          video,
-          mindUrl: card.mindTarget,
-          onFound: () => { if (!disposed) to('locked') },
-          onLost: () => {
-            if (disposed) return
-            latch.reset(); hotspot = null; manualUntil = 0
-            to('searching')
-          },
-          onPose: (m) => stage?.setPose(m),
-        })
+        tracker = await makeTracker(backend)
         if (disposed || !tracker) { tracker?.dispose(); stopStream(stream); return }
 
         const { createStage } = await import('./stage.js')
@@ -312,8 +330,9 @@ export function createSession({ video, canvas, container, card, onState }) {
           //    更糟的是 `stuck` 判斷讀的正是畫面那一份，所以升級訊息與自動
           //    自我測試**都不會觸發**。一個變數只能有一個寫入者。
           if (n !== lastTicks) { lastTicks = n; stillSince = now }
-          // 心跳連續 STALL_MS 沒有前進 ＝ 比對迴圈卡住了
-          if (now - stillSince >= STALL_MS && phase === 'searching') to('stalled')
+          // 心跳連續這麼久沒有前進 ＝ 比對迴圈卡住了（CPU 後端要放寬，見上）
+          const limit = backend === 'cpu' ? STALL_MS_CPU : STALL_MS
+          if (now - stillSince >= limit && phase === 'searching') to('stalled')
         }, 1000)
 
         // 心跳速率（輪/秒）：這是「迴圈到底有沒有在跑」最直接的數字，
@@ -330,15 +349,34 @@ export function createSession({ video, canvas, container, card, onState }) {
         // ★★★ 即時特徵點探測：只在「還沒追到」時跑，追到就停（省算力）。
         //   這是這一版給使用者的**回饋迴路**——數字會隨著他移動而變，
         //   於是「掃不到」從盲目試誤變成有方向的調整。
+        // ⚠️ 要有重入保護：`probeFeatures()` 是 async，而 CPU 後端上一次偵測
+        //    可能比 PROBE_MS 還久。沒有這道鎖的話 setInterval 會**疊起來**——
+        //    每 0.9 秒再丟一次進去，最後整條主執行緒都在跑探測，比對迴圈反而
+        //    餓死。症狀是「切到 CPU 之後更慢，而且畫面卡頓」。
+        // ★★ CPU 後端上探測**很貴**（一次偵測要好幾秒），而它與比對迴圈搶的是
+        //   同一條主執行緒。照 0.9 秒的節奏跑會讓兩者各拿一半——辨識速度直接
+        //   砍半，而使用者要的是「認出來」不是「看數字」。所以隔遠一點。
+        const probeGap = () => (backend === 'cpu' ? 6000 : 0)
+        let probing = false
+        let lastProbeEnd = 0
         probeTimer = setInterval(async () => {
-          if (disposed || !tracker || tracker.tracking()) return
-          const n = await tracker.probeFeatures()
-          if (disposed) return
-          // ★ 順便量一次輸入的數值範圍——這是「特徵點很多卻永遠比對不到」
-          //   唯一還能區分「資料源頭就錯了」與「描述子本身對不上」的量測。
-          if (!inputRange) { try { inputRange = await tracker.probeInputRange?.() } catch { /* ignore */ } }
-          if (disposed) return
-          if (n !== null && n !== features) { features = n; emit() }
+          // ⚠️ `switching` 期間 tracker 會短暫是 null，這裡不可以硬闖。
+          if (disposed || probing || switching || !tracker || tracker.tracking()) return
+          if (performance.now() - lastProbeEnd < probeGap()) return
+          probing = true
+          try {
+            const t = tracker            // 抓住當下這一顆：切後端時會被換掉
+            const n = await t.probeFeatures()
+            if (disposed || t !== tracker) return
+            // ★ 順便量一次輸入的數值範圍——這是「特徵點很多卻永遠比對不到」
+            //   唯一還能區分「資料源頭就錯了」與「描述子本身對不上」的量測。
+            if (!inputRange) { try { inputRange = await t.probeInputRange?.() } catch { /* ignore */ } }
+            if (disposed || t !== tracker) return
+            if (n !== null && n !== features) { features = n; emit() }
+          } finally {
+            probing = false
+            lastProbeEnd = performance.now()
+          }
         }, PROBE_MS)
       } catch (e) {
         if (disposed) return
@@ -384,6 +422,51 @@ export function createSession({ video, canvas, container, card, onState }) {
       emit()
     },
 
+    /**
+     * ★★★ 換一套運算後端重建追蹤器（相機與 3D 場景都留著）。
+     *
+     * 用在「自我測試證明這台裝置的 WebGL 算出來的描述子對不上 `.mind`」時——
+     * 那不是使用者對不準，再怎麼喬角度都不會成功，唯一還有機會的是改用
+     * **編譯 `.mind` 時用的那份 CPU kernel** 重算（見 cpuPipeline.js）。
+     *
+     * ⚠️ **只重建追蹤器，不動 stage。** stage 是用 `targetSize` 與
+     *    `projectionMatrix` 建的，而那兩者完全由「同一個 `.mind` ＋ 同一個
+     *    影像尺寸」決定 ⇒ 重建後必定相同。反過來重建 stage 才危險：
+     *    `stage.dispose()` 會 `forceContextLoss()`，同一張 canvas 之後不保證
+     *    拿得回 context（那正是「第 N 次點開變成空白」那個坑）。
+     *
+     * ⚠️ 一定要**先 dispose 舊的**：兩個 Controller 同時跑會各自吃一份相機影格
+     *    與一顆 worker，而且都在寫同一個 `hotspot`／`phase`。
+     * ⚠️ `fatal` 狀態下不做：那時使用者該按的是「再試一次」（重建整個 session）。
+     */
+    async switchBackend(next) {
+      if (disposed || switching || fatal || !tracker || next === backend) return false
+      switching = true
+      backend = next
+      emit()
+      try {
+        try { tracker.dispose() } catch { /* ignore */ }
+        tracker = null
+        // 量測值屬於上一顆追蹤器，留著會讓診斷面板顯示與現況無關的數字。
+        // ⚠️ **刻意不碰 `tps`**：那個變數只能有一個寫入者（rateTimer），
+        //    多一個寫入者就會回到「畫面說 0 輪/秒、面板說 1 輪/秒」那個坑
+        //    （check-ar.mjs 有鎖）。清掉 `prevTicks` 就夠了——新追蹤器的心跳
+        //    從 0 重新算，下一秒 rateTimer 自己會算出正確的值。
+        features = null; inputRange = null; prevTicks = null
+        tracker = await makeTracker(next)
+        if (disposed || !tracker) return false
+        if (phase !== 'locked') to('searching')
+        return true
+      } catch (e) {
+        console.error('[AR] 切換運算後端失敗', e)
+        to('failed', e?.message || String(e))
+        return false
+      } finally {
+        switching = false
+        emit()
+      }
+    },
+
     resize: syncSize,
     selfTest: (url) => tracker?.selfTest(url) ?? Promise.resolve({ ok: false, stage: 'setup', reason: '追蹤尚未啟動' }),
     info() {
@@ -407,6 +490,9 @@ export function createSession({ video, canvas, container, card, onState }) {
             + (inputRange.max <= 1.5 || inputRange.max > 1000 ? '　★ 異常！' : '')
           : '—',
         compat: isCompat() ? '開啟' : '關閉',
+        // ★ 這一欄要顯眼：`cpu` 代表已經改用「編譯 .mind 時用的那份 kernel」重算，
+        //   慢很多是預期內的，不是壞掉。
+        backend: backend === 'cpu' ? 'CPU（相容運算，較慢）' : 'WebGL（GPU）',
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
       }

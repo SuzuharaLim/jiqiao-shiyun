@@ -58,6 +58,11 @@ export default function Scan() {
   const [showDiag, setShowDiag] = useState(false)
   const [info, setInfo] = useState(null)
   const [selfTest, setSelfTest] = useState('idle')
+  // ⚠️ 這一個**必須**宣告在這裡（所有讀它的 const 之前）：`failedTest` 與
+  //    `imageTrackingDead` 都讀它，而 `const` 有暫時性死區——順序反過來會丟
+  //    「Cannot access before initialization」，整個畫面被 ErrorBoundary 接走，
+  //    而 `npm run build` 一個字都不會報。這個坑這一頁已經踩過一次（longSearch）。
+  const [cpuTried, setCpuTried] = useState(false)
   const [camId, setCamId] = useState(null)
 
   const { phase, hotspot, features, cameras } = st
@@ -152,8 +157,43 @@ export default function Scan() {
   //    不含本站任何一行邏輯）在 Samsung Xclipse 540 / ANGLE on Vulkan 上證實：
   //    官方版也認不出來 ⇒ 這是函式庫與該 GPU 不相容，調程式解決不了。
   // ⇒ 所以這時候**唯一該做的事就是把使用者導向 QR**，而不是繼續叫他喬角度。
-  const imageTrackingDead = selfTest !== 'idle' && selfTest !== 'running' && !selfTest.ok
+  //
+  // ⚠️ 但**在宣告死亡之前還有一條路要走**：改用「編譯 `.mind` 時用的那份 CPU
+  //    kernel」重算（見 `src/ar/cpuPipeline.js`）。`.mind` 裡的描述子就是 CPU
+  //    kernel 產出的，執行期卻跑 WebGL 版——兩者本來就只是「應該」一致。
+  //    所以自我測試失敗在 `match`／`pipeline` 時，先切 CPU 再測一次，
+  //    兩次都失敗才算確定不可用。
+  const RETRY_ON_CPU = new Set(['match', 'pipeline'])
+  const failedTest = selfTest !== 'idle' && selfTest !== 'running' && !selfTest.ok
+  const imageTrackingDead = failedTest && (cpuTried || !RETRY_ON_CPU.has(selfTest.stage))
   const qrOnly = imageTrackingDead && st.qrReady
+  // ⚠️ 「還沒有定論」要包含「已經失敗、但 CPU 重試還沒跑」那一格 render——
+  //    下面那個 effect 是在 render **之後**才執行的，少了這一項，畫面會閃一下
+  //    「圖像辨識沒救了，去用 QR」然後又跳回「檢查中」。那種閃動比慢更傷信任。
+  const testPending = selfTest === 'idle' || selfTest === 'running' || (failedTest && !imageTrackingDead)
+
+  // ★★★ 自我測試在 WebGL 上失敗 ⇒ 自動改用 CPU 後端再測一次。
+  //
+  // ⚠️ 這一步一定要**自動**，不能做成按鈕：它要成立的前提（「.mind 是 CPU
+  //    kernel 編的、執行期跑的是 WebGL 版」）是上游原始碼裡的實作細節，
+  //    使用者不可能知道，也就不可能自己決定要不要按。
+  // ⚠️ 只試一次（`cpuTried`）：CPU 慢很多，反覆重建追蹤器會讓畫面一直頓，
+  //    而結論不會因為多試一次而改變。
+  useEffect(() => {
+    if (cpuTried || !failedTest || !RETRY_ON_CPU.has(selfTest.stage)) return
+    const s = sessionRef.current
+    if (!s || !CARD) return
+    setCpuTried(true)
+    setSelfTest('running')
+    ;(async () => {
+      const ok = await s.switchBackend('cpu')
+      if (!ok) {
+        setSelfTest({ ok: false, stage: 'match', reason: '切換 CPU 運算失敗' })
+        return
+      }
+      setSelfTest(await s.selfTest(CARD.target))
+    })().catch(() => setSelfTest({ ok: false, stage: 'match', reason: 'CPU 運算測試中斷' }))
+  }, [failedTest, cpuTried])
 
   // 到了那個狀態就**自動**跑一次自我測試。
   // ⚠️ 不要叫使用者自己去找按鈕：他正處在「一直失敗」的情緒裡，而這個測試的
@@ -305,11 +345,22 @@ export default function Scan() {
                 {/* ★★★ 到這裡就**自動跑一次自我測試**，不要叫使用者自己去找按鈕。
                     它拿「網站自己那張卡面圖」走完全相同的辨識流程，於是把剩下的
                     可能一刀切成兩半——而這是使用者無論如何都問不出來的資訊。 */}
-                {(selfTest === 'idle' || selfTest === 'running') && (
-                  <p className="muted">正在自動檢查這台裝置的辨識運算…（約 3 秒，畫面會暫停一下）</p>
+                {testPending && (
+                  <p className="muted">
+                    {cpuTried
+                      // ★ 切 CPU 之後要**明講在做什麼**：這一步會停頓好幾秒，
+                      //   沒有說明的話跟「當掉了」分不出來。
+                      ? '這台裝置的 GPU 算不出正確結果，正在改用相容運算重試…（較慢，請稍候）'
+                      : '正在自動檢查這台裝置的辨識運算…（約 3 秒，畫面會暫停一下）'}
+                  </p>
                 )}
 
-                {selfTest !== 'idle' && selfTest !== 'running' && (selfTest.ok ? (
+                {/* ★ 已經切到 CPU 而且測過了才顯示：讓使用者知道畫面變慢是預期內的。 */}
+                {st.backend === 'cpu' && !testPending && (
+                  <p className="muted">目前使用<b>相容運算（CPU）</b>——比較慢是正常的，請把卡片拿穩。</p>
+                )}
+
+                {!testPending && (selfTest.ok ? (
                   <>
                     <p>
                       <b>✓ 這台裝置的辨識運算正常</b>——它認得出網站內建的那張卡面圖
@@ -332,6 +383,9 @@ export default function Scan() {
                       <b>✗ 這台裝置連網站內建的卡面圖都認不出來</b>（{selfTest.ms} ms）。
                       也就是說<b>問題不在你的卡片</b>——同一張保證正確的圖，在這台裝置上
                       也比對不出來。
+                      {/* ★ 已經自動試過 CPU 了就要講：否則下面「還有一招」讀起來像是
+                          我們什麼都還沒做，而其實最有機會的那一招已經失敗了。 */}
+                      {cpuTried && <>　<b>改用相容運算（CPU）重算也一樣</b>。</>}
                     </p>
                     {/* ★★★ 這台裝置算不對時，唯一還能試的就是換一組比較保守的
                         TFJS 設定（關掉打包運算、強制 32 位元浮點）。它會變慢，
@@ -497,6 +551,9 @@ export default function Scan() {
                   <div><dt>影像數值範圍</dt><dd>{info.inputRange ?? '—'}</dd></div>
                   <div><dt>尺度自動校正</dt><dd>{info.scaleFix ?? '—'}</dd></div>
                   <div><dt>QR 備援</dt><dd>{info.qr ?? '—'}</dd></div>
+                  {/* ★★ 運算後端。`CPU` 代表已經改用「編譯 .mind 時用的那份 kernel」——
+                      這是唯一能解釋「為什麼突然變慢」的欄位，藏起來只會被當成當機。 */}
+                  <div><dt>運算後端</dt><dd>{info.backend ?? '—'}</dd></div>
                   <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
                   <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
@@ -546,6 +603,7 @@ export default function Scan() {
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
                       `影像數值範圍：${i.inputRange ?? '—'}　尺度自動校正：${i.scaleFix ?? '—'}`,
+                      `運算後端：${i.backend ?? '—'}`,
                       `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}　QR 備援：${i.qr ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
@@ -573,6 +631,28 @@ export default function Scan() {
                 >
                   {selfTest === 'running' ? '測試中…' : '用內建卡面圖自我測試'}
                 </button>
+                {/* ★★ 手動切到 CPU 運算。
+                    自動那條路只在「自我測試失敗在 match／pipeline」時才會觸發，
+                    但裝置壞掉的方式不只那兩種（例如比對其實會過、實機卻一直不中）。
+                    這顆按鈕讓卡住的人自己走到那條路上，而不是只能複製診斷資料等回覆。
+                    ⚠️ 已經在 CPU 上就不再顯示——一顆按了不會有事發生的按鈕
+                       比沒有更糟（使用者會以為是自己按錯）。 */}
+                {st.backend !== 'cpu' && (
+                  <button
+                    className="tap"
+                    disabled={!live || selfTest === 'running' || st.switching}
+                    onClick={async () => {
+                      setCpuTried(true)
+                      setSelfTest('running')
+                      const ok = await sessionRef.current.switchBackend('cpu')
+                      setSelfTest(ok
+                        ? await sessionRef.current.selfTest(CARD.target)
+                        : { ok: false, stage: 'match', reason: '切換 CPU 運算失敗' })
+                    }}
+                  >
+                    改用相容運算（CPU）重試
+                  </button>
+                )}
                 {/* ⚠️ 判讀一定要給**下一步動作**。只說「成功／失敗」等於沒有診斷。 */}
                 {selfTest === 'running' && <p className="muted">正在把內建的卡面圖接到辨識流程上，請稍候。</p>}
                 {selfTest !== 'idle' && selfTest !== 'running' && (

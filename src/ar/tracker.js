@@ -29,6 +29,7 @@
 // ⚠️ 是 `?worker` **不是** `?worker&inline`（見上）。
 import ControllerWorker from 'mind-ar/src/image-target/controller.worker.js?worker'
 import { withCompatFlags, useBuiltinWorker } from './tfjsCompat.js'
+import { loadCpuController, useWebgl, useCpu, patchInputLoader, disableOpticalFlow, cpuInputSize } from './cpuPipeline.js'
 
 /** 出現／消失門檻。理由見 createTracker 的註解。 */
 const WARMUP = 1
@@ -44,6 +45,17 @@ const MISS = 10
  *    設 5 以上就會讓「明明對準了卻要等」的感覺回來。
  */
 const MATCH_CONFIRM = 2
+/**
+ * ★★ CPU 後備只要求**一次**。
+ *
+ * 兩次確認在 WebGL 上只多花約 0.3 秒（每秒 3~4 次成功比對），很划算；
+ * 但 CPU 上一輪偵測要 3~8 秒，同一份保險就變成多等一整輪——而這條路的
+ * 使用者是「圖像辨識本來完全不能用」的那群人，多等十秒的體感成本遠高於
+ * 誤跳一次（誤跳按上一頁就回來了）。
+ * 另外 CPU 版跑的正是編譯 `.mind` 時用的那份 kernel，實測 inlier 有 29~137
+ * 個（門檻是 6），本來就比 WebGL 版更不容易誤判。
+ */
+const MATCH_CONFIRM_CPU = 1
 
 /**
  * @param video       已經在播、videoWidth/Height 都有值的 <video>
@@ -51,25 +63,40 @@ const MATCH_CONFIRM = 2
  * @param onPose      (worldMatrix|null) → void，每幀（追到才有）
  * @param onFound/onLost
  * @param onTick      每輪處理迴圈跑完一次
+ * @param backend     'webgl'（預設）｜'cpu'。見 cpuPipeline.js 檔頭——
+ *                    `'cpu'` 是給「特徵點抓得到、比對永遠 0 次」的 GPU 用的
+ *                    後備，慢很多，**只在已經證明 GPU 算不對時才切**。
  */
-export async function createTracker({ video, mindUrl, onPose, onFound, onLost, onTick } = {}) {
+export async function createTracker({ video, mindUrl, onPose, onFound, onLost, onTick, backend = 'webgl' } = {}) {
   if (!video?.videoWidth || !video?.videoHeight) {
     throw new Error('影像尚未就緒（videoWidth 是 0）')
   }
 
-  // ⚠️ 動態 import：這一包含 TFJS，gzip 後仍有 300 KB 級。靜態 import 會把它
-  //    打進主 bundle，首頁就得為一個多數人不會點的功能背這個重量。
-  // ★ 相容模式：TFJS 只在**模組初始化的那一刻**讀網址上的 `tfjsflags`，
-  //   所以旗標必須在這個 import 之前放進網址、import 完馬上還原。
-  //   （預設關閉；只有自我測試失敗的裝置才會開，見 tfjsCompat.js）
-  const restoreUrl = withCompatFlags()
-  let mod
-  try {
-    mod = await import('mind-ar/dist/mindar-image.prod.js')
-  } finally {
-    restoreUrl()
+  const cpu = backend === 'cpu'
+  let Controller, tfShared = null
+  if (cpu) {
+    // ★ CPU 後備走**原始碼版**的 Controller（才拿得到共用的 tfjs 實例）。
+    //   相容模式的網址旗標在這條路上沒有意義（那是調 WebGL 的），刻意不套。
+    const loaded = await loadCpuController()
+    tfShared = loaded.tf
+    Controller = loaded.Controller
+    // ⚠️ 建構期一定要在 webgl 上（InputLoader 建構式碰 backend.texData）。
+    await useWebgl(tfShared)
+  } else {
+    // ⚠️ 動態 import：這一包含 TFJS，gzip 後仍有 300 KB 級。靜態 import 會把它
+    //    打進主 bundle，首頁就得為一個多數人不會點的功能背這個重量。
+    // ★ 相容模式：TFJS 只在**模組初始化的那一刻**讀網址上的 `tfjsflags`，
+    //   所以旗標必須在這個 import 之前放進網址、import 完馬上還原。
+    //   （預設關閉；只有自我測試失敗的裝置才會開，見 tfjsCompat.js）
+    const restoreUrl = withCompatFlags()
+    let mod
+    try {
+      mod = await import('mind-ar/dist/mindar-image.prod.js')
+    } finally {
+      restoreUrl()
+    }
+    Controller = mod.Controller ?? mod.default?.Controller
   }
-  const Controller = mod.Controller ?? mod.default?.Controller
   if (!Controller) throw new Error('MindAR Controller 載入失敗')
 
   let disposed = false
@@ -83,9 +110,18 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     v ? onFound?.() : onLost?.()
   }
 
+  // ★ CPU 路徑刻意降解析度（見 cpuPipeline.js 的實測表：像素數砍到 1/7，
+  //   命中率不變、速度快 5 倍）。WebGL 路徑維持原生解析度。
+  // ⚠️ 一定要**等比例**：`stage.js` 的裁切修正用 video 的長寬比算 kx/ky，
+  //    而投影矩陣來自這裡的 inputWidth/Height——長寬比一旦不同，3D 就會
+  //    與影像對不上。
+  const [inW, inH] = cpu
+    ? cpuInputSize(video.videoWidth, video.videoHeight)
+    : [video.videoWidth, video.videoHeight]
+
   const controller = new Controller({
-    inputWidth: video.videoWidth,
-    inputHeight: video.videoHeight,
+    inputWidth: inW,
+    inputHeight: inH,
     maxTrack: 1,
     // ★★★ 出現門檻：上游預設要**連續 6 幀**都追到才算「認出來」
     //    （DEFAULT_WARMUP_TOLERANCE=5，判斷式是 trackCount > warmupTolerance）。
@@ -109,6 +145,14 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     },
   })
 
+  // ★ CPU 後備：換掉唯一硬綁 WebGL 的 InputLoader，然後才切後端。
+  //   順序不可調換（理由見 cpuPipeline.js）：
+  //     webgl 建構 → 換 inputLoader → 切 cpu → addImageTargets → dummyRun
+  if (cpu) {
+    patchInputLoader(controller, tfShared)
+    await useCpu(tfShared)
+  }
+
   // ★★★ 「認出來」**只看比對，不等追蹤**。
   //
   // 上游要判定「認出來了」其實有兩道關卡（controller.js 的 startProcessing）：
@@ -127,12 +171,23 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   //   依賴相機。所以直接把第②關拿掉——包住 `_detectAndMatch`，比對一成功就
   //   自己算出 worldMatrix 並宣告 found。這同時讓辨識快很多（不必等暖機）。
   let matches = 0
+  // ★★★ 處理迴圈現在有幾輪還在飛。**自我測試要等它歸零才能開始。**
+  //
+  // ⚠️ `workerMatchDone` 是**單一欄位不是佇列**：迴圈那一輪還在等 worker 回覆時，
+  //    自我測試再送一次 match 就會覆蓋掉前一個 resolver ⇒ 前一個 Promise
+  //    永遠不 resolve ⇒ 追蹤整個靜默卡死。
+  // ⚠️ 原本是「stopProcessVideo 之後睡 150ms」。那在 WebGL 上夠（一輪幾十毫秒），
+  //    在 CPU 後備上**完全不夠**——一輪要 3~8 秒。用固定睡眠等於賭，
+  //    而賭輸的結果是整條追蹤鏈靜默死掉。改成真的等它結束。
+  let inFlight = 0
   const origDetectAndMatch = controller._detectAndMatch.bind(controller)
   controller._detectAndMatch = async (inputT, targetIndexes) => {
-    const r = await origDetectAndMatch(inputT, targetIndexes)
+    inFlight++
+    let r
+    try { r = await origDetectAndMatch(inputT, targetIndexes) } finally { inFlight-- }
     if (!disposed && r && r.targetIndex !== -1 && r.modelViewTransform) {
       matches++
-      if (!visible && matches >= MATCH_CONFIRM) {
+      if (!visible && matches >= (cpu ? MATCH_CONFIRM_CPU : MATCH_CONFIRM)) {
         setVisible(true)
         // ⚠️ 這裡要自己把 modelViewTransform 換成 worldMatrix：上游只有在
         //    `showing` 為 true 時才會做這件事，而我們就是不想等它。
@@ -172,6 +227,10 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   const { dimensions } = await controller.addImageTargets(mindUrl)
   const [W, H] = dimensions[0] ?? [1, 1]
 
+  // ⚠️ 一定要在 addImageTargets **之後**：`controller.tracker`（光流）到這時
+  //    才被建立。CPU 後端沒有它的 WebGL program，不停用的話 dummyRun 當場就炸。
+  if (cpu) disableOpticalFlow(controller)
+
   // ★★★ 灰階轉換的數值尺度自動校正。
   //
   // ⚠️ `InputLoader` 的自訂 shader 是：
@@ -206,6 +265,10 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   }
 
   async function autoFixInputScale() {
+    // ⚠️ CPU 後備沒有 shader 可改（inputLoader 已被換成後端無關的版本），
+    //    而「乘錯 255」本來就是 shader 專屬的問題——這裡直接跳過，
+    //    不要讓它去讀一個不存在的 `program.userCode`。
+    if (cpu) return
     const before = await measureRange()
     if (!before) return
     // 正常範圍：最大值應該接近 255。只處理「差了 255 倍」這種結構性偏差。
@@ -251,6 +314,8 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     projectionMatrix: controller.getProjectionMatrix(),
     inputSize: [controller.inputWidth, controller.inputHeight],
     sameOriginWorker,
+    /** 'webgl' 或 'cpu'。診斷面板要顯示——這是最容易被誤判成「程式沒改到」的一項。 */
+    backend,
     /**
      * 處理迴圈跑了幾輪。**恆為 0 代表比對根本沒在跑**，而不是「沒對準」。
      * 這是把靜默失敗變成可觀測事實的唯一鉤子。
@@ -337,7 +402,10 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
      *    會被擋 ⇒ 影格永遠不更新 ⇒ 逾時。一個會給假失敗的診斷比沒有診斷更糟，
      *    它會把人推去換手機。直接餵畫面給 Controller 才是真的在測這條鏈。
      */
-    async selfTest(imageUrl, { frames = 10 } = {}) {
+    // ⚠️ CPU 後備上一幀要 3~8 秒，跑 10 幀就是一分鐘起跳——使用者早就以為當機了。
+    //    而離線實測顯示合成畫面**第一幀就會命中**（15 種尺寸組合全中），
+    //    所以 3 幀已經足夠有代表性。
+    async selfTest(imageUrl, { frames = cpu ? 3 : 10 } = {}) {
       if (disposed) return { ok: false, stage: 'setup', reason: '追蹤已結束' }
       let img
       try {
@@ -357,8 +425,14 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
 
       const wasProcessing = controller.processingVideo
       try { controller.stopProcessVideo() } catch { /* ignore */ }
-      // 讓正在飛的那一輪先結束，避免它的回呼與我們搶同一個欄位
-      await new Promise(r => setTimeout(r, 150))
+      // ★★★ 真的等正在飛的那一輪結束（見 `inFlight` 的註解）。
+      //    ⚠️ 一定要有上限：萬一那一輪真的死了（正是自我測試要診斷的情況之一），
+      //       死等會讓整個診斷永遠不回來——那比誤判更糟。
+      const waitUntil = performance.now() + 20000
+      while (inFlight > 0 && performance.now() < waitUntil && !disposed) {
+        await new Promise(r => setTimeout(r, 100))
+      }
+      if (disposed) return { ok: false, stage: 'setup', reason: '追蹤已結束' }
 
       const t0 = performance.now()
       try {

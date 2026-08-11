@@ -17,6 +17,7 @@ import {
   uvToCard, cardToUv, rectCenter, inRect, hitTest, makeHotspotLatch, validateCard,
 } from '../src/ar/cardSpace.js'
 import { pickMainCameraId, listBackCameras, labelIndex } from '../src/ar/camera.js'
+import { cpuInputSize } from '../src/ar/cpuPipeline.js'
 import { inAppBrowser } from '../src/ar/session.js'
 import { OFFICIAL_CARDS } from '../src/data/arCards.js'
 
@@ -87,6 +88,7 @@ const SRC = {
   stage: stripComments(read('../src/ar/stage.js')),
   session: stripComments(read('../src/ar/session.js')),
   scan: stripComments(read('../src/screens/Scan.jsx')),
+  cpu: stripComments(read('../src/ar/cpuPipeline.js')),
   css: stripCss(read('../src/styles.css')),
   server: stripComments(read('../server/index.js')),
 }
@@ -305,7 +307,12 @@ const W = 1831, H = 1335
   //   「等光流穩定」與「去抖動」兩職，只認一次比對就跳轉會把後者一起丟掉，
   //   而這條動線誤跳的代價是直接把人送到另一頁。
   ok(/const MATCH_CONFIRM = 2/.test(SRC.tracker), '★★ 要有比對確認次數（防誤判）')
-  ok(/matches >= MATCH_CONFIRM/.test(SRC.tracker), '★★ 宣告 found 前要達到確認次數')
+  ok(/matches >= \(cpu \? MATCH_CONFIRM_CPU : MATCH_CONFIRM\)/.test(SRC.tracker),
+    '★★ 宣告 found 前要達到確認次數（兩種後端各自的門檻）')
+  // ★★ CPU 後備的門檻可以是 1（一輪要 3~8 秒，多等一輪的成本遠高於誤跳），
+  //    但**絕不可是 0**——那等於完全沒有確認。
+  ok(/const MATCH_CONFIRM_CPU = [1-9]/.test(SRC.tracker),
+    '★★ CPU 後備的確認次數至少是 1')
   ok(/已認出 \{st\.matches\} 次/.test(SRC.scan),
     '★★ 比對成功次數要在搜尋當下就看得見（>0 與 =0 的下一步完全不同）')
   // ★★★ selfTest 餵的是**內建卡面圖**，絕不可走被攔截的版本——否則自我測試
@@ -386,8 +393,18 @@ const W = 1831, H = 1335
   //   上游迴圈是 `await _detectAndMatch(...)`，比對走 worker；worker 若是跑了
   //   幾輪之後才死，總數會停在 1、2 這種非零小數字 ⇒ 「總數===0」的判準永遠
   //   不會觸發 ⇒ 使用者看到「掃描中」跑到天荒地老而畫面上毫無異常。
-  ok(/stillSince/.test(SRC.session) && /now - stillSince >= STALL_MS/.test(SRC.session),
+  ok(/stillSince/.test(SRC.session) && /now - stillSince >= limit/.test(SRC.session),
     '★★★ 看門狗要判「心跳有沒有前進」，不可只判總數是否為 0（worker 中途死掉會漏掉）')
+  // ★★ CPU 後備一輪要 3~8 秒，12 秒的門檻會把「正常但很慢」誤判成「迴圈卡死」，
+  //    而那個畫面說的是一件不是事實的事。
+  ok(/STALL_MS_CPU/.test(SRC.session) && /backend === 'cpu' \? STALL_MS_CPU/.test(SRC.session),
+    '★★ CPU 後備要放寬看門狗門檻（否則會把「慢」誤判成「卡死」）')
+  // ★★★ 自我測試不可用固定睡眠等迴圈停下來：CPU 上一輪要好幾秒，
+  //    賭輸的結果是 workerMatchDone 被覆蓋 ⇒ 追蹤整個靜默死掉。
+  ok(/inFlight/.test(SRC.tracker) && /while \(inFlight > 0/.test(SRC.tracker),
+    '★★★ 自我測試要真的等處理迴圈結束（不可用固定睡眠賭）')
+  ok(/waitUntil/.test(SRC.tracker),
+    '★★ 那個等待要有上限（迴圈真的死掉時死等會讓診斷永遠不回來）')
   ok(/tps/.test(SRC.session), '★★ 要算並回報心跳速率（輪/秒）')
   // ★★★ `tps` 只能有**一個**寫入者。先前看門狗那支也順手寫它、而且不 emit
   //   ⇒ 畫面顯示「比對 0 輪/秒」、診斷面板顯示「1 輪/秒」，互相矛盾；
@@ -692,6 +709,139 @@ const W = 1831, H = 1335
     if (!got) selfHit = false
   }
   ok(selfHit, '每個熱區的中心都命中得到熱區')
+
+  // ── CPU 運算後備（`src/ar/cpuPipeline.js`）──
+  //
+  // 這一層的存在理由是一個上游實作細節：**`.mind` 裡的描述子是 CPU kernel
+  // 算出來的**（offline-compiler.js 第 5 行 import 了 kernels/cpu），而執行期
+  // 跑的是 WebGL 版。兩者「應該」一致，某些 GPU 上不一致 ⇒ 特徵點抓得到、
+  // 比對永遠 0 次。下面每一條都在鎖「拿掉也不會有人發現」的一行。
+  {
+    // ★★★ 前提本身要驗：上游哪天把那行 import 拿掉，整條路的理由就沒了。
+    const offline = read('../node_modules/mind-ar/src/image-target/offline-compiler.js')
+    ok(/detector\/kernels\/cpu/.test(offline),
+      '★★★ 前提：offline-compiler 仍用 CPU kernel 編 .mind（拿掉的話 cpuPipeline 的整個理由消失）')
+    const det = read('../node_modules/mind-ar/src/image-target/detector/detector.js')
+    ok(/kernels\/webgl/.test(det) && !/kernels\/cpu/.test(det),
+      '★★★ 前提：執行期的 detector 仍只 import webgl kernel（所以要由我們補 cpu 那份）')
+
+    // ★★★ 一定要走原始碼版。`dist/mindar-image.prod.js` 把 TFJS 包在自己裡面，
+    //    拿不到 `tf` 實例 ⇒ 呼叫不到 setBackend ⇒ 整條路不可能成立。
+    ok(/mind-ar\/src\/image-target\/controller\.js/.test(SRC.cpu),
+      '★★★ CPU 路徑要 import mind-ar/src 的 Controller（prod bundle 拿不到共用的 tf）')
+    ok(!/mindar-image\.prod/.test(SRC.cpu),
+      '★★★ CPU 路徑不可用 dist/mindar-image.prod.js')
+    ok(/detector\/kernels\/cpu\/index\.js/.test(SRC.cpu),
+      '★★★ 一定要 import CPU kernel（上游 detector.js 只 import 了 webgl 那份）')
+
+    // ★★★ InputLoader 是唯一硬綁 WebGL 的地方（建構式碰 backend.texData、
+    //    loadInput 用 gpgpu.uploadPixelDataToTexture）。不換掉就一定炸。
+    ok(/patchInputLoader/.test(SRC.cpu) && /inputLoader\s*=/.test(SRC.cpu),
+      '★★★ 一定要換掉 InputLoader（CPU 後端沒有 backend.texData／gpgpu）')
+    // ★★ 灰階要用 `mean(2)`＝(r+g+b)/3，那是**編譯 .mind 時用的公式**
+    //    （compiler-base.js）。用執行期 shader 的 luma 權重就是回到原本那條路。
+    ok(/\.mean\(2\)/.test(SRC.cpu),
+      '★★ CPU 版灰階要用 mean(2)（＝編譯器的 (r+g+b)/3），不可改成 luma 權重')
+    ok(!/0\.299|0\.587|0\.114/.test(SRC.cpu),
+      '★★ CPU 版不可出現 luma 權重（那是執行期 shader 的公式，與 .mind 不同源）')
+
+    // ── 降解析度（純函式，可完整驗證）──
+    //
+    // 離線實測（node、純 JS CPU 後端、同一張卡與 `.mind`）：
+    //   1280×960 一幀要 12~15 秒 → 490×368 只要 1.5~1.7 秒，
+    //   而卡片佔畫面 90/75/55/40/30% 共 10 種組合**全部命中**。
+    // 不縮的話「慢到沒人等得下去」與「不能用」是同一件事。
+    {
+      const [w1, h1] = cpuInputSize(1280, 960)
+      ok(w1 * h1 <= 200000 && w1 * h1 >= 120000,
+        `★★★ 1280×960 要被縮進像素預算（得到 ${w1}×${h1} ＝ ${(w1 * h1 / 1000) | 0}k）`)
+      // ★★★ 長寬比必須保住：stage.js 的裁切修正用 video 的長寬比算 kx/ky，
+      //    而投影矩陣來自 Controller 的 inputWidth/Height——兩者長寬比一旦
+      //    不同，3D 就會與影像對不上（而且是「差一點點」那種最難查的）。
+      for (const [w, h] of [[1280, 960], [1920, 1080], [1280, 720], [720, 1280]]) {
+        const [a, b] = cpuInputSize(w, h)
+        ok(Math.abs((a / b) / (w / h) - 1) < 0.01,
+          `★★★ ${w}×${h} 縮放後長寬比要一致（得到 ${a}×${b}）`)
+        ok(a % 2 === 0 && b % 2 === 0, `★ ${w}×${h} 縮放後要是偶數（得到 ${a}×${b}）`)
+      }
+      // 已經夠小的就不要動——放大只會更慢而且不會更準
+      const [a2, b2] = cpuInputSize(400, 300)
+      ok(a2 === 400 && b2 === 300, '★ 已經在預算內的尺寸不可被改動')
+      // 反例：不可回傳 0 或負數（video 還沒就緒時會拿到 0）
+      const [a3, b3] = cpuInputSize(0, 0)
+      ok(a3 === 0 && b3 === 0, '★ 尺寸是 0 時要原樣回傳，不可算出 NaN')
+    }
+
+    // ★★★ 降解析度之後 loadInput **一定要縮放填滿**，不可照抄上游的 1:1 貼上——
+    //    那會變成只把畫面左上角送進偵測器，而卡片幾乎一定在中間 ⇒ 永遠掃不到。
+    ok(/drawImage\(input, 0, 0, W, H\)/.test(SRC.cpu),
+      '★★★ CPU 版 loadInput 要縮放填滿（照抄上游的 1:1 會變成裁切左上角）')
+
+    // ★★ 光流追蹤只有 WebGL 實作，不停用的話 dummyRun 當場就炸。
+    ok(/disableOpticalFlow/.test(SRC.cpu) && /_trackAndUpdate\s*=\s*async/.test(SRC.cpu),
+      '★★ 一定要停用光流追蹤（Tracker 沒有 CPU 版的 _compileAndRun）')
+
+    // ★★★ 順序：webgl 建構 → 換 inputLoader → 切 cpu → addImageTargets → dummyRun
+    //    切早了 InputLoader 建構式會炸；切晚了目標 tensor 會建在 webgl 上。
+    // ⚠️ 一律比對「呼叫」形式（帶左括號）：檔頭的 import 清單裡也有這些名字，
+    //    用裸名 indexOf 會全部指到第 3 行，順序檢查就變成永遠失敗／永遠通過。
+    const iPatch = SRC.tracker.indexOf('patchInputLoader(')
+    const iCpu = SRC.tracker.indexOf('useCpu(')
+    const iTargets = SRC.tracker.indexOf('addImageTargets(')
+    const iFlow = SRC.tracker.indexOf('disableOpticalFlow(')
+    const iDummy = SRC.tracker.indexOf('controller.dummyRun(')
+    ok(iPatch > 0 && iCpu > iPatch,
+      '★★★ 要先換 InputLoader 才切 CPU 後端（順序反了：建構式讀 backend.texData 會 TypeError）')
+    ok(iCpu > 0 && iTargets > iCpu,
+      '★★★ 要在 addImageTargets **之前**切後端（否則目標 tensor 建在 webgl 上成孤兒）')
+    ok(iFlow > iTargets,
+      '★★ disableOpticalFlow 要在 addImageTargets 之後（controller.tracker 到那時才存在）')
+    ok(iDummy > iFlow,
+      '★★ dummyRun 要在停用光流之後（它會呼叫 tracker.dummyRun）')
+
+    // ★★ CPU 後備不可拖累主 bundle：session 只能靜態 import 輕量模組。
+    //    cpuPipeline 本身很輕，但它動態 import 的東西極重（TFJS 原始碼版
+    //    1.66 MB），所以 session 絕不可靜態牽到它。
+    ok(!/^import[^\n]*cpuPipeline/m.test(SRC.session),
+      '★★ session.js 不可靜態 import cpuPipeline（tracker 才可以，而 tracker 是懶載入的）')
+
+    // ★★★ 切後端只能重建追蹤器，**不可重建 stage**：stage.dispose() 會
+    //    forceContextLoss()，同一張 canvas 之後不保證拿得回 context。
+    const sw = SRC.session.slice(SRC.session.indexOf('async switchBackend'))
+      .slice(0, 1400)
+    ok(/tracker\.dispose\(\)/.test(sw) && /makeTracker\(/.test(sw),
+      '★★★ switchBackend 要先 dispose 舊追蹤器再建新的（兩顆同時跑會互搶影格與 worker）')
+    ok(!/stage\.dispose|createStage/.test(sw),
+      '★★★ switchBackend 不可重建 stage（forceContextLoss 之後同一張 canvas 不保證拿得回 context）')
+    ok(/if\s*\(\s*disposed\s*\|\|\s*switching/.test(SRC.session),
+      '★★ 切換期間探測要停手（那一瞬間 tracker 是 null）')
+
+    // ★★★ CPU 重試必須是**自動**的：它成立的前提是上游原始碼的實作細節，
+    //    使用者不可能知道，也就不可能自己決定要不要按。
+    ok(/useEffect\([\s\S]{0,600}switchBackend\('cpu'\)/.test(SRC.scan),
+      '★★★ CPU 重試要掛在 effect 上自動觸發，不可做成按鈕')
+    // ★★★ TDZ：`cpuTried` 必須宣告在讀它的 const 之前。這一頁已經踩過一次
+    //    （longSearch），而症狀是整頁被 ErrorBoundary 接走、build 完全不報錯。
+    const iDecl = SRC.scan.indexOf('const [cpuTried')
+    const iUse = SRC.scan.indexOf('imageTrackingDead =')
+    ok(iDecl > 0 && iUse > iDecl,
+      '★★★ cpuTried 要宣告在 imageTrackingDead 之前（const 的暫時性死區）')
+    // ★★ 只試一次：CPU 慢很多，反覆重建追蹤器只會讓畫面一直頓。
+    ok(/cpuTried\s*\|\|\s*!failedTest|if\s*\(\s*cpuTried/.test(SRC.scan),
+      '★★ CPU 重試只能跑一次')
+    // ★★ 一格 render 的閃動也要擋：effect 在 render 之後才跑，少了 testPending
+    //    會先閃一下「沒救了，去用 QR」再跳回「檢查中」。
+    // ⚠️ 不可只寫 `/testPending/`：那連 `_testPending` 都會通過（變異測試抓到的）。
+    //    要驗的是**兩件具體的事**——它的定義涵蓋「已失敗但 CPU 還沒試」，
+    //    而且 JSX 真的用它當守衛。
+    ok(/const testPending\s*=[^\n]*!imageTrackingDead/.test(SRC.scan),
+      '★★ testPending 要涵蓋「已失敗但 CPU 重試還沒跑」（否則會閃出錯誤結論）')
+    ok(/\{\s*testPending\s*&&/.test(SRC.scan),
+      '★★ 「檢查中」那段要由 testPending 守衛，不可用 selfTest === idle/running 裸判')
+    // ★ 切到 CPU 之後要講出來——不講的話「突然變很慢」與「當掉了」分不出來。
+    ok(/backend === 'cpu'/.test(SRC.scan) && /運算後端/.test(SRC.scan),
+      '★ 畫面與診斷面板都要顯示目前的運算後端')
+  }
 
   // validateCard 的反例：這些寫法必須被抓到
   ok(validateCard({ ...card, hotspots: [{ id: 'x', rect: { x: 0.9, y: 0, w: 0.5, h: 0.1 } }] }).length > 0,
