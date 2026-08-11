@@ -193,6 +193,21 @@ export const CARD_OBJECTS = {
     ],
     // 卡面「生活小叮嚀」那段是真實的冬季安全提醒，照抄不改寫
     warn: '天冷別把門窗關得密不透風，記得保持適度通風，避免使用瓦斯熱水器或燃氣設備時發生一氧化碳中毒。',
+    // 三個正確選項逐字來自上面的 facts 與 warn；錯的那個「肝與腎」在
+    // termGuide.js 的小寒條目與 termArticle.js 的小寒專文裡都查不到。
+    // ⚠️ 只考「卡上寫了什麼」，**不可以問「對身體有什麼好處」**——後者必然
+    //    踩到保健功效宣稱（check-ar.mjs 有黑名單閘門）。
+    quiz: {
+      question: '這張「身體保健」知識卡上，寫了下面哪幾件事？（可複選）',
+      options: [
+        { key: 'rest', label: '作息：早臥晚起，等待日光', correct: true },
+        { key: 'breath', label: '呼吸：緩衝深呼吸', correct: true },
+        { key: 'co', label: '天冷仍要保持適度通風，小心一氧化碳中毒', correct: true },
+        { key: 'liver', label: '重點部位：肝與腎', correct: false },
+      ],
+      note: '作息、呼吸、重點部位三項就印在上面的知識卡上，通風與一氧化碳那句是卡上的生活小叮嚀（站內節氣生活資料庫的小寒條目也列了「注意室內空氣流通，以免造成一氧化碳中毒」）；卡上寫的重點部位是「雙眼與脾胃」，不是肝與腎。',
+      badge: 'badge-xiaohan-health',
+    },
     // ⚠️ 畫面名是 `termDetail`。原本寫 `termEntry`——**那個畫面不存在**，
     //    buildPath 回 null、Link 退回 '/'，於是「看小寒完整節氣頁」點下去回首頁。
     //    不存在的畫面名不會拋錯也不會有警告，只會靜默地把人送到首頁。
@@ -204,9 +219,27 @@ export const CARD_OBJECTS = {
     line: '一月的餐桌上還有這些。',
     // 只列卡面畫出來的兩項；完整 41 項由節氣頁提供（不在卡上重複一份）
     facts: [
-      { label: '茂谷柑橘', value: '一月當令', source: '農業部開放資料' },
-      { label: '文旦', value: '一月當令', source: '農業部開放資料' },
+      { label: '茂谷柑橘', value: '一月當令', source: '農業部開放資料（一月當令農產）' },
+      // ⚠️ 這一筆原本寫「文旦：一月當令」並標 source 為農業部開放資料，
+      //    但 `produce.js`（正是 `build-produce.mjs` 從那份資料產生的）裡
+      //    「文旦柚」**只出現在八、九月**，一月完全沒有 ⇒ 那句話被它自己
+      //    引用的來源否定。文旦是卡面「食在地」那一區畫的，所以保留品項，
+      //    但不可再宣稱當令。（2026-08-11 訂正）
+      { label: '文旦', value: '卡面「食在地」區也畫了它；站上的當令清單把它列在八、九月', source: '站內當令清單' },
     ],
+    // 問的是「卡片上有什麼」不是「什麼當令」——後者的答案不在使用者眼前
+    // （完整清單在 /ingredients，要離開這一頁才看得到，而作答狀態不會保留）。
+    quiz: {
+      question: '這張小寒卡片上出現了哪些農產？（可複選）',
+      options: [
+        { key: 'napa', label: '結球白菜', correct: true },
+        { key: 'ponkan', label: '茂谷柑橘', correct: true },
+        { key: 'pomelo', label: '文旦', correct: true },
+        { key: 'grapefruit', label: '葡萄柚', correct: false },
+      ],
+      note: '卡面左側綠色虛線框的主角是結球白菜，左下「食在地」那一區畫的是茂谷柑橘與文旦。葡萄柚沒有出現在這張卡上，站上的一月當令清單也查不到它。',
+      badge: 'badge-xiaohan-produce',
+    },
     // ⚠️ 這個出口的文字是「當令清單」，就要去當令清單頁（`/ingredients`），
     //    不可指向節氣頁——文字與去處不一致，使用者會覺得按錯了。
     link: { label: '看一月完整當令清單', screen: 'ingredients' },
@@ -217,6 +250,22 @@ export const CARD_OBJECTS = {
     line: '這一天的宜忌、吉時、沖煞都在站上。',
     // 不寫死宜忌內容——那是 almanac.js 逐日算出來的，寫死一定會與站上不一致
     dynamic: 'almanac',
+    // 四個選項全部可以在卡面月曆上逐字對照：粉紅那一格印的是「05 廿八 小寒」，
+    // 06 那格只印「06 廿九」，15 那格印「15 初八 臘八節」。
+    // ⚠️ 標「農曆廿八」不標「農曆十一月廿八」：整張卡唯一印出來的農曆**月份**
+    //    是 8 日那格的「十二月初一」，要答出「十一月」得自己往回推，那是推理不是閱讀。
+    // ⚠️ 2027 小寒是 **01-05** 不是 01-06（改版文件寫錯過，CLAUDE.md 有記）。
+    quiz: {
+      question: '卡片月曆上，小寒是哪一天？（可複選；答案就印在那個粉紅色的格子裡）',
+      options: [
+        { key: 'd5', label: '國曆 1 月 5 日', correct: true },
+        { key: 'd6', label: '國曆 1 月 6 日', correct: false },
+        { key: 'l28', label: '農曆廿八', correct: true },
+        { key: 'l8', label: '農曆初八', correct: false },
+      ],
+      note: '粉紅色那一格印的是「05 廿八 小寒」——國曆 1 月 5 日、農曆廿八。1 月 6 日那一格只寫「06 廿九」，已經是小寒的第二天；「初八」則是同一張卡上 15 日那一格（15 初八 臘八節）。卡上的節氣、農曆與交節日期由站內天文演算逐日產生。',
+      badge: 'badge-xiaohan-almanac',
+    },
     link: { label: '看 2027-01-05 完整曆頁', screen: 'almanacDay', props: { date: '2027-01-05' } },
   },
   'xiaohan-laba': {
@@ -227,13 +276,34 @@ export const CARD_OBJECTS = {
       { label: '日期', value: '2027-01-15（農曆十二月初八）', source: '站內曆算' },
       { label: '應景食物', value: '臘八粥', source: '站內節氣生活資料庫' },
     ],
+    // 三個正確選項都在上面的 facts 裡；錯的那個考「節氣 ≠ 節日」——
+    // 臘八 01-15 與小寒交節 01-05 差十天，兩者同在一張卡上很容易混淆。
+    quiz: {
+      question: '卡片上的臘八，哪幾項說法正確？（可複選）',
+      options: [
+        { key: 'lunar', label: '農曆十二月初八', correct: true },
+        { key: 'solar', label: '2027 年落在國曆 1 月 15 日', correct: true },
+        { key: 'food', label: '這一天的應景食物是臘八粥', correct: true },
+        { key: 'same', label: '和小寒交節（1 月 5 日）是同一天', correct: false },
+      ],
+      note: '臘八是農曆十二月初八，2027 年落在國曆 1 月 15 日（站內曆算），站內節氣生活資料庫把臘八粥列為小寒的應景食物；小寒交節則是 1 月 5 日，兩者差了十天——節氣和節日不是同一件事。',
+      badge: 'badge-xiaohan-laba',
+    },
     link: { label: '看 2027-01-15 曆頁', screen: 'almanacDay', props: { date: '2027-01-15' } },
   },
   'xiaohan-sakura': {
     id: 'xiaohan-sakura',
     name: '櫻花',
-    line: '小寒到立春，是台灣的櫻花季。',
-    facts: [{ label: '花期', value: '小寒前後陸續開花', source: '站內節氣生活資料庫（花期）' }],
+    line: '小寒過後，台灣的櫻花季就要開始了。',
+    // ⚠️ 原本寫「花期：小寒前後陸續開花」並標 source 為「站內節氣生活資料庫（花期）」，
+    //    但 `termGuide.js` 小寒那筆的 `flowers` 是 **空陣列**，整份檔案一次櫻花都沒有
+    //    ⇒ 那個出處查不到這件事。而站上其他資料的方向是相反的：
+    //    賞花清單寫陽明山櫻花「2–3 月」、武陵農場「2 月」，`termArticle.js` 也把
+    //    「山區的櫻花陸續開」放在**立春**（約 2/4）。小寒是 1/5——按這張卡自己的
+    //    「看賞花地圖」點過去就會看到 2–3 月，自己打自己的臉。（2026-08-11 訂正）
+    // ⚠️ 這個物件因此**沒有小挑戰**：唯一一條素材的出處查不到，湊不出可查證的題目。
+    //    寧可少一題也不要編（其餘五個熱區都有題目）。
+    facts: [{ label: '花期', value: '山區約二至三月盛開（陽明山、武陵農場）', source: '站內賞花清單' }],
     link: { label: '看賞花地圖', screen: 'flowers' },
   },
 }

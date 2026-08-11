@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 // ⚠️ 放大模式必須 portal 到 body，不可留在元件樹裡——見它的 JSX 上方的說明。
 import { createPortal } from 'react-dom'
 import { TopBar, SectionHead, Link, Breadcrumb, Disclaimer } from '../components/ui.jsx'
@@ -6,8 +6,9 @@ import Icon from '../components/Icon.jsx'
 import AnimatedText from '../components/AnimatedText.jsx'
 import { useNav } from '../store/nav.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
-import { earnBadge, hasBadge, BADGES } from '../lib/arBadges.js'
 import SpeakButton from '../components/SpeakButton.jsx'
+// 小挑戰抽成共用元件——`/ar/model/:slug` 也要同一段動線
+import ArQuiz from '../components/ArQuiz.jsx'
 
 // ============================================================================
 // /ar/card/:slug —— 不用相機也能走完整條動線
@@ -258,7 +259,7 @@ export default function CardPage({ slug }) {
                 ⚠️ 這是**輔助**不是替代——上面該有的字一個都沒少。 */}
             <SpeakButton obj={obj} />
             {obj.quiz && (
-              <Quiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
+              <ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
                 term={card.term}
                 // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
                 fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} />
@@ -276,131 +277,6 @@ export default function CardPage({ slug }) {
           本頁不提供營養素數值與健康宣稱。
         </Disclaimer>
       </div>
-    </>
-  )
-}
-
-/**
- * 小挑戰（多選）。
- * ⚠️ 答錯不扣分、不鎖、不記次數（改版文件 §5.3 第 7 點）——這是教育內容不是考試，
- *    鎖住重試只會讓人關掉頁面。
- */
-function Quiz({ quiz, loggedIn, term, fact }) {
-  const [picked, setPicked] = useState([])
-  const [submitted, setSubmitted] = useState(false)
-  const [fresh, setFresh] = useState(false)
-  const liveRef = useRef(null)
-
-  const correctKeys = useMemo(
-    () => quiz.options.filter(o => o.correct).map(o => o.key).sort().join(','), [quiz])
-  const allRight = submitted && [...picked].sort().join(',') === correctKeys
-
-  const toggle = (k) => {
-    if (submitted) { setSubmitted(false) }
-    setPicked(p => (p.includes(k) ? p.filter(x => x !== k) : [...p, k]))
-  }
-  const submit = () => {
-    setSubmitted(true)
-    const ok = [...picked].sort().join(',') === correctKeys
-    if (ok && quiz.badge) setFresh(earnBadge(quiz.badge, { loggedIn }))
-  }
-
-  const owned = quiz.badge ? hasBadge(quiz.badge) : false
-
-  return (
-    <div className="cardp-quiz">
-      <SectionHead title="小挑戰" />
-      <p className="cardp-q">{quiz.question}</p>
-      <div className="cardp-opts">
-        {quiz.options.map(o => {
-          const on = picked.includes(o.key)
-          // 送出後才標對錯：作答中就標紅等於直接給答案
-          const mark = submitted
-            ? (o.correct && on ? ' right' : (!o.correct && on ? ' wrong' : (o.correct ? ' missed' : '')))
-            : ''
-          return (
-            <button key={o.key} className={`cardp-opt${on ? ' on' : ''}${mark}`}
-              onClick={() => toggle(o.key)} aria-pressed={on}>
-              {o.label}
-            </button>
-          )
-        })}
-      </div>
-      <button className="btn-primary tap" onClick={submit} disabled={!picked.length}
-        style={!picked.length ? { opacity: .55 } : null}>
-        送出答案
-      </button>
-      <div aria-live="polite" ref={liveRef}>
-        {submitted && allRight && (
-          <div className="cardp-win">
-            <b>答對了！</b>
-            {quiz.badge && (
-              <p>
-                {fresh ? '獲得節氣徽章：' : '你已經有這枚徽章：'}
-                <b>{BADGES[quiz.badge]?.name ?? quiz.badge}</b>
-              </p>
-            )}
-            {quiz.note && <p className="muted">{quiz.note}</p>}
-            {/* 分享圖卡：純 canvas 產生，零外部素材。
-                ⚠️ 放在徽章與解說**之後**——先講結果再給動作，順序反過來的話
-                   讀起來會變成「答對了！存成圖片獲得節氣徽章」。
-                ⚠️ 圖要先畫好再呼叫 saveOrShare：Web Share 必須在使用者手勢
-                   附近呼叫，在那裡才 await 繪製會被瀏覽器擋掉。 */}
-            <ShareButton badgeName={BADGES[quiz.badge]?.name ?? quiz.badge}
-              term={term} fact={fact?.value} source={fact?.source} />
-          </div>
-        )}
-        {submitted && !allRight && (
-          <div className="cardp-again">
-            <p>還沒全對——綠色是漏掉的、紅色是多選的。再試一次就好，不會扣分。</p>
-          </div>
-        )}
-        {!submitted && owned && (
-          <p className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
-            你已經有這一枚徽章了。
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
- * 「存成圖片／分享」按鈕。
- *
- * ⚠️ 三段式回饋：產生中 → 結果。使用者按取消（Web Share 的 AbortError）
- *    **不可**顯示失敗——那是正常操作。
- * ⚠️ shareCard.js 走 lazy import：canvas 繪製那一段只有答對的人會用到。
- */
-function ShareButton({ badgeName, term, fact, source }) {
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState(null)
-  const go = async () => {
-    setBusy(true); setMsg(null)
-    try {
-      const m = await import('../lib/shareCard.js')
-      const blob = await m.renderShareCard({
-        badgeName, term, fact, source,
-        dateText: new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }),
-      })
-      const r = await m.saveOrShare(blob, `機巧時運-${badgeName}.png`)
-      setMsg({
-        shared: '已開啟分享選單',
-        downloaded: '已存成圖片',
-        opened: '已在新分頁開啟——長按圖片即可儲存',
-        cancelled: null,
-        failed: '這台裝置無法產生圖片，換個瀏覽器再試',
-      }[r] ?? null)
-    } catch {
-      setMsg('圖片產生失敗，請稍後再試')
-    } finally { setBusy(false) }
-  }
-  return (
-    <>
-      <button className="btn-ghost tap cardp-share" onClick={go} disabled={busy}>
-        {busy ? '產生中…' : '存成圖片／分享'}
-      </button>
-      {msg && <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>{msg}</p>}
     </>
   )
 }

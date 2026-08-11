@@ -98,4 +98,12 @@ export async function syncBadges(userId) {
 
 export const BADGES = {
   'badge-xiaohan-napa': { id: 'badge-xiaohan-napa', name: '小寒 · 結球白菜', term: '小寒' },
+  // 2026-08-11：五個熱區各給一枚（櫻花那一區沒有小挑戰，見 arCards.js 的說明）。
+  // ⚠️ 新增小挑戰時**一定要一起補這裡**：`ArQuiz` 查不到 id 時會退而顯示原始 slug
+  //    （arBadges.js 刻意「查不到就顯示 slug 而不是藏起來」——藏起來會變成
+  //    「使用者明明拿過卻看不到」），但那是保底不是設計。check-ar.mjs 已上閘門。
+  'badge-xiaohan-health': { id: 'badge-xiaohan-health', name: '小寒 · 身體保健', term: '小寒' },
+  'badge-xiaohan-produce': { id: 'badge-xiaohan-produce', name: '小寒 · 當令農產', term: '小寒' },
+  'badge-xiaohan-almanac': { id: 'badge-xiaohan-almanac', name: '小寒 · 曆頁', term: '小寒' },
+  'badge-xiaohan-laba': { id: 'badge-xiaohan-laba', name: '小寒 · 臘八粥', term: '小寒' },
 }

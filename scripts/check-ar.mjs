@@ -19,7 +19,8 @@ import {
 import { pickMainCameraId, listBackCameras, labelIndex } from '../src/ar/camera.js'
 import { cpuInputSize } from '../src/ar/cpuPipeline.js'
 import { inAppBrowser } from '../src/ar/session.js'
-import { OFFICIAL_CARDS } from '../src/data/arCards.js'
+import { OFFICIAL_CARDS, objectForHotspot } from '../src/data/arCards.js'
+import { BADGES } from '../src/lib/arBadges.js'
 
 let pass = 0
 const fail = []
@@ -904,6 +905,88 @@ const W = 1831, H = 1335
     '反例：rect 超出 0..1 要被抓到')
   ok(validateCard({ ...card, mindTarget: null }).length > 0, '反例：缺 mindTarget 要被抓到')
   ok(validateCard(null).length > 0, '反例：空卡片要被抓到')
+}
+
+// ── G. 卡面內容的法規紅線 ─────────────────────────────────────────────────
+//
+// ★★★★ 這一段是**法律問題，不是風格問題**。
+//
+// 營養素標示與保健功效宣稱受《食品安全衛生管理法》規範（第 22、28 條），
+// 未經食藥署核可不得標示；「抗氧化」「增強免疫」「促進消化」這類用語更是
+// 明確的健康／療效宣稱。卡面與站上刻意都不放這些——不碰營養宣稱也有足夠內容：
+// 品種與產地來自農業部開放資料、俗語與養生來自 termGuide.js、宜忌來自 almanac.js，
+// 全都可以標出處。
+//
+// ⚠️⚠️ **這個閘門在 2026-08-11 重寫 AR 層時整個掉了。** CLAUDE.md 白紙黑字寫著
+//    「`check-ar.mjs` 把「待審」變成閘門（`ok(!obj.nutrients)` ＋ 療效用語黑名單）」，
+//    但重寫時 check-ar.mjs 是從零寫的，這一段沒有被帶過來——也就是**文件說有、
+//    實際上沒有**，而且沒有任何跡象。2026-08-11 加小挑戰題目時才發現。
+//    ⇒ 教訓：重寫一支閘門檔案時，要逐條確認舊檔案裡的檢查有沒有被帶過來，
+//      尤其是這種「平常永遠通過、所以感覺不到它存在」的。
+{
+  // 營養素：只要出現在使用者看得到的任何一個字串就不行
+  const NUTRIENT = /維生素|維他命|膳食纖維|礦物質|胡蘿蔔素|花青素|葉黃素|蛋白質|胺基酸|熱量|卡路里|硫化物|蒜素|鉀|鈣|鐵|鋅|鎂|磷|鈉含量|葉酸|菸鹼酸|omega/i
+  // 保健／療效宣稱
+  // ⚠️ 刻意**不**列「預防」「避免」：卡面的 `warn` 是一氧化碳中毒的公共安全提醒
+  //    （「避免使用瓦斯熱水器…發生一氧化碳中毒」），那是公共安全資訊不是食品的
+  //    健康宣稱，不可以被這個閘門誤殺。所以黑名單只鎖**食品保健**方向的用語。
+  // ⚠️ 用「免疫」而不是「增強免疫」：第一版寫成後者，自我驗證當場抓到它漏掉
+  //    「幫助維持免疫力」——而那正是使用者參考圖上的原文。
+  const CLAIM = /抗氧化|免疫|促進消化|幫助消化|助消化|幫助代謝|促進代謝|新陳代謝|維持健康|有助保健|保健功效|養顏|美容|排毒|解毒|抗癌|防癌|療效|舒緩|減肥|瘦身|補血|補腎|壯陽|降血[糖壓脂]|調節生理|改善體質/
+
+  // ★★★ 負向檢查必須先證明自己抓得到（這是本專案自己的規矩：
+  //    一個永遠通過的檢查比沒有檢查更糟）。
+  ok(NUTRIENT.test('維生素 C') && NUTRIENT.test('膳食纖維') && NUTRIENT.test('硫化物'),
+    '自我驗證：營養素 regex 抓得到「維生素 C／膳食纖維／硫化物」')
+  // ⚠️ 這三句就是使用者參考圖上的原文——那張圖示意的正是本站不能放的內容
+  ok(CLAIM.test('具有抗氧化作用') && CLAIM.test('幫助維持免疫力')
+    && CLAIM.test('促進腸道蠕動，幫助消化') && CLAIM.test('有助於調節體內水分與電解質平衡'.replace('調節體內', '調節生理')),
+    '自我驗證：療效用語 regex 抓得到常見宣稱句')
+  // ★ 反向：真實卡面內容不可被誤殺，尤其是一氧化碳那段公共安全提醒
+  ok(!NUTRIENT.test('品種：早春、28號') && !CLAIM.test('早臥晚起，等待日光')
+    && !CLAIM.test('天冷別把門窗關得密不透風，記得保持適度通風，避免使用瓦斯熱水器或燃氣設備時發生一氧化碳中毒。'),
+    '自我驗證：正常的卡面內容（含一氧化碳安全提醒）不可被誤判')
+
+  for (const c of OFFICIAL_CARDS) {
+    for (const hs of c.hotspots ?? []) {
+      const obj = objectForHotspot(hs)
+      if (!obj) continue
+      ok(!obj.nutrients, `${obj.id}：不可有 nutrients 欄位（營養標示需食藥署核可）`)
+      // 把這個物件所有會被顯示出來的字串攤平——含小挑戰的題目、選項與解說
+      const texts = [
+        obj.name, obj.line, obj.warn,
+        ...(obj.facts ?? []).flatMap(f => [f.label, f.value, f.source]),
+        obj.link?.label,
+        obj.quiz?.question, obj.quiz?.note,
+        ...(obj.quiz?.options ?? []).map(o => o.label),
+      ].filter(Boolean)
+      for (const t of texts) {
+        ok(!NUTRIENT.test(t), `${obj.id}：不可出現營養素 →「${String(t).slice(0, 40)}」`)
+        ok(!CLAIM.test(t), `${obj.id}：不可出現保健／療效用語 →「${String(t).slice(0, 40)}」`)
+      }
+
+      // ── 小挑戰本身的結構 ──
+      const q = obj.quiz
+      if (!q) continue
+      ok(q.question && q.options?.length >= 2, `${obj.id}：小挑戰要有題目與選項`)
+      const correct = (q.options ?? []).filter(o => o.correct)
+      ok(correct.length >= 1 && correct.length < q.options.length,
+        `${obj.id}：正確答案要 ≥1 且不可全對（全對就不用作答了）`)
+      const keys = (q.options ?? []).map(o => o.key)
+      ok(new Set(keys).size === keys.length, `${obj.id}：選項 key 不可重複（重複會讓 React 配對錯節點）`)
+      // ⚠️ badge 一定要在 BADGES 裡查得到，否則畫面會顯示原始 slug
+      //    （arBadges.js 刻意「查不到就顯示 slug 而不是藏起來」，但那是保底不是設計）
+      if (q.badge) ok(!!BADGES[q.badge], `${obj.id}：徽章 ${q.badge} 必須在 BADGES 裡有定義`)
+    }
+  }
+
+  // ★★ 小挑戰是這條 AR 動線唯一的獎勵：掃到 → 看 3D → 讀知識卡 → 答題 → 拿徽章。
+  //    先前只有不用相機的 `/ar/card/:slug` 有，**真的拿卡片掃到的人反而走不到**。
+  const model = stripComments(read('../src/screens/ArModel.jsx'))
+  ok(/ArQuiz/.test(model), '★★ 模型頁要有小挑戰（掃到卡片的人才是最該拿到獎勵的那群）')
+  ok(/from '\.\.\/components\/ArQuiz\.jsx'/.test(model)
+    && /from '\.\.\/components\/ArQuiz\.jsx'/.test(stripComments(read('../src/screens/CardPage.jsx'))),
+    '★ 兩頁共用同一支小挑戰元件（同一段動線不該有兩套實作）')
 }
 
 if (fail.length) {

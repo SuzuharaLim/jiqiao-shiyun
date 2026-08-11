@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { TopBar, Link } from '../components/ui.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
+import { useNav } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
+// 小挑戰與卡片頁共用同一支元件——同一段動線不該有兩套實作
+import ArQuiz from '../components/ArQuiz.jsx'
 
 // ============================================================================
 // `/ar/model/:slug` —— 掃到卡片之後跳來的 **A-Frame 模型頁**
@@ -259,6 +262,7 @@ async function ensureAframe() {
 }
 
 export default function ArModel({ slug, hotspot }) {
+  const { user } = useNav()
   const card = cardBySlug(slug) || null
   const hostRef = useRef(null)
   const [phase, setPhase] = useState('loading')   // loading | ready | failed
@@ -399,6 +403,19 @@ export default function ArModel({ slug, hotspot }) {
             )}
             {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
             <SpeakButton obj={obj} className="scan-hit-speak" />
+
+            {/* ★ 小挑戰 —— 這條動線的「成了！」時刻。
+                掃到卡片 → 看 3D 角色 → 讀知識卡 → 答題 → 拿徽章，
+                先前這一段只存在於不用相機的 `/ar/card/:slug`，
+                真的拿卡片掃到的人反而走不到獎勵。
+                ⚠️ 用 `.cardp-quiz`（它自己帶 border-top 分隔線），所以放在
+                   知識卡**裡面**、語音按鈕之後——與卡片頁的結構一致。 */}
+            {obj.quiz && (
+              <ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
+                term={card.term}
+                // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
+                fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} />
+            )}
           </div>
         )}
 
