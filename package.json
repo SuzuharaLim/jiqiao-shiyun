@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:lan": "vite --host",
     "dev:server": "node --watch server/index.js",
-    "build": "node scripts/check-almanac.mjs && node scripts/check-nav.mjs && node scripts/check-ar.mjs && node scripts/check-features.mjs && node scripts/check-mind.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && vite build",
+    "build": "node scripts/check-almanac.mjs && node scripts/check-nav.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js",
@@ -22,9 +22,8 @@
     "check:live": "node scripts/check-live.mjs",
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
-    "card:frame": "node scripts/frame-card.mjs",
-    "card:install": "node scripts/install-target.mjs",
-    "card:mind": "node scripts/compile-mind.mjs"
+    "card:mind": "node scripts/compile-mind.mjs",
+    "check:ar": "node scripts/check-ar.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

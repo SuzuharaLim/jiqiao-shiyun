@@ -56,7 +56,8 @@ npm run start       # 正式：node 同時 serve dist/ + /api（8080）
 │  ├─ store/nav.jsx   全域狀態 + 每頁網址路由
 │  ├─ hooks/useApi.js 內容 fetch hooks（DB 為源）
 │  ├─ data/           mock.js（種子）· almanac.js（國民曆引擎）
-│  ├─ lib/            mindScene.js · mindarThree.js（AR 追蹤，MindAR）· speak.js · shareCard.js
+│  ├─ ar/             AR 掃描四層：cardSpace · camera · tracker · stage · session
+│  ├─ lib/            speak.js · shareCard.js · arBadges.js · char/（3D 角色）
 │  ├─ components/      ui · Icon · WebNav · WebFooter · AuthWall · ErrorBoundary · LocationPicker · VerifyBanner · AnimatedText
 │  └─ screens/         registry.jsx（ROOTS+SCREENS）+ 40+ 畫面（含 Camera · Admin · AlmanacDay · YearAlmanac …）
 ├─ server/            index.js（42 支 /api）· db.js（pg/sqlite）· schema.sql · seed.js · mailer.js

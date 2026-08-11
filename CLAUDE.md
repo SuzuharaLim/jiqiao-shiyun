@@ -72,9 +72,6 @@ chengqi-main/
 │  │  └─ almanac.js        任意日期生國民曆日頁（dayFor/monthCells，錨點 6/6，示範演算）
 │  │                        ★todayOffset() 讓 App 開在真實今日；dayFor 回傳完整傳統項目（三柱干支動態年份/建除/星宿/彭祖/胎神/沖煞歲數/財喜貴方位/十二時辰/特殊日）；另 export yearOverview
 │  ├─ lib/
-│  │  ├─ mindarThree.js    ★AR 追蹤：官方 MindARThree 的在地化版本（three 0.185 相容）
-│  │  ├─ mindScene.js      ★AR 接線層：角色掛 anchor.group、Raycaster 打熱區（唯一接線點）
-│  │  ├─ scanner.js        dHash＋直方圖（已非 /AR 追蹤路徑，僅 arCardRegistry 使用）
 │  │  ├─ speak.js          ★語音導覽（Web Speech API 零相依）：切短句避開 Chrome 15 秒看門狗、挑中文語音、離開必 cancel
 │  │  └─ shareCard.js      ★成果圖卡（純 canvas 1080×1080 零素材）＋ Web Share／下載三段 fallback
 │  ├─ components/
@@ -252,86 +249,39 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **`.sheet` 絕不可用 inline `style` 覆寫 `maxHeight`／`paddingBottom`**：那會蓋掉樣式表的 `min(82dvh, 100dvh-48px)` 與 `env(safe-area-inset-bottom)`。實際踩過兩處：`Scan.jsx` 的 `maxHeight:'92%'`（橫向貼底會超出）、`AuthWall.jsx` 的 `maxHeight:'unset'`（直接取消上限，內容一多就溢出視窗）。高度與安全區一律交給 `.sheet` 樣式。
 - **`.lp-map` 地圖預覽不可用固定高**：原本 184px，手機橫向時搜尋結果的捲動區只剩 72px（地圖看得到但選不到地點）。改 `clamp(120px, 24dvh, 184px)`，矮視窗另壓到 100px 並給清單 `min-height`。
 - **入場動畫的終態要與靜態樣式一致並加 `forwards`**：`slideup` 原本 `to{transform:none}` 且無 fill-mode，動畫被中斷或未推進時元素會停在 `from` 的 `translateY(24px)`，底部彈出的 sheet 露出視窗外。
-- **★ `/AR` 走 MindAR 官方 three.js 整合（`MindARThree`），2026-08-10 起**（[官方文件](https://hiukim.github.io/mind-ar-js-doc/more-examples/threejs-image)）。`src/lib/mindScene.js` 是唯一的接線層，`src/screens/Scan.jsx` 只剩畫面。video／WebGLRenderer／PerspectiveCamera／anchor 變換**全部由函式庫管**，我們只負責把角色掛到 `anchor.group` 上、把命中的熱區變成內容。閘門是 `scripts/check-mind.mjs`（39 項）。
-  - **★★★ CSP 必須放行 `blob:` 的 Web Worker**（`server/index.js`：`workerSrc: ["'self'", 'blob:']` ＋ `childSrc` 同值）。MindAR 的比對跑在 **Web Worker** 裡，而那個 worker 是用 `blob:` URL 建立的。沒有這兩行，CSP 會擋掉它，而失效方式**完全靜默**：相機開得起來、畫面正常、掃描線在動、`.mind` 也載入了，console 只有一行 CSP 警告，但 `_workerMatch` 永遠不 resolve → 處理迴圈卡在第一輪 → `onUpdate` **一次都不會進來** → 永遠不會認出卡片。症狀與「沒對準／光線不夠／目標檔沒裝」一模一樣。實測：加這兩行之前 `onUpdate` 0 次；加之後 15 秒內 `processDone` 23／`updateMatrix` 18、狀態列變「已對準」。
-    - ⚠️ **只有正式站會壞**：Vite dev server 不送 CSP，所以 `npm run dev` 一切正常，**一部署就掃不到**。這是「用 dev server 驗 AR」驗不出來的一類問題——驗 AR 一律要跑 `npm run build && npm run start`。
-    - ⚠️ 不可改成放寬 `scriptSrc`：`worker-src` 沒設時瀏覽器才退回 `script-src`（Chrome 的錯誤訊息會明講「Note that 'worker-src' was not explicitly set」），為了 worker 打開整個腳本來源是把安全性換掉。
-  - **★★★ MindARThree 的 `<video>` 預設是 `z-index:-2`——在本站會讓取景畫面全黑**，必須改成 `0`（`mindarThree.js` 的 `_startVideo`）。依 CSS 繪製順序，負 z-index 的定位子元素畫在「第 2 步」，而 `.scan-stage` 是 `position:relative; z-index:auto`（不建立堆疊脈絡），它自己畫在祖先脈絡的「第 6 步」——**它的深色背景 `--cam-bg-deep #0C0A08` 會整片蓋在 video 上面**。官方範例的容器沒有背景色所以踩不到，本站的取景框有。
-    - ⚠️ **這個 bug 從數字上完全看不出來**：追蹤**不需要 video 被看見**（MindAR 讀的是 video 元素的像素，不是螢幕上畫出來的結果），所以「已對準」「熱區命中」「3D 有在算繪（三角形 75,274）」全部量得到，**畫面卻是黑的**。**驗 AR 不能只驗數字，一定要真的看畫面。**
-    - ⚠️ 四層疊序一律**明寫**：video `0` → 3D canvas `1` → `.scan-frame` `2` → `.scan-fallback` `3`。MindARThree 是把 video 與 canvas **append** 進容器的，DOM 上排在 React 子元素**之後**，全部 `z-index:auto` 時後來的會蓋住先前的——取景框、掃描線、「正在開啟鏡頭…」都會被蓋掉。`.scan-fallback` 原本是**非定位**元素，要補 `position:relative` 才吃得到 z-index。
-    - ⚠️ 也不可改成「把 `.scan-stage` 的背景拿掉」：那是相機還沒開起來時的底色。
-  - **★★ 不可 import `mind-ar/dist/mindar-image-three.prod.js`**：它第一行 `import { sRGBEncoding } from "three"`，而**three 0.185 已移除 `sRGBEncoding`**（r152 棄用後刪除，改用 `SRGBColorSpace`／`outputColorSpace`）→ **建置直接失敗**。降版 three 也不是選項（角色層用了 r165 才有的 `NeutralToneMapping`）。所以官方那 120 行收進 `src/lib/mindarThree.js`，**只改**色彩空間 API、Controller 取得方式（改從不碰 three 的 `mindar-image.prod.js`）、移除 CSS3DRenderer 與內建 UI、補 `dispose()`。**演算法與座標約定一行未改**，檔頭逐項列出差異方便日後對照上游。
-  - **★★ anchor 區域座標的 y 方向只能量、不能推**：`postMatrix` 是「區域y → 像素y = W·y + H/2」而像素 y 在圖上朝下，所以**照推會得到 `vSign = +1`，那是錯的**——`worldMatrix` 自己還帶一次上下翻轉。實測（1280×960、卡片佔 55%）：`+1` 時白菜熱區算到 (387, **550**)、真值 (384, 416)，x 準 y 鏡像；`-1` 時六個熱區誤差全部 ≤7.6px 且是一致的平移。症狀是「角色不會消失、大小也對，只是站錯地方」。卡片寬度恆為 **1.0** 個區域單位、高度 H/W、卡面是 z=0、**+z 離開紙面**（也是量的）。
-  - **熱區改用 three 的 `Raycaster` 打在 anchor 底下的隱形代理平面上**，不再手寫 homography——函式庫已經把變換算好了，再算一次就是「貼歪但不報錯」的來源。⚠️ 取 uv 時走**區域座標＋`localToUv`**，不要直接吃 `intersect.uv`：`PlaneGeometry` 的 uv 原點在左下、v 向上，與卡面 UV 差一個翻轉，那個翻轉還要再乘 `vSign`——兩層符號疊起來最容易寫反。
-  - **手動點選必須暫停中心瞄準一段時間**（`MANUAL_HOLD_MS`）：只 reset 遲滯的話，下一輪輪詢又把「畫面中心那一區」推進去，約 0.3 秒後就蓋掉使用者剛點的，症狀是「點了會跳回去」。
-  - **★★★ MindAR 原版的 `getUserMedia` 沒有指定解析度——這是真實手機上「掃不到」的高機率主因**。只給 `facingMode` 時行動瀏覽器預設回 **640×480**，卡片就算佔滿半個畫面也只有約 320px 寬，特徵點根本不夠，症狀是「對得很準卻一直認不出來」。`mindarThree.js` 已補上 `width/height: {ideal: 1280/960}` ＋ `focusMode: 'continuous'`。⚠️ 一定要 `ideal` **不可 `exact`**（不支援時會丟 OverconstrainedError＝相機完全開不起來）；也不要開到 4K（每幀都要進 TFJS，掉幀比解析度更傷）。
-  - **★★★ 避開超廣角只能在「取得權限之後」做**（`mindarThree.retuneCamera`）：`enumerateDevices()` 在授權前 label 一律是空字串，所以第一次進來只能退回 `facingMode:'environment'`，而那在多鏡頭手機上**有機會選到超廣角**——實測 k1 −0.07 之後辨識率就是 **0%**，症狀同樣是「對得很準卻認不出來」。所以 `start()` 之後要再挑一次鏡頭並只換 `srcObject`（不重建 Controller——重建要重新要權限，iOS 很容易失敗），**換完必須 `resize()`**，否則解析度變了投影矩陣沒跟著換，模型會整個偏掉。
-  - **`/AR` 的診斷面板有「用內建卡面圖自我測試」**：把一張保證正確的畫面接到同一條管線上，8 秒內分辨三種完全不同的失敗——① 裝置跑不動 ② 相機畫面不夠好 ③ 卡片與目標圖不同版。⚠️ 換 `srcObject` 之後**一定要在 `finally` 接回相機**，否則測完畫面凍在那張圖上；測試畫面也要有微幅位移（偵測走 `detectMoving`）。判讀一律要給**下一步動作**，只說「成功／失敗」等於沒有診斷。
-  - **Scan.jsx 不可再呼叫 `getUserMedia`**（能力偵測可以）：MindARThree 自己開一路相機，再開第二路在部分 Android 上直接失敗，而且白吃一份電。**但「避開超廣角」保得住**——建構子吃 `environmentDeviceId`，把 `pickMainCameraId()` 猜到的 id 傳進去；猜不到就傳 null 走 `facingMode`。⚠️ 刻意**不**為了讀 label 而先開一次相機再關掉（多數百毫秒，且部分 Android 快速重開會失敗）。
-  - **成本**（實測）：主 bundle **449.94 kB / gzip 191.21**（比換之前**還小** 37.8 kB，因為不再牽進自研追蹤那一串）；`mindScene` 4.58 kB、`mindarThree` 5.35 kB；`mindar-image.prod` **1,759 kB / gzip 302** 與 three＋角色 532 kB 都是懶載入。⚠️ 那個 1.76 MB **要等相機真的開起來才下載**（`_startVideo` 失敗時根本走不到 `_startAR`）。
-  - **離線驗證只能靠假相機**：`canvas.captureStream()` 餵給 MindARThree。⚠️ 自動化環境的 `visibilityState` 恆為 `'hidden'`、rAF 不觸發，而 MindAR 的處理迴圈每輪結尾是 `await tf.nextFrame()`（靠 rAF 解析）→ **迴圈會停在第一輪**，而 video 在播、`processingVideo` 是 true，看起來一切正常。量測前必須先補 rAF shim，否則會誤判成「偵測不到」。
-- **（已退役）自研平面追蹤**（`src/lib/homography.js` ＋ `quadDetect.js` ＋ `arTracker.js` ＋ `features.js`，零第三方相依）：偵測卡片四角 → 透視拉正 → 四方向比對辨識 → 解 homography 與 3D 姿態 → `ARScene.jsx` 用 CSS `matrix3d` 貼上去。**2026-08-10 起 `/AR` 不再引用這一串**（`arTracker`／`arSimFrame`／`arDiagnose`／`mindTrack`／`ARScene`／`ARCharacter` 目前沒有任何 importer，是待清理的死碼）。`homography.js` 與 `arHotspot.js` 仍活著（`mindScene` 在用），`scanner.js`／`features.js` 由 `arCardRegistry` 使用。`scripts/check-ar.mjs`（269 項）保留，但它現在只驗**純數學與模組自身**，不再檢查 `/AR` 的接線。以下這一整段的經驗仍值得保留，但要記得**它描述的是退役路線**——最重要的差異是：**MindAR 不需要偵測卡片邊界，所以「收邊」對比對率沒有影響**（實測收邊版與未收邊原稿都 12/12）。
-  - **方向對齊是 `(i - r + 4) % 4` 不是 `(i + r)`**：寫成加時 0° 與 180° 完全正確（±2 在 mod 4 下同值），只有 90°／270° 的原點跑到對角，而且**模型不會消失、只是整個轉 90°**——正面朝上測試永遠測不出來。
-  - **CSS `matrix3d` 是行主序**（前四個數是第一「欄」）：寫成列主序時靜態畫面看起來很像，一旋轉才發現角度全錯。
-  - **「是不是四邊形」要看「凸包縮成四邊形時損失多少面積」，不是實心度**：一個 L 形貪婪縮頂點會收斂成貼著它外緣的梯形，L 佔那個梯形 94%，實心度完全過關。
-  - **角點要做線擬合精修**（TLS／PCA，不可用一般最小平方——邊接近垂直時斜率發散）：凸包直接取角在透視下有 5px 誤差＝160 寬畫面的 3%，模型會明顯偏出卡片；精修後 ≤1.2px。
-  - **取樣畫面的長寬比必須等於顯示區**，不可寫死 4:3：`.scan-video` 是 `object-fit:cover`，兩個裁切區不同會讓偵測找到看不到的卡片，且座標換算永遠對不上（實測 scale 變成非等比 2.35×5.01，內容飛出畫面三萬 px）。
-  - **AR 疊加層的模型盒要 100px 不可 1px**：子元素的 %、字級、`translate(-50%)` 會在 1px 的盒子裡爆掉（實測印章跑到 −12437px）。換算靠 transform 尾端補 `scale(0.01)`。
-  - 疊加層必須 `pointer-events:none`（否則吃掉整個取景畫面的點擊，症狀是「按鈕有時候按不動」）。
-  - **收邊不要手工加，用 `npm run card:frame -- 稿.png`**（`scripts/frame-card.mjs`）：自己寫的 PNG 編解碼（node 內建 zlib，零相依）＋ 加收邊 ＋ **用真的偵測器在四種桌面亮度上量逐角誤差**。實測近似小寒卡的測試稿：原稿 32／34／93px／木紋偵測不到 → 加收邊後四種桌面都 1.4px。**輸出那一張既是付印稿也是登錄目標圖**，把兩件事綁在一起就不會踩到「登錄版與付印版不同」那個坑。只吃 PNG、不可 interlaced。
-  - **手寫 PNG 編解碼是「壞掉但不報錯」的典型**：反濾波寫錯不會拋例外，只會讓圖片從某一列開始整片糊掉或出現斜條紋——而那張圖是要拿去**付印**的。`check-ar.mjs` 測編解碼往返逐像素相同、filter=1（Sub）反濾波、收邊比例與畫布尺寸不變。**反濾波要參考「已反濾波」的上一列**，拿原始資料當參考是最常見的寫法錯誤。
-  - **★ 圖卡收邊規範是「白留白邊 ＋ 深色框」，不是只加深色框**（拿 2027 小寒卡實測出來的，最大角誤差）：
+- **★★★ `/AR` 於 2026-08-11 整層重寫，程式在 `src/ar/`（舊的 `src/lib/mind*.js`＋自研追蹤那一串全部刪除）。**
+  分四層，邊界是硬的——**每一層都不知道相鄰層的實作**，這是刻意的，因為這個功能歷來最貴的 bug 全部是跨層的：
 
-    | 收邊 | 深色桌面 | 中灰 | 淺色 | 木紋 |
-    | --- | --- | --- | --- | --- |
-    | 滿版出血（第一版稿） | 26px | 28px | 72px | 28px |
-    | 只加深色框 | **27px** | 1.4px | 1.4px | 1.4px |
-    | 白留白邊＋深色框 | 1.4px | 1.4px | 1.4px | 1.4px |
+  | 檔案 | 職責 | 不知道什麼 |
+  | --- | --- | --- |
+  | `src/ar/cardSpace.js` | 卡面座標換算、熱區命中、遲滯 | 純函式，什麼都不知道（可直接 node 測） |
+  | `src/ar/camera.js` | 拿到一路可用的後鏡頭串流 | 不知道 AR、不建立 `<video>` |
+  | `src/ar/tracker.js` | 包住 MindAR `Controller`，吐矩陣 | **不知道 three** |
+  | `src/ar/stage.js` | three 場景，吃矩陣畫東西 | **不知道相機與 MindAR** |
+  | `src/ar/session.js` | 狀態機，唯一知道全貌的地方 | — |
+  | `src/screens/Scan.jsx` | 畫面，是 `phase` 的**純函式** | 不碰 getUserMedia／three／MindAR |
 
-    白邊負責深／中／木紋桌面的對比，深色框負責淺色桌面，兩者互補；只做一半一定有一種桌面會爛。規範是：四邊留一圈白邊（短邊 2.5%）、**任何元素都不可碰到紙邊**、白邊內側再一圈深色實框（短邊 3%）。`check-ar.mjs` 有五項鎖這條，含兩個反例。
-  - **滿版出血最危險的是「單角失敗」，不是整張認不到**：小寒卡左下角是深藍 QR、上緣是橘色帶，兩者都碰到紙邊 → 那一段邊界與桌面同色 → **那一個角被切掉 24~64px，其他三角完全正常**。偵測仍然回報成功，只是模型與熱區整個歪掉。只檢查「有沒有偵測到」永遠測不出來，**要逐角量誤差**。
-  - 連帶的排程結論：**實體卡的設計必須早於 AR 疊加的開發**，拿滿版出血的稿去測會得到「這條路線不可行」的錯誤結論。
-  - **★ dHash 對透視縮短很敏感，所以登錄時要存「多視角簽名」**（`arCardRegistry.js` 的 `VIEWS`，7 個：正面＋yaw ±17°＋pitch ±14°＋兩個複合）。實測（合成手持晃動，yaw ±17°／pitch ±13°）：
+  閘門是 `scripts/check-ar.mjs`（100 項，含變異測試）。
+  - **★★★ 為什麼不再用 `MindARThree`**：舊版把上游 `mind-ar/src/image-target/three.js` **整份抄進專案再改 6 處**（`sRGBEncoding`、Controller 來源、拿掉 CSS3DRenderer、拿掉內建 UI、補 dispose、stop 防呆）。代價是它同時擁有 video／renderer／camera／anchor／resize 五件事，於是每個 bug 都跨層（畫面全黑、換鏡頭沒 resize），而且上游一更新就要人工比對改過哪幾處。**直接用 `Controller` 完全沒有這些問題**——它不 import three，所以 `sRGBEncoding` 那個相容性問題**從一開始就不存在**，一行上游程式碼都不用抄。
+  - **★★★ 座標系是「推導」出來的，不再是「量」出來的**（這是這次重寫最大的收穫）。舊版走 `anchor.group` ＋ `postMatrix`，把卡片正規化成「寬 1.0、中心在原點」的單位空間，然後發現 y 與直覺相反，只好留下 `CALIB = { vSign: -1, outAxis: +1 }` 兩個「實測值，不可憑直覺改」的常數。**那兩個數字是那個設計自己製造出來的問題**。新版不用 `postMatrix`，直接把 `worldMatrix` 當物件變換，而它消費什麼空間在上游原始碼裡是寫死的（`controller.js` 的 `_glModelViewMatrix` 前乘了 `[1 0 0 0; 0 -1 0 h; 0 0 -1 0]`）：
+    > **worldMatrix 的空間 ＝ 目標圖像素、原點左下、y 朝上、+z 離開紙面**（標準 OpenGL 右手系）
 
-    | | 追蹤成功率 | 誤判（立春卡／棋盤格） |
-    | --- | --- | --- |
-    | 只存正面 | 33% | 0／0 |
-    | 多視角（7 個） | **80%** | **0／0** |
-
-    診斷關鍵：失敗時**四邊形每一幀都找得到**，是比對分數 37~57 卡在門檻 58——所以問題在比對不在偵測。
-    **⚠️ 絕對不可以改成調低 `minScore`**：那會讓正式站把別的東西認成卡片，而且是最難發現的壞法（使用者只覺得「有時候跳出錯的內容」）。多存幾個視角是零風險的做法——門檻不動，只是讓正確的目標多幾次機會被認出來，實測誤判維持 0。
-  - **★ `RECT` 是 64 不是 48，而且不可再往上加**（量出來的，見 `Scan.jsx` 的註解）：室內明亮（感測器雜訊 σ4、輕微模糊）下 48→48%、**64→75%**、80→68%。80 比 64 差——細節多了反而對雜訊更敏感。成本只差 0.94ms／幀（15fps 預算的 19.1% → 20.5%）。⚠️ 那是桌機數字，中階手機約慢 3~4 倍（~50ms，在 66ms 預算內但不寬裕）；實機掉幀時先降到 12fps 再考慮縮 RECT。
-  - **卡片數量幾乎不影響耗時**（1 張 vs 3 張差 0.1ms）：瓶頸在偵測與拉正不在比對，所以官方卡包可以放心長大。
-  - **模擬相機劣化時，雜訊要套在「感測器解析度」上不是取樣畫面上**：追蹤器從 1280×960 縮到 200×150，那個縮放本身把雜訊 σ 降低 √41 ≈ 6.4 倍。直接把 σ=6 套在 200×150 上等於模擬一台 σ≈38 的壞相機，會得到「室內一般只有 20%」這種過度悲觀的結論（修正後是 48%／63%）。
-  - **⚠️ 不要再嘗試「亮度正規化」**：`scanner.js` 有一整段註解記錄這次失敗。假設是「rgbHistogram 用絕對分箱所以簽名不是亮度不變的」，聽起來很對，但實測**全面變差**（室內一般 20% → 3%）——正規化的增益對訊號與雜訊一起生效，而過曝本來就是**截頂**、資訊不可逆。
-  - **`/AR` 有「掃描診斷」面板**（`src/lib/arDiagnose.js`）：拿實體卡掃不到時，把**可觀測的事實**列出來取代猜測——選到哪顆鏡頭（label＋解析度）、已登錄幾個目標、有沒有找到四邊形、卡片佔畫面幾 %、比對分數 vs 門檻、邊緣弓起幾 px。判讀那一段每一條都必須給**下一步動作**（`check-ar.mjs` 有測），只說「失敗」等於沒有診斷。節流到約 0.7 秒一次——`measureEdgeBow` 會重跑一次前景遮罩，是整條鏈第二貴的一步。
-  - **⚠️ 診斷刻意不反推鏡頭 k1，因為那會說謊**：試過用邊緣弓起量（sagitta）反推，公式 `s ≈ |k1|·r·(L/2R)²` 看起來很合理，但拿已知真值的合成畸變去驗——真值 **0 被估成 −0.041**（誤報「超標」），而 −0.02／−0.04／−0.06／−0.20 **全都判不出來**。也就是它在鏡頭正常時說壞了、在真的壞時說不知道。**一個會說謊的診斷比沒有診斷更糟**（使用者可能因此去換手機或放棄功能）。現在只回報弓起量的原始 px 並標明「參考值」。`check-ar.mjs` 有一項 grep 原始碼確保 `k1:` 不會被加回去。
-  - **模擬模式的旗標要在「模組載入時」抓，不可在 effect 裡讀 `location.search`**：`nav.jsx` 的網址同步層只組路徑（`pathFromState` 不帶 query），所以 `?simulate=1` 在 React 掛載後就被洗掉，effect 永遠讀不到。抓到後記進 `sessionStorage['jq-ar-sim']`（除錯時會一直重整）。
-  - **★ 三個鏡頭光學效應量過了，結論差異極大**（`arSimFrame.js` 有模型）：
-
-    | 效應 | 影響 |
-    | --- | --- |
-    | 捲簾快門（讀出 15／30ms） | **無影響**（75% → 75%）——但那是在緩慢晃動下量的，快速移動仍未驗 |
-    | 對焦呼吸 ±1.5% | **無影響**（四角本來就每幀重算） |
-    | **桶狀畸變 k1 = −0.07** | **0%** ← 毀滅性 |
-
-  - **★ 畸變的容忍上限只有 k1 ≈ −0.04**，而且 **−0.07 之後的失效模式是「四邊形照樣找得到、分數崩到 17~34」**：症狀是「對著卡片卻一直說沒認出來」，很容易被誤診成「比對太嚴格」而去調低門檻——那會讓正式站亂認。曲線：0~−0.03 → 71~86%、−0.04 → 62%、−0.05 → 33%、−0.07 以上 → 0%。
-  - **所以開相機要避開超廣角**（`src/lib/arCamera.js` 的 `openBackCamera`）：主鏡頭的 ISP 會先做畸變校正、殘留很小，**超廣角不會**（k1 常在 −0.25~−0.4），而 `facingMode:'environment'` 在多鏡頭手機上有機會選到它。⚠️ 沒有標準 constraint 可以說「不要超廣角」，只能靠 label 猜，所以是**盡力而為**：猜不出來（未授權時 label 是空字串）要回 null 讓呼叫端退回 facingMode，**不可因此開不了相機**。三層 fallback 缺一不可——`deviceId` 的 exact 約束在裝置被別的程式佔用時會直接 reject。`check-ar.mjs` 有 9 項測 label 猜測（iPhone／Android／中文／0.5x 命名／單鏡頭／未授權／全是超廣角）。
-  - **目前已知最弱的情境是曝光偏離**：0.72× → 8%、1.28× → 40%。真實相機會自動曝光，所以這模擬的是「AE 失效／逆光」。這是這條路線目前的天花板，不是可以調參數解決的。
-  - **`/AR?simulate=1`（僅開發模式）可以不用實體卡也不用相機跑完整條追蹤鏈**（`src/lib/arSimFrame.js`）：把目標圖畫到已知的透視四邊形上，於是偵測→拉正→比對→解姿態→貼角色→熱區命中都跑真的。**實測角色腳底落在熱區錨點的誤差平均 0.29px、最大 0.69px**——「角色是不是真的站在卡片上」這個問題在算繪像素上得到了答案。剩下真正需要實體卡的只有鏡頭畫質與現場光線。
-  - **模擬四邊形必須是真正的透視投影，不可用「四角各乘一個係數」近似**：那是剪切不是投影，產生的四邊形**不是矩形的合法投影**，拉正後影像是歪的，比對分數掉到 37~57。⚠️ 這個坑很危險——它讓模擬器看起來像在測追蹤器，實際上在測一個追蹤器本來就不該接受的輸入，而診斷數字會指向「比對太嚴格」，於是很容易去調低門檻。
-  - **★ 姿態橋接（CV → three）有三個「貼歪但不報錯」的換算，全部在 `src/lib/arPoseBridge.js`＋`poseFromHomography` 的 `aspect`**，`check-ar.mjs` 有 18 項鎖它。三個都測過重投影誤差：
-    | 換算 | 做錯的誤差 | 做對的誤差 | 症狀 |
-    | --- | --- | --- | --- |
-    | 卡片長寬比（`aspect`） | ~12px | <0.05px | 角色落在卡片外面 |
-    | 水平 fov → 垂直 fov | 8.17px | 0.0057px | 模型浮在卡片上方或陷進桌面 |
-    | 手性 `diag(1,-1,-1)` | 深度變負＋x 鏡像 | — | 角色出現在卡片**對稱的另一邊** |
-    三個都「看起來像對齊誤差」，會讓人去調落點座標而不是去查換算——這是它們值得獨立成一支並上閘門的理由。
-  - **`poseFromHomography` 假設模型平面是「單位正方形」**，所以非正方形卡片一定要給 `aspect`（2027 小寒卡是 148×105）。數學上 `u = x`、`v = y/k`（k=1/aspect），所以矩形版的 H 是**第二欄除以 k**——寫成乘 k 誤差會比不修正還大（11.9px → 17.6px），方向錯了但仍然「有在做事」。回傳的 `vScale` 就是 k，卡面 (u,v) 對應的模型點是 `(u, v*vScale, 0)`。
-  - **卡面座標 → 模型座標是 `(u, v*vScale, 0)`**：原點在卡片**角落**（pose 的 t 就是 (0,0) 那一角）、平面是 **XY** 不是 XZ。寫成置中的 XZ 平面誤差 29~113px。角色 Y 軸朝上而離開紙面是 **−Z**，所以要繞 X 轉 **−90°**；轉 +90° 角色會插進桌子裡（頭頂深度比腳底大）。
-  - **`track()` 已經吐出完整 6DoF**（`{ref, score, rotation, corners, H, matrix3d, pose, areaRatio}`），要接 WebGL 不需要先做「追蹤器到底暴露什麼」的調查。`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。**追蹤器不知道也不該知道卡片的實體尺寸（mm）**——那是卡片註冊表的 metadata，`pose` 的單位是卡片邊長。
-  - **180° 翻轉誤判已經處理掉了**（比對階段四個方向都試、取最佳分，`check-ar.mjs` 有四方向測試）。但**卡面若接近旋轉對稱，四個方向的分數會很接近而變得不穩**，所以印刷面仍要有明顯不對稱的定位元素——理由是「拉開分數差距」，不是「四角偵測分不出方向」。
-  - **要換 A-Frame／three.js 只需另寫一個吃同樣 `track` 物件的元件**，追蹤層不用動；`pose.matrix` 是 column-major 4×4，可直接 `Matrix4.fromArray()`。⚠️ 兩邊的 **fov 必須一致**（A-Frame 預設 80、本追蹤器預設 60），否則模型會浮在卡片上方或陷進桌面。
+    ⇒ `uvToCard(u,v,W,H) = [u*W, (1-v)*H, 0]`。一個減法，沒有要記的符號。**`CALIB` 已刪除。**
+  - **★★★ 一定要設 `<video>` 的 `width`/`height` 屬性**（`camera.attach()`）。MindAR 的 `InputLoader.loadInput` 是 `context.drawImage(input, 0, 0, input.width, input.height)`——`input.width` 讀的是**內容屬性**，屬性沒設時是 **0** ⇒ 畫一張 0×0 ⇒ **追蹤每一幀都在分析全黑畫布** ⇒ 永遠掃不到。而相機在播、心跳照跳、幀率漂亮、一個錯誤都沒有。`check-ar.mjs` 有專測（拿掉那兩行會紅）。
+  - **★★★ 同源 worker 讓 AR 不再依賴 CSP**：上游 `controller.js` 用 `?worker&inline` 把 worker 內嵌成 **blob**，於是 CSP 必須放行 `worker-src blob:`，漏設時失效**完全靜默**（2026-08-10 正式站事故）。`tracker.js` 改用 `?worker`（不 inline）⇒ Vite 產出**同源的 .js**，`script-src 'self'` 本來就允許。⚠️ **必須在 `addImageTargets` 之前換掉**：`setup` 訊息（含 matchingDataList）是在那支方法裡才 postMessage 的，換晚了新 worker 收不到目標資料 ⇒ 永遠比對不出東西。⚠️ `server/index.js` 的 `workerSrc`/`childSrc` **仍要保留 blob:**（兩層一起才穩：這一層讓「設定漏了也能跑」，那一層讓「退回內建 blob worker 也能跑」）。診斷面板的「比對 worker」欄會顯示目前用的是哪一種。
+  - **★★★ 狀態必須是單調的：終局狀態不可被非同步回呼覆蓋。** 這條是被真的 bug 逼出來的——`createStage()` 因為一行寫錯而拋例外 ⇒ catch 正確把 phase 設成 `failed`，**但追蹤器是獨立在跑的**，它幾秒後的 `onFound` 又把 phase 推成 `locked` ⇒ 畫面顯示「已對準：2027 小寒」，而根本沒有任何東西被算繪。`session.js` 用 `TERMINAL` 集合 ＋ `fatal` 旗標鎖住，離開只能靠重建 session。
+  - **★★ `Object3D.position` 是唯讀屬性**：`Object.assign(light, { position: v })` 會丟 `TypeError: Cannot assign to read only property 'position'`。上面那個 bug 就是這樣來的。一律 `.position.set(...)`。
+  - **★★ 疊層由 React 與樣式表決定，不由函式庫決定**：`<video>`／`<canvas>` 現在都是 Scan.jsx 渲染的，z-index 寫在 `styles.css`（video 0 → canvas 1 → 取景框 2 → 降級說明 3）。舊版讓 MindARThree 自己 `createElement` 再 `appendChild`，它預設 `z-index:-2`，而 `.scan-stage` 是有深色背景的 `position:relative` ⇒ **整片全黑**。⚠️ 這個 bug 從數字上完全看不出來：追蹤讀的是 video 元素的像素不是螢幕上的結果，所以「已對準」「熱區命中」「3D 有在算繪」全部量得到。**驗 AR 不能只驗數字，一定要真的看畫面**（判定法：暫時 `visibility:hidden` 掉 canvas，`document.elementFromPoint` 取景框中心必須是 `VIDEO`）。
+  - **★★ 裁切修正取代了舊版的 `fovAdjust` 算術**：Controller 的投影矩陣涵蓋**整張輸入影像**，但畫面上的 video 是 `object-fit:cover`，長寬比不同時影像會被裁掉一部分。精確解：cover 縮放 `s = max(cw/iw, ch/ih)`，把投影矩陣**第 0 列**整列乘 `kx = iw·s/cw`、**第 1 列**乘 `ky = ih·s/ch`。⚠️ three 的矩陣是 column-major，第 0 列是索引 **0,4,8,12**、第 1 列是 **1,5,9,13**——寫成「行」的話橫向與縱向的修正會互換，在正方形畫面上完全看不出來。⚠️ 覆寫投影矩陣之後**絕不可**再呼叫 `updateProjectionMatrix()`。
+  - **★★ 用 `ResizeObserver` 盯容器，不能只聽 window 的 resize**：容器變大變小不一定伴隨 window resize（手機捲動時網址列收合改變 dvh、上方內容載入把版面推開、鍵盤彈出）。而且容器一開始常常是 0×0（版面還沒算完），只做一次的話畫布會**永久**停在 three 的預設 300×150——實測就是這樣，症狀是 3D 只畫在左上一小塊。
+  - **★★★ 即時特徵點計（`tracker.probeFeatures()`）是這一版給使用者的回饋迴路。** 舊版在「還沒認出來」時只能給罐頭提示，而使用者無從知道自己的調整有沒有讓情況變好。`controller.detect()` 回傳這一幀找到幾個特徵點，那是**直接量到的影像品質**：接近 0 ⇒ 相機畫面本身不可用（太遠／太暗／糊／反光）；幾百個卻還追不到 ⇒ 問題在角度或卡片版本。所以它顯示在狀態列上（`.scan-meter`），不是藏在診斷面板裡。⚠️ **只能用 `controller.detect()`，絕不可用 `match()`**：`workerMatchDone` 是**單一欄位不是佇列**，與處理迴圈同時送 `match` 會覆蓋前一個 resolver ⇒ 前一個 Promise 永遠不 resolve ⇒ 追蹤整個靜默卡死。`detect()` 走本地 TFJS 不碰 worker，可以安全並行。
+  - **`warmupTolerance: 1`／`missTolerance: 10`**：上游預設要**連續 6 幀**都追到才算認出（`DEFAULT_WARMUP_TOLERANCE=5`），手持低幀率下是很高的門檻，而暖機期間畫面完全沒有回饋，看起來就是「完全掃不到」。⚠️ 這**不是**調低比對門檻——MindAR 是 inlier 式判定，比對本身沒有分數可調；warmup 只是防抖。
+  - **★★ 3D 角色錨在 `primary` 熱區，不可綁「目前選中的熱區」**：使用者最自然的動作是把整張卡擺在畫面正中央 ⇒ 中心落在「身體保健」區（那一區沒有 model）⇒ **白菜永遠不出現**，而卡面上白紙黑字印著「掃描主物件：結球白菜」。`check-ar.mjs` 用真的熱區資料算出「中心落在哪一區」把這個事實釘住。
+  - **★★ 主 bundle 不可牽進 three/TFJS**：`Scan.jsx` 靜態 import `session.js`，所以 session **只能靜態 import 輕量模組**（camera／cardSpace）。實測不小心靜態 import 了 `stage.js`（只為了一個 `hasWebGL`），主 bundle 就從 **458 kB 變成 976 kB**。`tracker`/`stage` 一律 `await import()`，閘門有鎖。目前：主 bundle 460 kB／gzip 195、three 511 kB、`mindar-image.prod` 1,759 kB（都懶載入，且要相機真的開起來才下載）。
+  - **★ 熱區重疊時取面積最小的**：卡面上大框套小框是常態（曆頁那一大條裡面還有臘八粥），取大的等於小的永遠點不到。
+  - **離線驗證：假相機 ＋ rAF shim**。`canvas.captureStream()` 餵給 video。⚠️ 自動化環境 `visibilityState` 恆為 `'hidden'`、rAF 不觸發，而 MindAR 的處理迴圈每輪結尾是 `await tf.nextFrame()`（靠 rAF 解析）⇒ **迴圈停在第一輪**，而 video 在播、看起來一切正常。不補 shim 會誤判成「偵測不到」。⚠️ 換 `srcObject` 之後**一定要 `play()`**，否則影格永遠不更新、特徵點恆為 0——這一點在重寫的驗證過程中意外重現了一次，正是 `attach()` 裡那句 `play()` 存在的理由。⚠️ **完全平坦的灰底是退化輸入**：模板比對在零梯度畫面上會一直「追得到」，所以測「追丟」要用有紋理的畫面，不要用純色。
+  - **2026-08-11 實測（正式 build ＋ CSP，375×812 行動視窗）**：1.5 秒內 `locked`；`<video>` 屬性 1280×960；取景框中心最上層是 `VIDEO`（無黑畫面）；畫布 468×751（＝375×601×1.25）；3D 白菜算繪出來且錨在 primary 熱區；熱區命中「身體保健」；特徵點計追丟時 0、正常距離 111；心跳約 43 輪/秒；worker 顯示「同源」。
+- **（已刪除）自研平面追蹤**：`homography.js`／`quadDetect.js`／`arTracker.js`／`features.js`／`scanner.js`／`arPoseBridge.js`／`arDiagnose.js`／`arSimFrame.js`／`mindTrack.js`／`arCardRegistry.js`／`ARScene.jsx`／`ARCharacter.jsx` 與 `check-features.mjs`／`frame-card.mjs`／`install-target.mjs`（`card:frame`／`card:install`）**已於 2026-08-11 全部刪除**。那條路線偵測卡片四角 → 透視拉正 → dHash 比對 → 解 homography → CSS `matrix3d` 疊加。它留下的經驗多數已隨路線失效，只有兩條仍值得記住：① **實體卡的設計必須早於 AR 開發**；② **卡面要有明顯不對稱、紋理足夠的元素**（MindAR 也吃這一條，只是理由從「四角定向」變成「特徵點數量」）。**「收邊」規範已作廢**——MindAR 不偵測卡片邊界，實測收邊版與未收邊原稿都 12/12。
 - **成果圖卡（`src/lib/shareCard.js`）純 canvas，零外部素材**，1080×1080，答對小挑戰後才出現。**內容紀律：只畫真的東西**——徽章名、節氣、日期、一句有出處的事實。不放「我贏了」「第 N 名」這種站上根本沒有的概念，也不放營養宣稱。
   - **⚠️ iOS Safari 不支援 `<a download>`**：點了只會在同一個分頁開啟那張圖，使用者以為壞掉了。順序必須是 ① Web Share API 帶檔案（手機最好的路徑）② `<a download>`（桌機）③ 開新分頁＋提示「長按圖片即可儲存」。**使用者按取消（`AbortError`）不是錯誤**，不可跳失敗提示。
   - **⚠️ Web Share 必須在使用者手勢附近呼叫**，所以圖要**先畫好**再呼叫 `saveOrShare`——在那裡才 `await` 繪製會被瀏覽器擋掉。
@@ -353,25 +303,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **卡面圖缺失時不可假裝有**：畫一個空的比例框並說明去哪裡補，熱區位置仍可校對（那才是這頁對美術最有用的地方）。
   - **小挑戰答錯不扣分、不鎖、不記次數**，而且**送出後才標對錯**——作答中就標紅等於直接給答案。
   - **徽章存 `localStorage['jq-ar-badges']`**（沿用站上 `jq-` 慣例，不要用文件寫的 `cq.ar.badges`——同一個 app 兩套命名遲早會漏掉一邊，例如「刪帳號時清本機資料」那段）。訪客也能拿（站上訪客沒有 session，寫入 API 一律 401）。
-  - **`bindLocalTarget` 順便存一張 900px 縮圖**給這頁當底圖；**空間不足時先丟縮圖再存簽名**——沒有簽名就完全掃不到，沒有縮圖只是校對頁少一張圖。
-- **官方 AR 卡包在 `src/data/arCards.js`＋`src/lib/arCardRegistry.js`**：進 `/AR` 就有東西可掃。**「使用者自己登錄目標」已於 2026-08 移除**（相機登錄／圖片檔登錄／已登錄清單／`jq-ar-cards-v3` 持久化）——那是工程 demo 的動線，拿到卡片的人不該先被要求登錄一張目標才能掃。追蹤器現在只吃官方卡。⚠️ 移除的是**這一頁的 UI 與流程，不是追蹤能力**：`arTracker` 仍支援多目標、`bindLocalTarget` 仍在。舊裝置殘留的 `jq-ar-cards-v3` 刻意不主動刪除（使用者資料不該在改版裡被靜默清掉）。
-  - **★ 收邊的價值只在「四角偵測」，不在比對**（2026-08-09 用真稿量清楚的）。實測 24 幀 × 5 種背景亮度：
-
-    | | 深黑 | 中灰 | 淺灰 | 淺白 | 純白 |
-    | --- | --- | --- | --- | --- | --- |
-    | 加收邊版 | 23/24 | 23/24 | 22/24 | 23/24 | **24/24** |
-    | 無收邊原稿 | 18/24 | 13/24 | **0** | **0** | **0** |
-
-    - **紙緣是白的**（實測原稿紙緣內側灰階中位數 254、98% 高於 240），所以白紙放在淺色桌面／白色頁面背景上，「紙與桌面的邊界」**根本不存在**。這不是演算法沒找到，是那裡沒有資訊。⚠️ 量邊界對比要量**邊界**——我第一次拿中心像素量，得到「白桌對比 107、深桌 106 幾乎一樣」而誤判成極性問題（`detectQuad` 本來就試兩種極性）。
-    - **文件原本記的「無框版登錄＋有框版拍攝 0/2」沒有重現**：反向測（有框登錄＋無框拍攝）在深色桌面上是 18/24、最高分 71。多視角簽名（7 個）讓比對變寬容了。
-    - **⚠️ 不要再嘗試「改用油墨區域當偵測目標」**：假設是「白紙看不到但墨看得到」，聽起來很對。實作（暗色遮罩＋形態學膨脹接起分散的區塊）在白底上確實 8/8 找得到四邊形，但**拉正後比對分數 12~33，五種桌面全部 0/10**（門檻 58）。原因：膨脹後的油墨輪廓角點取決於哪些元素剛好被合併，內縮量在 14~36px 之間跳，每幀裁到不同區域。而且中灰桌面會反過來把桌面當前景，把現在**可用**的情況弄壞（0/8）。
-    - 所以這是**規格問題不是程式問題**：卡片一定要印收邊版。沒有印表機時用 `/ar/card/:slug` 的「放大給另一台裝置掃描」——那個模式把圖放在**寫死的深色滿版底**上（不可用 `--color-bg`，淺色模式會是白的就失去意義），邊界就出現了。
-  - **★ 沒有目標圖時的失敗是「靜默」的，必須主動講出來**：`public/ar/targets/` 是空的時候，四邊形照樣偵測得到（相機看得到卡片的四個角），但沒有登錄目標可比對 → 永遠不命中 → 3D 永遠不出現。症狀與「沒對準／光線不夠／角度太斜」**一模一樣**，使用者會一直換角度重試。`Scan.jsx` 的 `.scan-nofile` 橫幅與 aria-live 都把這一種狀態**單獨列出**：那不是使用者對不準，再怎麼喬角度都不會成功。⚠️ 同理 aria-live 不可留著叫人去按已經移除的按鈕——**叫使用者去按一個不存在的東西，比不給提示更糟**。
-  - **裝目標圖用 `npm run card:install -- 稿.png`**（`scripts/install-target.mjs`）：加收邊 → 四種桌面驗證 → 寫進 `public/ar/targets/`（檔名從 `arCards.js` 的 `target` 讀，不讓人手打）→ 另存一份「-付印.png」。**付印稿與登錄目標是同一個檔案複製出來的**，從源頭排除「登錄版與付印版不同」那個坑。⚠️ **驗證沒過就不安裝**並以非零碼結束——裝一張測不過的圖只會讓現場更難查（使用者會以為圖裝好了，轉而去懷疑光線、角度、手機）。`card:frame` 仍在，用於只想看收邊效果、還不想安裝時。
-  - **簽名不寫進原始碼，載入時從 `public/ar/targets/*.png` 算**：建置期要算就得在 Node 裡解 PNG／JPEG（PNG 還能用 zlib 硬幹，JPEG 要整套解碼器）。美術換稿只要換那張圖，算完存 `localStorage['jq-ar-official-v2']`（**v2 不是 v1**，改版時 RECT 由 48→64，舊簽名不在同一個座標系）。**換稿要換檔名或呼叫 `clearOfficialCache()`**——快取以路徑為 key。
-  - **抓目標圖不可用 `cache: 'force-cache'`，而且只看 `res.ok` 不夠**：檔案不存在時 SPA fallback 回 **200 + index.html**，force-cache 把那份 HTML 存下來後，就算圖補上了也永遠拿到 HTML。症狀是「The source image could not be decoded.」——**「檔案不存在」偽裝成「圖片壞掉」**，會讓人去查圖片格式而不是查路徑。要檢查 `content-type` 是不是 `image/`。
-  - **★ 目標圖必須是「實際會印出來的那一版」（含收邊）**：加了白邊與深色框之後整張圖的內容就變了（版面內縮、四周多兩圈），壓成 48×48 的 dHash 與加收邊之前完全不同。拿加收邊之前的稿登錄、印加收邊之後的卡：相機**看得到**卡片、四角也抓得準，但一律判定「不是登錄過的目標」。實測無框版登錄＋有框版拍攝 **0/2**，改用有框版登錄 **4/4**（深／淺桌面 × 正對／斜拍，六個熱區全中）。**這個陷阱會浪費一整輪打樣**，`check-ar.mjs` 有一項鎖它。
-  - **`bindLocalTarget()` 讓使用者在頁面上指定本機圖片當官方卡的目標**（美術還在改稿時先驗動線用）。簽名存 localStorage 並標 `source:'local'`，只在那台裝置有效——介面上必須講清楚，否則會以為已經上線了。
+  - **底圖用 `card.target` 那張靜態檔**（`card:mind` 會順手縮出短邊 900px 的版本）。舊版另有一份 localStorage 縮圖快取，已隨自研路線刪除。
+- **官方 AR 卡包在 `src/data/arCards.js`**：進 `/AR` 就有東西可掃。**「使用者自己登錄目標」已於 2026-08 移除**——那是工程 demo 的動線，拿到卡片的人不該先被要求登錄一張目標才能掃。追蹤只吃官方卡（`.mind` 由 `card:mind` 編譯）。舊裝置殘留的 `jq-ar-cards-v3` 刻意不主動刪除（使用者資料不該在改版裡被靜默清掉）。
+  - **★ 沒有目標檔時的失敗是「靜默」的，必須主動講出來**：`public/ar/targets/` 缺 `.mind` 時，相機、掃描線、取景框全部正常，但沒有可比對的目標 → 永遠不命中 → 3D 永遠不出現。症狀與「沒對準／光線不夠／角度太斜」**一模一樣**，使用者會一直換角度重試。`Scan.jsx` 的 `.scan-nofile` 橫幅與 aria-live 都把這一種狀態**單獨列出**：那不是使用者對不準，再怎麼喬角度都不會成功。⚠️ 同理 aria-live 不可留著叫人去按已經移除的按鈕——**叫使用者去按一個不存在的東西，比不給提示更糟**。
+  - **換稿用 `npm run card:mind -- 稿.png`**（`scripts/compile-mind.mjs`）：編出 `.mind` 並縮出備援頁底圖，檔名都從 `arCards.js` 讀（不讓人手打）。⚠️ `.mind`／png 底圖／`hotspots` **三者必須同一版**，否則「追得到但整個貼歪」（實測差 10.5%）。
+  - **抓目標檔不可用 `cache: 'force-cache'`，而且只看 `res.ok` 不夠**：檔案不存在時 SPA fallback 回 **200 + index.html**，force-cache 把那份 HTML 存下來後，就算圖補上了也永遠拿到 HTML。症狀是「The source image could not be decoded.」——**「檔案不存在」偽裝成「圖片壞掉」**，會讓人去查圖片格式而不是查路徑。要檢查 `content-type` 是不是 `image/`。
   - **★★ 3D 角色不可綁「目前選中的熱區」**：`Scan.jsx` 原本寫 `if (!objectForHotspot(hotspot)?.model) return null`，而**使用者最自然的動作是把整張卡擺在畫面正中央** → 畫面中心對到卡面 (0.5, 0.5) → 落在「身體保健」區（x 0.224~0.728、y 0.258~0.510 正好含住中心）→ 那一區沒有 `model` → **白菜永遠不出現**，而卡面上白紙黑字印著「掃描主物件：結球白菜」。⚠️ `applyHotspot` 裡的「預設主物件」保底解不掉：它的條件是「完全沒瞄到任何熱區」，而這裡是**瞄到了另一個沒有模型的熱區**。**註解寫對了問題、程式卻沒解到**，正是它藏起來的原因。規則：選中的熱區自己有 model 就用它，否則退回 `primary` 熱區並錨在那一區。`check-mind.mjs` 用真的熱區資料算出「中心落在哪一區、那區有沒有 model」把這個事實釘住。
   - **MindAR 沒有「相似度」**（inlier 式判定，`score` 恆為 `null`）：狀態列若照舊寫死 `相似度 {track.score}%` 會顯示「相似度 **%**」——一個空的數字比不顯示更像壞掉。
   - **★ 收邊版與未收邊原稿的比對率是一樣的**（2026-08-10 用 `.mind` 實測，1280×960、卡片佔 55%：兩者都 **12/12**）。MindAR 的特徵點是局部且尺度不變的，多一圈外框不影響比對——**這與自研 dHash 路線的結論相反**（那條路線換版本會 0/2）。所以換到 MindAR 之後，「登錄版與付印版不同」不再是致命問題；**收邊的價值只剩下自研 fallback 那條路的四角偵測**。
@@ -621,7 +557,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **真實圖片上傳（2026-07）**：`images` 表（base64 TEXT，pg/sqlite 通用）＋`POST /api/images`（登入者上傳，前端 canvas 壓縮 ≤1600px JPEG，後端驗 MIME 魔數、3MB 上限、只能掛自己的圖）＋`GET /api/images/:id` 同源供圖（CSP `img-src 'self'` 相容、immutable 快取）。`posts.image_id`/`works.image_id` 經 db.js 輕量 ALTER 遷移（**免砍本機 DB**）。前端 `PhotoImg`（ui.jsx）在 `.ph/.img/.gimg` 佔位框內覆蓋顯示，有圖顯圖、無圖回退 emoji。**⚠️ 用 `PhotoImg` 的畫面務必 import**——漏了只有「有照片時」才會崩（無照片走 emoji 分支不會踩到），症狀是點進詳情頁整頁空白但網址與標題已變（WorkDetail/PostDetail 曾雙雙漏掉）——涵蓋 Feed/Explore/TodayShots/PostDetail/WorkDetail/Profile/CreatorPage/MakeCalendar/Leaderboard。NewPost「上傳照片」＋勾「上架市集」會真的 `POST /api/works`（同一張圖）。**排行榜改 `GET /api/leaderboard` 依真實 like_count 即時計算**（ref_items 的 leaderboard 清單已不被前端使用）。
 - nav context 單一 provider 全樹重繪（原型可接受）。
 - 已處理（2026-07 全面總檢）：法務三頁（privacy/terms/contact）、帳號安全 UI（改密/匯出/刪帳）、訂單後端化（orders 表+API+確認信+防連點）、robots.txt、503.html、API 錯誤中介層、fetch 逾時+友善網路錯誤、註冊 honeypot、每頁 title、main 地標、prefers-reduced-motion、表單 aria-label、曆頁星期對齊真實日期、react vendor chunk 分割。
-- 已處理（2026-07 國民曆內容補全）：影像辨識掃描（`lib/scanner.js`＋`Scan.jsx`，零相依裝置端；**2026-08-10 起 `/AR` 已改走 MindAR**）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整國民曆」＋占卜「國民曆·曆頁」「附錄·查詢表」入口。
+- 已處理（2026-07 國民曆內容補全）：影像辨識掃描（**已於 2026-08-11 整層重寫成 `src/ar/`，見上**）；曆頁引擎擴充至完整傳統項目（建除/星宿/彭祖/胎神/沖煞虛歲/財喜貴方位/十二時辰/特殊日）；新增完整曆頁 `AlmanacDay`、年度總覽 `YearAlmanac`、附錄工具（食物相剋/度量衡/干支對照）；Feed「看完整國民曆」＋占卜「國民曆·曆頁」「附錄·查詢表」入口。
 - 已處理（2026-07 資料庫化＋部署）：App 開在**真實今日**（`todayOffset`，年柱動態）；後端由 SQLite 抽象為 **pg(Cloud SQL)/sqlite 雙驅動**（`db.js`＋`schema.sql`，全 async）；社群內容 DB 化（`posts/comments/post_likes/works/follows/notifications` 表＋API＋前端 `useApi` hooks，`mock.js` 降為種子）；`npm run seed`；**Cloud Run + Cloud SQL 部署 runbook＋一鍵腳本**（全程 Cloud Shell、免本機安裝、免 GitHub）。
 - 已處理（2026-07 相機/帳號/金流大版）：**相機工作室**（`Camera.jsx`：拍攝單點照/長按錄、2–6格版面拼貼、建立限動[漸層+文字+票選/問答/倒數]、滑動濾鏡、貼文經典濾鏡+強度滑桿、特效庫、搖晃顯影[DeviceMotion]、動態文字[打字機/卡拉OK/霓虹]；**純瀏覽器 API 零第三方**；濾鏡/特效/漸層/字體設定存 DB `ref_items`、可經 CMS 改）；**註冊自訂 handle**（唯一索引＋即時可用性）；**Email 驗證**（`VerifyBanner`＋重寄）；**RBAC 四級**（user/creator/moderator/admin，`Admin.jsx` 後台改角色/內容）；**新增地點**（`LocationPicker`：OSM 搜尋/反查/圖磚全走後端代理、Geolocation、`user_places` 常用位置）；**金流 scaffold**（`/api/payments/intent`+`webhook`+`PAY_PROVIDER`，串接指南見文件）。臉部 AR 為 CSS 疊加近似（無第三方 face-tracking）。
 - 已處理（2026-07 每頁獨立網址＋上線）：路由由「單一 URL」改為**每畫面一個網址**（`nav.jsx` 的 `TAB_PATHS`/`SCREEN_PATH`＋History API 同步；`vite.config.js` `base:'/'`），deep-link/上一頁/下一頁皆可；**已部署 Cloud Run + Cloud SQL 並綁自訂網域 `chengqi.tw`**。AI 顧問接 OpenAI（`/api/ai/chat`，未設金鑰回 fallback；金鑰走 Secret Manager）。

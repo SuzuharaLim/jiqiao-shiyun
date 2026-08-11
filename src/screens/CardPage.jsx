@@ -6,7 +6,6 @@ import Icon from '../components/Icon.jsx'
 import AnimatedText from '../components/AnimatedText.jsx'
 import { useNav } from '../store/nav.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
-import { cachedPoster } from '../lib/arCardRegistry.js'
 import { earnBadge, hasBadge, BADGES } from '../lib/arBadges.js'
 import SpeakButton from '../components/SpeakButton.jsx'
 
@@ -44,19 +43,19 @@ export default function CardPage({ slug }) {
   //    校對頁看不到卡面，等於最需要它的那個用途直接失效。
   //    （從搜尋結果直接進來的人更是永遠不會有那份快取。）
   //
-  // ⚠️ 順序不可顛倒：快取是 900px 縮圖，靜態檔是原尺寸。校對要看得清楚。
-  //    但快取仍要留著——美術用 `bindLocalTarget` 指定本機圖時只有快取有那一版。
+  // ⚠️ 2026-08-11：localStorage 的縮圖快取已隨自研追蹤一起退役（那份快取是
+  //    進過 /AR 才會產生的，而新的追蹤層不再寫它）。靜態檔就是唯一來源。
   useEffect(() => {
     if (!card) return
     setPoster(null)
     let cancelled = false
     // 先確認靜態檔真的是圖片：檔案不存在時 SPA fallback 會回 200 + index.html
-    // （這個坑在 arCardRegistry 記過：「檔案不存在」會偽裝成「圖片壞掉」）
+    // （「檔案不存在」會偽裝成「圖片壞掉」，所以一定要看 content-type）
     fetch(card.target, { method: 'GET' })
       .then(r => (r.ok && (r.headers.get('content-type') || '').startsWith('image/')
         ? card.target : null))
       .catch(() => null)
-      .then(url => { if (!cancelled) setPoster(url || cachedPoster(card.id)) })
+      .then(url => { if (!cancelled) setPoster(url) })
     return () => { cancelled = true }
   }, [card])
 

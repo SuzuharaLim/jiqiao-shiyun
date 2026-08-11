@@ -1,397 +1,155 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
-import { pickMainCameraId, listBackCameras } from '../lib/arCamera.js'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
+import { createSession, inAppBrowser } from '../ar/session.js'
 import SpeakButton from '../components/SpeakButton.jsx'
 
 // ============================================================================
-// AR 掃描 —— MindAR 官方 three.js 整合（MindARThree）
+// AR 掃描 —— 這一頁只是 `src/ar/session.js` 狀態的**純函式**
 //
-// 依 https://hiukim.github.io/mind-ar-js-doc/more-examples/threejs-image。
-// 這一頁**不再自己開相機、不自己抓影格、不自己算姿態**：
-// video／renderer／camera／anchor 變換全部由 MindARThree 管，我們只負責
-// 「把角色掛到 anchor 上」與「把命中的熱區變成畫面上的內容」。
+// 所有邏輯（相機、追蹤、算繪、看門狗、探測）都在 `src/ar/` 底下，這裡不碰
+// getUserMedia、不碰 three、不碰 MindAR。畫面要顯示什麼，只取決於 `phase`
+// 這一個值——不可能再出現「畫面說掃描中、其實引擎沒起來」。
 //
-// ⚠️ 因此這裡**不可以再出現 getUserMedia**。MindARThree 自己會開一路相機，
-//    再開第二路在部分 Android 上會直接失敗，而且白吃一份電。
-//
-// 先前那套（自研四角偵測＋dHash＋CSS matrix3d 疊加＋另一個 WebGL canvas 放角色）
-// 已經停用。相關模組（arTracker／quadDetect／homography／features／ARScene／
-// ARCharacter）仍在 repo 裡沒有刪除，但**這一頁不再引用它們**。
+// ⚠️ <video> 與 <canvas> **由 React 渲染**，疊層寫在樣式表裡。
+//    舊版是讓函式庫自己 createElement 再 appendChild，它預設 `z-index:-2`，
+//    在本站的深色取景框底下 ⇒ 畫面全黑，而追蹤數字全部正常。
+//    交還給 React 之後，那一類 bug 在結構上就不可能發生了。
 // ============================================================================
 
 const CARD = OFFICIAL_CARDS[0] ?? null
 
 /**
- * ★★★ 內建瀏覽器（LINE／FB／IG／微信…）偵測。
- *
- * ⚠️ 這是「怎麼改程式都不會好」的一類失敗：那些 App 內建的 WebView 常常
- *    擋掉或閹割 `getUserMedia`／WebGL／Web Worker，而**失敗方式往往是靜默的**
- *    ——相機看似開了卻沒有影像，或 WebGL context 拿不到。
- *    使用者從 LINE 的訊息點進來是**最常見的入口**，所以這一定要主動講。
- * ⚠️ 只能靠 userAgent 猜（沒有標準 API），所以文案要寫成「可能」而不是斷定，
- *    而且**不擋人繼續嘗試**——猜錯時把人擋在門外比誤報更糟。
+ * 特徵點數量的判讀門檻（實測值）。
+ * 這是**影像品質**的直接量測，不是「有沒有對準」。
  */
-function inAppBrowser() {
-  const ua = navigator.userAgent || ''
-  if (/\bLine\//i.test(ua)) return 'LINE'
-  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'Facebook'
-  if (/Instagram/i.test(ua)) return 'Instagram'
-  if (/MicroMessenger/i.test(ua)) return '微信'
-  return null
-}
+const FEAT_GOOD = 120
+const FEAT_WEAK = 40
 
-/**
- * 目標檔是否真的存在。
- * ⚠️ 只看 `res.ok` 不夠：檔案不存在時 SPA fallback 會回 **200 + index.html**，
- *    MindAR 拿到那份 HTML 只會丟一個看起來像「檔案壞掉」的錯，而真正的原因是
- *    「路徑不對／沒放檔案」。要檢查 content-type。
- * ⚠️ 也不可用 `cache:'force-cache'`：那會把那份 HTML 存起來，之後補上圖也永遠拿到 HTML。
- */
-async function mindFileExists(url) {
-  try {
-    const res = await fetch(url, { cache: 'no-cache' })
-    if (!res.ok) return false
-    const ct = res.headers.get('content-type') || ''
-    return !ct.includes('text/html')
-  } catch { return false }
-}
-
-/**
- * 盡力挑出「主鏡頭」的 deviceId，避開超廣角。
- *
- * ⚠️ 這是**盡力而為**：`enumerateDevices()` 在還沒拿到相機權限時 label 是空字串，
- *    猜不出來就回 null 讓 MindARThree 走 facingMode。
- * ⚠️ 刻意**不**為了讀 label 而先開一次相機再關掉：那會多一次開關相機的循環
- *    （數百毫秒，且部分 Android 快速重開會失敗），代價比收益大。
- *    第二次以後進這一頁時權限已在，label 讀得到，自然就避開超廣角了。
- * 理由：主鏡頭的 ISP 會先做畸變校正、殘留很小；超廣角不會（k1 常在 −0.25~−0.4），
- *      而實測 k1 −0.07 之後辨識率直接掉到 0。
- */
-async function guessMainCameraId() {
-  try {
-    if (!navigator.mediaDevices?.enumerateDevices) return null
-    const devices = await navigator.mediaDevices.enumerateDevices()
-    return pickMainCameraId(devices)
-  } catch { return null }
+function featureVerdict(n) {
+  if (n === null || n === undefined) return null
+  if (n >= FEAT_GOOD) return { level: 'ok', text: '畫面清晰度足夠' }
+  if (n >= FEAT_WEAK) return { level: 'warn', text: '偏少——再靠近一點' }
+  return { level: 'bad', text: '太少：太遠／太暗／糊掉／反光' }
 }
 
 export default function Scan() {
   const { setToast } = useNav()
   const stageRef = useRef(null)
-  const sceneRef = useRef(null)
-  // ★★★ `idle` 是新的**初始**狀態：等使用者按下按鈕才開相機。
-  //
-  // ⚠️ 原本是進頁就自動 start()。在 iOS Safari 上，`getUserMedia` 與隨後的
-  //    `video.play()` 在**使用者手勢的呼叫堆疊裡**可靠得多；自動啟動很容易
-  //    拿到權限卻播不動，或根本不跳權限提示——而那兩種都是靜默失敗。
-  //    （參考 gitlab.com/suzuharalim/24vr 的 ar-experience.html：它也是
-  //     「允許並開始」按鈕之後才 start()。）
-  // ⚠️ 順帶解決一個體驗問題：原本一進頁就跳系統的相機權限對話框，
-  //    使用者還沒理解這頁要做什麼就被問，拒絕率會高。
-  // idle | loading | ready | denied | unsupported | nofile
-  const [status, setStatus] = useState('idle')
-  const [inApp] = useState(() => inAppBrowser())
-  const [tracking, setTracking] = useState(false)
-  const [hotspot, setHotspot] = useState(null)
-  const [showDiag, setShowDiag] = useState(false)
-  const [diag, setDiag] = useState(null)
-  // 自我測試：'idle' | 'running' | 結果物件
-  const [selfTest, setSelfTest] = useState('idle')
-  // ★★ 「相機開了但比對根本沒在跑」的偵測。null＝正常；'csp'＝抓到 CSP 擋掉；
-  //    'quiet'＝沒抓到明確原因，但心跳是 0。
-  const [stall, setStall] = useState(null)
-  // 有沒有看到「blob worker 被 CSP 擋掉」。⚠️ 這**本身不代表壞了**——見下方說明。
-  const cspBlockedRef = useRef(false)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const sessionRef = useRef(null)
 
-  // ── ★★★ 把靜默失敗變成看得見的診斷 ──
-  //
-  // 2026-08-10 實測踩到：CSP 沒放行 `blob:` 的 Web Worker 時，MindAR 的比對
-  // 永遠不會執行——而**畫面上完全看不出來**（相機正常、掃描線在動、.mind 載入了、
-  // 診斷面板每一欄都正常）。使用者只會一直換角度重試，而那永遠不會成功。
-  // ⚠️ 而且這個問題**只在正式站出現**（dev server 不送 CSP），所以不能指望
-  //    開發時會發現。頁面必須自己講出來。
+  const [st, setSt] = useState({ phase: 'idle', hotspot: null, features: null, cameras: [], ticks: 0 })
+  const [inApp] = useState(() => inAppBrowser())
+  const [showDiag, setShowDiag] = useState(false)
+  const [info, setInfo] = useState(null)
+  const [selfTest, setSelfTest] = useState('idle')
+  const [camId, setCamId] = useState(null)
+
+  const { phase, hotspot, features, cameras } = st
+  const live = phase === 'searching' || phase === 'locked' || phase === 'stalled'
+
+  // ── 啟動／重啟 ──
+  // ⚠️ 一定要在使用者手勢的呼叫堆疊裡：iOS 上 getUserMedia 與 video.play()
+  //    在手勢裡可靠得多，自動啟動很容易拿到權限卻播不動（靜默失敗）。
+  const boot = useCallback((deviceId = null) => {
+    try { sessionRef.current?.dispose() } catch { /* ignore */ }
+    setSelfTest('idle')
+    const s = createSession({
+      video: videoRef.current,
+      canvas: canvasRef.current,
+      container: stageRef.current,
+      card: CARD,
+      onState: setSt,
+    })
+    sessionRef.current = s
+    s.start({ deviceId })
+  }, [])
+
+  useEffect(() => () => {
+    // ⚠️ 卸載一定要 dispose：關相機軌道（否則指示燈還亮著）＋釋放 WebGL context
+    //    （否則反覆進出會「第 N 次打開變成空白」）。
+    try { sessionRef.current?.dispose() } catch { /* ignore */ }
+    sessionRef.current = null
+  }, [])
+
+  // 轉向／版面改變要重算投影，否則 3D 與影像對不上。
   useEffect(() => {
-    // `securitypolicyviolation` 是**確定性**訊號（不是推論）：直接說出哪一條被擋。
-    const onViolation = (e) => {
-      const uri = e.blockedURI || ''
-      const dir = e.violatedDirective || ''
-      // ⚠️ `blockedURI` 是 **`'blob'`（沒有冒號）**，不是完整的 `blob:` 網址——
-      //    Chrome 對不透明來源只回報 scheme。我第一版寫 `startsWith('blob:')`，
-      //    於是實測時看門狗只跳出泛用的那一則，抓不到真正的原因。
-      //    （這也說明「診斷本身一定要實際觸發過一次」。）
-      // ⚠️ 只認 worker/child 那組。同一頁還會出現 `wasm-eval` 被 script-src 擋下的
-      //    事件，但那個**不致命**（TFJS 會退回 WebGL），拿它跳「AR 壞了」是誤報。
-      // ★★★ 只**記下來**，不直接判定失敗。
-      // ⚠️ 這一版把比對 worker 換成同源的（見 mindarThree 的 _useSameOriginWorker），
-      //    所以「內建的 blob worker 被擋」已經**不代表 AR 壞了**——實測 CSP 完全
-      //    拿掉時仍然追得到（狀態列「已對準」）。若照舊直接跳「AR 壞了」就是**誤報**，
-      //    而誤報比不報更糟：使用者會去追一個根本不存在的問題。
-      //    真正的判準只有一個：**心跳是不是 0**。這個旗標只用來在真的壞掉時
-      //    把原因講得更精確。
-      if (/^blob/.test(uri) && /worker-src|child-src/.test(dir)) cspBlockedRef.current = true
+    const on = () => sessionRef.current?.resize()
+    window.addEventListener('resize', on)
+    window.addEventListener('orientationchange', on)
+    return () => {
+      window.removeEventListener('resize', on)
+      window.removeEventListener('orientationchange', on)
     }
-    document.addEventListener('securitypolicyviolation', onViolation)
-    return () => document.removeEventListener('securitypolicyviolation', onViolation)
   }, [])
 
   useEffect(() => {
-    if (status !== 'ready') return
-    // 心跳看門狗：追蹤開始後心跳仍是 0 → 比對沒在跑（原因未必是 CSP，但一定不是「沒對準」）。
-    // ⚠️ 要給足暖機時間：dummyRun 約 1.2 秒，再加第一批影格。
-    const t = setTimeout(() => {
-      // ★ 唯一的失敗判準是「心跳是 0」。CSP 違規只用來**分類原因**，不用來判定失敗。
-      if ((sceneRef.current?.ticks?.() ?? 0) > 0) return
-      setStall(cspBlockedRef.current ? 'csp' : 'quiet')
-    }, 8000)
-    return () => clearTimeout(t)
-  }, [status])
-
-  // ⚠️ getUserMedia 在某些環境**既不 resolve 也不 reject**（權限提示一直開著、
-  //    或裝置被別的程式佔用），這一頁就會永遠停在「正在開啟鏡頭…」。
-  //    不改 status（那會在使用者正要按「允許」時謊報失敗），只在等太久之後多給一條出路。
-  const [slowCamera, setSlowCamera] = useState(false)
-  useEffect(() => {
-    if (status !== 'loading') { setSlowCamera(false); return }
-    const t = setTimeout(() => setSlowCamera(true), 4000)
-    return () => clearTimeout(t)
-  }, [status])
-
-  // ★ 由使用者按下按鈕才啟動（見上方 status 的說明）。
-  const [armed, setArmed] = useState(false)
-  // ★★★ 手動指定鏡頭（null＝自動猜）。
-  // ⚠️ Android 的 label 是「camera2 2, facing back」這種沒有語意的字串，
-  //    自動判斷**必然**是啟發式的。與其讓使用者卡在「就是掃不到」，
-  //    不如讓他當場換一顆試——這是唯一能當場證實「是不是鏡頭選錯」的方法。
-  const [camId, setCamId] = useState(null)
-  const [cams, setCams] = useState([])
-
-  useEffect(() => {
-    if (!armed) return
-    const host = stageRef.current
-    if (!host || !CARD?.mindTarget) { setStatus('nofile'); return }
-
-    let cancelled = false
-    let scene = null
-
-    ;(async () => {
-      if (!navigator.mediaDevices?.getUserMedia) { setStatus('unsupported'); return }
-
-      // ⚠️ 先確認目標檔在不在。少了這一步，缺檔的症狀會是「相機開了、掃了沒反應」
-      //    ——與「沒對準／光線不夠」一模一樣，使用者會一直換角度重試。
-      if (!(await mindFileExists(CARD.mindTarget))) {
-        if (!cancelled) setStatus('nofile')
-        return
-      }
-      if (cancelled) return
-
-      // 手動指定優先；沒指定才自動猜。
-      const deviceId = camId ?? await guessMainCameraId()
-      if (cancelled) return
-      // 列出可選鏡頭給診斷面板（此時多半已有權限，label 讀得到）
-      try {
-        const devs = await navigator.mediaDevices.enumerateDevices()
-        if (!cancelled) setCams(listBackCameras(devs))
-      } catch { /* 列不出來不影響掃描 */ }
-      if (cancelled) return
-
-      try {
-        // ⚠️ 動態 import：mindScene 會連帶拉進 three ＋ MindAR 的 TFJS controller
-        //    （約 2 MB）。靜態 import 會把它打進主 bundle，首頁就得為一個
-        //    多數人不會點的功能背這個重量。
-        const { createMindScene } = await import('../lib/mindScene.js')
-        if (cancelled) return
-        scene = await createMindScene({
-          container: host,
-          mindUrl: CARD.mindTarget,
-          card: CARD,
-          deviceId,
-          // AR 要與追蹤共用 CPU/GPU：lod 0.6 ＋ 只描一層邊 ＝ draw call 87、三角形 75,274
-          lod: 0.6, outlineLayers: 1,
-          onFound: () => { if (!cancelled) setTracking(true) },
-          onLost: () => { if (!cancelled) { setTracking(false); setHotspot(null) } },
-          onHotspot: (hs) => { if (!cancelled) setHotspot(hs) },
-        })
-        if (cancelled) { scene.dispose(); return }
-        sceneRef.current = scene
-        setStatus('ready')
-      } catch (err) {
-        if (cancelled) return
-        // ⚠️ 載入失敗要留下紀錄：靜默退回會讓人完全查不到原因。
-        console.error('[AR] MindAR 啟動失敗', err)
-        const name = err?.name || ''
-        setStatus(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied'
-          : name === 'NotFoundError' || name === 'OverconstrainedError' ? 'unsupported'
-            : 'denied')
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      // ⚠️ 一定要 dispose：它會關掉相機軌道（否則離開這一頁指示燈還亮著）
-      //    並釋放 WebGL context（否則反覆進出會「第 N 次打開變成空白」）。
-      try { (sceneRef.current ?? scene)?.dispose() } catch { /* ignore */ }
-      sceneRef.current = null
-    }
-    // ⚠️ camId 進 deps：換鏡頭時整個場景要重建（MindARThree 的 video 與 Controller
-    //    都綁在那一路串流上，只換 srcObject 不會改變 Controller 的 inputWidth/Height）。
-  }, [armed, camId])
-
-  // 診斷資料：只在打開面板時取樣，而且只放**量得準**的觀測值。
-  // ⚠️ 這一版刻意不再顯示「比對分數」與「找到四邊形」——MindAR 是 inlier 式判定，
-  //    沒有相似度可言，也不走四角偵測。留著舊欄位等於顯示一個永遠是「—」的表，
-  //    比不顯示更讓人以為壞了。
-  useEffect(() => {
-    if (!showDiag) return
-    // ★★ 處理幀率：**這是判斷「裝置跑不跑得動」最直接的數字**。
-    //
-    // ⚠️ 追蹤靠的是「每秒能處理幾幀」，不是解析度有多高。解析度拉高會讓每幀更重，
-    //    在中階手機上可能掉到每秒一兩幀——那時就算對得再準也幾乎不可能命中，
-    //    而畫面上完全看不出來。把它列出來，才分得出「拍得不好」與「算不動」。
-    let prevTicks = sceneRef.current?.ticks?.() ?? 0
-    let prevAt = performance.now()
-    const tick = () => {
-      const s = sceneRef.current
-      if (!s) { setDiag(null); return }
-      const v = s.mindar.video
-      const trackEl = v?.srcObject?.getVideoTracks?.()[0]
-      const now = performance.now()
-      const n = s.ticks?.() ?? 0
-      const fps = now > prevAt ? ((n - prevTicks) * 1000) / (now - prevAt) : 0
-      prevTicks = n; prevAt = now
-      setDiag({
-        camera: trackEl?.label || '（未授權時看不到名稱）',
-        res: v ? `${v.videoWidth}×${v.videoHeight}` : '—',
-        fps: n === 0 ? '0（完全沒在處理）' : fps.toFixed(1) + ' 幀/秒'
-          + (fps > 0 && fps < 3 ? '　★ 太低，這台裝置算不動' : ''),
-        target: s.mindar.imageTargetDimensions?.[0]?.join(' × ') ?? '—',
-        hw: s.hw?.toFixed(3) ?? '—',
-        visible: s.anchor?.visible ? '是' : '否',
-        hotspot: hotspot?.label ?? '—',
-        // ★ 裝置資訊：一張截圖就能看出關鍵環境（GPU／WebGL2／內建瀏覽器）。
-        //   先前的診斷只有相機與目標檔，回報「掃不到」時完全看不出裝置端狀況。
-        ...(() => {
-          let dev = null
-          try { dev = s.deviceInfo?.() ?? null } catch { /* 取不到不影響其他欄位 */ }
-          return {
-            gpu: dev?.gpu ?? '—',
-            webgl2: dev?.webgl2 ?? '—',
-            dpr: dev?.dpr ?? '—',
-            browser: inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器',
-          }
-        })(),
-      })
-    }
-    tick()
-    const t = setInterval(tick, 1000)
+    if (!showDiag) { setInfo(null); return }
+    const t = setInterval(() => setInfo(sessionRef.current?.info() ?? null), 1000)
+    setInfo(sessionRef.current?.info() ?? null)
     return () => clearInterval(t)
-  }, [showDiag, hotspot])
+  }, [showDiag])
 
-  // 點卡面上的物件就選它。
-  // ⚠️ 不能只靠「畫面中心瞄準」：白菜在卡片最左（x 0.058~0.214），
-  //    要讓它落在畫面中心就得把整張卡擺到畫面右側又不能出框——做不到。
-  // ⚠️ 用 onPointerDown 不用 onClick：手持時手指會微移，click 需要 down/up
-  //    落在同一點附近，容易漏掉。
-  const onStageTap = (e) => {
-    const s = sceneRef.current
-    if (!s) return
-    const hs = s.pick(e.clientX, e.clientY)
-    // ⚠️ 點到卡片以外時**不清掉現有選擇**：手持會抖，誤觸空白處就把內容關掉
-    //    會讓人以為壞了。
-    if (hs) s.forceHotspot(hs)
+  const onStageTap = (e) => { sessionRef.current?.pick(e.clientX, e.clientY) }
+
+  const obj = hotspot ? objectForHotspot(hotspot) : null
+  const fv = featureVerdict(features)
+
+  // ── 狀態列：一句話說清楚現在是什麼情況 ──
+  const STATUS = {
+    idle: '把實體卡片準備好，按下方按鈕開始。',
+    insecure: '這個網址不是安全連線，瀏覽器不允許使用相機。',
+    'no-webgl': '這個瀏覽器沒有 3D 繪圖能力（WebGL），AR 無法運作。',
+    'no-camera': '找不到可用的相機。',
+    'no-target': '目標檔尚未安裝——這一頁目前掃不到任何卡片。',
+    opening: '正在要求相機權限…',
+    denied: '尚未允許使用相機。',
+    loading: '正在載入辨識引擎…（第一次會久一點）',
+    stalled: '比對程序沒有在執行——這不是沒對準。',
   }
-
-  // ── ★★ 一直掃不到時，輪流給**具體可執行**的提示 ──
-  //
-  // ⚠️ 原本從頭到尾只有一句「把卡片放進框內」。對正在失敗的人那句話沒有任何資訊
-  //    ——他已經把卡片放進框內了。真正決定成敗的是距離、反光、對焦，而那些
-  //    使用者不會自己想到。實測影響最大的是**距離**：卡片佔畫面愈大，
-  //    可用的特徵點愈多（同一張圖佔 55% 與 30% 的差別很明顯）。
-  // ⚠️ 只在「已經失敗一段時間」之後才開始輪播：一進來就洗提示會很吵，
-  //    而且多數人前幾秒就掃到了。
-  const HINTS = [
-    '拿近一點——讓卡片佔滿畫面一半以上',
-    '避開反光：卡片正對燈或窗會整片泛白',
-    '停住等一下，讓鏡頭對到焦',
-    '把卡片平放在桌上，鏡頭平行對著它',
-  ]
-  const [hintIdx, setHintIdx] = useState(-1)
-  useEffect(() => {
-    if (status !== 'ready' || tracking) { setHintIdx(-1); return }
-    const start = setTimeout(() => setHintIdx(0), 6000)
-    const spin = setInterval(() => setHintIdx(i => (i < 0 ? 0 : (i + 1) % HINTS.length)), 10000)
-    return () => { clearTimeout(start); clearInterval(spin) }
-  }, [status, tracking])
-
-  const phaseText = status === 'nofile'
-    ? '目標檔尚未安裝——這一頁目前掃不到任何卡片'
-    : status !== 'ready' ? '　'
-      : tracking ? `已對準：${CARD.title}——點卡面上的物件可以換內容`
-        : hintIdx >= 0 ? `還沒認出來——試試：${HINTS[hintIdx]}`
-          : '掃描中——把卡片放進框內（不必對齊四個角）'
 
   return (
     <>
       <TopBar title="AR 掃描｜卡片一入鏡就跳出內容" onBack />
       <div className="body scan-body">
-        {/* ⚠️ MindARThree 會把 <video> 與 <canvas> 直接塞進這個容器（position:absolute），
-            所以它必須是 position:relative、overflow:hidden 且有明確大小
-            ——`.scan-stage` 本來就是。 */}
-        <div className="scan-stage" ref={stageRef} onPointerDown={tracking ? onStageTap : undefined}>
-          {status !== 'ready' && (
+        <div className="scan-stage" ref={stageRef} onPointerDown={phase === 'locked' ? onStageTap : undefined}>
+          {/* ⚠️ video 與 canvas 一律渲染（不可依 phase 條件掛載）：
+              session 在 start() 裡就要拿到這兩個節點，條件渲染會讓它拿到 null。
+              看不看得見交給 CSS 的 hidden 屬性。 */}
+          <video ref={videoRef} className="scan-video" playsInline muted hidden={!live} />
+          <canvas ref={canvasRef} className="scan-canvas" hidden={!live} />
+
+          {!live && (
             <div className="scan-fallback">
               <Icon name="camera" style={{ width: 46, height: 46, stroke: 'var(--pfg)' }} />
-              <p>
-                {status === 'idle' && '把實體卡片準備好，按下方按鈕開始。'}
-                {status === 'loading' && '正在開啟鏡頭…'}
-                {status === 'denied' && '尚未允許使用相機。請在瀏覽器允許相機權限後再試。'}
-                {status === 'unsupported' && '這台裝置沒有相機，或這個環境不允許使用（需 HTTPS）。'}
-                {status === 'nofile' && '目標檔尚未安裝，掃描不會有任何反應。'}
-              </p>
+              <p>{STATUS[phase] ?? (st.error ? `啟動失敗：${st.error}` : '　')}</p>
 
-              {/* ── ★★★ 內建瀏覽器警告：這是「怎麼改程式都不會好」的一類 ── */}
-              {inApp && status !== 'nofile' && (
+              {/* ── 內建瀏覽器：這是「怎麼改程式都不會好」的一類 ── */}
+              {inApp && (
                 <p className="scan-diag-verdict warn" style={{ textAlign: 'left' }}>
                   <b>你正在用 {inApp} 的內建瀏覽器開這一頁。</b>
-                  <br />那些 App 內建的瀏覽器常常擋掉或閹割相機與 3D 繪圖，
-                  AR 很可能無法運作，而且**不會出現任何錯誤訊息**。
-                  <br /><b>請點右上角的「⋯」選「用預設瀏覽器開啟」</b>
-                  （Safari 或 Chrome），再試一次。
+                  <br />那些 App 內建的瀏覽器常常擋掉或閹割相機與 3D 繪圖，AR 很可能
+                  無法運作，而且<b>不會出現任何錯誤訊息</b>。
+                  <br /><b>請點右上角的「⋯」選「用預設瀏覽器開啟」</b>（Safari 或 Chrome）再試。
                 </p>
               )}
 
-              {/* ★ 由使用者手勢啟動：iOS 上 getUserMedia 與 video.play() 在手勢的
-                  呼叫堆疊裡可靠得多；自動啟動容易拿到權限卻播不動（靜默失敗）。 */}
-              {status === 'idle' && (
-                <button
-                  className="btn-primary tap"
-                  onClick={() => { setArmed(true); setStatus('loading') }}
-                  style={{ marginTop: 'var(--space-3)' }}
-                >
-                  允許相機並開始掃描
+              {(phase === 'idle' || phase === 'denied' || phase === 'failed') && (
+                <button className="btn-primary tap" onClick={() => boot(camId)} style={{ marginTop: 'var(--space-3)' }}>
+                  {phase === 'idle' ? '允許相機並開始掃描' : '再試一次'}
                 </button>
               )}
-              {status === 'denied' && (
-                <button
-                  className="btn-primary tap"
-                  onClick={() => { setStatus('loading'); setArmed(false); setTimeout(() => setArmed(true), 0) }}
-                  style={{ marginTop: 'var(--space-3)' }}
-                >
-                  再試一次
-                </button>
-              )}
+
               {/* ── 不要讓這裡變成死路 ──
-                  ⚠️ 桌機、拒絕權限、或 getUserMedia 一直不回應時，這一頁原本
-                     只有一行字：沒有相機的人到這裡就走不下去了。
+                  桌機、拒絕權限、沒有相機的人到這裡原本只有一行字就走不下去了。
                   ⚠️ 但也**不自動導走**：`denied` 常常只是還沒按「允許」，
-                     把人直接送去別的頁面等於替他放棄那條路。給出路、讓他選。
-                  ⚠️ `loading` 要等一下才顯示：一開就跳出「沒有相機？」會讓正在
-                     看權限提示的人以為已經失敗了。 */}
-              {(status !== 'loading' || slowCamera) && CARD && (
+                     直接把人送去別頁等於替他放棄那條路。給出路、讓他選。 */}
+              {phase !== 'opening' && phase !== 'loading' && CARD && (
                 <div className="scan-fallback-out">
-                  {status === 'loading' && <p className="muted">還在等相機權限。沒有相機的話：</p>}
                   <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
                     沒有相機？看示範內容 ›
                   </Link>
@@ -402,76 +160,77 @@ export default function Scan() {
               )}
             </div>
           )}
-          <div className={`scan-frame ${tracking ? 'hit' : ''}`} aria-hidden="true">
+
+          <div className={`scan-frame ${phase === 'locked' ? 'hit' : ''}`} aria-hidden="true">
             <span className="c tl" /><span className="c tr" /><span className="c bl" /><span className="c br" />
-            {status === 'ready' && !tracking && <div className="scan-line" />}
+            {phase === 'searching' && <div className="scan-line" />}
           </div>
         </div>
 
+        {/* ── ★★★ 即時特徵點計 —— 這一版最重要的新東西 ──
+            舊版在「還沒認出來」時只能給罐頭提示，而使用者無從知道自己的調整
+            有沒有讓情況變好。這個數字是**相機這一幀真的找到幾個特徵點**，
+            會隨著距離、光線、對焦即時變動——把盲目試誤變成有回饋的調整。
+            ⚠️ 它量的是**影像品質**不是「有沒有對準」：數字很高卻認不出來，
+               代表問題在角度或卡片版本，不在畫面。 */}
+        {phase === 'searching' && (
+          <div className={`scan-meter ${fv?.level ?? ''}`}>
+            <div className="scan-meter-bar">
+              <i style={{ width: `${Math.min(100, ((features ?? 0) / FEAT_GOOD) * 100)}%` }} />
+            </div>
+            <span>
+              畫面特徵點 <b>{features ?? '量測中…'}</b>
+              {fv && <> — {fv.text}</>}
+            </span>
+          </div>
+        )}
+
         <div className="scan-status">
-          <span aria-live="polite">{phaseText}</span>
+          <span aria-live="polite">
+            {phase === 'locked' ? `已對準：${CARD.title}——點卡面上的物件可以換內容`
+              : phase === 'searching' ? '掃描中——把卡片放進框內（不必對齊四個角）'
+                : STATUS[phase] ?? '　'}
+          </span>
         </div>
 
-        {/* ── 命中卡面熱區：跳出那個物件的內容 ── */}
-        {hotspot && (() => {
-          const obj = objectForHotspot(hotspot)
-          if (!obj) return null
-          return (
-            <div className="scan-hit ui-enter">
-              <div className="scan-hit-hd">
-                <b>{obj.name}</b>
-                <span className="muted">{CARD?.title}</span>
-              </div>
-              {obj.line && <p className="scan-hit-line">{obj.line}</p>}
-              {obj.facts?.length > 0 && (
-                <dl className="scan-hit-facts">
-                  {obj.facts.map(f => (
-                    <div key={f.label}>
-                      <dt>{f.label}</dt>
-                      <dd>{f.value}{f.source && <i className="muted">（{f.source}）</i>}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-              {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
-              {/* 語音導覽：這裡才是它真正的使用情境——手上拿著卡、眼睛盯著卡面。
-                  ⚠️ 換熱區時上一段一定要停（SpeakButton 依 obj.id 自己處理），
-                     否則使用者瞄準白菜卻聽到臘八粥。 */}
-              <SpeakButton obj={obj} className="scan-hit-speak" />
-              {obj.link && (
-                <Link screen={obj.link.screen} params={obj.link.props} className="btn-ghost tap">
-                  {obj.link.label} ›
-                </Link>
-              )}
+        {/* ── 命中卡面熱區 ── */}
+        {obj && (
+          <div className="scan-hit ui-enter">
+            <div className="scan-hit-hd">
+              <b>{obj.name}</b>
+              <span className="muted">{CARD?.title}</span>
             </div>
-          )
-        })()}
-
-        {/* ── ★★★ 比對根本沒在跑：這是最惡毒的一種失敗，畫面上完全看不出來 ── */}
-        {stall && status === 'ready' && (
-          <div className="scan-nofile">
-            <b>相機開起來了，但比對程序沒有在執行——這不是沒對準。</b>
-            {stall === 'csp' ? (
-              <>
-                <p>
-                  瀏覽器回報：本站的<b>內容安全政策（CSP）</b>擋掉了從
-                  <code>blob:</code> 建立的 Web Worker。AR 的比對就跑在那個 worker 裡，
-                  被擋掉之後它<b>永遠不會回應</b>，所以再怎麼喬角度都不會認出卡片。
-                </p>
-                <p>
-                  <b>解法（伺服器設定，不是使用者能處理的）：</b>
-                  <code>server/index.js</code> 的 helmet CSP 要有
-                  <code>workerSrc: ["'self'", 'blob:']</code> 與同值的 <code>childSrc</code>，
-                  然後<b>重新部署</b>。⚠️ 只改程式碼不重新部署不會生效——CSP 是伺服器送的標頭。
-                </p>
-              </>
-            ) : (
-              <p>
-                追蹤的處理迴圈啟動後<b>一輪都沒有跑完</b>。常見原因是瀏覽器擋掉了
-                Web Worker 或 WebGL，或這台裝置的資源不足。
-                請打開下方「掃描診斷」把畫面截給我們，那比描述症狀有用得多。
-              </p>
+            {obj.line && <p className="scan-hit-line">{obj.line}</p>}
+            {obj.facts?.length > 0 && (
+              <dl className="scan-hit-facts">
+                {obj.facts.map(f => (
+                  <div key={f.label}>
+                    <dt>{f.label}</dt>
+                    <dd>{f.value}{f.source && <i className="muted">（{f.source}）</i>}</dd>
+                  </div>
+                ))}
+              </dl>
             )}
+            {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
+            {/* ⚠️ 換熱區時上一段一定要停（SpeakButton 依 obj.id 自己處理），
+                否則使用者瞄準白菜卻聽到臘八粥。 */}
+            <SpeakButton obj={obj} className="scan-hit-speak" />
+            {obj.link && (
+              <Link screen={obj.link.screen} params={obj.link.props} className="btn-ghost tap">
+                {obj.link.label} ›
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* ── 比對根本沒在跑：最惡毒的一種失敗，畫面上完全看不出來 ── */}
+        {phase === 'stalled' && (
+          <div className="scan-nofile">
+            <b>相機開起來了，但比對程序一輪都沒跑完——這不是沒對準。</b>
+            <p>
+              常見原因是瀏覽器擋掉了 Web Worker 或 WebGL，或這台裝置資源不足。
+              請打開下方「掃描診斷」按<b>複製診斷資料</b>貼給我們，那比描述症狀有用得多。
+            </p>
             <p className="muted">
               這個提示存在的理由：這種失敗<b>看起來完全正常</b>——相機在動、掃描線在跑、
               目標檔也載入了。不主動講出來的話，只會讓人以為是自己沒對準。
@@ -479,18 +238,18 @@ export default function Scan() {
           </div>
         )}
 
-        {/* ── 目標檔沒裝：這種失敗是靜默的，一定要主動講出來 ── */}
-        {status === 'nofile' && (
+        {/* ── 目標檔沒裝：靜默失敗，一定要主動講 ── */}
+        {phase === 'no-target' && (
           <div className="scan-nofile">
             <b>目標檔尚未安裝，所以掃描不會有任何反應。</b>
             <p>
-              追蹤器需要一份 <code>.mind</code>（從卡面圖編譯出來的特徵資料）才能比對。
+              追蹤需要一份 <code>.mind</code>（從卡面圖編譯出來的特徵資料）才能比對。
               目前 <code>{CARD?.mindTarget}</code> 取不到，等於沒有可比對的目標——
-              相機會開，但永遠不會認出卡片，也不會跳出白菜。
+              相機會開，但永遠不會認出卡片。
             </p>
             <p>
-              <b>解法：</b>用 <code>npm run card:mind -- 卡面稿.png</code> 編譯，
-              產出的檔案會自動放到 <code>public/ar/targets/</code>，重新整理即可。
+              <b>解法：</b><code>npm run card:mind -- 卡面稿.png</code>，
+              產出的檔案會自動放進 <code>public/ar/targets/</code>。
             </p>
           </div>
         )}
@@ -502,80 +261,73 @@ export default function Scan() {
           </button>
           {showDiag && (
             <div className="scan-diag-box">
-              {!diag && <p className="muted">尚未啟動追蹤。</p>}
-              {diag && (
+              {!info && <p className="muted">尚未啟動追蹤。</p>}
+              {info && (
                 <dl className="scan-diag-kv">
-                  <div><dt>鏡頭</dt><dd>{diag.camera}</dd></div>
-                  <div><dt>解析度</dt><dd>{diag.res}</dd></div>
-                  <div><dt>處理幀率</dt><dd>{diag.fps}</dd></div>
-                  <div><dt>目標圖尺寸</dt><dd>{diag.target}</dd></div>
-                  <div><dt>卡片高寬比</dt><dd>{diag.hw}</dd></div>
-                  <div><dt>目前追到</dt><dd>{diag.visible}</dd></div>
-                  <div><dt>命中熱區</dt><dd>{diag.hotspot}</dd></div>
-                  {/* ★ 裝置端環境：回報「掃不到」時，這三行往往比相機資訊更能定位問題 */}
-                  <div><dt>瀏覽器</dt><dd>{diag.browser}</dd></div>
-                  <div><dt>繪圖晶片</dt><dd>{diag.gpu}</dd></div>
-                  <div><dt>WebGL2</dt><dd>{diag.webgl2}　像素比 {diag.dpr}</dd></div>
+                  <div><dt>狀態</dt><dd>{phase}</dd></div>
+                  <div><dt>鏡頭</dt><dd>{info.camera}</dd></div>
+                  <div><dt>解析度</dt><dd>{info.res}</dd></div>
+                  <div><dt>目標圖尺寸</dt><dd>{info.target}</dd></div>
+                  <div><dt>心跳累計</dt><dd>{info.ticks}{info.ticks === 0 ? '（完全沒在處理）' : ''}</dd></div>
+                  <div><dt>畫面特徵點</dt><dd>{features ?? '—'}</dd></div>
+                  <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
+                  <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
+                  <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
+                  <div><dt>WebGL2</dt><dd>{info.webgl2 ?? '—'}　像素比 {info.dpr ?? '—'}</dd></div>
                 </dl>
               )}
-              {/* ── ★★★ 換一顆鏡頭試試 ──
+
+              {/* ── 換一顆鏡頭試試 ──
                   ⚠️ Android 的 label 是「camera2 2, facing back」這種沒有語意的字串，
-                     自動判斷必然是啟發式的（慣例是編號越小越接近主鏡頭）。
-                     超廣角的桶狀畸變實測會讓辨識率直接歸零，而症狀正是
-                     「對得很準卻一直認不出來」——與「沒對準」完全分不出來。
-                     所以一定要讓使用者能當場換一顆試，那是唯一的直接證據。 */}
-              {cams.length > 1 && (
+                     自動判斷**必然**是啟發式的。超廣角的桶狀畸變實測會讓辨識率
+                     直接歸零，而症狀正是「對得很準卻認不出來」——與「沒對準」
+                     完全分不出來。所以一定要讓使用者當場換一顆試，那是唯一的直接證據。 */}
+              {cameras.length > 1 && (
                 <div className="scan-diag-self">
                   <p className="muted" style={{ margin: 0 }}>
-                    這台裝置有 {cams.length} 顆後鏡頭。
-                    <b>掃不到時請換一顆試</b>——超廣角鏡頭的變形會讓辨識完全失效。
+                    這台裝置有 {cameras.length} 顆後鏡頭。<b>掃不到時換一顆試</b>
+                    ——超廣角鏡頭的變形會讓辨識完全失效。
                   </p>
                   <div className="scan-card-spots">
-                    {cams.map((c, i) => (
+                    {cameras.map((c, i) => (
                       <button
                         key={c.deviceId || i}
                         className={`chip${camId === c.deviceId ? ' on' : ''}`}
-                        onClick={() => setCamId(c.deviceId)}
+                        onClick={() => { setCamId(c.deviceId); boot(c.deviceId) }}
                       >
                         {c.label || `鏡頭 ${i + 1}`}
                       </button>
                     ))}
-                    <button className={`chip${camId === null ? ' on' : ''}`} onClick={() => setCamId(null)}>
+                    <button className={`chip${camId === null ? ' on' : ''}`} onClick={() => { setCamId(null); boot(null) }}>
                       自動
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* ── ★★★ 自我測試：把「裝置跑不動」與「相機畫面不夠好」分開 ── */}
               <div className="scan-diag-self">
                 {/* ⚠️ 一鍵複製：要人「截圖傳給我們」的門檻其實很高（要截、要找、要傳），
-                    而這幾個數字才是唯一能定位問題的東西。降到一次點擊。
-                    ⚠️ 連 userAgent 一起帶：iOS/Android、Safari/Chrome 的差異很大
-                       （例如 autoplay 與鏡頭選擇的行為完全不同）。 */}
+                    而這幾個數字才是唯一能定位問題的東西。降到一次點擊。 */}
                 <button
                   className="btn-ghost tap"
                   onClick={() => {
-                    const s = sceneRef.current
-                    const lines = [
+                    const i = sessionRef.current?.info() ?? {}
+                    const text = [
                       '【機巧時運 AR 診斷】',
-                      `鏡頭：${diag?.camera ?? '—'}`,
-                      `解析度：${diag?.res ?? '—'}`,
-                      `處理幀率：${diag?.fps ?? '—'}`,
-                      `目標圖：${diag?.target ?? '—'}　高寬比 ${diag?.hw ?? '—'}`,
-                      `目前追到：${diag?.visible ?? '—'}　命中熱區：${diag?.hotspot ?? '—'}`,
-                      `瀏覽器：${diag?.browser ?? '—'}`,
-                      `繪圖晶片：${diag?.gpu ?? '—'}　WebGL2 ${diag?.webgl2 ?? '—'}　像素比 ${diag?.dpr ?? '—'}`,
-                      `自我測試：${selfTest === 'idle' ? '尚未執行'
-                        : selfTest === 'running' ? '執行中'
-                          // ⚠️ 一定要帶 stage：「跑不起來」與「跑得起來但沒認出」
-                          //    是完全不同的結論，只寫「失敗」等於把最有用的資訊丟掉。
-                          : selfTest.ok ? `成功（第 ${selfTest.frames} 幀 / ${selfTest.ms} ms）`
-                            : `失敗［${selfTest.stage}］${selfTest.reason}`}`,
-                      `心跳累計：${s?.ticks?.() ?? '—'}`,
+                      `狀態：${phase}`,
+                      `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
+                      `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}`,
+                      `畫面特徵點：${features ?? '—'}`,
+                      `比對 worker：${i.worker ?? '—'}`,
+                      `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
+                      `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
+                      `自我測試：${selfTest === 'idle' ? '尚未執行' : selfTest === 'running' ? '執行中'
+                        // ⚠️ 一定要帶 stage：「跑不起來」與「跑得起來但沒認出」是完全
+                        //    不同的結論，只寫「失敗」等於把最有用的資訊丟掉。
+                        : selfTest.ok ? `成功（第 ${selfTest.frames} 幀 / ${selfTest.ms} ms）`
+                          : `失敗［${selfTest.stage}］${selfTest.reason}`}`,
                       `裝置：${navigator.userAgent}`,
-                    ]
-                    const text = lines.join('\n')
+                    ].join('\n')
                     navigator.clipboard?.writeText(text)
                       .then(() => setToast('診斷資料已複製，貼給我們就好'))
                       .catch(() => setToast('複製失敗，請改用截圖'))
@@ -585,31 +337,23 @@ export default function Scan() {
                 </button>
                 <button
                   className="btn-primary tap"
-                  disabled={status !== 'ready' || selfTest === 'running'}
+                  disabled={!live || selfTest === 'running'}
                   onClick={async () => {
-                    const s = sceneRef.current
-                    if (!s?.selfTest) return
                     setSelfTest('running')
-                    setSelfTest(await s.selfTest({ seconds: 8 }))
+                    setSelfTest(await sessionRef.current.selfTest(CARD.target))
                   }}
                 >
-                  {selfTest === 'running' ? '測試中…（約 8 秒）' : '用內建卡面圖自我測試'}
+                  {selfTest === 'running' ? '測試中…' : '用內建卡面圖自我測試'}
                 </button>
-                {/* ⚠️ 判讀一定要給**下一步動作**。只說「成功／失敗」等於沒有診斷
-                    ——使用者還是不知道該調什麼。 */}
-                {selfTest === 'running' && (
-                  <p className="muted">正在把內建的卡面圖接到辨識流程上，請稍候（畫面會暫時變成那張圖）。</p>
-                )}
+                {/* ⚠️ 判讀一定要給**下一步動作**。只說「成功／失敗」等於沒有診斷。 */}
+                {selfTest === 'running' && <p className="muted">正在把內建的卡面圖接到辨識流程上，請稍候。</p>}
                 {selfTest !== 'idle' && selfTest !== 'running' && (
                   selfTest.ok ? (
                     <p className="scan-diag-verdict ok">
-                      <b>辨識流程在這台裝置上正常</b>
-                      （第 {selfTest.frames} 幀、{selfTest.ms} ms 內認出）。
-                      <br />所以掃不到的原因在<b>相機拍到的畫面</b>，可以依序試：
-                      <br />① 讓卡片<b>佔滿畫面一半以上</b>——太遠是最常見的原因
-                      <br />② 光線要夠，且避免<b>反光</b>（卡片正對燈或窗會整片泛白）
-                      <br />③ 等對焦完成再停住，手別抖
-                      <br />④ 確認手上這張卡與網站上的卡面是<b>同一版</b>
+                      <b>辨識流程在這台裝置上正常</b>（第 {selfTest.frames} 幀、{selfTest.ms} ms 內認出）。
+                      <br />所以掃不到的原因在<b>相機拍到的畫面</b>。請看上面的
+                      「畫面特徵點」：低於 {FEAT_WEAK} 就是影像問題（太遠／太暗／糊／反光），
+                      高於 {FEAT_GOOD} 還認不出來才是角度或卡片版本的問題。
                     </p>
                   ) : selfTest.stage === 'pipeline' ? (
                     <p className="scan-diag-verdict error">
@@ -617,18 +361,16 @@ export default function Scan() {
                       <br /><code>{selfTest.reason}</code>
                       <br />問題<b>不在</b>你怎麼拿卡片。常見原因：用了 App 的內建瀏覽器、
                       瀏覽器停用了 WebGL、或裝置記憶體不足。
-                      <br />請先改用 <b>Safari 或 Chrome 直接開網站</b>再試一次。
+                      <br />請先改用 <b>Safari 或 Chrome 直接開網站</b>再試。
                     </p>
                   ) : selfTest.stage === 'match' ? (
                     <p className="scan-diag-verdict warn">
                       <b>運算跑得起來，但連內建的卡面圖都沒認出</b>（{selfTest.ms} ms）。
-                      <br />這通常代表<b>目標檔與卡面圖不是同一版</b>，或這台裝置的
-                      算力不足以在幾幀內完成比對。請把整頁診斷截圖給我們，這一項最有價值。
+                      <br />這通常代表<b>目標檔與卡面圖不是同一版</b>。請按「複製診斷資料」貼給我們。
                     </p>
                   ) : (
                     <p className="scan-diag-verdict error">
                       <b>測試沒能開始</b>（{selfTest.stage}）：{selfTest.reason}
-                      <br />這多半是網路或資源載入的問題，請重新整理再試一次。
                     </p>
                   )
                 )}
@@ -636,7 +378,8 @@ export default function Scan() {
 
               <p className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                 追蹤由 MindAR 的特徵點比對負責，沒有「相似度分數」可以顯示
-                （它是 inlier 式判定：追到就是追到）。
+                （它是 inlier 式判定：追到就是追到）。「畫面特徵點」量的是影像品質，
+                不是與卡片的相似度。
               </p>
             </div>
           )}
@@ -646,11 +389,11 @@ export default function Scan() {
         <div className="scan-official">
           <SectionHead title="官方節氣卡片" />
           {OFFICIAL_CARDS.map(c => (
-            <div key={c.id} className={`scan-card${tracking && c.id === CARD?.id ? ' on' : ''}`}>
+            <div key={c.id} className={`scan-card${phase === 'locked' && c.id === CARD?.id ? ' on' : ''}`}>
               <div className="scan-card-hd">
                 <b>{c.title}</b>
                 <span className="muted">{c.subtitle}</span>
-                {tracking && c.id === CARD?.id && <span className="scan-card-live">正在掃描中</span>}
+                {phase === 'locked' && c.id === CARD?.id && <span className="scan-card-live">正在掃描中</span>}
               </div>
               <p className="muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
                 拿這張卡對著鏡頭就會跳出內容；點卡面上的物件可以換內容。

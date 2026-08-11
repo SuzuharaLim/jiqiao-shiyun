@@ -1596,14 +1596,22 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .scan-stage { position:relative; width:100%; max-width:680px; margin:10px auto 0; height:min(74vh, 660px);
   background:var(--cam-bg-deep); border-radius:2px; overflow:hidden;
   display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
-.scan-video { width:100%; height:100%; object-fit:cover; }
-/* ★★ 疊層：MindARThree 會把 <video> 與 <canvas> **append 到 .scan-stage**，
-   也就是排在 React 子元素（.scan-fallback / .scan-frame）**後面**。
-   三者都是 z-index:auto 的定位元素時，後來的會蓋住先前的
-   ——取景框、掃描線、「正在開啟鏡頭…」全都會被蓋掉。
-   所以四層一律明寫：video 0 → canvas 1 → 取景框 2 → 降級說明 3。
-   ⚠️ `.scan-fallback` 原本是**非定位**元素，會被畫在所有定位元素底下，
+/* ★★ 疊層一律**明寫**：video 0 → 3D canvas 1 → 取景框 2 → 降級說明 3。
+   ⚠️ 這四層現在都是 React 渲染的，順序看得見；但仍然要寫死 z-index——
+      `.scan-stage` 是 position:relative 且**有深色背景**，只要有任何一層拿到
+      負的 z-index，它就會被畫到容器背景底下（依 CSS 繪製順序，負 z-index 的
+      定位子元素在第 2 步、非定位祖先的背景在第 6 步）＝**整片全黑**。
+      舊版讓函式庫自己塞 <video> 且預設 `z-index:-2`，踩的就是這個。
+   ⚠️ 這個 bug 從數字上完全看不出來：追蹤讀的是 video 元素的像素，不是螢幕上
+      畫出來的結果，所以「已對準」「熱區命中」「3D 有在算繪」全部量得到，
+      畫面卻是黑的。**驗 AR 不能只驗數字，一定要真的看畫面。**
+   ⚠️ `.scan-fallback` 是**非定位**元素，會被畫在所有定位元素底下，
       所以要補 position:relative 才吃得到 z-index。 */
+.scan-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+.scan-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; }
+/* ⚠️ hidden 屬性的預設樣式是 display:none，但上面的 position/width 宣告
+   specificity 較高會蓋掉它——必須明確寫回去，否則相機還沒開時會出現一塊黑幕。 */
+.scan-video[hidden], .scan-canvas[hidden] { display:none; }
 .scan-fallback { position:relative; z-index:3; text-align:center; color:var(--pfg); padding:24px; max-width:320px; }
 .scan-fallback p { font-size:var(--text-sm); line-height:1.7; margin-top:12px; opacity:.9; }
 /* container-type:size 讓掃描線能用 100cqh 換算框高，改走 transform（見下方註解）。
@@ -1632,6 +1640,19 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .scan-acts { padding:12px 16px 20px; text-align:center; flex:0 0 auto; }
 .scan-acts .btn-primary { max-width:280px; margin:0 auto; }
 .scan-soon { font-size:var(--text-2xs); line-height:1.7; margin:12px auto 0; max-width:440px; }
+
+/* ★★★ 即時特徵點計 —— 影像品質的直接量測（不是「與卡片的相似度」）。
+   存在的理由：使用者在「還沒認出來」時，需要知道自己的調整有沒有讓情況變好。
+   這條會隨距離／光線／對焦即時變動，把盲目試誤變成有回饋的調整。 */
+.scan-meter { display:flex; align-items:center; gap:var(--space-3); flex:0 0 auto;
+  padding:var(--space-3) var(--space-4) 0; font-size:var(--text-2xs); color:var(--muted); }
+.scan-meter b { color:var(--ink); font-variant-numeric:tabular-nums; }
+.scan-meter-bar { flex:0 0 92px; height:6px; border-radius:3px; background:var(--line); overflow:hidden; }
+.scan-meter-bar i { display:block; height:100%; background:var(--muted);
+  transition:width var(--m-base) var(--e-out); }
+.scan-meter.ok   .scan-meter-bar i { background:var(--yi); }
+.scan-meter.warn .scan-meter-bar i { background:var(--gold); }
+.scan-meter.bad  .scan-meter-bar i { background:var(--ji); }
 
 /* 即時比對狀態列 */
 .scan-status { text-align:center; font-size:var(--text-xs); color:var(--muted); padding:10px 20px 0;
