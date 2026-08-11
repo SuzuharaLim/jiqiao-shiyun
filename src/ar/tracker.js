@@ -32,6 +32,17 @@ import ControllerWorker from 'mind-ar/src/image-target/controller.worker.js?work
 /** 出現／消失門檻。理由見 createTracker 的註解。 */
 const WARMUP = 1
 const MISS = 10
+/**
+ * ★ 要連續比對成功幾次才宣告「認出來」。
+ *
+ * ⚠️ 上游的 `warmupTolerance` 其實身兼兩職：等光流追蹤穩定（我們不需要）
+ *    **以及防誤判的去抖動**（我們需要）。繞過它時如果只認一次比對就跳轉，
+ *    等於把後者也一起丟掉了——MindAR 是 inlier 式判定，誤判很少但不是不可能，
+ *    而這條動線的代價是「直接把使用者送到另一頁」，誤跳的體感很差。
+ * ⚠️ 也不要設太高：使用者實測每秒約 3~4 次成功比對，設 2 只多花約 0.3 秒，
+ *    設 5 以上就會讓「明明對準了卻要等」的感覺回來。
+ */
+const MATCH_CONFIRM = 2
 
 /**
  * @param video       已經在播、videoWidth/Height 都有值的 <video>
@@ -111,7 +122,7 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     const r = await origDetectAndMatch(inputT, targetIndexes)
     if (!disposed && r && r.targetIndex !== -1 && r.modelViewTransform) {
       matches++
-      if (!visible) {
+      if (!visible && matches >= MATCH_CONFIRM) {
         setVisible(true)
         // ⚠️ 這裡要自己把 modelViewTransform 換成 worldMatrix：上游只有在
         //    `showing` 為 true 時才會做這件事，而我們就是不想等它。

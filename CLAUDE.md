@@ -288,6 +288,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
     ⚠️ 這一版的動線**根本不需要追蹤**（認出一次就跳模型頁），所以直接繞過第②關：包住 `_detectAndMatch`，比對一成功就自己 `getWorldMatrix()` 並宣告 found。順帶讓辨識快很多（不必等暖機）。
     ★ 驗法（只能在瀏覽器做）：把 `Controller.prototype._trackAndUpdate` 覆寫成 `async () => null`（＝光流永遠失敗），舊邏輯**必定**永遠認不出來；新版實測仍 **1.5 秒認出並跳轉**。未打 patch 的正常路徑 2.2 秒。
   - **★★★ `selfTest` 必須呼叫「未被攔截」的 `origDetectAndMatch`**：上面那個攔截是「比對一成功就宣告認出來」，而自我測試餵的是**內建的卡面圖**——走攔截版的話，自我測試一成功就會讓 session 進入 `locked` 並跳去模型頁，**而使用者的卡片根本沒被認出來**。那是**假成功**，而且自我測試是自動觸發的（卡住時），所以會發生在「一直掃不到」的人身上——最不該被誤導的那群人。實測驗過：掃永遠不會命中的畫面 22 秒，自我測試通過但**不會**跳轉，網址仍停在 `/AR`。
+  - **★★ 繞過 warmup 之後要自己把「防誤判」補回來**（`MATCH_CONFIRM = 2`）：上游的 `warmupTolerance` 身兼兩職——等光流穩定（我們不需要）**與去抖動**（我們需要）。只認一次比對就跳轉會把後者一起丟掉，而這條動線誤跳的代價是**直接把人送到另一頁**。設 2 只多花約 0.3 秒（實測每秒約 3~4 次成功比對）。
   - **`warmupTolerance: 1`／`missTolerance: 10`**：上游預設要**連續 6 幀**都追到才算認出（`DEFAULT_WARMUP_TOLERANCE=5`），手持低幀率下是很高的門檻，而暖機期間畫面完全沒有回饋，看起來就是「完全掃不到」。⚠️ 這**不是**調低比對門檻——MindAR 是 inlier 式判定，比對本身沒有分數可調；warmup 只是防抖。
   - **★★ 3D 角色錨在 `primary` 熱區，不可綁「目前選中的熱區」**：使用者最自然的動作是把整張卡擺在畫面正中央 ⇒ 中心落在「身體保健」區（那一區沒有 model）⇒ **白菜永遠不出現**，而卡面上白紙黑字印著「掃描主物件：結球白菜」。`check-ar.mjs` 用真的熱區資料算出「中心落在哪一區」把這個事實釘住。
   - **★★ 主 bundle 不可牽進 three/TFJS**：`Scan.jsx` 靜態 import `session.js`，所以 session **只能靜態 import 輕量模組**（camera／cardSpace）。實測不小心靜態 import 了 `stage.js`（只為了一個 `hasWebGL`），主 bundle 就從 **458 kB 變成 976 kB**。`tracker`/`stage` 一律 `await import()`，閘門有鎖。目前：主 bundle 460 kB／gzip 195、three 511 kB、`mindar-image.prod` 1,759 kB（都懶載入，且要相機真的開起來才下載）。

@@ -290,6 +290,11 @@ const W = 1831, H = 1335
   ok(/getWorldMatrix\(r\.modelViewTransform/.test(SRC.tracker),
     '★★ 攔截後要自己把 modelViewTransform 換成 worldMatrix（上游只在 showing 時才做）')
   ok(/matches: \(\) => matches/.test(SRC.tracker), '★ 對外要吐比對成功次數（診斷用）')
+  // ★★ 繞過 warmup 之後要自己把「防誤判」補回來：上游的 warmupTolerance 身兼
+  //   「等光流穩定」與「去抖動」兩職，只認一次比對就跳轉會把後者一起丟掉，
+  //   而這條動線誤跳的代價是直接把人送到另一頁。
+  ok(/const MATCH_CONFIRM = 2/.test(SRC.tracker), '★★ 要有比對確認次數（防誤判）')
+  ok(/matches >= MATCH_CONFIRM/.test(SRC.tracker), '★★ 宣告 found 前要達到確認次數')
   // ★★★ selfTest 餵的是**內建卡面圖**，絕不可走被攔截的版本——否則自我測試
   //   一成功就會宣告「認出來了」並跳去模型頁，而使用者的卡片根本沒被認出來。
   //   那是假成功，而且自我測試是自動跑的，會發生在最不該被誤導的那群人身上。
