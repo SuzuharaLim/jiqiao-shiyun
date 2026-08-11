@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MindAR 官方原版測試</title>
+    <!--
+      ============================================================
+      這一頁是 **MindAR 官方文件的範例原樣**，刻意什麼都不加。
+      來源：https://hiukim.github.io/mind-ar-js-doc/quick-start/webpage
+
+      用途：把「站上那一套自製的 AR 層」整個排除掉，單獨測函式庫本身。
+        - 官方原版也不行 ⇒ 是 MindAR／這台裝置的問題，不是站上的程式
+        - 官方原版可以   ⇒ 是站上某一層加的東西害的
+
+      與官方範例唯一的差別是**兩個 script 改成自架**（本站 CSP 是
+      `script-src 'self'`，載不了 CDN），檔案本身逐位元組相同：
+        aframe.min.js                → /vendor/aframe-1.8.0.min.js
+        mindar-image-aframe.prod.js  → /vendor/mindar-image-aframe-1.2.5.prod.js（mind-ar 1.2.5）
+      以及目標檔與圖片換成本站這張卡。
+
+      ⚠️ 這一頁**不要**加狀態列、診斷、QR、相容模式或任何自製邏輯——
+         加了就失去「對照組」的意義。
+      ============================================================
+    -->
+    <script src="/vendor/aframe-1.8.0.min.js"></script>
+    <script src="/vendor/mindar-image-aframe-1.2.5.prod.js"></script>
+    <style>
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <a-scene
+      mindar-image="imageTargetSrc: /ar/targets/2027-xiaohan.mind;"
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        <img id="card" src="/ar/targets/2027-xiaohan.png" />
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <!-- 卡片長寬比 1831×1335 ⇒ 寬 1 時高 = 1335/1831 = 0.729 -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-plane src="#card" position="0 0 0" height="0.729" width="1" rotation="0 0 0"></a-plane>
+        <a-box position="0 0 0.15" scale="0.2 0.2 0.2" color="#39C5BB"></a-box>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>

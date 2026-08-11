@@ -326,6 +326,10 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **成本**：自帶檔 1,292 kB，只有進到這一頁才會下載；**不進 Vite 模組圖**，主 bundle 完全不受影響。
   - **模型頁 `noindex`**：內容與 `/ar/card/:slug` 高度重疊，兩頁都放給搜尋引擎就是同一份內容用兩個網址參賽——而卡片頁才是刻意做給「沒有實體卡、從搜尋進來的人」看的那一版。
   - **實測（正式 build ＋ CSP，375×812）**：`/AR` 點開始 → 3.5 秒後網址變成 `/ar/model/2027-xiaohan`、分頁標題「3D 模型 · 機巧時運」；模型 102 mesh／170,456 三角形／102 draw call 全部畫出（畫布綠色像素 9.7%）；自轉正常；掃描時瞄到的熱區有跟著帶過去。
+- **`/ar/plain.html` 是 MindAR 官方範例的原樣對照組**（`public/ar/plain.html`，2026-08-11）。逐字照 <https://hiukim.github.io/mind-ar-js-doc/quick-start/webpage>，只把兩個 CDN script 換成自架（本站 CSP 是 `script-src 'self'`）並換成本站的 `.mind` 與卡面圖。
+  - **用途**：把站上那一整套自製的 AR 層排除掉，單獨測函式庫本身。官方原版也不行 ⇒ 是 MindAR／該裝置的問題；官方原版可以 ⇒ 是我們某一層加的東西害的。
+  - ⚠️ **這一頁不可以加任何東西**（狀態列、診斷、QR、相容模式…）。加了就失去對照組的意義。
+  - ⚠️ **無頭瀏覽器驗不了它**：官方頁在載入時就**同步**載入 MindAR，來不及補 rAF shim，處理迴圈會卡在第一輪（`processingVideo` 是 true 但 `_detectAndMatch` 一次都不會被呼叫）。我們自己那一層是動態 import 所以補得進去——**不要拿本機跑不動當成「官方版也壞掉」的證據**。它只能在真實裝置上驗。
 - **（已刪除）自研平面追蹤**：`homography.js`／`quadDetect.js`／`arTracker.js`／`features.js`／`scanner.js`／`arPoseBridge.js`／`arDiagnose.js`／`arSimFrame.js`／`mindTrack.js`／`arCardRegistry.js`／`ARScene.jsx`／`ARCharacter.jsx` 與 `check-features.mjs`／`frame-card.mjs`／`install-target.mjs`（`card:frame`／`card:install`）**已於 2026-08-11 全部刪除**。那條路線偵測卡片四角 → 透視拉正 → dHash 比對 → 解 homography → CSS `matrix3d` 疊加。它留下的經驗多數已隨路線失效，只有兩條仍值得記住：① **實體卡的設計必須早於 AR 開發**；② **卡面要有明顯不對稱、紋理足夠的元素**（MindAR 也吃這一條，只是理由從「四角定向」變成「特徵點數量」）。**「收邊」規範已作廢**——MindAR 不偵測卡片邊界，實測收邊版與未收邊原稿都 12/12。
 - **成果圖卡（`src/lib/shareCard.js`）純 canvas，零外部素材**，1080×1080，答對小挑戰後才出現。**內容紀律：只畫真的東西**——徽章名、節氣、日期、一句有出處的事實。不放「我贏了」「第 N 名」這種站上根本沒有的概念，也不放營養宣稱。
   - **⚠️ iOS Safari 不支援 `<a download>`**：點了只會在同一個分頁開啟那張圖，使用者以為壞掉了。順序必須是 ① Web Share API 帶檔案（手機最好的路徑）② `<a download>`（桌機）③ 開新分頁＋提示「長按圖片即可儲存」。**使用者按取消（`AbortError`）不是錯誤**，不可跳失敗提示。
