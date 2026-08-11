@@ -117,6 +117,14 @@ export default function Scan() {
     return () => clearTimeout(t)
   }, [phase, push])
 
+  // 找了一段時間還沒認出來 —— 用來把毫無資訊的「掃描中」升級成講得出原因的訊息
+  const [longSearch, setLongSearch] = useState(false)
+  useEffect(() => {
+    if (phase !== 'searching') { setLongSearch(false); return }
+    const t = setTimeout(() => setLongSearch(true), 8000)
+    return () => clearTimeout(t)
+  }, [phase])
+
   // 轉向／版面改變要重算投影，否則 3D 與影像對不上。
   useEffect(() => {
     const on = () => sessionRef.current?.resize()
@@ -215,15 +223,47 @@ export default function Scan() {
             ⚠️ 它量的是**影像品質**不是「有沒有對準」：數字很高卻認不出來，
                代表問題在角度或卡片版本，不在畫面。 */}
         {phase === 'searching' && (
-          <div className={`scan-meter ${fv?.level ?? ''}`}>
-            <div className="scan-meter-bar">
-              <i style={{ width: `${Math.min(100, ((features ?? 0) / FEAT_GOOD) * 100)}%` }} />
+          <>
+            <div className={`scan-meter ${fv?.level ?? ''}`}>
+              <div className="scan-meter-bar">
+                <i style={{ width: `${Math.min(100, ((features ?? 0) / FEAT_GOOD) * 100)}%` }} />
+              </div>
+              <span>
+                畫面特徵點 <b>{features ?? '量測中…'}</b>
+                {fv && <> — {fv.text}</>}
+                {/* ★★ 心跳一定要**看得見**。
+                    使用者回報「掃不到」時，只有這個數字能把兩件完全不同的事分開：
+                    比對迴圈根本沒在跑（＝程式的問題），還是迴圈在跑但認不出這張卡
+                    （＝卡片／目標檔的問題）。藏在診斷面板裡等於沒有。 */}
+                {st.tps !== null && st.tps !== undefined && (
+                  <>　比對 <b>{st.tps}</b> 輪/秒</>
+                )}
+              </span>
             </div>
-            <span>
-              畫面特徵點 <b>{features ?? '量測中…'}</b>
-              {fv && <> — {fv.text}</>}
-            </span>
-          </div>
+
+            {/* ★★★ 畫面很好、迴圈也在跑，卻一直認不出來 —— 這種狀態原本沒有任何訊息，
+                使用者只會看到「掃描中」跑到天荒地老，然後以為是自己沒對準。
+                但特徵點與心跳這兩個數字已經把原因縮到只剩一個了，就該直接講出來。 */}
+            {longSearch && features !== null && features >= FEAT_GOOD && (st.tps ?? 0) > 0 && (
+              <div className="scan-nofile">
+                <b>比對程序在跑（{st.tps} 輪/秒），畫面也夠清楚（特徵點 {features}），但一直對不上。</b>
+                <p>
+                  可以確定<b>不是當機、也不是光線太暗或手震</b>。剩下三種可能，
+                  由容易到難依序試：
+                </p>
+                <p>
+                  ① <b>讓卡片佔滿畫面</b>——特徵點會數到整個畫面，包含桌面、邊框、
+                  背景，所以數字高不代表「卡片本身」被看清楚了。把卡片拉近到填滿取景框。
+                  <br />② <b>換一顆後鏡頭</b>（下方診斷面板）——超廣角的變形會讓辨識完全失效。
+                  <br />③ <b>手上這張卡與網站的目標檔不是同一版</b>——這個只能由我們確認。
+                </p>
+                <p className="muted">
+                  試完還是不行，請按下方「掃描診斷 → 複製診斷資料」貼給我們，
+                  並說明你掃的是實體卡還是螢幕上的哪一個檔案。
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         <div className="scan-status">
@@ -310,6 +350,7 @@ export default function Scan() {
                   <div><dt>解析度</dt><dd>{info.res}</dd></div>
                   <div><dt>目標圖尺寸</dt><dd>{info.target}</dd></div>
                   <div><dt>心跳累計</dt><dd>{info.ticks}{info.ticks === 0 ? '（完全沒在處理）' : ''}</dd></div>
+                  <div><dt>比對速率</dt><dd>{info.tps ?? '—'} 輪/秒{(info.tps ?? 0) === 0 ? '　★ 迴圈卡住了' : ''}</dd></div>
                   <div><dt>畫面特徵點</dt><dd>{features ?? '—'}</dd></div>
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
@@ -357,7 +398,7 @@ export default function Scan() {
                       '【機巧時運 AR 診斷】',
                       `狀態：${phase}`,
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
-                      `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}`,
+                      `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}`,
                       `比對 worker：${i.worker ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,

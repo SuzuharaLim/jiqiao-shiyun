@@ -343,8 +343,14 @@ const W = 1831, H = 1335
 
   // ★★ 心跳看門狗的判準只能是「心跳是 0」——不可用「有沒有追到」，
   //    沒追到是常態（沒對準也是這樣），拿它報錯就是誤報。
-  ok(/ticks\(\)\s*\?\?\s*0\)\s*===\s*0/.test(SRC.session),
-    '★★ 看門狗的失敗判準必須是「心跳 === 0」')
+  // ★★★ 判準必須是「心跳**有沒有前進**」，不是「總數是不是 0」。
+  //   上游迴圈是 `await _detectAndMatch(...)`，比對走 worker；worker 若是跑了
+  //   幾輪之後才死，總數會停在 1、2 這種非零小數字 ⇒ 「總數===0」的判準永遠
+  //   不會觸發 ⇒ 使用者看到「掃描中」跑到天荒地老而畫面上毫無異常。
+  ok(/stillSince/.test(SRC.session) && /now - stillSince >= STALL_MS/.test(SRC.session),
+    '★★★ 看門狗要判「心跳有沒有前進」，不可只判總數是否為 0（worker 中途死掉會漏掉）')
+  ok(/tps/.test(SRC.session), '★★ 要算並回報心跳速率（輪/秒）')
+  ok(/輪\/秒/.test(SRC.scan), '★★ 心跳速率要顯示在使用者看得到的地方，不可只藏在診斷面板')
 
   // ★ 解析度必須明講；ideal 不可換成 exact（exact 不支援時相機完全開不起來）
   ok(/width:\s*\{\s*ideal:\s*1280\s*\}/.test(SRC.camera) && /height:\s*\{\s*ideal:\s*960\s*\}/.test(SRC.camera),

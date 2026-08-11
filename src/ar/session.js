@@ -20,7 +20,7 @@
 //     loading     正在下載追蹤引擎與目標檔
 //     searching   在跑、還沒認出（心跳 > 0）
 //     locked      追到了
-//     stalled     跑了 12 秒但心跳仍是 0 —— **這不是沒對準**
+//     stalled     心跳連續 12 秒沒有前進 —— 比對迴圈卡住了，**這不是沒對準**
 //     failed      其他（帶 error 訊息）
 //
 //   UI 是這個值的純函式。不可能再出現「畫面說掃描中、其實引擎沒起來」。
@@ -52,7 +52,7 @@ function hasWebGL() {
   } catch { return false }
 }
 
-/** 心跳看門狗：超過這個時間仍然一輪都沒跑完，就不是「沒對準」的問題了。 */
+/** 心跳看門狗：心跳連續這麼久沒有前進，就不是「沒對準」的問題了。 */
 const STALL_MS = 12000
 /** 手動點選之後暫停中心瞄準多久。 */
 const MANUAL_HOLD_MS = 4000
@@ -116,6 +116,9 @@ export function createSession({ video, canvas, container, card, onState }) {
   let raf = 0
   let stallTimer = 0
   let probeTimer = 0
+  let rateTimer = 0
+  let tps = null            // 心跳速率（輪/秒）；null＝還沒量到
+  let prevTicks = null
   let disposed = false
 
   let hotspot = null
@@ -133,6 +136,7 @@ export function createSession({ video, canvas, container, card, onState }) {
       features,
       cameras,
       ticks: tracker?.ticks() ?? 0,
+      tps,
       sameOriginWorker: tracker?.sameOriginWorker ?? null,
     })
   }
@@ -254,12 +258,36 @@ export function createSession({ video, canvas, container, card, onState }) {
         to('searching')
         raf = requestAnimationFrame(loop)
 
-        // ★ 心跳看門狗：唯一的失敗判準是「心跳是 0」。
-        //   ⚠️ 不可用「有沒有追到」當判準——沒追到是常態（沒對準也是這樣）。
-        //      心跳 0 才代表**比對根本沒在跑**，那是完全不同的問題。
-        stallTimer = setTimeout(() => {
-          if (!disposed && (tracker?.ticks() ?? 0) === 0) to('stalled')
-        }, STALL_MS)
+        // ★★★ 心跳看門狗：判準是「心跳**有沒有在前進**」，不是「總數是不是 0」。
+        //
+        // ⚠️ 原本寫成「12 秒後總數 === 0 就判定卡住」，那有一個洞：
+        //    上游的處理迴圈是 `await this._detectAndMatch(...)`，而比對走 Web Worker。
+        //    Worker 若是**跑了幾輪之後才死**（或某一次的 Promise 永遠不 resolve），
+        //    總數會停在 1、2 這種非零的小數字 ⇒ 看門狗永遠不會觸發 ⇒
+        //    使用者看到的就是「掃描中」跑到天荒地老，而畫面上沒有任何異常。
+        //    這正是這一層要消滅的那種失敗，卻被我自己的判準漏掉了。
+        // ⚠️ 也不可用「有沒有追到」當判準——沒追到是常態（沒對準也是這樣）。
+        let lastTicks = -1
+        let stillSince = performance.now()
+        stallTimer = setInterval(() => {
+          if (disposed || !tracker) return
+          const n = tracker.ticks()
+          const now = performance.now()
+          if (n !== lastTicks) { lastTicks = n; stillSince = now; tps = n - (prevTicks ?? n); }
+          // 心跳連續 STALL_MS 沒有前進 ＝ 比對迴圈卡住了
+          if (now - stillSince >= STALL_MS && phase === 'searching') to('stalled')
+        }, 1000)
+
+        // 心跳速率（輪/秒）：這是「迴圈到底有沒有在跑」最直接的數字，
+        // 而且要**放在使用者看得到的地方**——他回報「掃不到」時，這個數字
+        // 一眼就能把「迴圈卡住」與「迴圈在跑但比對不到」分開。
+        rateTimer = setInterval(() => {
+          if (disposed || !tracker) return
+          const n = tracker.ticks()
+          const next = n - (prevTicks ?? n)
+          prevTicks = n
+          if (next !== tps) { tps = next; emit() }
+        }, 1000)
 
         // ★★★ 即時特徵點探測：只在「還沒追到」時跑，追到就停（省算力）。
         //   這是這一版給使用者的**回饋迴路**——數字會隨著他移動而變，
@@ -322,6 +350,7 @@ export function createSession({ video, canvas, container, card, onState }) {
         res: video?.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : '—',
         target: tracker?.targetSize?.join(' × ') ?? '—',
         ticks: tracker?.ticks() ?? 0,
+        tps,
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
       }
@@ -331,8 +360,9 @@ export function createSession({ video, canvas, container, card, onState }) {
       disposed = true
       try { ro?.disconnect() } catch { /* ignore */ }
       cancelAnimationFrame(raf)
-      clearTimeout(stallTimer)
+      clearInterval(stallTimer)
       clearInterval(probeTimer)
+      clearInterval(rateTimer)
       try { tracker?.dispose() } catch { /* ignore */ }
       try { stage?.dispose() } catch { /* ignore */ }
       // ⚠️ 一定要停串流：少了它離開這一頁之後相機指示燈還亮著。
