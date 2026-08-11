@@ -418,6 +418,18 @@ const W = 1831, H = 1335
   }
   ok(/autoTestedRef/.test(SRC.scan) && /selfTest\(CARD\.target\)/.test(SRC.scan),
     '★★★ 卡住時要自動跑一次自我測試（只跑一次）')
+  // ★★★ 2026-08-11 已用 MindAR **官方原版範例**（/ar/plain.html）證實：
+  //   Samsung Xclipse 540 / ANGLE on Vulkan 上官方版也認不出來
+  //   ⇒ 函式庫與該 GPU 不相容，調程式解決不了。
+  //   所以自我測試一失敗就該把使用者導向 QR，而不是繼續叫他喬角度。
+  ok(/const imageTrackingDead =/.test(SRC.scan) && /const qrOnly =/.test(SRC.scan),
+    '★★ 要有「圖像辨識已確定不可用」的衍生狀態')
+  ok(/qrOnly[\s\S]{0,200}請改對準卡片左下角的 QR/.test(SRC.scan),
+    '★★★ 確定不可用且支援 QR 時，狀態列的主要指示必須換成「對準 QR」')
+  ok(/!qrOnly/.test(SRC.scan),
+    '★★ 確定不可用之後不可再顯示特徵點計量（它量的是影像品質，而問題不在影像）')
+  ok(/setLongSearch\(true\), 3500\)/.test(SRC.scan),
+    '★★ 升級判定要在 3.5 秒（正常裝置 1.5~2.6 秒就命中；等 8 秒只是讓沒救的裝置白等）')
 
   // ★ 解析度必須明講；ideal 不可換成 exact（exact 不支援時相機完全開不起來）
   ok(/width:\s*\{\s*ideal:\s*1280\s*\}/.test(SRC.camera) && /height:\s*\{\s*ideal:\s*960\s*\}/.test(SRC.camera),

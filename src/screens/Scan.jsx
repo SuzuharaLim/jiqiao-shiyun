@@ -125,7 +125,14 @@ export default function Scan() {
   const [longSearch, setLongSearch] = useState(false)
   useEffect(() => {
     if (phase !== 'searching') { setLongSearch(false); return }
-    const t = setTimeout(() => setLongSearch(true), 8000)
+    // ★★ 3.5 秒，不是 8 秒。
+    //
+    // ⚠️ 2026-08-11 已證實：**MindAR 在某些 GPU 上根本不能用**（Samsung
+    //    Xclipse 540 / ANGLE on Vulkan——連 MindAR 官方文件的原版範例
+    //    `/ar/plain.html` 在該機上也認不出來，那一頁沒有本站任何一行邏輯）。
+    //    對那種裝置，等 8 秒只是讓人白白對著卡片喬角度——結論早就註定了。
+    //    正常裝置實測 1.5~2.6 秒就命中，所以 3.5 秒不會誤傷它們。
+    const t = setTimeout(() => setLongSearch(true), 3500)
     return () => clearTimeout(t)
   }, [phase])
 
@@ -135,6 +142,18 @@ export default function Scan() {
   const stuck = longSearch
     && features !== null && features >= FEAT_GOOD
     && (st.tps ?? 0) > 0
+
+  // ★★★ 圖像辨識在這台裝置上已經確定不可用。
+  //
+  // 判準是**自我測試失敗**——那是拿「網站內建、保證正確的卡面圖」走完全相同的
+  // 辨識流程，與相機、卡片、光線、距離全部無關。它失敗就代表這台機器的
+  // MindAR／TFJS 算不出正確結果。
+  // ⚠️ 2026-08-11 已用 MindAR **官方文件的原版範例**（`/ar/plain.html`，
+  //    不含本站任何一行邏輯）在 Samsung Xclipse 540 / ANGLE on Vulkan 上證實：
+  //    官方版也認不出來 ⇒ 這是函式庫與該 GPU 不相容，調程式解決不了。
+  // ⇒ 所以這時候**唯一該做的事就是把使用者導向 QR**，而不是繼續叫他喬角度。
+  const imageTrackingDead = selfTest !== 'idle' && selfTest !== 'running' && !selfTest.ok
+  const qrOnly = imageTrackingDead && st.qrReady
 
   // 到了那個狀態就**自動**跑一次自我測試。
   // ⚠️ 不要叫使用者自己去找按鈕：他正處在「一直失敗」的情緒裡，而這個測試的
@@ -245,7 +264,14 @@ export default function Scan() {
             會隨著距離、光線、對焦即時變動——把盲目試誤變成有回饋的調整。
             ⚠️ 它量的是**影像品質**不是「有沒有對準」：數字很高卻認不出來，
                代表問題在角度或卡片版本，不在畫面。 */}
-        {phase === 'searching' && (
+        {/* ★ 確定不可用之後，「畫面特徵點」這個數字已經沒有意義了——
+            它量的是影像品質，而問題不在影像。繼續顯示只會讓人以為還有得調。 */}
+        {phase === 'searching' && qrOnly && (
+          <div className="scan-meter ok scan-qr-cta" style={{ marginTop: 'var(--space-3)' }}>
+            <span><b>請對準卡片左下角的 QR code</b>——那條路不經過出問題的運算</span>
+          </div>
+        )}
+        {phase === 'searching' && !qrOnly && (
           <>
             <div className={`scan-meter ${fv?.level ?? ''}`}>
               <div className="scan-meter-bar">
@@ -372,7 +398,11 @@ export default function Scan() {
             {phase === 'locked' ? (st.viaQr
               ? `認出來了（用卡片上的 QR）：${CARD.title}——正在開啟 3D 模型…`
               : `認出來了：${CARD.title}——正在開啟 3D 模型…`)
-              : phase === 'searching' ? '掃描中——把卡片放進框內（不必對齊四個角）'
+              : phase === 'searching' ? (qrOnly
+                ? '這台手機不支援圖像辨識——請改對準卡片左下角的 QR code'
+                : imageTrackingDead
+                  ? '這台手機不支援圖像辨識（詳見下方說明）'
+                  : '掃描中——把卡片放進框內（不必對齊四個角）')
                 : STATUS[phase] ?? '　'}
           </span>
         </div>
