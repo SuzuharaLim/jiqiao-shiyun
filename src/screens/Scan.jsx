@@ -4,6 +4,7 @@ import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
 import { createSession, inAppBrowser } from '../ar/session.js'
+import { isCompat, enableCompatAndReload, disableCompat } from '../ar/tfjsCompat.js'
 import SpeakButton from '../components/SpeakButton.jsx'
 
 // ============================================================================
@@ -306,10 +307,33 @@ export default function Scan() {
                       也就是說<b>問題不在你的卡片</b>——同一張保證正確的圖，在這台裝置上
                       也比對不出來。
                     </p>
-                    <p className="muted">
-                      這是裝置端的辨識運算問題（GPU 精度或驅動），我們需要你的診斷資料才能修。
-                      請按下方「掃描診斷 → 複製診斷資料」貼給我們。
-                    </p>
+                    {/* ★★★ 這台裝置算不對時，唯一還能試的就是換一組比較保守的
+                        TFJS 設定（關掉打包運算、強制 32 位元浮點）。它會變慢，
+                        所以預設不開——但對已經證明「算不對」的裝置，慢總比不能用好。
+                        ⚠️ 必須重新載入：TFJS 初始化過就不會再讀那些設定了。 */}
+                    {!isCompat() ? (
+                      <>
+                        <p>
+                          還有一招可以試：<b>相容模式</b>會改用比較保守的運算設定
+                          （關掉打包運算、強制 32 位元浮點），專門避開這類驅動問題。
+                          會慢一些，但這台裝置目前是完全認不出來。
+                        </p>
+                        <button className="btn-primary tap" onClick={enableCompatAndReload}>
+                          改用相容模式重試（會重新載入）
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p>
+                          <b>相容模式已經開著，仍然認不出來。</b>
+                          那就不是設定能解決的了——請按下方「掃描診斷 → 複製診斷資料」
+                          貼給我們，我們需要這台裝置的實際數據才能繼續。
+                        </p>
+                        <button className="btn-ghost tap" onClick={() => { disableCompat(); location.reload() }}>
+                          關掉相容模式
+                        </button>
+                      </>
+                    )}
                   </>
                 ) : (
                   <p>
@@ -412,6 +436,7 @@ export default function Scan() {
                   <div><dt>比對成功</dt><dd>{info.matches ?? '—'} 次</dd></div>
                   <div><dt>畫面特徵點</dt><dd>{features ?? '—'}</dd></div>
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
+                  <div><dt>相容模式</dt><dd>{info.compat ?? '—'}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
                   <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
                   <div><dt>WebGL2</dt><dd>{info.webgl2 ?? '—'}　像素比 {info.dpr ?? '—'}</dd></div>
@@ -459,7 +484,7 @@ export default function Scan() {
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
-                      `比對 worker：${i.worker ?? '—'}`,
+                      `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
                       `自我測試：${selfTest === 'idle' ? '尚未執行' : selfTest === 'running' ? '執行中'

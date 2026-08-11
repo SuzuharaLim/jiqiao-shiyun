@@ -506,6 +506,63 @@ const W = 1831, H = 1335
     '★★ .armodel-stage 必須有明確高度（A-Frame 拿到 0×0 不會自己重試，症狀是整片空白）')
 }
 
+// ── E2. 比對門檻與相容模式 ───────────────────────────────────────────────
+{
+  // ⚠️ 一定要去註解：vite.config 的註解裡就寫著「MIN_NUM_INLIERS = 4」
+  //    （在說明為什麼不可以這樣設），不去掉會讓下面的負向檢查恆為失敗。
+  const vite = stripComments(read('../vite.config.js'))
+  const compat = stripComments(read('../src/ar/tfjsCompat.js'))
+
+  ok(/MATCH_TUNING/.test(vite), '★ vite.config 要有比對門檻調整表')
+  ok(/HAMMING_THRESHOLD = 0\.75/.test(vite), '★ Lowe 比值放寬到 0.75')
+
+  // ★★★ 這兩條是**實測踩過的誤判陷阱**，不是預防性規則：
+  //   0.8 ＋ 內點 4 ＋ 重投影 5px 時，完全不是卡片的畫面（隨機色塊＋文字狀橫條）
+  //   也會命中並跳轉。病灶是 MIN_NUM_INLIERS=4——4 點正好是解出單應性矩陣的
+  //   最低數量，等於「任意四點碰巧對得上就算命中」。
+  // ★★★ 負向檢查的自我驗證：**先證明這個正規表示式真的抓得到**。
+  //
+  // ⚠️ 這一段是被真的事故逼出來的：原本寫成 `/MIN_NUM_INLIERS = [0-5]\b/`，
+  //    但產生檔案時 `\b` 被寫成了**真正的退格字元（0x08）**，於是那個 regex
+  //    永遠不可能匹配 ⇒ 檢查恆為通過 ⇒ **閘門是假的**。變異測試（把
+  //    MIN_NUM_INLIERS 改回 4）當場抓到它沒反應，否則就這樣出貨了。
+  // ⚠️ 「一個永遠通過的檢查」比沒有檢查更糟：它讓人以為那條線有人守著。
+  const NEG = [
+    [/MIN_NUM_INLIERS = [0-5][^0-9]/, "const MIN_NUM_INLIERS = 4'"],
+    [/INLIER_THRESHOLD = [5-9]/, "const INLIER_THRESHOLD = 5'"],
+    [/HAMMING_THRESHOLD = 0\.[89]/, "const HAMMING_THRESHOLD = 0.8'"],
+  ]
+  for (const [re, sample] of NEG) {
+    ok(re.test(sample), `★★★ 負向檢查的 regex ${re} 必須抓得到 ${sample}（防止閘門本身壞掉卻靜默通過）`)
+  }
+
+  ok(!/MIN_NUM_INLIERS = [0-5][^0-9]/.test(vite),
+    '★★★ 絕不可把 MIN_NUM_INLIERS 降到 6 以下（實測會讓非卡片畫面誤判並跳轉）')
+  ok(!/INLIER_THRESHOLD = [5-9]/.test(vite),
+    '★★ 不可放寬重投影誤差容忍（只會讓更多雜點被算成內點，同樣造成誤判）')
+  ok(!/HAMMING_THRESHOLD = 0\.[89]/.test(vite),
+    '★★ Lowe 比值不可放到 0.8 以上（與上面兩項一起會誤判）')
+
+  // 建置期替換必須「找不到就爆」，不可靜默不生效
+  ok(/throw new Error/.test(vite) && /找不到/.test(vite),
+    '★★★ 門檻替換找不到目標字串時必須讓建置失敗（靜默不生效＝以為放寬了其實沒有）')
+  ok(/worker: \{ plugins/.test(vite),
+    '★★ 外掛必須也掛在 worker.plugins（matching.js 只存在於 worker 的獨立建置裡）')
+
+  // 相容模式
+  ok(/tfjsflags/.test(compat), '★ 相容模式透過網址的 tfjsflags 設定 TFJS')
+  ok(/WEBGL_PACK:false/.test(compat), '★ 相容模式要關掉打包運算')
+  ok(/history\.replaceState/.test(compat), '★ 用 replaceState（不留上一頁紀錄）')
+  ok(/return \(\) => \{[\s\S]{0,160}replaceState/.test(compat),
+    '★★ 一定要回傳「還原網址」的函式（tfjsflags 留在網址上會被分享出去）')
+  ok(/reload\(\)/.test(compat),
+    '★★ 開啟相容模式必須重新載入（TFJS 初始化過就不再讀旗標，不重載＝沒開）')
+  const trk = SRC.tracker
+  ok(/withCompatFlags\(\)[\s\S]{0,400}?await import\('mind-ar\/dist\/mindar-image\.prod\.js'\)/.test(trk),
+    '★★★ 旗標必須在 import MindAR **之前**套用（TFJS 只在模組初始化那一刻讀）')
+  ok(/finally \{[\s\S]{0,80}restoreUrl\(\)/.test(trk), '★★ import 之後一定要還原網址')
+}
+
 // ── F. 官方卡包 ──────────────────────────────────────────────────────────
 {
   ok(OFFICIAL_CARDS.length > 0, '至少有一張官方卡')

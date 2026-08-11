@@ -33,6 +33,7 @@
 
 import { openCamera, retune, stopStream, attach, listBackCameras } from './camera.js'
 import { hitTest, makeHotspotLatch } from './cardSpace.js'
+import { isCompat } from './tfjsCompat.js'
 
 // ★★★ 這一支**只能靜態 import 輕量模組**（camera / cardSpace 都是零相依）。
 //
@@ -353,6 +354,7 @@ export function createSession({ video, canvas, container, card, onState }) {
         ticks: tracker?.ticks() ?? 0,
         tps,
         matches: tracker?.matches?.() ?? 0,
+        compat: isCompat() ? '開啟' : '關閉',
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
       }

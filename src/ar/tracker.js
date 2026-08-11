@@ -28,6 +28,7 @@
 
 // ⚠️ 是 `?worker` **不是** `?worker&inline`（見上）。
 import ControllerWorker from 'mind-ar/src/image-target/controller.worker.js?worker'
+import { withCompatFlags } from './tfjsCompat.js'
 
 /** 出現／消失門檻。理由見 createTracker 的註解。 */
 const WARMUP = 1
@@ -58,7 +59,16 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
 
   // ⚠️ 動態 import：這一包含 TFJS，gzip 後仍有 300 KB 級。靜態 import 會把它
   //    打進主 bundle，首頁就得為一個多數人不會點的功能背這個重量。
-  const mod = await import('mind-ar/dist/mindar-image.prod.js')
+  // ★ 相容模式：TFJS 只在**模組初始化的那一刻**讀網址上的 `tfjsflags`，
+  //   所以旗標必須在這個 import 之前放進網址、import 完馬上還原。
+  //   （預設關閉；只有自我測試失敗的裝置才會開，見 tfjsCompat.js）
+  const restoreUrl = withCompatFlags()
+  let mod
+  try {
+    mod = await import('mind-ar/dist/mindar-image.prod.js')
+  } finally {
+    restoreUrl()
+  }
   const Controller = mod.Controller ?? mod.default?.Controller
   if (!Controller) throw new Error('MindAR Controller 載入失敗')
 
