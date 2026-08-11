@@ -123,6 +123,11 @@ const ROUTES = [
   // ⚠️ 這條**允許索引**（`/AR` 是 noindex）：沒有實體卡片的人從搜尋進來就是靠這頁。
   { path: '/ar/card/:slug', title: '節氣卡片｜機巧時運',
     desc: '節氣明信片的互動內容：點卡面上的物件看當令農產、身體保健與曆頁。' },
+  // ⚠️ 模型頁 **noindex**：它是「掃到卡片之後跳來的去處」，內容與 /ar/card/:slug
+  //    高度重疊。兩頁都放給搜尋引擎就是同一份內容用兩個網址參賽，而卡片頁才是
+  //    刻意做給「沒有實體卡、從搜尋進來的人」看的那一版。
+  { path: '/ar/model/:slug', title: '節氣 3D 模型｜機巧時運', noindex: true,
+    desc: '掃到節氣卡片之後的 3D 模型展示。' },
   { path: '/subscription', title: '訂閱方案比較｜Free 與 Premium｜機巧時運',
     desc: '機巧時運的方案比較：免費版可看每日國民曆與節氣社群，Premium 另有 AI 時光顧問額度、月曆匯出與市集授權等功能。' },
   { path: '/about', title: '關於機巧時運｜把農民曆讀成人話的文化科技團隊',
@@ -239,6 +244,14 @@ function entryMeta(pathname, route) {
       title: `${c.title} 節氣卡片｜${c.term}｜機巧時運`,
       desc: `${c.title}（${c.subtitle}）節氣明信片的互動內容。點卡面上的${spots}，`
         + `看當令農產的品種與產地、節氣養生重點與當天的曆頁。沒有實體卡片也能看。`,
+    }
+  }
+  if (p === '/ar/model/:slug') {
+    const c = OFFICIAL_CARDS.find(x => x.slug === slugOf(pathname))
+    if (!c) return null
+    return {
+      title: `${c.title} 3D 模型｜${c.term}｜機巧時運`,
+      desc: `${c.title}（${c.subtitle}）的節氣 3D 角色。掃到卡片之後可以放下卡片、轉動觀察。`,
     }
   }
   if (p === '/store/:slug') {
@@ -888,7 +901,7 @@ export function entryExists(pathname, route) {
   const p = route?.path
   const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
     '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot',
-    '/store/:slug', '/ar/card/:slug']
+    '/store/:slug', '/ar/card/:slug', '/ar/model/:slug']
   if (!ENTRY.includes(p)) return true
   return entryMeta(pathname, route) !== null
 }

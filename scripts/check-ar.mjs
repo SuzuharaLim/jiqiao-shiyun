@@ -381,7 +381,64 @@ const W = 1831, H = 1335
     '★ 手動選取要暫停中心瞄準一段時間')
 }
 
-// ── E. 官方卡包 ──────────────────────────────────────────────────────────
+// ── E. 掃到 → 跳轉 A-Frame 模型頁 ────────────────────────────────────────
+{
+  const model = stripComments(read('../src/screens/ArModel.jsx'))
+  const paths = read('../src/store/paths.js')
+  const registry = read('../src/screens/registry.jsx')
+  const app = read('../src/App.jsx')
+  const seo = read('../server/seo.js')
+
+  // ★ 新增畫面要同時改四處，漏了第三處新頁會被伺服器判成未知路由而回 404
+  ok(/arModel:\s*'\/ar\/model\/:slug'/.test(paths), '★ paths.js 有 /ar/model/:slug')
+  ok(/arModel:\s*ArModel/.test(registry) && /import ArModel/.test(registry), '★ registry 註冊 arModel')
+  ok(/arModel:/.test(app), '★ App.jsx 的 SCREEN_TITLES 有 arModel')
+  ok(/'\/ar\/model\/:slug'/.test(seo), '★★ server/seo.js 的 ROUTES 有 /ar/model/:slug（漏了會回 404）')
+  // 模型頁與卡片頁內容高度重疊 → 模型頁必須 noindex，否則同一份內容兩個網址參賽
+  ok(/path: '\/ar\/model\/:slug'[^}]*noindex: true/.test(seo),
+    '★★ 模型頁要 noindex（內容與 /ar/card/:slug 重疊）')
+  ok(/'\/ar\/model\/:slug'\]/.test(seo) || /'\/ar\/model\/:slug',/.test(seo),
+    '★ 模型頁要進 entryExists（不存在的 slug 要回真 404）')
+
+  // ★★ 掃到就跳轉——這是使用者明確要求的動線
+  ok(/push\('arModel'/.test(SRC.scan), "★★★ /AR 認出卡片後要 push('arModel')")
+  ok(/jumpedRef/.test(SRC.scan), '★★ 跳轉只能發生一次（追蹤會反覆 found/lost）')
+  ok(/hotspot: hotspotRef\.current\?\.id/.test(SRC.scan), '★ 跳轉要把使用者瞄準的熱區帶過去')
+  // ★★★ 熱區是遲滯確認的（連 3 幀），會在「認出來」之後才變動。放進 deps 的話
+  //   effect 重跑 → cleanup 清掉計時器 → 但一次性旗標已經是 true → 不再重新排程
+  //   ⇒ **跳轉永遠不會發生**，而畫面停在「正在開啟 3D 模型…」。實測踩過。
+  ok(/useEffect\([\s\S]{0,400}?push\('arModel'[\s\S]{0,200}?\}, \[phase, push\]\)/.test(SRC.scan),
+    '★★★ 跳轉 effect 的 deps 只能是 [phase, push]（hotspot 進 deps 會讓跳轉永遠不發生）')
+  ok(/JUMP_DELAY_MS/.test(SRC.scan), '★ 跳轉前要留一段確認時間（辨識成功是唯一的「成了」時刻）')
+
+  // ★★★ A-Frame 自帶 super-three，與本專案的 three 是兩份副本。
+  //   角色是用本專案的 three 建的、交給 A-Frame 算繪 —— 跨副本。
+  //   可行的理由是 three 用 isMesh/isBufferGeometry 這類布林旗標判斷型別，
+  //   不是 instanceof。⚠️ 但那是**實測**確認的，升級任一邊都要重驗，
+  //   失效方式是「模型不出現而且沒有任何錯誤訊息」。
+  ok(/super-three/.test(read('../node_modules/aframe/package.json')),
+    '★★★ 確認 A-Frame 仍使用 super-three（與本專案 three 為兩份副本；此假設一旦改變要重驗跨副本算繪）')
+  // ★★★ 跨副本的關鍵一行：**不可以**用 setObject3D（它做 instanceof 檢查，
+  //   跨副本必定 false ⇒ 直接拋錯、模型永遠不出現）。實測拿到的錯誤訊息是
+  //   「`Entity.setObject3D` was called with an object that was not an instance
+  //     of THREE.Object3D.」
+  ok(!/setObject3D/.test(model),
+    '★★★ 不可用 setObject3D（A-Frame 對它做 instanceof THREE.Object3D，跨副本必定失敗）')
+  ok(/this\.el\.object3D\.add\(char\.root\)/.test(model),
+    '★★ 角色用 el.object3D.add 掛上（繞過 instanceof；算繪器本身是 duck typing）')
+  ok(/this\.el\.object3D\.remove\(this\.char\.root\)/.test(model),
+    '★★ 卸載要自己 remove（不在 object3DMap 裡，removeObject3D 找不到它）')
+  ok(/await import\('aframe'\)/.test(model), '★★ A-Frame 一律動態 import（~1 MB，不可進主 bundle）')
+  ok(/let registered = false/.test(model),
+    '★★ A-Frame 元件只能註冊一次（重複註冊會 throw，第二次進頁面整頁掛掉）')
+  ok(/forceContextLoss/.test(model), '★ 離開要釋放 WebGL context')
+  ok(/look-controls="enabled: false"/.test(model),
+    '★ 要關掉 look-controls（開著的話相機會跟手機陀螺儀飄，看模型時畫面自己在動）')
+  ok(/\.armodel-stage\s*\{[^}]*height:/.test(SRC.css),
+    '★★ .armodel-stage 必須有明確高度（A-Frame 拿到 0×0 不會自己重試，症狀是整片空白）')
+}
+
+// ── F. 官方卡包 ──────────────────────────────────────────────────────────
 {
   ok(OFFICIAL_CARDS.length > 0, '至少有一張官方卡')
   for (const c of OFFICIAL_CARDS) {

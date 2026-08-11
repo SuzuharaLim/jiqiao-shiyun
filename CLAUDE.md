@@ -281,6 +281,25 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **★ 熱區重疊時取面積最小的**：卡面上大框套小框是常態（曆頁那一大條裡面還有臘八粥），取大的等於小的永遠點不到。
   - **離線驗證：假相機 ＋ rAF shim**。`canvas.captureStream()` 餵給 video。⚠️ 自動化環境 `visibilityState` 恆為 `'hidden'`、rAF 不觸發，而 MindAR 的處理迴圈每輪結尾是 `await tf.nextFrame()`（靠 rAF 解析）⇒ **迴圈停在第一輪**，而 video 在播、看起來一切正常。不補 shim 會誤判成「偵測不到」。⚠️ 換 `srcObject` 之後**一定要 `play()`**，否則影格永遠不更新、特徵點恆為 0——這一點在重寫的驗證過程中意外重現了一次，正是 `attach()` 裡那句 `play()` 存在的理由。⚠️ **完全平坦的灰底是退化輸入**：模板比對在零梯度畫面上會一直「追得到」，所以測「追丟」要用有紋理的畫面，不要用純色。
   - **2026-08-11 實測（正式 build ＋ CSP，375×812 行動視窗）**：1.5 秒內 `locked`；`<video>` 屬性 1280×960；取景框中心最上層是 `VIDEO`（無黑畫面）；畫布 468×751（＝375×601×1.25）；3D 白菜算繪出來且錨在 primary 熱區；熱區命中「身體保健」；特徵點計追丟時 0、正常距離 111；心跳約 43 輪/秒；worker 顯示「同源」。
+- **★★★ 掃到卡片 → **跳轉**到 A-Frame 模型頁 `/ar/model/:slug`（`src/screens/ArModel.jsx`，2026-08-11）。**
+  `/AR` 用 MindAR 認出卡片後停 `JUMP_DELAY_MS`(900ms) 再 `push('arModel', {slug, hotspot})`。
+  - **為什麼是「跳轉」不是「貼在卡片上」**：貼在卡片上需要**持續追蹤**，追蹤一斷內容就消失，使用者得一直維持手、卡片、光線三者都對——那正是先前「掃得到卻用不起來」的主因。跳走之後**辨識只需要成功一次**，看模型不再依賴相機，可以放下卡片、雙手轉動觀察。
+  - **停 900ms 再跳**：辨識成功是這條動線唯一的「成了！」時刻，瞬間換掉的話使用者不知道剛剛發生什麼事。但也不可超過一秒半——手已經放下卡片還在等會以為當掉。
+  - **★★★ 跳轉 effect 的 deps 只能是 `[phase, push]`，`hotspot` 千萬不可放進去**：熱區是遲滯確認的（連 3 幀），所以「認出來」之後約 0.3 秒才會從 null 變成實際那一區 ⇒ effect 重跑 ⇒ cleanup 清掉計時器 ⇒ 但一次性旗標已是 true ⇒ **不再重新排程 ⇒ 跳轉永遠不會發生**，而畫面停在「正在開啟 3D 模型…」。狀態列說得斬釘截鐵、實際上什麼都不會來。熱區改用 ref 讀。實測踩過，`check-ar.mjs` 有鎖。
+  - **只跳一次**（`jumpedRef`）：追蹤會反覆 found/lost，不鎖的話回到這一頁又追到就再跳一次，使用者會被彈來彈去。
+  - **★★★ A-Frame 自帶 `super-three@0.184`，與本專案 `three@0.185` 是兩份副本**（A-Frame 的相依寫成 `three: npm:super-three@0.184.0`，永遠不會被 npm 去重）。角色用**本專案的 three** 建，交給 **A-Frame 的算繪器**畫——跨副本。
+    - **可行**：`WebGLRenderer` 判斷型別用的是 `isMesh`／`isBufferGeometry`／`isMaterial` 這類**布林旗標**（three 就是為了跨副本互通才這樣設計），不是 `instanceof`。實測 102 個 mesh、170,456 三角形全部正常畫出。
+    - **★★ 但絕不可用 `el.setObject3D()`**：它第一行就是 `if (!(obj instanceof THREE.Object3D)) throw`，而那個 `THREE` 是 A-Frame 自己的 super-three ⇒ 跨副本必定 false ⇒ 直接拋「`Entity.setObject3D` was called with an object that was not an instance of THREE.Object3D.」（實測拿到的錯誤）。改用 `el.object3D.add()` 繞過——A-Frame 擋的是它自己的 API 契約，不是算繪能力。
+    - **代價**：物件不在 `object3DMap` 裡，`removeObject3D` 找不到它，卸載要自己 `object3D.remove()`，否則反覆進出會一直往場景疊角色。
+    - ⚠️ 升級 A-Frame 或 three 之後**要重驗**：失效方式是「模型不出現而且沒有任何錯誤訊息」。`check-ar.mjs` 有一項鎖住「A-Frame 仍使用 super-three」這個前提。
+  - **`<a-scene>` 用 `document.createElement` 自己建，不交給 React 渲染**：A-Frame 是自訂元素，靠 DOM 掛載時的 `connectedCallback` 初始化，交給 React 的話重新調度會與它自己的生命週期打架。React 只負責那個容器。
+  - **A-Frame 元件只能註冊一次**（`registered` 旗標）：重複 `registerComponent` 會 throw，少了旗標第二次進這一頁整頁就掛了。
+  - **`.armodel-stage` 必須有明確高度**：`<a-scene embedded>` 拿到 0×0 時**不會自己重試**，症狀是整片空白而沒有任何錯誤。
+  - **關掉 `look-controls`**：開著的話相機會跟手機陀螺儀轉，把手機放桌上看模型時畫面會自己飄。A-Frame 內建沒有 orbit-controls（那是社群元件），所以自己寫了 20 行 `jq-drag-rotate`：拖曳轉動、放開後慢慢自轉（靜止的 3D 看起來像一張圖片），上下角度夾在 ±35°（不夾會轉到模型底下看到穿模的內裡）。
+  - **`lod: 0.85`** 與 ProduceStage 同一個值：全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算，實測畫面看不出差別（0.85 ＝ 170,456）。
+  - **成本**：A-Frame 分塊 **1,322 kB / gzip 361**，一律 `await import('aframe')` 懶載入；主 bundle 只因為這一頁 +6.5 kB。
+  - **模型頁 `noindex`**：內容與 `/ar/card/:slug` 高度重疊，兩頁都放給搜尋引擎就是同一份內容用兩個網址參賽——而卡片頁才是刻意做給「沒有實體卡、從搜尋進來的人」看的那一版。
+  - **實測（正式 build ＋ CSP，375×812）**：`/AR` 點開始 → 3.5 秒後網址變成 `/ar/model/2027-xiaohan`、分頁標題「3D 模型 · 機巧時運」；模型 102 mesh／170,456 三角形／102 draw call 全部畫出（畫布綠色像素 9.7%）；自轉正常；掃描時瞄到的熱區有跟著帶過去。
 - **（已刪除）自研平面追蹤**：`homography.js`／`quadDetect.js`／`arTracker.js`／`features.js`／`scanner.js`／`arPoseBridge.js`／`arDiagnose.js`／`arSimFrame.js`／`mindTrack.js`／`arCardRegistry.js`／`ARScene.jsx`／`ARCharacter.jsx` 與 `check-features.mjs`／`frame-card.mjs`／`install-target.mjs`（`card:frame`／`card:install`）**已於 2026-08-11 全部刪除**。那條路線偵測卡片四角 → 透視拉正 → dHash 比對 → 解 homography → CSS `matrix3d` 疊加。它留下的經驗多數已隨路線失效，只有兩條仍值得記住：① **實體卡的設計必須早於 AR 開發**；② **卡面要有明顯不對稱、紋理足夠的元素**（MindAR 也吃這一條，只是理由從「四角定向」變成「特徵點數量」）。**「收邊」規範已作廢**——MindAR 不偵測卡片邊界，實測收邊版與未收邊原稿都 12/12。
 - **成果圖卡（`src/lib/shareCard.js`）純 canvas，零外部素材**，1080×1080，答對小挑戰後才出現。**內容紀律：只畫真的東西**——徽章名、節氣、日期、一句有出處的事實。不放「我贏了」「第 N 名」這種站上根本沒有的概念，也不放營養宣稱。
   - **⚠️ iOS Safari 不支援 `<a download>`**：點了只會在同一個分頁開啟那張圖，使用者以為壞掉了。順序必須是 ① Web Share API 帶檔案（手機最好的路徑）② `<a download>`（桌機）③ 開新分頁＋提示「長按圖片即可儲存」。**使用者按取消（`AbortError`）不是錯誤**，不可跳失敗提示。

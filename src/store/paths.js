@@ -28,6 +28,7 @@ export const SCREEN_PATH = {
   // 條目頁：一個節氣／一位神明／一個夢境各自一個網址（SEO 長尾）
   termDetail: '/solarterms/:slug', deityDetail: '/deities/:slug', dreamDetail: '/dream/:slug',
   arCard: '/ar/card/:slug',
+  arModel: '/ar/model/:slug',
   // 擇日工具：/auspicious/moving 是總表、/auspicious/moving/2026-09 是月份頁
   auspiciousIndex: '/auspicious', auspicious: '/auspicious/:kind/:ym?',
   glossary: '/glossary', glossaryDetail: '/glossary/:slug',

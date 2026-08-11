@@ -1654,6 +1654,21 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .scan-meter.warn .scan-meter-bar i { background:var(--gold); }
 .scan-meter.bad  .scan-meter-bar i { background:var(--ji); }
 
+/* ── A-Frame 模型頁（掃到卡片之後跳來的去處）── */
+.armodel-body { padding-bottom: var(--space-4); }
+/* ⚠️ A-Frame 的 <a-scene embedded> 會把 canvas 塞成容器的絕對定位子元素，
+   所以容器必須 position:relative 且**有明確高度**——沒有高度時 A-Frame 會
+   拿到 0×0 並且**不會自己重試**，症狀是整片空白而沒有任何錯誤。 */
+.armodel-stage { position: relative; width: 100%; max-width: 680px; margin: 10px auto 0;
+  height: min(62vh, 560px); flex: 0 0 auto;
+  background: var(--tone-1); border-radius: 2px; overflow: hidden; }
+.armodel-stage a-scene, .armodel-stage canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
+.armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
+.armodel-acts { display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-4); flex: 0 0 auto; }
+
 /* 即時比對狀態列 */
 .scan-status { text-align:center; font-size:var(--text-xs); color:var(--muted); padding:10px 20px 0;
   min-height:20px; flex:0 0 auto; }

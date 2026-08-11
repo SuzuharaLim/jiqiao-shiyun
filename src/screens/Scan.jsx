@@ -35,8 +35,18 @@ function featureVerdict(n) {
   return { level: 'bad', text: '太少：太遠／太暗／糊掉／反光' }
 }
 
+/**
+ * ★ 認出卡片之後、跳去模型頁之前，先停這麼久。
+ *
+ * ⚠️ 不可設 0：辨識成功是這條動線唯一的「成了！」時刻，畫面瞬間換掉的話
+ *    使用者不知道剛剛發生什麼事，只覺得「按一按就跳走了」。停一下讓取景框
+ *    轉成命中色、狀態列說出卡片名稱，那一秒是回饋不是延遲。
+ * ⚠️ 也不可太久：超過一秒半，手已經放下卡片了還在等，會以為當掉。
+ */
+const JUMP_DELAY_MS = 900
+
 export default function Scan() {
-  const { setToast } = useNav()
+  const { setToast, push } = useNav()
   const stageRef = useRef(null)
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -75,6 +85,37 @@ export default function Scan() {
     try { sessionRef.current?.dispose() } catch { /* ignore */ }
     sessionRef.current = null
   }, [])
+
+  // ── ★★★ 認出卡片 → 跳轉到 A-Frame 模型頁 ──
+  //
+  // 這是這條動線的核心決定：**辨識只需要成功一次**。
+  // 把角色貼在卡片上的話，追蹤一斷內容就消失，使用者得一直維持手、卡片、
+  // 光線三者都對——而那正是先前「掃得到卻用不起來」的主因。認出來就跳走之後，
+  // 看模型不再依賴相機，可以放下卡片、雙手轉動觀察。
+  //
+  // ⚠️ 跳轉前要把熱區一起帶過去：使用者剛剛瞄準的是哪一區，模型頁就先講那一區
+  //    的內容。沒帶的話等於忽略他剛才做的瞄準動作。
+  // ⚠️ 只跳一次（`jumpedRef`）：追蹤會反覆 found/lost，不鎖的話一旦回到這一頁
+  //    又追到就會再跳一次，使用者會被彈來彈去而且上一頁行為變得莫名其妙。
+  const jumpedRef = useRef(false)
+  // ★★ 熱區用 ref 讀，**不可以放進 deps**。
+  //
+  // ⚠️ 這裡踩過一次而且完全靜默：熱區是遲滯確認的（要連 3 幀），所以「認出來」
+  //    之後約 0.3 秒 `hotspot` 才會從 null 變成實際那一區 ⇒ effect 重跑 ⇒
+  //    cleanup 把計時器清掉 ⇒ 但 `jumpedRef.current` 已經是 true ⇒ 提早 return、
+  //    **不再重新排程** ⇒ 跳轉永遠不會發生。
+  //    畫面上只看得到「認出來了…正在開啟 3D 模型…」然後就停在那裡——
+  //    狀態列說得斬釘截鐵，實際上什麼都不會來。
+  const hotspotRef = useRef(null)
+  hotspotRef.current = hotspot
+  useEffect(() => {
+    if (phase !== 'locked' || jumpedRef.current || !CARD) return
+    jumpedRef.current = true
+    const t = setTimeout(() => {
+      push('arModel', { slug: CARD.slug, hotspot: hotspotRef.current?.id ?? null })
+    }, JUMP_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [phase, push])
 
   // 轉向／版面改變要重算投影，否則 3D 與影像對不上。
   useEffect(() => {
@@ -187,7 +228,7 @@ export default function Scan() {
 
         <div className="scan-status">
           <span aria-live="polite">
-            {phase === 'locked' ? `已對準：${CARD.title}——點卡面上的物件可以換內容`
+            {phase === 'locked' ? `認出來了：${CARD.title}——正在開啟 3D 模型…`
               : phase === 'searching' ? '掃描中——把卡片放進框內（不必對齊四個角）'
                 : STATUS[phase] ?? '　'}
           </span>

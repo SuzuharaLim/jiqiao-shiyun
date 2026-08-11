@@ -24,7 +24,7 @@ const SCREEN_TITLES = {
   editProfile: '編輯個人檔案', about: '品牌故事', accountSecurity: '帳號安全', admin: '管理後台',
   privacy: '隱私權政策', terms: '服務條款', contact: '聯絡我們',
   termDetail: '節氣專頁', deityDetail: '神明誕辰', dreamDetail: '解夢',
-  arCard: '節氣卡片',
+  arCard: '節氣卡片', arModel: '3D 模型',
   auspiciousIndex: '擇日工具', auspicious: '吉日查詢',
   glossary: '術語解釋', glossaryDetail: '術語', editorial: '編輯政策', myths: '常見誤解',
   sunIndex: '攝影時刻', sunTimes: '日出日落',
@@ -45,7 +45,8 @@ export default function App() {
   //   換頁了。把焦點移到新頁的 <h1>（TopBar 渲染，帶 data-screen-title）
   //   才會宣告新標題。first 用來跳過初次載入（那時焦點本來就在頁首）。
   const firstRender = useRef(true)
-  const initialSig = useRef(null)   // 進站時的路由簽章；相同時不覆寫伺服器的 <title>
+  const initialSig = useRef(null)      // 進站時的路由簽章
+  const hasNavigated = useRef(false)   // 曾經離開過進站那一頁沒有（見下方說明）
   useEffect(() => {
     // ⚠️ 絕不可在「初次載入」就覆寫 <title>。
     //    伺服器已經依路由注入了關鍵字完整的標題（server/seo.js 的 ROUTES），
@@ -63,8 +64,17 @@ export default function App() {
     // 否則整串歷史紀錄會全部叫同一個名字，使用者在上一頁清單裡分不出哪天是哪天。
     const sig = `${tab}|${top?.screen || ''}|${top?.props?.date || ''}`
     if (initialSig.current === null) initialSig.current = sig
-    const navigated = sig !== initialSig.current
-    if (navigated) {
+    // ★★ 判準是「**曾經**離開過進站的那一頁」，不是「現在是不是那一頁」。
+    //
+    // ⚠️ 原本寫 `sig !== initialSig.current`，於是**回到進站那一頁時標題不會更新**：
+    //    從 /ar/model/x 進站 → 點去 /ar/card/x（標題改成「節氣卡片」）→ 按上一頁
+    //    回到 /ar/model/x，sig 又等於 initialSig ⇒ 判定「沒導覽過」⇒ 標題**留在
+    //    「節氣卡片」**。實測就是這樣（網址 /ar/model/…、分頁標題卻是節氣卡片）。
+    //    使用者在一堆分頁裡是靠標題找頁面的，錯的標題比沒有更糟。
+    // ⚠️ 但**第一次進站仍然不可覆寫**——伺服器（server/seo.js）已經依路由注入了
+    //    關鍵字完整的標題，而 Google 採用的是渲染後的 DOM，蓋掉等於那份全白做。
+    if (sig !== initialSig.current) hasNavigated.current = true
+    if (hasNavigated.current) {
       if (!user) document.title = '機巧時運 · 智慧互動國民曆'
       else {
         // 日期頁的標題要帶上該日期，與伺服器注入的格式一致
