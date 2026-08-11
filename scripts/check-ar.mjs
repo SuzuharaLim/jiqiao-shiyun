@@ -416,8 +416,24 @@ const W = 1831, H = 1335
   //   可行的理由是 three 用 isMesh/isBufferGeometry 這類布林旗標判斷型別，
   //   不是 instanceof。⚠️ 但那是**實測**確認的，升級任一邊都要重驗，
   //   失效方式是「模型不出現而且沒有任何錯誤訊息」。
-  ok(/super-three/.test(read('../node_modules/aframe/package.json')),
-    '★★★ 確認 A-Frame 仍使用 super-three（與本專案 three 為兩份副本；此假設一旦改變要重驗跨副本算繪）')
+  // ★★★ A-Frame 走**自帶的預編譯檔**，不從 npm 安裝。
+  //   ⚠️ 理由是部署會失敗：aframe 的相依裡有一個 git 來源套件
+  //      （three-bmfont-text → github:dmarcos/...），而 GCP 的建置環境禁止
+  //      git 來源（EALLOWGIT）⇒ npm ci 直接失敗 ⇒ 整個服務部署不上去。
+  //      2026-08-11 實際炸過一次。
+  const pkg = JSON.parse(read('../package.json'))
+  ok(!pkg.dependencies?.aframe && !pkg.devDependencies?.aframe,
+    '★★★ package.json 不可有 aframe 相依（它帶 git 來源套件，GCP 建置會 EALLOWGIT 失敗）')
+  ok(!/git\+ssh|"github:/.test(read('../package-lock.json')),
+    '★★★ package-lock 不可出現任何 git 來源套件（同上，會讓部署整個掛掉）')
+  const vendored = read('../public/vendor/aframe-1.8.0.min.js')
+  ok(vendored.length > 500000, '★★ 自帶的 A-Frame 預編譯檔存在且看起來完整')
+  ok(/window\.AFRAME/.test(vendored), '★★ 自帶檔會註冊 window.AFRAME')
+  // 跨副本算繪的前提：A-Frame 仍然自帶 super-three
+  ok(/super-three|supermedium/.test(vendored),
+    '★★★ 確認 A-Frame 仍自帶 super-three（與本專案 three 為兩份副本；此假設一旦改變要重驗跨副本算繪）')
+  ok(model.includes("'/vendor/aframe-1.8.0.min.js'"),
+    '★ 模型頁指向的自帶檔路徑要與實際檔名一致')
   // ★★★ 跨副本的關鍵一行：**不可以**用 setObject3D（它做 instanceof 檢查，
   //   跨副本必定 false ⇒ 直接拋錯、模型永遠不出現）。實測拿到的錯誤訊息是
   //   「`Entity.setObject3D` was called with an object that was not an instance
@@ -428,7 +444,9 @@ const W = 1831, H = 1335
     '★★ 角色用 el.object3D.add 掛上（繞過 instanceof；算繪器本身是 duck typing）')
   ok(/this\.el\.object3D\.remove\(this\.char\.root\)/.test(model),
     '★★ 卸載要自己 remove（不在 object3DMap 裡，removeObject3D 找不到它）')
-  ok(/await import\('aframe'\)/.test(model), '★★ A-Frame 一律動態 import（~1 MB，不可進主 bundle）')
+  ok(!/from 'aframe'|import\('aframe'\)/.test(model),
+    '★★ 不可從 npm import aframe（要走自帶的預編譯檔）')
+  ok(/loadAframeScript/.test(model), '★★ A-Frame 由 <script> 動態載入，不進 Vite 模組圖')
   ok(/let registered = false/.test(model),
     '★★ A-Frame 元件只能註冊一次（重複註冊會 throw，第二次進頁面整頁掛掉）')
   ok(/forceContextLoss/.test(model), '★ 離開要釋放 WebGL context')

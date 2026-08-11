@@ -297,7 +297,19 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **`.armodel-stage` 必須有明確高度**：`<a-scene embedded>` 拿到 0×0 時**不會自己重試**，症狀是整片空白而沒有任何錯誤。
   - **關掉 `look-controls`**：開著的話相機會跟手機陀螺儀轉，把手機放桌上看模型時畫面會自己飄。A-Frame 內建沒有 orbit-controls（那是社群元件），所以自己寫了 20 行 `jq-drag-rotate`：拖曳轉動、放開後慢慢自轉（靜止的 3D 看起來像一張圖片），上下角度夾在 ±35°（不夾會轉到模型底下看到穿模的內裡）。
   - **`lod: 0.85`** 與 ProduceStage 同一個值：全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算，實測畫面看不出差別（0.85 ＝ 170,456）。
-  - **成本**：A-Frame 分塊 **1,322 kB / gzip 361**，一律 `await import('aframe')` 懶載入；主 bundle 只因為這一頁 +6.5 kB。
+  - **★★★ A-Frame 走「自帶預編譯檔」，`package.json` 裡沒有 aframe。**
+    ⚠️ 這不是偏好，是**部署會整個失敗**：`aframe` 的相依裡有一個 **git 來源**套件
+    （`"three-bmfont-text": "github:dmarcos/three-bmfont-text#c3eec235…"`），而 GCP 的建置環境
+    禁止 git 來源 ⇒ `npm ci` 直接死在 `npm error code EALLOWGIT：Fetching packages of type "git"
+    have been disabled` ⇒ 服務部署不上去。2026-08-11 實際炸過一次（加了 aframe 之後第一次部署就掛）。
+    作法：`public/vendor/aframe-1.8.0.min.js`（1,292 kB，自足的 UMD bundle，含它自己的 super-three），
+    用 `<script>` 動態插入、等 `window.AFRAME` 出現。**同源，所以 `script-src 'self'` 本來就允許**。
+    ⚠️ 檔名帶版號，升級換檔名（舊快取自然失效），而且**升級後一定要重驗跨副本算繪**。
+    ⚠️ `<script>` 的 `load` 事件**不代表載入成功**——檔案不存在時 SPA fallback 會回 200 + index.html，
+    那也會觸發 load。一定要接著檢查 `window.AFRAME` 是否真的存在。
+    ⚠️ 加任何新相依之前先想一下它有沒有 git 來源：`npm view <pkg> dependencies` 看得到，
+    而這個錯誤**只會在部署時出現**，本機 `npm install` 完全正常。
+  - **成本**：自帶檔 1,292 kB，只有進到這一頁才會下載；**不進 Vite 模組圖**，主 bundle 完全不受影響。
   - **模型頁 `noindex`**：內容與 `/ar/card/:slug` 高度重疊，兩頁都放給搜尋引擎就是同一份內容用兩個網址參賽——而卡片頁才是刻意做給「沒有實體卡、從搜尋進來的人」看的那一版。
   - **實測（正式 build ＋ CSP，375×812）**：`/AR` 點開始 → 3.5 秒後網址變成 `/ar/model/2027-xiaohan`、分頁標題「3D 模型 · 機巧時運」；模型 102 mesh／170,456 三角形／102 draw call 全部畫出（畫布綠色像素 9.7%）；自轉正常；掃描時瞄到的熱區有跟著帶過去。
 - **（已刪除）自研平面追蹤**：`homography.js`／`quadDetect.js`／`arTracker.js`／`features.js`／`scanner.js`／`arPoseBridge.js`／`arDiagnose.js`／`arSimFrame.js`／`mindTrack.js`／`arCardRegistry.js`／`ARScene.jsx`／`ARCharacter.jsx` 與 `check-features.mjs`／`frame-card.mjs`／`install-target.mjs`（`card:frame`／`card:install`）**已於 2026-08-11 全部刪除**。那條路線偵測卡片四角 → 透視拉正 → dHash 比對 → 解 homography → CSS `matrix3d` 疊加。它留下的經驗多數已隨路線失效，只有兩條仍值得記住：① **實體卡的設計必須早於 AR 開發**；② **卡面要有明顯不對稱、紋理足夠的元素**（MindAR 也吃這一條，只是理由從「四角定向」變成「特徵點數量」）。**「收邊」規範已作廢**——MindAR 不偵測卡片邊界，實測收邊版與未收邊原稿都 12/12。

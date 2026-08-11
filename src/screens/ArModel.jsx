@@ -31,12 +31,47 @@ import SpeakButton from '../components/SpeakButton.jsx'
  */
 let registered = false
 
+/**
+ * ★★★ A-Frame 走**自帶的預編譯檔**（`public/vendor/`），不從 npm 安裝。
+ *
+ * ⚠️ 這不是偏好，是**部署會失敗**：`aframe` 的相依裡有一個 **git 來源**套件
+ *      "three-bmfont-text": "github:dmarcos/three-bmfont-text#c3eec235…"
+ *    而 GCP 的建置環境禁止 git 來源（`npm error code EALLOWGIT：Fetching
+ *    packages of type "git" have been disabled`）⇒ `npm ci` 直接失敗 ⇒
+ *    **整個服務部署不上去**。2026-08-11 實際炸過一次。
+ *    自帶預編譯檔之後 `package.json` 完全沒有 aframe，任何環境都不會再解析它。
+ *
+ * ⚠️ 順帶好處：這一份是**自足的 UMD bundle**（含它自己的 super-three），
+ *    不進 Vite 的模組圖 ⇒ 主 bundle 一個位元組都不受影響。
+ * ⚠️ 檔名帶版號：升級時換檔名，瀏覽器與 CDN 的舊快取自然失效。
+ *    升級之後**一定要重驗跨副本算繪**（見檔頭），失效方式是靜默的。
+ * ⚠️ 同源載入，所以 CSP `script-src 'self'` 本來就允許——不需要放寬任何設定。
+ */
+const AFRAME_SRC = '/vendor/aframe-1.8.0.min.js'
+
+function loadAframeScript() {
+  return new Promise((resolve, reject) => {
+    if (window.AFRAME) { resolve(window.AFRAME); return }
+    // 已經有人在載了就共用同一個 <script>，不要重複插入
+    let el = document.querySelector(`script[src="${AFRAME_SRC}"]`)
+    if (!el) {
+      el = document.createElement('script')
+      el.src = AFRAME_SRC
+      el.async = true
+      document.head.appendChild(el)
+    }
+    el.addEventListener('load', () => {
+      // ⚠️ load 事件不代表 window.AFRAME 一定就緒（檔案有可能是被代理改寫過的
+      //    HTML＝SPA fallback 回的 index.html，那也會觸發 load）。要實際檢查。
+      window.AFRAME ? resolve(window.AFRAME) : reject(new Error('A-Frame 載入了但沒有註冊 window.AFRAME'))
+    }, { once: true })
+    el.addEventListener('error', () => reject(new Error(`載不到 ${AFRAME_SRC}`)), { once: true })
+  })
+}
+
 async function ensureAframe() {
   if (typeof window === 'undefined') return null
-  // ⚠️ 一定要動態 import：A-Frame 是 ~1 MB 級的函式庫，靜態 import 會把它
-  //    打進主 bundle，首頁就得替一個多數人不會點的功能背這個重量。
-  if (!window.AFRAME) await import('aframe')
-  const AFRAME = window.AFRAME
+  const AFRAME = await loadAframeScript()
   if (!AFRAME) throw new Error('A-Frame 載入失敗')
 
   if (!registered) {

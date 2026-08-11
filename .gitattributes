@@ -1,0 +1,4 @@
+# 自帶的第三方預編譯檔：不做任何行尾轉換也不做 diff。
+# ⚠️ 這是 A-Frame 的 minified bundle，被行尾正規化改過就可能壞掉，
+#    而且它在 diff 裡是一整行、毫無可讀性，只會把 code review 洗版。
+public/vendor/* binary
