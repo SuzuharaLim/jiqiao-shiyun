@@ -137,6 +137,7 @@ export function createSession({ video, canvas, container, card, onState }) {
       cameras,
       ticks: tracker?.ticks() ?? 0,
       tps,
+      matches: tracker?.matches?.() ?? 0,
       sameOriginWorker: tracker?.sameOriginWorker ?? null,
     })
   }
