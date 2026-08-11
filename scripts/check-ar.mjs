@@ -567,6 +567,40 @@ const W = 1831, H = 1335
   ok(/finally \{[\s\S]{0,80}restoreUrl\(\)/.test(trk), '★★ import 之後一定要還原網址')
 }
 
+// ── E3. QR 備援 ──────────────────────────────────────────────────────────
+{
+  const qr = stripComments(read('../src/ar/qrFallback.js'))
+  const { matchCardFromQr } = await import('../src/ar/qrFallback.js')
+  const cards = OFFICIAL_CARDS
+
+  // ★ 只認本站網址：不限定 host 的話，路上任何一張 QR 都會觸發跳轉
+  ok(matchCardFromQr('https://example.com/', cards) === null, '★★ 外站的 QR 不可觸發')
+  ok(matchCardFromQr('隨便一段文字', cards) === null, '不是網址的 QR 不可觸發')
+  ok(matchCardFromQr('', cards) === null, '空字串不可觸發')
+  ok(matchCardFromQr('https://chengqi.tw/', cards)?.slug === cards[0].slug,
+    '★ 本站網址的 QR 要對應到唯一那張官方卡')
+  ok(matchCardFromQr(`https://chengqi.tw/ar/model/${cards[0].slug}`, cards)?.slug === cards[0].slug,
+    '★ 帶 slug 的網址要對應到該張卡')
+
+  // ★★★ 未來出第二張卡時，只編站台首頁的舊 QR **不可以**亂猜
+  const two = [cards[0], { ...cards[0], slug: 'other-card', id: 'other' }]
+  ok(matchCardFromQr('https://chengqi.tw/', two) === null,
+    '★★★ 有多張卡時，只編站台首頁的 QR 不可亂猜（猜錯會帶到別張卡的內容）')
+  ok(matchCardFromQr(`https://chengqi.tw/ar/model/${cards[0].slug}`, two)?.slug === cards[0].slug,
+    '★ 有多張卡時，帶 slug 的網址仍要對得出來')
+
+  ok(/BarcodeDetector/.test(qr), '用瀏覽器原生 BarcodeDetector（不碰 TFJS／WebGL／worker）')
+  ok(/getSupportedFormats/.test(qr), '★★ 要 feature-detect（iOS Safari 沒有這個 API）')
+  ok(/busy/.test(qr), '★ 偵測不可重疊呼叫（部分實作會拋 InvalidStateError 並靜默死掉）')
+  // ⚠️ 這一條原本比對的是**註解文字**，但 `qr` 已經去過註解 ⇒ 永遠不可能通過。
+  //    （與稍早那個被退格字元汙染的 regex 同一類錯誤：檢查本身壞掉。）
+  //    改成驗真正的程式結構：detect() 要包在 try 裡，而且要有 finally 復位。
+  ok(/try \{[\s\S]{0,220}?detector\.detect\(video\)[\s\S]{0,400}?catch[\s\S]{0,60}?finally/.test(qr),
+    '★★ QR 偵測要包 try/catch/finally（失敗靜默略過，不可影響 MindAR 主路徑）')
+  ok(/viaQr/.test(SRC.session) && /viaQr/.test(SRC.scan),
+    '★ 要能分辨「靠 QR 認出的」並在畫面上講出來')
+}
+
 // ── F. 官方卡包 ──────────────────────────────────────────────────────────
 {
   ok(OFFICIAL_CARDS.length > 0, '至少有一張官方卡')

@@ -372,6 +372,12 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
     | CSP／worker 檔案 | `check:live` ＋ 線上實抓 | 全部 200 |
     | mind-ar 版本過舊 | npm 查詢 | 1.2.5 **已是最新**（2024-01 後無更新） |
     ⇒ 唯一剩下的解釋是**裝置端算出來的特徵描述子是壞的**，而這一點由「自我測試餵網站內建卡面圖也失敗」直接證實。**下次再遇到掃不到，先看自我測試的結果，不要重跑上面這些。**
+  - **★★★ QR 備援（`src/ar/qrFallback.js`）——完全不經過 TFJS 與 GPU 的第二條路**：卡面本來就印了 QR（實測解出 `https://chengqi.tw/`），而 `BarcodeDetector` 是**瀏覽器原生 API**，不碰 TFJS／WebGL／worker，正好繞開「裝置算出來的描述子是壞的」那一段。因為這條動線只需要**認出一次**（之後跳模型頁、不需要姿態與追蹤），QR 提供的正是那件事。
+    - 與 MindAR **並行**跑（相機一接上就開始，不必等 1.7 MB 的追蹤引擎），MindAR 認得出來時仍由它先命中。
+    - ⚠️ **只認本站網址**：不限定 host 的話，路上任何一張 QR 都會觸發跳轉。
+    - ⚠️ **目前卡面的 QR 只編了站台首頁，認不出是哪一張卡**。只有一張官方卡時可以推斷；**多張時一律不猜**（猜錯會把人帶到別張卡的內容，比沒反應更糟）。**出第二張卡之前，印刷稿的 QR 必須改成帶 slug 的網址**（如 `https://chengqi.tw/ar/model/2027-xiaohan`），`matchCardFromQr` 已先支援。
+    - ⚠️ 一定要 `getSupportedFormats()` feature-detect（iOS Safari 沒有這個 API），且**失敗一律靜默略過**——它是備援，不可反過來影響主路徑。偵測也不可重疊呼叫（部分實作會拋 `InvalidStateError` 然後靜默死掉）。
+    - `matchCardFromQr` 是純函式，閘門在 node 裡直接測（含「多張卡時不可亂猜」的反例）。⚠️ 所以它不可相依 `location`——要防呆。
   - **★★ 相容模式（`src/ar/tfjsCompat.js`）**：給「特徵點抓得到、比對永遠 0 次、連自我測試都失敗」的裝置（實測 Samsung Xclipse 540 / ANGLE on Vulkan）。TFJS **只在模組初始化那一刻**讀網址的 `tfjsflags`，所以旗標必須在 `await import(mindar)` **之前**塞進網址、import 完立刻還原。開啟必須**重新載入**（已初始化就不再讀）。⚠️ 實測 `?tfjsflags=HAS_WEBGL:false` 會讓 Controller 直接建構失敗——MindAR 硬相依 WebGL 後端，**純 CPU 那條路走不通，不要再試**。
   - **★★★ 負向檢查（「原始碼不可出現 X」）必須先證明自己抓得到**：`check-ar.mjs` 的 `MIN_NUM_INLIERS` 那條原本寫成 `[0-5]`，但產生檔案時 `` 被寫成**真正的退格字元 0x08**，於是 regex 永遠不匹配 ⇒ **閘門恆為通過**。變異測試當場抓到它沒反應。現在所有負向 regex 都先對一個「應該被抓到的樣本」自我驗證。**一個永遠通過的檢查比沒有檢查更糟。**
   - **MindAR 沒有「相似度」分數可顯示**（inlier 式判定，`score` 恆為 `null`）：狀態列若照舊寫死 `相似度 {track.score}%` 會顯示「相似度 **%**」——一個空的數字比不顯示更像壞掉。

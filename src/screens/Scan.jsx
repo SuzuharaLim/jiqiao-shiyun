@@ -348,7 +348,9 @@ export default function Scan() {
 
         <div className="scan-status">
           <span aria-live="polite">
-            {phase === 'locked' ? `認出來了：${CARD.title}——正在開啟 3D 模型…`
+            {phase === 'locked' ? (st.viaQr
+              ? `認出來了（用卡片上的 QR）：${CARD.title}——正在開啟 3D 模型…`
+              : `認出來了：${CARD.title}——正在開啟 3D 模型…`)
               : phase === 'searching' ? '掃描中——把卡片放進框內（不必對齊四個角）'
                 : STATUS[phase] ?? '　'}
           </span>
@@ -438,6 +440,7 @@ export default function Scan() {
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
                   {/* ⚠️ 相容模式會用回 MindAR 內建的 worker，而那顆帶原廠門檻（0.7），
                       不是我們放寬的 0.75——判讀時要算進去，見 tfjsCompat.js。 */}
+                  <div><dt>QR 備援</dt><dd>{info.qr ?? '—'}</dd></div>
                   <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
                   <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
@@ -486,7 +489,7 @@ export default function Scan() {
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
-                      `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}`,
+                      `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}　QR 備援：${i.qr ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
                       `自我測試：${selfTest === 'idle' ? '尚未執行' : selfTest === 'running' ? '執行中'

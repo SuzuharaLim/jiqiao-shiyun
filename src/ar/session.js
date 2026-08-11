@@ -34,6 +34,7 @@
 import { openCamera, retune, stopStream, attach, listBackCameras } from './camera.js'
 import { hitTest, makeHotspotLatch } from './cardSpace.js'
 import { isCompat } from './tfjsCompat.js'
+import { startQrScan, qrSupported } from './qrFallback.js'
 
 // ★★★ 這一支**只能靜態 import 輕量模組**（camera / cardSpace 都是零相依）。
 //
@@ -118,10 +119,13 @@ export function createSession({ video, canvas, container, card, onState }) {
   let stallTimer = 0
   let probeTimer = 0
   let rateTimer = 0
+  let stopQr = null
+  let viaQr = false
   let tps = null            // 心跳速率（輪/秒）；null＝還沒量到
   let prevTicks = null
   let disposed = false
 
+  let qrReady = false
   let hotspot = null
   let features = null            // 即時特徵點數（null＝還沒量到）
   let cameras = []
@@ -138,6 +142,7 @@ export function createSession({ video, canvas, container, card, onState }) {
       cameras,
       ticks: tracker?.ticks() ?? 0,
       tps,
+      viaQr,
       matches: tracker?.matches?.() ?? 0,
       sameOriginWorker: tracker?.sameOriginWorker ?? null,
     })
@@ -231,6 +236,21 @@ export function createSession({ video, canvas, container, card, onState }) {
 
         await attach(video, stream)
         if (disposed) { stopStream(stream); return }
+
+        // ★ QR 備援與 MindAR **並行**跑，而且不必等追蹤引擎載完（它有 1.7 MB）。
+        //   對「MindAR 在這台裝置上算不對」的使用者，這是唯一還能命中的路。
+        //   ⚠️ 失敗一律靜默略過：這是備援，不可反過來影響主路徑。
+        try {
+          qrReady = await qrSupported()
+          stopQr = await startQrScan({
+            video, cards: [card],
+            onCard: () => {
+              if (disposed || phase === 'locked') return
+              viaQr = true
+              to('locked')
+            },
+          })
+        } catch { /* 沒有原生 QR 偵測就算了 */ }
 
         to('loading')
         tracker = await createTrackerLazy({
@@ -354,6 +374,7 @@ export function createSession({ video, canvas, container, card, onState }) {
         ticks: tracker?.ticks() ?? 0,
         tps,
         matches: tracker?.matches?.() ?? 0,
+        qr: qrReady ? (viaQr ? '有（已由 QR 認出）' : '有') : '不支援',
         compat: isCompat() ? '開啟' : '關閉',
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
@@ -363,6 +384,7 @@ export function createSession({ video, canvas, container, card, onState }) {
     dispose() {
       disposed = true
       try { ro?.disconnect() } catch { /* ignore */ }
+      try { stopQr?.() } catch { /* ignore */ }
       cancelAnimationFrame(raf)
       clearInterval(stallTimer)
       clearInterval(probeTimer)
