@@ -45,6 +45,15 @@ async function makePg() {
       max: 5,
     }
   }
+  // ★★ 連線逾時：**pg 預設是「永遠等下去」**。
+  //
+  // ⚠️ 2026-08-11 實際踩到：部署腳本第 4 步透過 Cloud SQL Auth Proxy 灌種子，
+  //    proxy 還沒就緒時 `npm run seed` 就這樣**無聲地卡死**——沒有錯誤、沒有
+  //    輸出、也不會逾時，看起來就像整個部署當掉了。
+  // ⚠️ 正式站同理：Cloud SQL 短暫不可用時，請求會一路掛在連線上直到 Cloud Run
+  //    自己的逾時，而不是快速失敗回一個看得懂的錯。
+  // ⚠️ 這個值不可設太短：Cloud SQL 冷啟動（min-instances=0）本來就要幾秒。
+  cfg.connectionTimeoutMillis = Number(process.env.DB_CONNECT_TIMEOUT_MS || 15000)
   const pool = new Pool(cfg)
   pool.on('error', (e) => console.error('[pg] pool error', e.message))
   // `?` → `$1,$2...`（我們的 SQL 內無字串字面量含 ?）

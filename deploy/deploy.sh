@@ -27,6 +27,18 @@ fi
 # 殘留的端點覆寫會讓部署一直失敗，先清掉
 gcloud config unset api_endpoint_overrides/run >/dev/null 2>&1 || true
 
+# ★★ 只改了程式碼的話，這整支腳本都不必跑。
+#    它會啟用 API、建/查 Cloud SQL、設 IAM、`npm ci` 再灌種子——每一步都可能
+#    卡住或撞配額，而那些跟「把新版程式碼推上去」完全無關。
+#    2026-08-11 實測：第 0 步撞 serviceusage 每分鐘配額（429）整支中止；
+#    第 4 步的 `npm ci` 要裝 TensorFlow.js 與 node-canvas（可能編譯原生程式碼），
+#    在 Cloud Shell 動輒數分鐘，看起來就像當掉。
+echo
+echo "ℹ️  只改程式碼（沒動資料表／參考清單）時，不需要這支腳本，用這條就好："
+echo "      gcloud run deploy $SERVICE --source . --region=$REGION"
+echo "   跳過灌種子： SKIP_SEED=1 bash deploy/deploy.sh"
+echo
+
 echo "== [0/6] 設定專案 & 啟用 API =="
 gcloud config set project "$PROJECT_ID" >/dev/null
 # 需先綁定「有效帳單帳戶」，否則 Cloud SQL/Run 建立會失敗（帳單需你在 Console 或 gcloud billing 設定）
@@ -124,19 +136,40 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 echo "   已授權 $RUNTIME_SA"
 
 echo "== [4/6] 灌種子（透過 Cloud SQL Auth Proxy；用你 Cloud Shell 的身分連線）=="
+# ★ 只改程式碼時完全不需要這一步（資料表與參考清單都沒動）。
+#   它是整支腳本最慢、最容易卡住的一段：下載 proxy、npm ci（TensorFlow.js
+#   ＋ node-canvas 可能要編譯）、再連資料庫。SKIP_SEED=1 可整段跳過。
+if [ "${SKIP_SEED:-0}" = "1" ]; then
+  echo "   已略過（SKIP_SEED=1）"
+else
 if [ ! -x ./cloud-sql-proxy ]; then
   curl -sSfo cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.11.0/cloud-sql-proxy.linux.amd64
   chmod +x cloud-sql-proxy
 fi
 ./cloud-sql-proxy "$INSTANCE_CONNECTION_NAME" & PROXY_PID=$!
 trap 'kill $PROXY_PID 2>/dev/null || true' EXIT
-sleep 4
+
+# ★★ 等 proxy「真的可以連」，不要盲目 sleep。
+# ⚠️ 原本是 `sleep 4`。proxy 慢了一點的話，後面的 seed 會連到一個還沒開的 port——
+#    而 pg 的預設行為是**永遠等下去**（已在 server/db.js 補上連線逾時，但這裡
+#    先確認 port 通了更直接）。症狀是「停在第 4 步、沒有任何輸出」。
+echo "   等 Cloud SQL Auth Proxy 就緒…"
+for i in $(seq 1 30); do
+  if (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then exec 3<&- 3>&-; echo "   ✓ proxy 已就緒（${i}s）"; break; fi
+  if [ "$i" = 30 ]; then echo "   ❌ 等了 30 秒 proxy 仍未就緒，中止（避免無聲卡死）"; exit 1; fi
+  sleep 1
+done
+
+# ⚠️ 這一步會裝 TensorFlow.js 與 node-canvas（可能要編譯原生程式碼），
+#    在 Cloud Shell 動輒數分鐘。**沒有輸出不代表當掉**，但也請知道它可以跳過。
+echo "   安裝相依（會花幾分鐘：TensorFlow.js／node-canvas）…"
 npm ci --omit=optional
 # DB_PASS 為 hex（URL 安全）；DATABASE_URL 優先於 INSTANCE_CONNECTION_NAME（db.js 已修正），故走 proxy TCP。
 # ★ 預設「不灌示範資料」，只更新參考清單（濾鏡/諺語/宜忌解釋等）——避免已上線的站每次部署被塞回測試資料。
 #   要示範資料時才明確開啟： SEED_DEMO=1 bash deploy/deploy.sh
 SEED_DEMO="${SEED_DEMO:-0}" DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}" npm run seed
 kill $PROXY_PID 2>/dev/null || true; trap - EXIT
+fi
 
 echo "== [5/6] 部署到 Cloud Run（從原始碼建置）=="
 # ★ 用 --update-env-vars / --update-secrets（只新增或更新指定項目），
