@@ -228,6 +228,33 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
     },
 
     /**
+     * ★★★ 偵測器**實際讀到的灰階數值範圍**。
+     *
+     * 為什麼值得量：`InputLoader` 用一段自訂的 WebGL shader 把影像轉灰階——
+     *     setOutput((0.299*r + 0.587*g + 0.114*b) * 255.0)
+     * 它假設 `texture()` 讀回來的是 **0~1**。若某個驅動回的是 0~255，
+     * 輸出就會是 0~65025；反過來若沒乘到 255，就會是 0~1。
+     * 兩種情況下 Laplacian 門檻（3.0）都會失去意義：
+     *   - 太大 ⇒ 到處都「是特徵」，數量看起來很健康但**全是雜訊**
+     *   - 太小 ⇒ 幾乎沒有特徵
+     * 這正好能解釋使用者的裝置「特徵點 372 很漂亮、比對成功 0 次」。
+     *
+     * 正常值：mean 約 60~200、max 接近 255。若 max ≤ 1 或 max > 1000，
+     * 就是這一段在該驅動上算錯了——那是所有後續運算的源頭。
+     */
+    async probeInputRange() {
+      if (disposed) return null
+      let t = null, a = null, b = null, c = null
+      try {
+        t = controller.inputLoader.loadInput(video)
+        a = t.min(); b = t.max(); c = t.mean()
+        const [mn, mx, mean] = await Promise.all([a.data(), b.data(), c.data()])
+        return { min: +mn[0].toFixed(1), max: +mx[0].toFixed(1), mean: +mean[0].toFixed(1) }
+      } catch { return null }
+      finally { for (const x of [t, a, b, c]) { try { x?.dispose?.() } catch { /* ignore */ } } }
+    },
+
+    /**
      * ★★ 離線自我測試：把**內建的卡面圖**接到同一條管線上。
      *
      * 把「這台裝置跑不跑得起辨識」從「相機畫面好不好」裡切出來——兩者的下一步

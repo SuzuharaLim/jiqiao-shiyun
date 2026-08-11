@@ -1654,6 +1654,11 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .scan-meter.warn .scan-meter-bar i { background:var(--gold); }
 .scan-meter.bad  .scan-meter-bar i { background:var(--ji); }
 
+/* 圖像辨識在這台裝置沒救時，把「去掃 QR」講得夠明顯——那是唯一還能用的路 */
+.scan-qr-cta { border-left: 3px solid var(--yi); padding-left: var(--space-3);
+  background: color-mix(in srgb, var(--yi) 8%, transparent); border-radius: 2px;
+  padding-top: var(--space-2); padding-bottom: var(--space-2); }
+
 /* ── A-Frame 模型頁（掃到卡片之後跳來的去處）── */
 .armodel-body { padding-bottom: var(--space-4); }
 /* ⚠️ A-Frame 的 <a-scene embedded> 會把 canvas 塞成容器的絕對定位子元素，

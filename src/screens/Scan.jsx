@@ -324,11 +324,32 @@ export default function Scan() {
                       </>
                     ) : (
                       <>
-                        <p>
-                          <b>相容模式已經開著，仍然認不出來。</b>
-                          那就不是設定能解決的了——請按下方「掃描診斷 → 複製診斷資料」
-                          貼給我們，我們需要這台裝置的實際數據才能繼續。
-                        </p>
+                        {/* ★★★ 到這一步，圖像辨識在這台裝置上已經確定沒救了
+                            （相容模式也試過）。但如果它支援原生 QR 偵測，那條路
+                            **完全不經過出問題的運算**——這時候最該講的是「去對 QR」，
+                            而不是叫使用者複製診斷資料。
+                            ⚠️ 先前這裡只寫了「請複製診斷資料」，等於把唯一還能用的
+                               路藏起來——使用者卡在這裡卻不知道有救。 */}
+                        {st.qrReady ? (
+                          <>
+                            <p>
+                              <b>相容模式也試過了，圖像辨識在這台手機上就是不行。</b>
+                              這是它的繪圖驅動與辨識運算不相容，不是你或卡片的問題。
+                            </p>
+                            <p className="scan-qr-cta">
+                              <b>但這支手機支援 QR 掃描，所以還有一條路：</b>
+                              <br />把鏡頭對準<b>卡片左下角的 QR code</b>，讓它填滿畫面中央一點，
+                              就會直接跳出內容。那條路用的是瀏覽器內建的條碼偵測，
+                              <b>完全不經過出問題的那段運算</b>。
+                            </p>
+                          </>
+                        ) : (
+                          <p>
+                            <b>相容模式已經開著，仍然認不出來。</b>
+                            那就不是設定能解決的了——請按下方「掃描診斷 → 複製診斷資料」
+                            貼給我們，我們需要這台裝置的實際數據才能繼續。
+                          </p>
+                        )}
                         <button className="btn-ghost tap" onClick={() => { disableCompat(); location.reload() }}>
                           關掉相容模式
                         </button>
@@ -440,6 +461,10 @@ export default function Scan() {
                   <div><dt>比對 worker</dt><dd>{info.worker}</dd></div>
                   {/* ⚠️ 相容模式會用回 MindAR 內建的 worker，而那顆帶原廠門檻（0.7），
                       不是我們放寬的 0.75——判讀時要算進去，見 tfjsCompat.js。 */}
+                  {/* ★★ 偵測器實際讀到的灰階範圍。正常約 0~255；
+                      max ≤ 1 或 > 1000 代表 InputLoader 的 shader 在這個驅動上
+                      算錯了，那是所有後續運算的源頭（特徵點會全是雜訊）。 */}
+                  <div><dt>影像數值範圍</dt><dd>{info.inputRange ?? '—'}</dd></div>
                   <div><dt>QR 備援</dt><dd>{info.qr ?? '—'}</dd></div>
                   <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
                   <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
@@ -489,6 +514,7 @@ export default function Scan() {
                       `鏡頭：${i.camera ?? '—'}　解析度：${i.res ?? '—'}`,
                       `目標圖：${i.target ?? '—'}　心跳：${i.ticks ?? '—'}　速率：${i.tps ?? '—'} 輪/秒`,
                       `畫面特徵點：${features ?? '—'}　比對成功：${i.matches ?? '—'} 次`,
+                      `影像數值範圍：${i.inputRange ?? '—'}`,
                       `比對 worker：${i.worker ?? '—'}　相容模式：${i.compat ?? '—'}　QR 備援：${i.qr ?? '—'}`,
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,

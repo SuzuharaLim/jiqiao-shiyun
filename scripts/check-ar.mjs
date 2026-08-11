@@ -378,6 +378,18 @@ const W = 1831, H = 1335
   ok(/stillSince/.test(SRC.session) && /now - stillSince >= STALL_MS/.test(SRC.session),
     '★★★ 看門狗要判「心跳有沒有前進」，不可只判總數是否為 0（worker 中途死掉會漏掉）')
   ok(/tps/.test(SRC.session), '★★ 要算並回報心跳速率（輪/秒）')
+  // ★★★ `tps` 只能有**一個**寫入者。先前看門狗那支也順手寫它、而且不 emit
+  //   ⇒ 畫面顯示「比對 0 輪/秒」、診斷面板顯示「1 輪/秒」，互相矛盾；
+  //   而 `stuck` 讀的正是畫面那一份 ⇒ 升級訊息與自動自我測試都不會觸發。
+  {
+    // 只數「指派」，不數宣告（`let tps = null`）
+    const all = SRC.session.match(/(^|[^.\w])tps\s*=[^=]/gm) || []
+    const writes = all.filter(m => !/let\s+tps/.test(m)).length
+      + (/let tps\s*=/.test(SRC.session) ? -0 : 0)
+    const decl = (SRC.session.match(/let tps\s*=/g) || []).length
+    ok(writes - decl === 1,
+      `★★★ tps 只能有一個寫入者（目前 ${writes - decl} 個；兩支計時器互相蓋寫會讓畫面與面板數字矛盾）`)
+  }
   ok(/輪\/秒/.test(SRC.scan), '★★ 心跳速率要顯示在使用者看得到的地方，不可只藏在診斷面板')
   // ★★★ 「畫面夠清楚＋迴圈在跑＋就是沒命中」時要**自動**跑自我測試：
   //   那個結果是把原因一刀切成兩半的唯一資訊（裝置運算壞掉 vs 掃的圖不對），
@@ -604,6 +616,13 @@ const W = 1831, H = 1335
   //   跳轉 effect 隨即 cleanup 掉計時器而一次性旗標已是 true ⇒ 永遠不跳。
   ok(/if \(phase !== 'locked'\) to\('searching'\)/.test(SRC.session),
     '★★★ 啟動流程設回 searching 前要先確認不是已經 locked（否則 QR 命中會被蓋掉）')
+  // ★★★ 圖像辨識確定沒救時（相容模式也失敗），若這台裝置支援 QR，
+  //   畫面**必須**把「去對 QR」講出來——那是唯一還能用的路。
+  //   先前這裡只寫「請複製診斷資料」，等於把唯一的出路藏起來。
+  ok(/qrReady/.test(SRC.session) && /st\.qrReady/.test(SRC.scan),
+    '★★ session 要把 qrReady 吐給畫面')
+  ok(/相容模式也試過了[\s\S]{0,600}?QR/.test(SRC.scan),
+    '★★★ 相容模式也失敗時，若支援 QR 必須明確引導去掃 QR（不可只叫人複製診斷資料）')
 }
 
 // ── F. 官方卡包 ──────────────────────────────────────────────────────────

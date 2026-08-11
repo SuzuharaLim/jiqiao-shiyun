@@ -126,6 +126,7 @@ export function createSession({ video, canvas, container, card, onState }) {
   let disposed = false
 
   let qrReady = false
+  let inputRange = null       // 偵測器實際讀到的灰階範圍（診斷用）
   let hotspot = null
   let features = null            // 即時特徵點數（null＝還沒量到）
   let cameras = []
@@ -143,6 +144,7 @@ export function createSession({ video, canvas, container, card, onState }) {
       ticks: tracker?.ticks() ?? 0,
       tps,
       viaQr,
+      qrReady,
       matches: tracker?.matches?.() ?? 0,
       sameOriginWorker: tracker?.sameOriginWorker ?? null,
     })
@@ -303,7 +305,13 @@ export function createSession({ video, canvas, container, card, onState }) {
           if (disposed || !tracker) return
           const n = tracker.ticks()
           const now = performance.now()
-          if (n !== lastTicks) { lastTicks = n; stillSince = now; tps = n - (prevTicks ?? n); }
+          // ⚠️ 這裡**只**負責「心跳有沒有前進」，絕不可順手也寫 `tps`。
+          //    先前兩支計時器都在寫同一個變數：這一支算出來的值會蓋掉
+          //    rateTimer 的結果，而且它**不呼叫 emit**——於是畫面顯示
+          //    「比對 0 輪/秒」、診斷面板卻顯示「1 輪/秒」，兩邊互相矛盾。
+          //    更糟的是 `stuck` 判斷讀的正是畫面那一份，所以升級訊息與自動
+          //    自我測試**都不會觸發**。一個變數只能有一個寫入者。
+          if (n !== lastTicks) { lastTicks = n; stillSince = now }
           // 心跳連續 STALL_MS 沒有前進 ＝ 比對迴圈卡住了
           if (now - stillSince >= STALL_MS && phase === 'searching') to('stalled')
         }, 1000)
@@ -325,6 +333,10 @@ export function createSession({ video, canvas, container, card, onState }) {
         probeTimer = setInterval(async () => {
           if (disposed || !tracker || tracker.tracking()) return
           const n = await tracker.probeFeatures()
+          if (disposed) return
+          // ★ 順便量一次輸入的數值範圍——這是「特徵點很多卻永遠比對不到」
+          //   唯一還能區分「資料源頭就錯了」與「描述子本身對不上」的量測。
+          if (!inputRange) { try { inputRange = await tracker.probeInputRange?.() } catch { /* ignore */ } }
           if (disposed) return
           if (n !== null && n !== features) { features = n; emit() }
         }, PROBE_MS)
@@ -383,6 +395,10 @@ export function createSession({ video, canvas, container, card, onState }) {
         tps,
         matches: tracker?.matches?.() ?? 0,
         qr: qrReady ? (viaQr ? '有（已由 QR 認出）' : '有') : '不支援',
+        inputRange: inputRange
+          ? `${inputRange.min}~${inputRange.max}（平均 ${inputRange.mean}）`
+            + (inputRange.max <= 1.5 || inputRange.max > 1000 ? '　★ 異常！' : '')
+          : '—',
         compat: isCompat() ? '開啟' : '關閉',
         worker: tracker ? (tracker.sameOriginWorker ? '同源' : '內建 blob') : '—',
         ...(stage?.deviceInfo?.() ?? {}),
