@@ -424,11 +424,32 @@ export default function Scan() {
                             </p>
                           </>
                         ) : (
-                          <p>
-                            <b>相容模式已經開著，仍然認不出來。</b>
-                            那就不是設定能解決的了——請按下方「掃描診斷 → 複製診斷資料」
-                            貼給我們，我們需要這台裝置的實際數據才能繼續。
-                          </p>
+                          <>
+                            {/* ★★★ 沒有 QR 備援時**絕不可以只叫人複製診斷資料**——那是
+                                給我們的，不是給他的，等於把使用者留在一個死路上。
+                                ⚠️ 這一格在 **iPhone 上是常態**：`BarcodeDetector` 是
+                                   Chrome／Android 的 API，**iOS Safari 至今沒有實作**，
+                                   所以 `qrReady` 在每一支 iPhone 上都是 false。
+                                   也就是說「圖像辨識掛掉的 iPhone」百分之百會走到這裡。
+                                ⇒ 這時候真正還能用的是 `/ar/card/:slug`——那一頁本來就是
+                                   為「沒有相機／不想開相機」設計的，卡面、六個物件、
+                                   3D 白菜、小挑戰、徽章全都在，內容一點都沒少。 */}
+                            <p>
+                              <b>相容模式已經開著，仍然認不出來。</b>
+                              那就不是設定能解決的了——這台裝置的繪圖驅動與辨識運算不相容。
+                            </p>
+                            <p>
+                              <b>但你手上的卡片還是能用</b>：卡片頁有一模一樣的內容，
+                              而且完全不需要相機。
+                            </p>
+                            <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
+                              改看這張卡的完整內容 ›
+                            </Link>
+                            <p className="muted">
+                              如果願意幫我們一把：按下方「掃描診斷 → 複製診斷資料」貼給我們，
+                              那是修好這台裝置唯一需要的東西。
+                            </p>
+                          </>
                         )}
                         <button className="btn-ghost tap" onClick={() => { disableCompat(); location.reload() }}>
                           關掉相容模式
@@ -437,10 +458,16 @@ export default function Scan() {
                     )}
                   </>
                 ) : (
-                  <p>
-                    <b>✗ 辨識運算在這台裝置上跑不起來</b>（{selfTest.stage}）：
-                    <code>{selfTest.reason}</code>
-                  </p>
+                  <>
+                    <p>
+                      <b>✗ 辨識運算在這台裝置上跑不起來</b>（{selfTest.stage}）：
+                      <code>{selfTest.reason}</code>
+                    </p>
+                    {/* 同上：任何一種「沒救了」都要給得出下一步，不可以只報錯誤碼。 */}
+                    <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
+                      改看這張卡的完整內容 ›
+                    </Link>
+                  </>
                 ))}
               </div>
             )}

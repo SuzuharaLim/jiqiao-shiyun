@@ -323,6 +323,14 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **`<a-scene>` 用 `document.createElement` 自己建，不交給 React 渲染**：A-Frame 是自訂元素，靠 DOM 掛載時的 `connectedCallback` 初始化，交給 React 的話重新調度會與它自己的生命週期打架。React 只負責那個容器。
   - **A-Frame 元件只能註冊一次**（`registered` 旗標）：重複 `registerComponent` 會 throw，少了旗標第二次進這一頁整頁就掛了。
   - **`.armodel-stage` 必須有明確高度**：`<a-scene embedded>` 拿到 0×0 時**不會自己重試**，症狀是整片空白而沒有任何錯誤。
+  - **★★★ 相機框景必須由「畫布長寬比」推導，不可寫死**（2026-08-11 使用者回報「畫面比例怪怪的」）：three 的 `fov` 是**垂直**視角，所以**水平**看得到多少完全取決於畫布長寬比——手機直立時 `.armodel-stage` 是 411×498（0.83）、桌機是 680×520（1.31），同一組 `position`／`fov` 在兩邊差很多。舊版寫死 `camera position="0 0.15 3.2"` ＋ 角色 `position="0 -0.55 0"`（那個 −0.55 是從 AR 舞台搬來的，在那裡角色是站在卡片平面上），實測手機上**上方留白 52.6%、下緣被裁掉**。現在 `jq-fit` 元件用 `cam.aspect` 逐次算距離，並把角色的包圍盒中心對到 rig 的旋轉原點。
+    - **俯仰上界要用常數不可用當下角度**：用當下角度的話使用者一拖動框景就忽大忽小。取 `maxPitch`(35°，與 `jq-drag-rotate` 的夾角一致) 當靜態上界。
+    - **水平上界用 `radiusXZ = hypot(halfX, halfZ)`**：那是繞 Y 自轉時的上界，與 yaw 無關 ⇒ 自轉一圈都不會擦邊。實測 24 種 yaw×pitch 組合最小留白 12.5%，四種長寬比（0.83／1.00／1.31／2.62）最小留白 14~18%，全都沒有裁切。
+    - **重心對到旋轉原點還有第二個好處**：自轉與俯仰都繞著重心，框景不會飄。舊版是繞著重心以外的一點轉，看起來會晃。
+  - **★★★ A-Frame 1.8 的元件叫 `xr-mode-ui`，不是 `vr-mode-ui`**：舊名在 1.8 裡**根本不存在**，寫了會被**靜默忽略**（A-Frame 對不認識的元件不警告）⇒ 支援 WebXR 的裝置會冒出一顆「VR」按鈕。⚠️ **桌機偵測不到 XR 裝置會自動隱藏那顆按鈕，所以本機完全看不出來**——這個 bug 是從使用者的 Android Chrome 截圖才發現的。`check-ar.mjs` 同時鎖「自帶的那份 A-Frame 有 `xr-mode-ui`」與「原始碼不可出現 `vr-mode-ui`」。（`public/ar/plain.html` 裡的 `vr-mode-ui` **刻意保留**——那一頁是官方範例的逐字對照組。）
+  - **★★★ 模型畫布一定要 `touch-action: none`**：預設 `auto` 會讓瀏覽器把觸控手勢當成捲動吃掉——手指在模型上滑，頁面往下捲，模型**一動也不動**，而畫面上白紙黑字寫著「拖曳可以轉動」。⚠️ 不可改用 `preventDefault` 解（那要把監聽器改成非 passive，iOS 對 touchmove 的非 passive 監聽特別敏感）。⚠️ 代價是這一塊不能用來捲頁面，所以舞台高度壓到 `56dvh`，上下都留得出可捲的地方。
+  - **★★ `.armodel-stage` 的 `dvh` 一定要配一行 `vh` 退路**：`dvh` 是 iOS 15.4 才有的單位，舊 iOS 會把整條 `height: min(56dvh, …)` 判為**無效而整行丟掉**——而這個容器一旦沒高度，`<a-scene embedded>` 就拿到 0×0 且不會自己重試（整片空白、零錯誤訊息）。先寫 `vh` 版、再寫 `dvh` 版讓它覆蓋。
+  - **★ 用 `ResizeObserver` 呼叫 `scene.resize()`**：`<a-scene embedded>` 只在 window resize 時重算畫布，容器自己變大變小（上方內容載入把版面推開）不會觸發。⚠️ 這一項**在 Claude 的瀏覽器窗格裡驗不到**——RO 是 frame-driven，窗格沒在合成時連第一次回呼都不會送（實測 `initial` 就是 0）。所以程式不可以**只**靠它：轉向與網址列收合走的是 window resize，A-Frame 自己就會處理。
   - **關掉 `look-controls`**：開著的話相機會跟手機陀螺儀轉，把手機放桌上看模型時畫面會自己飄。A-Frame 內建沒有 orbit-controls（那是社群元件），所以自己寫了 20 行 `jq-drag-rotate`：拖曳轉動、放開後慢慢自轉（靜止的 3D 看起來像一張圖片），上下角度夾在 ±35°（不夾會轉到模型底下看到穿模的內裡）。
   - **`lod: 0.85`** 與 ProduceStage 同一個值：全解析度 230,310 個三角形超出策畫書 §6.1 的 180k 預算，實測畫面看不出差別（0.85 ＝ 170,456）。
   - **★★★ A-Frame 走「自帶預編譯檔」，`package.json` 裡沒有 aframe。**
@@ -401,6 +409,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
     - **★ 新增「影像數值範圍」診斷**（`tracker.probeInputRange()`）：`InputLoader` 的自訂 shader 假設 `texture()` 回傳 0~1 再乘 255。若某驅動回的是 0~255，輸出會變成 0~65025；反之則是 0~1。兩種情況下 Laplacian 門檻（3.0）都失去意義——**特徵點數量看起來很健康但全是雜訊**，正好符合「372 個特徵點卻 0 次比對成功」。本機基準值：`10.1~254.9（平均 63.2）`。若使用者的裝置顯示 `max ≤ 1` 或 `> 1000`，那就是源頭。
     - **★★★ QR 備援（`src/ar/qrFallback.js`）——完全不經過 TFJS 與 GPU 的第二條路**：卡面本來就印了 QR（實測解出 `https://chengqi.tw/`），而 `BarcodeDetector` 是**瀏覽器原生 API**，不碰 TFJS／WebGL／worker，正好繞開「裝置算出來的描述子是壞的」那一段。因為這條動線只需要**認出一次**（之後跳模型頁、不需要姿態與追蹤），QR 提供的正是那件事。
     - 與 MindAR **並行**跑（相機一接上就開始，不必等 1.7 MB 的追蹤引擎），MindAR 認得出來時仍由它先命中。
+    - **★★★ `BarcodeDetector` 是 Chrome／Android 的 API，iOS Safari 至今沒有實作** ⇒ `qrReady` 在**每一支 iPhone 上都是 false** ⇒ 圖像辨識掛掉的 iPhone **百分之百**會走到「沒有 QR 備援」那一格。那一格原本只寫「請按複製診斷資料貼給我們」——那是給**我們**的東西，不是給使用者的下一步，等於把所有 iPhone 使用者留在死路上。現在一律導向 `/ar/card/:slug`（那一頁本來就是為「沒有相機」設計的，內容一點都沒少），診斷資料降級成「如果願意幫我們一把」。`check-ar.mjs` 鎖住「每一種『沒救了』的分支都要有 `screen="arCard"`」。
     - ⚠️ **只認本站網址**：不限定 host 的話，路上任何一張 QR 都會觸發跳轉。
     - ⚠️ **目前卡面的 QR 只編了站台首頁，認不出是哪一張卡**。只有一張官方卡時可以推斷；**多張時一律不猜**（猜錯會把人帶到別張卡的內容，比沒反應更糟）。**出第二張卡之前，印刷稿的 QR 必須改成帶 slug 的網址**（如 `https://chengqi.tw/ar/model/2027-xiaohan`），`matchCardFromQr` 已先支援。
     - ⚠️ 一定要 `getSupportedFormats()` feature-detect（iOS Safari 沒有這個 API），且**失敗一律靜默略過**——它是備援，不可反過來影響主路徑。偵測也不可重疊呼叫（部分實作會拋 `InvalidStateError` 然後靜默死掉）。

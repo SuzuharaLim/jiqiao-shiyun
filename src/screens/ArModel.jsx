@@ -111,6 +111,30 @@ async function ensureAframe() {
         //    找不到它——卸載要自己 `remove()`（見下方 remove()）。
         //    我們沒有用到 A-Frame 的 raycaster／animation 系統，所以沒有其他影響。
         this.el.object3D.add(char.root)
+
+        // ★★★ 量出實際尺寸，並把**包圍盒中心對到 rig 的旋轉原點**。
+        //
+        // ⚠️ 原本是寫死 `position="0 -0.55 0"`（那個數字是從 AR 舞台搬來的，
+        //    在那裡角色是「站在卡片平面上」）。放到這一頁就變成整個模型沉在
+        //    畫面下半部——實測**上方留白 52.6%、下緣被裁掉**，而且自轉是繞著
+        //    重心以外的一點轉，看起來會晃。
+        // ⚠️ 中心對到旋轉原點還有第二個好處：自轉與俯仰都繞著重心，
+        //    框景才不會隨著使用者拖動而飄移。
+        const THREE = AFRAME.THREE
+        char.root.updateWorldMatrix(true, true)
+        const box = new THREE.Box3().setFromObject(char.root)
+        const c = box.getCenter(new THREE.Vector3())
+        const size = box.getSize(new THREE.Vector3())
+        char.root.position.sub(c)
+
+        // 交給相機去算距離。這裡只回報**與旋轉無關**的兩個尺寸：
+        //   radiusXZ：繞 Y 自轉時的水平上界（與 yaw 無關）
+        //   halfHeight：半高（俯仰的影響由相機那邊用最大俯仰角算）
+        this.el.sceneEl.emit('jq-character-ready', {
+          halfHeight: size.y / 2,
+          radiusXZ: Math.hypot(size.x / 2, size.z / 2),
+        }, false)
+
         this.actor = createActor(char, {
           action: 'present',
           reduceMotion: matchMedia?.('(prefers-reduced-motion: reduce)').matches,
@@ -130,6 +154,51 @@ async function ensureAframe() {
         //    會一直往場景裡疊角色。
         try { if (this.char) this.el.object3D.remove(this.char.root) } catch { /* ignore */ }
         try { this.char?.dispose?.() } catch { /* ignore */ }
+      },
+    })
+
+    // ── 相機自動框景 ──
+    //
+    // ★★★ 為什麼不能寫死相機位置：three 的 `fov` 是**垂直**視角，所以
+    //   **水平**能看到多少完全取決於畫布長寬比。手機直立時 `.armodel-stage`
+    //   是 411×551（0.75），桌機是 680×560（1.21）——同一組數字在兩邊差很多。
+    //   寫死一組就等於「在我這台看起來剛好」，換一台就爆版或縮成一小球。
+    //   ⚠️ 這與 `stage.js` 的裁切修正是同一類問題：**畫面比例是輸入，不是常數。**
+    AFRAME.registerComponent('jq-fit', {
+      // margin：留白倍率。1.0 ＝ 剛好貼邊（自轉到某個角度就會擦到邊）。
+      // maxPitch：與 jq-drag-rotate 的夾角上限一致。
+      schema: { margin: { default: 1.1 }, maxPitch: { default: 35 } },
+      init() {
+        this.metrics = null
+        this.onReady = (e) => { this.metrics = e.detail; this.fit() }
+        this.onResize = () => this.fit()
+        const sc = this.el.sceneEl
+        sc.addEventListener('jq-character-ready', this.onReady)
+        // A-Frame 自己在視窗 resize 時會發這個事件（相機的 aspect 已經更新過了）
+        sc.addEventListener('rendererresize', this.onResize)
+      },
+      fit() {
+        const m = this.metrics
+        const cam = this.el.getObject3D('camera')
+        if (!m || !cam) return
+        const tanV = Math.tan((cam.fov * Math.PI) / 360)
+        const tanH = tanV * (cam.aspect || 1)
+        // ⚠️ 俯仰會讓縱向輪廓變高。這裡用**最大俯仰角**當靜態上界，
+        //    而不是用當下的角度——否則使用者一拖動，框景就會忽大忽小。
+        const p = (this.data.maxPitch * Math.PI) / 180
+        const needV = m.halfHeight * Math.cos(p) + m.radiusXZ * Math.sin(p)
+        const needH = m.radiusXZ
+        const d = Math.max(needV / tanV, needH / tanH) * this.data.margin
+        // ⚠️ 用 setAttribute 不要直接改 object3D.position：position 元件會在
+        //    屬性變動時把 object3D 寫回去，直接改會被默默蓋掉。
+        // 模型重心已經被移到原點，相機擺在 +z 看向 -z（預設朝向）就正對它，
+        // 不需要 lookAt——那反而會與 A-Frame 的 rotation 元件打架。
+        this.el.setAttribute('position', { x: 0, y: 0, z: d })
+      },
+      remove() {
+        const sc = this.el.sceneEl
+        sc.removeEventListener('jq-character-ready', this.onReady)
+        sc.removeEventListener('rendererresize', this.onResize)
       },
     })
 
@@ -201,6 +270,7 @@ export default function ArModel({ slug, hotspot }) {
   useEffect(() => {
     let cancelled = false
     let scene = null
+    let ro = null
     ;(async () => {
       try {
         await ensureAframe()
@@ -212,7 +282,13 @@ export default function ArModel({ slug, hotspot }) {
         //    這一塊 DOM 由我們自己管，React 只負責那個容器。
         scene = document.createElement('a-scene')
         scene.setAttribute('embedded', '')
-        scene.setAttribute('vr-mode-ui', 'enabled: false')
+        // ★★★ A-Frame 1.8 這個元件叫 **`xr-mode-ui`**，不是 `vr-mode-ui`。
+        //   舊名字在 1.8 裡**根本不存在**，所以 `vr-mode-ui="enabled: false"`
+        //   會被**靜默忽略**——實測使用者的 Android Chrome 上就冒出一顆「VR」
+        //   按鈕（桌機因為偵測不到 XR 裝置而自動隱藏，所以本機完全看不出來）。
+        //   ⚠️ A-Frame 對不認識的元件不會警告，這一類錯誤只會在支援 WebXR 的
+        //      裝置上現形。`check-ar.mjs` 已鎖「自帶的那份 A-Frame 有這個元件」。
+        scene.setAttribute('xr-mode-ui', 'enabled: false')
         scene.setAttribute('device-orientation-permission-ui', 'enabled: false')
         // ⚠️ `antialias` 與 `colorManagement` 要明講：A-Frame 的預設值與本站
         //    其他 3D（ProduceStage／AR 舞台）不同，不設會兩邊看起來不一樣。
@@ -224,14 +300,27 @@ export default function ArModel({ slug, hotspot }) {
           <a-entity light="type: directional; color: #CFE0FF; intensity: 0.30" position="2.8 1.2 2.2"></a-entity>
           <a-entity light="type: directional; color: #FFE6F0; intensity: 0.45" position="0.6 3.0 -3.4"></a-entity>
           <a-entity id="jq-rig" jq-drag-rotate>
-            <a-entity jq-character="lod: 0.85; outline: 2" position="0 -0.55 0"></a-entity>
+            <a-entity jq-character="lod: 0.85; outline: 2"></a-entity>
           </a-entity>
-          <a-entity camera="fov: 40" position="0 0.15 3.2" look-controls="enabled: false" wasd-controls="enabled: false"></a-entity>
+          <a-entity camera="fov: 40" jq-fit look-controls="enabled: false" wasd-controls="enabled: false"></a-entity>
         `
         hostRef.current.appendChild(scene)
         const done = () => { if (!cancelled) setPhase('ready') }
         if (scene.hasLoaded) done()
         else scene.addEventListener('loaded', done, { once: true })
+
+        // ★★ 盯**容器**的大小，不能只靠 A-Frame 監聽 window 的 resize。
+        //
+        // ⚠️ 容器變大變小不一定伴隨 window resize：手機捲動時網址列收合會改變
+        //    dvh、上方內容載入把版面推開、轉向……而 `<a-scene embedded>` 只在
+        //    window resize 時重算畫布 ⇒ 畫布會停在舊尺寸，模型被拉扁或只畫在
+        //    一角。這與 `src/ar/stage.js` 用 ResizeObserver 是同一個理由。
+        // ⚠️ `sceneEl.resize()` 會一併更新相機 aspect 並發出 `rendererresize`，
+        //    所以 `jq-fit` 也會跟著重新框景。
+        if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
+          ro = new ResizeObserver(() => { try { scene?.resize?.() } catch { /* 場景還沒好 */ } })
+          ro.observe(hostRef.current)
+        }
       } catch (e) {
         console.error('[AR] A-Frame 場景建立失敗', e)
         if (!cancelled) { setErr(e?.message || String(e)); setPhase('failed') }
@@ -239,6 +328,7 @@ export default function ArModel({ slug, hotspot }) {
     })()
     return () => {
       cancelled = true
+      try { ro?.disconnect() } catch { /* ignore */ }
       // ⚠️ 一定要呼叫 A-Frame 自己的清理：`scene.remove()` 只是把節點拿掉，
       //    算繪迴圈與 WebGL context 還在跑。行動裝置的 context 數有上限，
       //    反覆進出這一頁的症狀會是「第 N 次打開變成空白」。

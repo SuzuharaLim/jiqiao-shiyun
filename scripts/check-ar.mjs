@@ -556,6 +556,62 @@ const W = 1831, H = 1335
     '★ 要關掉 look-controls（開著的話相機會跟手機陀螺儀飄，看模型時畫面自己在動）')
   ok(/\.armodel-stage\s*\{[^}]*height:/.test(SRC.css),
     '★★ .armodel-stage 必須有明確高度（A-Frame 拿到 0×0 不會自己重試，症狀是整片空白）')
+
+  // ── 版面比例（2026-08-11 使用者回報「畫面比例怪怪的」）──
+  {
+    // ★★★ A-Frame 1.8 的元件叫 `xr-mode-ui`。舊名 `vr-mode-ui` 在 1.8 裡
+    //   **根本不存在**，寫了會被**靜默忽略** ⇒ 支援 WebXR 的裝置（使用者的
+    //   Android Chrome）會冒出一顆「VR」按鈕，而桌機因為偵測不到 XR 裝置
+    //   自動隱藏，本機完全看不出來。
+    ok(/xr-mode-ui/.test(vendored),
+      '★★★ 前提：自帶的 A-Frame 提供 xr-mode-ui（元件改名的話這條要重驗）')
+    ok(/setAttribute\('xr-mode-ui', 'enabled: false'\)/.test(model),
+      '★★★ 要用 xr-mode-ui 關掉進入鈕')
+    ok(!/'vr-mode-ui'/.test(model),
+      '★★★ 不可用 vr-mode-ui（A-Frame 1.8 沒有這個元件，會被靜默忽略）')
+
+    // ★★★ 相機不可寫死位置：three 的 fov 是**垂直**視角，水平看得到多少
+    //   完全取決於畫布長寬比。寫死一組＝「在我這台剛好」。
+    //   實測（改之前）手機直立 411×551：上方留白 52.6%、下緣被裁掉。
+    ok(/jq-fit/.test(model), '★★★ 相機要用 jq-fit 自動框景')
+    ok(!/camera="fov: \d+"\s+position=/.test(model),
+      '★★★ 相機不可寫死 position（畫面比例是輸入，不是常數）')
+    ok(/cam\.aspect/.test(model),
+      '★★★ 框景要讀相機的 aspect（否則等於沒有處理比例）')
+    // ★★ 俯仰上界要用**常數**不可用當下角度，否則一拖動框景就忽大忽小
+    ok(/maxPitch/.test(model), '★★ 框景要用最大俯仰角當靜態上界')
+    // ★★ 包圍盒中心要對到旋轉原點：否則自轉是繞著重心以外的點轉（會晃），
+    //    而且模型會偏在畫面一側。
+    ok(/char\.root\.position\.sub\(/.test(model),
+      '★★ 要把模型重心對到 rig 的旋轉原點')
+
+    // ★★★ 沒有這一行，「拖曳可以轉動」就是一句做不到的話：預設 touch-action
+    //   會讓瀏覽器把手勢當捲動吃掉，手指在模型上滑只會捲頁面。
+    ok(/\.armodel-stage canvas\s*\{[^}]*touch-action:\s*none/.test(SRC.css),
+      '★★★ 模型畫布要 touch-action:none（否則觸控拖曳會被瀏覽器當成捲動）')
+
+    // ★★ dvh 的退路：舊 iOS（<15.4）不認得 dvh 會把整條 height 丟掉，
+    //    而這個容器一旦沒高度 A-Frame 就拿到 0×0。
+    const stage = SRC.css.match(/\.armodel-stage\s*\{[^}]*\}/)?.[0] ?? ''
+    ok(/height:\s*min\(56vh/.test(stage) && /height:\s*min\(56dvh/.test(stage),
+      '★★ .armodel-stage 要同時寫 vh 退路與 dvh（舊 iOS 不認 dvh 會整行丟掉）')
+  }
+
+  // ── 死路檢查：任何一種「沒救了」都要給得出下一步 ──
+  //
+  // ★★★ `BarcodeDetector` 是 Chrome／Android 的 API，**iOS Safari 沒有實作**
+  //   ⇒ `qrReady` 在每一支 iPhone 上都是 false ⇒ 圖像辨識掛掉的 iPhone
+  //   **百分之百**會走到「沒有 QR 備援」那一格。那一格若只寫「請複製診斷資料」，
+  //   就是把所有 iPhone 使用者留在死路上。
+  {
+    const noQr = SRC.scan.slice(SRC.scan.indexOf('st.qrReady ? ('))
+    ok(/screen="arCard"/.test(noQr),
+      '★★★ 沒有 QR 備援時要導向卡片頁（iPhone 一定走這一格，不可只叫人複製診斷資料）')
+    const pipelineBranch = SRC.scan.slice(SRC.scan.indexOf('辨識運算在這台裝置上跑不起來'))
+      .slice(0, 700)
+    ok(/screen="arCard"/.test(pipelineBranch),
+      '★★ 運算跑不起來時也要導向卡片頁')
+  }
 }
 
 // ── E2. 比對門檻與相容模式 ───────────────────────────────────────────────

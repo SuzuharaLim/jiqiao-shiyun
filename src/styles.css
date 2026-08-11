@@ -1664,10 +1664,27 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ⚠️ A-Frame 的 <a-scene embedded> 會把 canvas 塞成容器的絕對定位子元素，
    所以容器必須 position:relative 且**有明確高度**——沒有高度時 A-Frame 會
    拿到 0×0 並且**不會自己重試**，症狀是整片空白而沒有任何錯誤。 */
+/* ⚠️ 用 dvh 不可用 vh：iOS/Android 的 vh 算的是**網址列收起來時**的大視窗高，
+   網址列還在時 62vh 會超出可視範圍，模型下緣被推到看不見的地方。
+   全站其他地方（.sheet／.fmenu／.glosspanel）都已經是 dvh，這裡漏了。 */
 .armodel-stage { position: relative; width: 100%; max-width: 680px; margin: 10px auto 0;
-  height: min(62vh, 560px); flex: 0 0 auto;
+  /* ⚠️ 兩行都要留。`dvh` 是 iOS 15.4 才有的單位，舊 iOS 會把整條
+     `height: min(56dvh, …)` 判為無效而**整行丟掉**——而這個容器一旦沒有高度，
+     A-Frame 會拿到 0×0 並且不會自己重試（見下方註解），症狀是整片空白。
+     先寫 vh 版當退路，支援 dvh 的瀏覽器會用下面那行覆蓋掉。 */
+  height: min(56vh, 520px);
+  height: min(56dvh, 520px);
+  min-height: 260px; flex: 0 0 auto;
   background: var(--tone-1); border-radius: 2px; overflow: hidden; }
 .armodel-stage a-scene, .armodel-stage canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+/* ★★★ `touch-action: none` 是「拖曳可以轉動」這句話能不能兌現的關鍵。
+   預設值 `auto` 會讓瀏覽器把觸控手勢當成捲動吃掉——手指在模型上滑，
+   頁面往下捲，模型**一動也不動**。而畫面上白紙黑字寫著可以拖曳轉動。
+   ⚠️ 不可改用 preventDefault 解決：那要把監聽器改成非 passive，
+      會讓整頁的捲動效能變差（而且 iOS 對 touchmove 的非 passive 監聽特別敏感）。
+   ⚠️ 代價是這一塊區域不能用來捲頁面——所以舞台高度刻意壓到 56dvh，
+      上下都留得出可以捲的地方。 */
+.armodel-stage canvas { touch-action: none; }
 .armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
 .armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
