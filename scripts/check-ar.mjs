@@ -43,13 +43,46 @@ const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps
 function stripComments(src) {
   let out = ''
   let i = 0
-  let prev = ''            // 前一個有意義的字元
-  const isWordish = (c) => /[\w$)\]}]/.test(c)
+  let prev = ''                 // 前一個有意義的字元
+
+  // ★★★ `/` 是不是 regex 的開頭 —— 用**肯定式**判準。
+  //
+  // ⚠️ 原本寫成「前一個字元不是 `[\w$)\]}]` 就當 regex」，那個否定式判準對 JSX
+  //    是壞的：`</p>` 的 `/` 前面是 `<`、`attr={x} />` 的前面是 `}`，兩者都不在
+  //    集合裡 ⇒ 被當成 regex 開頭 ⇒ 一路吞到下一個 `/`（往往是後面 `{/* … */}`
+  //    的那個）⇒ **從那一行之後整份檔案都沒被去註解**，而且完全靜默：
+  //    「原始碼不可出現 X」那一類檢查全部失去意義卻照樣「通過」。
+  //    實測 ArModel.jsx／Scan.jsx／CardPage.jsx 三支都中招。
+  // ⇒ 只有這幾個字元後面才可能接 regex。`<`、`{`、`}`、引號都不在裡面。
+  const REGEX_OK = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', ';', '+', '-', '*', '%', '~', '^', ''])
+
+  // 狀態堆疊：'tpl' ＝ 在樣板字串裡；{ expr: depth } ＝ 在樣板的 ${} 裡
+  // ⚠️ 一定要真的做巢狀：Scan.jsx 有「樣板裡的 ${} 裡又是樣板」
+  //    （`自我測試：${… ? `成功（…）` : `失敗（…）`}`）。天真地「掃到下一個
+  //    反引號就結束」會在內層那個反引號提早收掉外層，之後整份狀態全錯。
+  const stack = []
+  const top = () => stack[stack.length - 1]
+
   while (i < src.length) {
     const c = src[i], d = src[i + 1]
+
+    // ── 樣板字串內部 ──
+    if (top() === 'tpl') {
+      if (c === '\\') { out += src.slice(i, i + 2); i += 2; continue }
+      if (c === '$' && d === '{') { out += '${'; i += 2; stack.push({ expr: 0 }); prev = '('; continue }
+      if (c === '`') { out += c; i++; stack.pop(); prev = '`'; continue }
+      out += c; i++; continue
+    }
+
+    // ── 一般程式碼（也包含 ${} 內的運算式）──
     if (c === '/' && d === '/') { while (i < src.length && src[i] !== '\n') i++; continue }
-    if (c === '/' && d === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue }
-    if (c === '"' || c === "'" || c === '`') {
+    if (c === '/' && d === '*') {
+      i += 2
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++
+      i += 2; continue
+    }
+    if (c === '`') { out += c; i++; stack.push('tpl'); prev = '`'; continue }
+    if (c === '"' || c === "'") {
       const q = c; out += c; i++
       while (i < src.length) {
         if (src[i] === '\\') { out += src.slice(i, i + 2); i += 2; continue }
@@ -57,20 +90,29 @@ function stripComments(src) {
         if (src[i] === q) { i++; break }
         i++
       }
-      prev = q
-      continue
+      prev = q; continue
     }
-    if (c === '/' && !isWordish(prev)) {          // 正規表示式字面值
+    // ${} 的括號配對：要數深度，否則 `${ {a:1} }` 會提早收掉
+    const t = top()
+    if (t && typeof t === 'object') {
+      if (c === '{') { t.expr++ }
+      else if (c === '}') {
+        if (t.expr === 0) { out += c; i++; stack.pop(); prev = '}'; continue }
+        t.expr--
+      }
+    }
+    if (c === '/' && REGEX_OK.has(prev)) {
       out += c; i++
+      let cls = false
       while (i < src.length) {
         if (src[i] === '\\') { out += src.slice(i, i + 2); i += 2; continue }
-        if (src[i] === '[') { while (i < src.length && src[i] !== ']') { out += src[i]; i++ } }
-        out += src[i]
-        if (src[i] === '/') { i++; break }
-        i++
+        if (src[i] === '[') cls = true
+        else if (src[i] === ']') cls = false
+        else if (src[i] === '/' && !cls) { out += src[i]; i++; break }
+        else if (src[i] === '\n') break        // regex 不跨行：多半是判斷錯了，收手
+        out += src[i]; i++
       }
-      prev = '/'
-      continue
+      prev = '/'; continue
     }
     out += c
     if (!/\s/.test(c)) prev = c
@@ -111,6 +153,25 @@ const SRC = {
     'stripper：切掉區塊註解')
   ok(stripComments('const re = /[/]/g; const w = 9').includes('const w = 9'),
     'stripper：regex 的字元類別裡有 / 也不會斷')
+
+  // ★★★★ 以下四條是 2026-08-11 實際咬到的：stripper 對 **JSX** 是壞的，
+  //   而且壞得完全靜默——`ArModel.jsx`／`Scan.jsx`／`CardPage.jsx` 三支從某一行
+  //   之後整份沒被去註解，於是「原始碼不可出現 X」那一類檢查全部失去意義，
+  //   卻照樣回報「通過」。
+  ok(!stripComments('<p className="x">字</p>\n// captureStream\n').includes('captureStream'),
+    '★★★ stripper：JSX 收尾標籤 `</p>` 的斜線不可被當成 regex 開頭')
+  ok(!stripComments('<X a={b} />\n// captureStream\n').includes('captureStream'),
+    '★★★ stripper：JSX 自閉合 `/>` 的斜線不可被當成 regex 開頭')
+  ok(!stripComments('const s = `外${ok ? `內A` : `內B`}尾`\n// captureStream\n').includes('captureStream'),
+    '★★★ stripper：樣板字串的 ${} 裡還有樣板字串（Scan.jsx 的診斷字串就是這樣）')
+  ok(stripComments('const s = `a${ {k:1} }b`; const w = 9').includes('const w = 9'),
+    '★★ stripper：${} 裡的物件字面值不可提早收掉樣板')
+  // ⚠️ 誠實話：上面 JSX 那兩條有**兩道互為冗餘**的防護——
+  //    ① REGEX_OK 不含 `<`／`{`／`}`；② regex 掃描碰到換行就收手。
+  //    變異測試實測：只拆掉任一道，另一道仍然擋得住（等價變異）；兩道都拆才會紅。
+  //    也就是說這兩條檢查目前抓的是「兩道都被拿掉」，不是「任一道被拿掉」。
+  //    留著是為了防未來一起改壞——**知道它們目前不強，比假裝它們很強有用**
+  //    （與 check-speak.mjs 那幾條同樣的處境）。
 }
 
 // ── A. 卡面座標系 ────────────────────────────────────────────────────────
@@ -987,6 +1048,59 @@ const W = 1831, H = 1335
   ok(/from '\.\.\/components\/ArQuiz\.jsx'/.test(model)
     && /from '\.\.\/components\/ArQuiz\.jsx'/.test(stripComments(read('../src/screens/CardPage.jsx'))),
     '★ 兩頁共用同一支小挑戰元件（同一段動線不該有兩套實作）')
+
+  // ── 跟角色說話（`src/components/ArTalk.jsx`）──
+  const talk = stripComments(read('../src/components/ArTalk.jsx'))
+  ok(/ArTalk/.test(model), '★★ 模型頁要有對話面板')
+
+  // ★★★ 對話**不可以**接語言模型：讓 LLM 扮演白菜開口，它兩三句內就會說出
+  //   「富含維生素 C、膳食纖維」——那正是上面那道法規閘門在擋的東西，
+  //   而執行期的 AI 輸出沒有任何閘門掃得到。答案一律取自 facts。
+  ok(!/aiChat|\/api\/ai|openai/i.test(talk),
+    '★★★ 對話面板不可呼叫 AI（執行期輸出沒有法規閘門擋得住）')
+  ok(/f\.value/.test(talk) && /facts/.test(talk),
+    '★★★ 答案要逐字取自 facts[].value（不改寫才查得到出處）')
+
+  // ★★ 這條動線真正「活起來」的關鍵：說話時開 talk 疊加通道。
+  //    那條通道 actor.js 早就寫好，但在這之前**沒有任何地方使用**。
+  ok(/setOverlay\('talk'/.test(talk), "★★ 說話時要開 setOverlay('talk') 疊加通道")
+  ok(/setOverlayLevel/.test(talk), '★★ 要驅動音量包絡（固定值看起來像機器震動不像人講話）')
+  // ⚠️ 同理：`setOverlay(null)` 在 hush() 也有一次，只檢查「出現過」的話
+  //    把 finish() 裡那次刪掉照樣通過。要求**至少兩處**（hush ＋ finish）。
+  ok((talk.match(/setOverlay\(null\)/g) || []).length >= 2,
+    '★★ 講完與中斷時都要關掉疊加通道（留著角色會一直微微起伏，像「還在講但沒聲音」）')
+
+  // ★★★ 看門狗：不可以把「能不能再提問」交給語音合成引擎。
+  //   `synth.speak()` 靜默失敗時 onend/onerror 都不觸發 ⇒ busy 永遠是 true
+  //   ⇒ 每一顆提問 chip 永久 disabled，而畫面看起來完全正常。
+  // ⚠️ 不可只寫 /guardRef/：那個識別字在宣告與 clearTimeout 也出現，
+  //    把看門狗拆掉照樣通過（變異測試抓到的）。要比對**排程那一行**。
+  ok(/setTimeout\(finish,/.test(talk),
+    '★★★ 語音要有逾時看門狗（引擎靜默失敗時不可把對話鎖死）')
+
+  // ⚠️ speechSynthesis 是全域單例、跨頁面存活：不 cancel 的話使用者按上一頁
+  //    離開之後聲音還會繼續唸完，而畫面上已經沒有東西能停它。
+  ok(/cancel\(\)/.test(talk) && /useEffect\(\(\) => hush/.test(talk),
+    '★★ 卸載時一定要停止語音（全域單例會跨頁面繼續唸）')
+
+  // ⚠️ 語音是輔助不是替代：不支援合成的瀏覽器一樣要看得到全部的字
+  ok(/speechSupported\(\)/.test(talk) && /if \(!speechSupported\(\)\) \{ finish\(\)/.test(talk),
+    '★ 不支援語音時要照樣顯示文字並解鎖（語音是輔助不是替代）')
+
+  // actor 要真的交到 React 手上，否則對話面板點了不會有反應
+  ok(/jq-actor-ready/.test(model), '★★ 角色元件要把 actor 交給 React（對話面板靠它驅動）')
+  ok(/actor: null/.test(model),
+    '★★ 卸載時要把 actor 收回 null（否則會對著已 dispose 的場景下指令）')
+
+  // ★★ 模型頁的知識卡不可限高自捲。`.scan-hit` 的 max-height 是為 `/AR` 設的
+  //    （那裡它疊在相機畫面上），照搬到模型頁會把小挑戰**藏進卡片內部的捲軸**
+  //    ——實測卡片可視 354／內容 619，答題區完全看不到而且毫無跡象。
+  ok(/\.armodel-body \.scan-hit\s*\{[^}]*max-height:\s*none/.test(SRC.css),
+    '★★ 模型頁的 .scan-hit 要解除限高（否則小挑戰被藏在卡片的內部捲軸裡）')
+
+  // ★★ 捲到小挑戰不可用 scrollIntoView：手機捲的是 `.device .body` 不是 window
+  ok(/scrollIntoContainer/.test(model) && !/scrollIntoView/.test(model),
+    '★★ 捲動要用 scrollIntoContainer（scrollIntoView 對 .body 容器是靜默無效的）')
 }
 
 if (fail.length) {

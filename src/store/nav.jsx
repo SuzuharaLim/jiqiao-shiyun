@@ -261,12 +261,8 @@ export function NavProvider({ children }) {
   //    切分頁都被丟回頁首**，正是這段程式碼寫來要避免的那件事。
   //    實測 1280×720：`.body` 的 overflowY=visible、scrollHeight−clientHeight=0，
   //    而 documentElement 是 2165 vs 720。
-  const scroller = () => {
-    const el = document.querySelector('.device .body')
-    if (!el) return null
-    const oy = getComputedStyle(el).overflowY
-    return (oy === 'auto' || oy === 'scroll') ? el : null
-  }
+  // 提到模組層並 export（見檔案下方的 `scroller`）——不可讓別處自己再寫一份，
+  // 這段邏輯歷史上被寫錯過一次，複製一份等於把那個坑再埋一次。
   const scrollKey = (t, depth) => `t${t}:${depth}`
   const readScroll = () => { const el = scroller(); return el ? el.scrollTop : window.scrollY }
   const writeScroll = (y) => {
@@ -565,4 +561,55 @@ export function NavProvider({ children }) {
     toast, toastAction, setToast,
   }
   return <NavCtx.Provider value={value}>{children}</NavCtx.Provider>
+}
+
+/**
+ * 目前真正在捲動的容器。**捲動位置、捲到某個元素都要走這裡。**
+ *
+ * ⚠️ 不可只判斷「元素存不存在」：捲動容器隨斷點而變——
+ *    手機／矮視窗是 `.device .body`（`overflow-y:auto`），
+ *    桌機是**整份文件**（`.stage.signed-in .body { overflow:visible }`）。
+ *    只寫 `querySelector('.device .body')` 的話桌機會拿到一個**永遠捲不動**的
+ *    元素：讀永遠是 0、寫又順手把 window 捲到 0。
+ *    實測 1280×720：`.body` 的 scrollHeight−clientHeight = 0，
+ *    而 documentElement 是 2165 − 720。
+ * @returns {Element|null} null 代表捲的是整份文件（用 window.scrollTo）
+ */
+export function scroller() {
+  if (typeof document === 'undefined') return null
+  const el = document.querySelector('.device .body')
+  if (!el) return null
+  const oy = getComputedStyle(el).overflowY
+  return (oy === 'auto' || oy === 'scroll') ? el : null
+}
+
+/**
+ * 把某個元素捲進視野。
+ *
+ * ⚠️ **不可用 `el.scrollIntoView()`**：手機上捲的是 `.device .body` 而不是
+ *    window，而 `scrollIntoView` 對那個容器實測**完全沒有作用而且是靜默的**
+ *    （站上「跳至主要內容」與鍵盤捲動都踩過同一個坑）。要自己算 scrollTop。
+ */
+export function scrollIntoContainer(el, { offset = 24 } = {}) {
+  if (!el) return
+  // ★★★ 從元素**往上找它自己的**捲動容器，不可直接用 `scroller()`。
+  //
+  // ⚠️ `scroller()` 是 `document.querySelector('.device .body')`——有堆疊畫面時
+  //    頁面上**同時存在兩個** `.device .body`（根分頁那一層與堆疊畫面那一層），
+  //    而 querySelector 取的是**第一個**，也就是躺在底下、使用者根本沒在看的
+  //    那一個。實測 `/ar/model/:slug`：捲了根分頁的 body（scrollTop 0→863），
+  //    而目標元素在另一個 body 裡，位置一點都沒變。
+  let box = el.parentElement
+  while (box && box !== document.body) {
+    const oy = getComputedStyle(box).overflowY
+    if ((oy === 'auto' || oy === 'scroll') && box.scrollHeight - box.clientHeight > 4) break
+    box = box.parentElement
+  }
+  if (box === document.body) box = null
+  if (box) {
+    const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    box.scrollTop = Math.max(0, top - offset)
+  } else {
+    try { window.scrollTo(0, Math.max(0, window.scrollY + el.getBoundingClientRect().top - offset)) } catch { /* ignore */ }
+  }
 }

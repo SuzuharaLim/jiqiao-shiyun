@@ -72,6 +72,24 @@ ok(/restoreTimers\.current = \[80, 200, 400\]\.map/.test(code) &&
 // 還沒 fetch 完就永遠停在頁首。
 ok(!/scrollMax/.test(code), '不可用 scrollMax 提前判定成功（與「還沒長高」分辨不出來）')
 
+// ── 6. scrollIntoContainer 要找「元素自己的」捲動容器 ──
+//
+// ★★★ 有堆疊畫面時頁面上**同時存在兩個** `.device .body`（根分頁那一層與堆疊
+//   畫面那一層），而 `document.querySelector` 取的是**第一個**——也就是躺在
+//   底下、使用者根本沒在看的那一個。
+//   實測 `/ar/model/:slug` 按「考考我」：捲的是根分頁的 body（scrollTop 0→863），
+//   而目標元素在另一個 body 裡，位置一點都沒變。
+//   ⇒ 要捲到某個元素，必須從那個元素**往上找它自己的**捲動祖先。
+ok(/export function scrollIntoContainer/.test(code),
+  'nav.jsx 要匯出 scrollIntoContainer（不可讓各處自己寫一份捲動邏輯）')
+{
+  const fn = code.slice(code.indexOf('export function scrollIntoContainer'))
+  ok(/el\.parentElement/.test(fn) && /while \(box/.test(fn),
+    '★★★ scrollIntoContainer 要從元素往上找容器，不可直接用全域的 scroller()')
+  ok(/scrollHeight - box\.clientHeight/.test(fn),
+    '★★ 要確認那個祖先真的捲得動（只看 overflowY 會挑到捲不動的殼）')
+}
+
 if (fails.length) {
   console.error(`\n✗ 路由／捲動層檢查失敗 ${fails.length} 項：`)
   for (const f of fails) console.error('  ✗ ' + f)

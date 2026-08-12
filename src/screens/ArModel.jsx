@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { TopBar, Link } from '../components/ui.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
-import { useNav } from '../store/nav.jsx'
+import { useNav, scrollIntoContainer } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
 // 小挑戰與卡片頁共用同一支元件——同一段動線不該有兩套實作
 import ArQuiz from '../components/ArQuiz.jsx'
+// 跟角色說話：點選提問 → 角色回答並開口（腳本化，理由見該檔檔頭）
+import ArTalk from '../components/ArTalk.jsx'
 
 // ============================================================================
 // `/ar/model/:slug` —— 掃到卡片之後跳來的 **A-Frame 模型頁**
@@ -143,6 +145,10 @@ async function ensureAframe() {
           reduceMotion: matchMedia?.('(prefers-reduced-motion: reduce)').matches,
         })
         this.last = performance.now()
+        // ★ 把 actor 交給 React：對話面板要能驅動它（換動作、開說話疊加通道）。
+        //   ⚠️ 走事件不走「把它掛在 window 上」——後者在同頁有兩隻角色時會互相蓋掉，
+        //      而且卸載後那個參考還活著（actor 內部抓著整棵 three 場景）。
+        this.el.sceneEl.emit('jq-actor-ready', { actor: this.actor }, false)
       },
       tick(t) {
         if (!this.actor) return
@@ -152,6 +158,9 @@ async function ensureAframe() {
       },
       remove() {
         this.disposed = true
+        // ⚠️ 一定要通知：React 那邊留著已卸載角色的 actor 的話，
+        //    使用者離開再回來時對話面板會對著一棵已經 dispose 的場景下指令。
+        try { this.el.sceneEl.emit('jq-actor-ready', { actor: null }, false) } catch { /* ignore */ }
         // ⚠️ 對應上面的 `object3D.add()`：A-Frame 的 removeObject3D 找不到它
         //    （它不在 object3DMap 裡），一定要自己移除，否則反覆進出這一頁
         //    會一直往場景裡疊角色。
@@ -265,6 +274,9 @@ export default function ArModel({ slug, hotspot }) {
   const { user } = useNav()
   const card = cardBySlug(slug) || null
   const hostRef = useRef(null)
+  // 對話面板用它驅動角色（換動作、開／關說話疊加通道）
+  const actorRef = useRef(null)
+  const quizRef = useRef(null)
   const [phase, setPhase] = useState('loading')   // loading | ready | failed
   const [err, setErr] = useState(null)
 
@@ -278,6 +290,7 @@ export default function ArModel({ slug, hotspot }) {
     let cancelled = false
     let scene = null
     let ro = null
+    let onActor = null
     ;(async () => {
       try {
         await ensureAframe()
@@ -316,6 +329,10 @@ export default function ArModel({ slug, hotspot }) {
           </a-entity>
           <a-entity camera="fov: 44" jq-fit look-controls="enabled: false" wasd-controls="enabled: false"></a-entity>
         `
+        // ⚠️ 監聽要在 appendChild **之前**掛：A-Frame 的元件在 DOM 掛載時就會
+        //    初始化，晚一步掛就收不到第一次的 jq-actor-ready。
+        onActor = (e) => { actorRef.current = e.detail?.actor ?? null }
+        scene.addEventListener('jq-actor-ready', onActor)
         hostRef.current.appendChild(scene)
         const done = () => { if (!cancelled) setPhase('ready') }
         if (scene.hasLoaded) done()
@@ -341,6 +358,8 @@ export default function ArModel({ slug, hotspot }) {
     return () => {
       cancelled = true
       try { ro?.disconnect() } catch { /* ignore */ }
+      try { if (onActor) scene?.removeEventListener('jq-actor-ready', onActor) } catch { /* ignore */ }
+      actorRef.current = null
       // ⚠️ 一定要呼叫 A-Frame 自己的清理：`scene.remove()` 只是把節點拿掉，
       //    算繪迴圈與 WebGL context 還在跑。行動裝置的 context 數有上限，
       //    反覆進出這一頁的症狀會是「第 N 次打開變成空白」。
@@ -384,6 +403,15 @@ export default function ArModel({ slug, hotspot }) {
 
         <p className="armodel-hint muted">拖曳可以轉動，放開後會自己慢慢轉。</p>
 
+        {/* ★ 對話面板放在 3D 舞台**正下方**、知識卡之上：
+            使用者剛看到角色動起來，這時候給他「可以跟它說話」最自然。
+            擺到頁尾的話多數人捲不到那裡就離開了。 */}
+        <ArTalk obj={obj} actorRef={actorRef}
+          // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
+          //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
+          //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
+          onQuiz={() => scrollIntoContainer(quizRef.current)} />
+
         {obj && (
           <div className="scan-hit">
             <div className="scan-hit-hd">
@@ -411,10 +439,10 @@ export default function ArModel({ slug, hotspot }) {
                 ⚠️ 用 `.cardp-quiz`（它自己帶 border-top 分隔線），所以放在
                    知識卡**裡面**、語音按鈕之後——與卡片頁的結構一致。 */}
             {obj.quiz && (
-              <ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
+              <div ref={quizRef}><ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
                 term={card.term}
                 // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
-                fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} />
+                fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} /></div>
             )}
           </div>
         )}

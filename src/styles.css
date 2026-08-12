@@ -1688,6 +1688,55 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
 .armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
+
+/* ── 跟角色說話 ──
+   ⚠️ `.body` 是 flex column，子項預設 flex-shrink:1 —— 內容一長就會被壓到
+      自己的 min-height 而文字溢出疊到下一列（CLAUDE.md 有整段在講這個坑）。
+      所以這裡一定要 `flex:0 0 auto`。 */
+.armodel-talk-hd { padding: var(--space-4) var(--space-4) 0; flex: 0 0 auto; }
+.artalk { margin: var(--space-2) var(--space-4) 0; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 2px; background: var(--card);
+  padding: var(--space-3); }
+/* 對話紀錄自己捲，不要把整頁撐長 */
+.artalk-log { max-height: 34dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.artalk-b { margin: 0; max-width: 86%; padding: 8px 12px; border-radius: 14px;
+  font-size: var(--text-xs); line-height: 1.65; white-space: pre-wrap; }
+.artalk-b i { font-style: normal; font-size: var(--text-2xs); display: block; margin-top: 2px; }
+/* 角色說的話：淡竹青紙底，左側 */
+.artalk-b.char { align-self: flex-start; background: var(--tone-2); color: var(--ink);
+  border-bottom-left-radius: 4px; }
+/* 使用者說的話：實心主色底 ＋ 白字，右側
+   ⚠️ 實心底一律用 --primary 不可用 --cinnabar：深色模式的 --cinnabar 是淺藍，
+      白字在上面只有 2.86 的對比（CLAUDE.md 記過這個坑踩了 14 處）。 */
+.artalk-b.me { align-self: flex-end; background: var(--primary); color: #fff;
+  border-bottom-right-radius: 4px; }
+.artalk-b.me i { color: rgba(255,255,255,.8); }
+
+/* 「正在想」的三點。⚠️ reduce-motion 下要給靜態替代，
+   全域的 animation-iteration-count:1 會讓它凍在某一格，看起來像壞掉。 */
+.artalk-typing { display: flex; gap: 5px; align-items: center; min-height: 34px; }
+.artalk-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+  animation: artalk-dot 1.05s var(--e-out) infinite both; }
+.artalk-typing span:nth-child(2) { animation-delay: .16s }
+.artalk-typing span:nth-child(3) { animation-delay: .32s }
+@keyframes artalk-dot { 0%, 80%, 100% { opacity: .28; transform: translateY(0) }
+  40% { opacity: 1; transform: translateY(-3px) } }
+@media (prefers-reduced-motion: reduce) {
+  .artalk-typing span { display: none }
+  .artalk-typing::after { content: '思考中…'; font-size: var(--text-2xs); color: var(--muted) }
+}
+
+.artalk-asks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--space-3); }
+.artalk-asks .chip { font-size: var(--text-2xs); }
+/* ⚠️ disabled 的 chip 要看得出來不能按，否則使用者會以為沒反應而一直點 */
+.artalk-asks .chip:disabled { opacity: .45; cursor: default; }
+
+/* ★★ 模型頁的知識卡**不可**限高自捲。
+   `.scan-hit` 的 `max-height:40dvh; overflow:auto` 是為 `/AR` 設計的——那裡它是
+   疊在即時相機畫面上的面板，不限高會吃掉整個取景框。但在模型頁它只是頁面裡的
+   一張卡，限高會把小挑戰**藏進卡片內部的捲軸裡**：實測卡片可視高 354、內容 619，
+   答題區完全看不到，而畫面上沒有任何跡象顯示它被截斷了。 */
+.armodel-body .scan-hit { max-height: none; overflow: visible; }
 .armodel-acts { display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-4); flex: 0 0 auto; }
 
