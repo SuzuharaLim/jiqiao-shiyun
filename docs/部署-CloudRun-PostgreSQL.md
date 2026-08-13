@@ -312,7 +312,7 @@ gcloud run services update "$SERVICE" --region="$REGION" --update-env-vars="APP_
 3. 部署時掛給 Cloud Run（模型可選）：
    ```bash
    gcloud run services update "$SERVICE" --region="$REGION" \
-     --update-env-vars="OPENAI_MODEL=gpt-5.4-nano" \
+     --update-env-vars="OPENAI_MODEL=gpt-5.6-luna" \
      --update-secrets="OPENAI_API_KEY=openai-key:latest"
    ```
 4. 驗證：`curl "$URL/api/health"` 會顯示 `"ai":"on"`。App 的「占卜 → AI 時光顧問」即改用真 GPT（帶入今日節氣/宜忌脈絡）。
