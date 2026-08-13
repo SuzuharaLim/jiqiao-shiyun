@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { speechSupported, speak } from '../lib/speak.js'
+import { objectForHotspot } from '../data/arCards.js'
 
 // ============================================================================
 // 跟角色說話 —— `/ar/model/:slug` 的對話面板
@@ -51,9 +52,46 @@ function asksFor(obj) {
   return out
 }
 
-export default function ArTalk({ obj, actorRef, onQuiz }) {
+/**
+ * 把使用者手打的字對到卡片上真的有的內容。
+ *
+ * ★ 這是「可以自由輸入」與「不可以編造」之間唯一誠實的接法：
+ *   比對範圍是**這張卡自己的資料**（先找目前這個物件，再找同一張卡的其他熱區），
+ *   命中就用該筆 `fact.value` 逐字回答、附上它的 source；查不到就明說查不到。
+ *
+ * ⚠️ **不可以在這裡接語言模型**（理由見檔頭）。查不到就查不到——
+ *    「我不知道」是誠實的答案，掰一個看起來合理的句子不是。
+ */
+function findAnswer(text, card, currentObj) {
+  const raw = String(text || '').trim()
+  if (!raw) return null
+  const norm = (v) => String(v).toLowerCase().replace(/[\s，,。.？?！!、；;：:「」『』（）()]/g, '')
+  const nq = norm(raw)
+  if (!nq) return null
+
+  const others = (card?.hotspots ?? []).map(objectForHotspot).filter(Boolean)
+  const objs = [currentObj, ...others.filter(o => o && o !== currentObj)]
+
+  for (const o of objs) {
+    for (const f of o?.facts ?? []) {
+      if (!f?.label || !f?.value) continue
+      const label = norm(f.label)
+      // ⚠️ 一個字的標籤不可拿來反向比對，否則「你」「的」之類的字會亂命中
+      const hit = [f.ask, f.label, f.value].filter(Boolean).some(v => norm(v).includes(nq))
+        || (label.length >= 2 && nq.includes(label))
+      if (hit) return { a: f.value, source: f.source || null, act: f.act || 'nod', who: o }
+    }
+    if (o?.warn && /通風|一氧化碳|中毒|注意|安全|冬天|保暖/.test(raw)) {
+      return { a: o.warn, source: null, act: 'think', who: o }
+    }
+  }
+  return null
+}
+
+export default function ArTalk({ obj, card, actorRef, onQuiz }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState('')
   const logRef = useRef(null)
   const speechRef = useRef(null)
   const envRef = useRef(0)
@@ -155,32 +193,67 @@ export default function ArTalk({ obj, actorRef, onQuiz }) {
     }, 480)
   }
 
+  /** 使用者手打的問題。 */
+  const submit = (e) => {
+    e.preventDefault()
+    const t = draft.trim()
+    if (!t || busy) return
+    setDraft('')
+    const hit = findAnswer(t, card, obj)
+    if (hit) {
+      // 命中就照一般問答走（答案逐字用 fact.value）
+      say({ q: t, a: hit.a, source: hit.source, act: hit.act })
+      return
+    }
+    // ★★★ 查不到就**明說查不到**，不可以掰。
+    //   同時把「我知道什麼」列出來——只說「不知道」等於把人丟在原地。
+    const known = asks.slice(0, 3).map(a => a.q).join('　')
+    say({
+      q: t,
+      a: `這張卡上沒有寫到這個，我只認得卡片上的內容。你可以問我：${known}`,
+      act: 'shy',
+      noSpeakSource: true,
+    })
+  }
+
   if (!obj) return null
+
+  // 泡泡裡放**最新一句角色的話**；先前的往來收在上面那個可捲的小紀錄裡。
+  const latest = [...log].reverse().find(m => m.who === 'char')
+  const lastAsked = [...log].reverse().find(m => m.who === 'me')?.text ?? null
 
   return (
     <div className="artalk">
-      <div className="artalk-log" ref={logRef} aria-live="polite" aria-label={`與${obj.name}的對話`}>
-        {log.map((m, i) => (
-          <p key={i} className={`artalk-b ${m.who}`}>
-            {m.text}
-            {m.source && <i className="muted">（{m.source}）</i>}
-          </p>
-        ))}
-        {busy && <p className="artalk-b char artalk-typing"><span /><span /><span /></p>}
+      {/* ⚠️ **不顯示對話紀錄**（參考圖也只有一個泡泡）。
+          先前做過可捲的歷史區，但它會把底下的輸入列往下推——實測問了四題之後
+          輸入列跑到 top 984，而視窗只有 889，使用者要捲下去才打得到字。
+          這一頁的重點是「現在它說了什麼」，而且每一題都可以再問一次，
+          留著歷史的代價（輸入列被推出畫面）遠大於它的價值。
+          `log` 仍然保留著，泡泡取的就是裡面最後一句角色的話。 */}
+      {/* ★ 對話泡泡：尖端朝上指向角色，緊貼 3D 舞台下緣。
+          aria-live 放這裡而不是紀錄區——螢幕閱讀器要唸的是「角色現在說了什麼」。 */}
+      {/* 剛問的那一句，一行小字——沒有它，答案會像憑空冒出來 */}
+      {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
+
+      <div className="artalk-bubble" aria-live="polite" aria-label={`${obj.name}說`}>
+        {busy
+          ? <span className="artalk-typing"><span /><span /><span /></span>
+          : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
       </div>
 
-      <div className="artalk-asks">
+      {/* ★ 2×2 選項格 */}
+      <div className="artalk-grid">
         {asks.map((a, i) => (
-          <button key={i} className="chip tap" disabled={busy} onClick={() => say(a)}>
+          <button key={i} className="artalk-opt tap" disabled={busy} onClick={() => say(a)}>
             {a.q}
           </button>
         ))}
         {/* 動作不牽涉任何事實，純粹讓它「有反應」——這是最便宜的活著感 */}
-        <button className="chip tap" disabled={busy} onClick={() => {
+        <button className="artalk-opt tap" disabled={busy} onClick={() => {
           const a = actorRef?.current
           const moves = ['wave', 'nod', 'jump', 'spin', 'dance', 'happy']
           const pick = moves[Math.floor(Math.random() * moves.length)]
-          setLog(l => [...l, { who: 'me', text: '做個動作給我看' }])
+          setLog(l => [...l, { who: 'me', text: '做個動作給我看' }, { who: 'char', text: '看好囉！' }])
           try { a?.setAction(pick) } catch { /* ignore */ }
           // ⚠️ 要自己收回 present：動作是循環的，不收的話它會一直跳下去
           clearTimeout(timerRef.current)
@@ -189,7 +262,7 @@ export default function ArTalk({ obj, actorRef, onQuiz }) {
           做個動作給我看
         </button>
         {obj.quiz && (
-          <button className="chip tap" disabled={busy} onClick={() => {
+          <button className="artalk-opt tap" disabled={busy} onClick={() => {
             setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，往下看——我出一題。' }])
             try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
             onQuiz?.()
@@ -198,6 +271,22 @@ export default function ArTalk({ obj, actorRef, onQuiz }) {
           </button>
         )}
       </div>
+
+      {/* ★ 手動輸入。
+          ⚠️ 這裡**不接語言模型**（理由見檔頭）：先在這張卡自己的資料裡找，
+             找不到就誠實說找不到並列出它知道什麼。 */}
+      <form className="artalk-form" onSubmit={submit}>
+        <input
+          className="artalk-input" type="text" value={draft} disabled={busy}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={`問問${obj.name}…`}
+          aria-label={`輸入想問${obj.name}的問題`}
+          enterKeyHint="send" autoComplete="off"
+        />
+        <button className="btn-primary tap artalk-send" type="submit" disabled={busy || !draft.trim()}>
+          發送
+        </button>
+      </form>
     </div>
   )
 }

@@ -655,8 +655,12 @@ const W = 1831, H = 1335
     // ★★ dvh 的退路：舊 iOS（<15.4）不認得 dvh 會把整條 height 丟掉，
     //    而這個容器一旦沒高度 A-Frame 就拿到 0×0。
     const stage = SRC.css.match(/\.armodel-stage\s*\{[^}]*\}/)?.[0] ?? ''
-    ok(/height:\s*min\(56vh/.test(stage) && /height:\s*min\(56dvh/.test(stage),
-      '★★ .armodel-stage 要同時寫 vh 退路與 dvh（舊 iOS 不認 dvh 會整行丟掉）')
+    // ⚠️ 不寫死數字：高度會隨排版微調（56 → 52dvh 就改過一次）。
+    //    要鎖的是「**同一個值**同時有 vh 與 dvh 兩行」這個結構。
+    const vh = stage.match(/height:\s*min\((\d+)vh/)
+    const dvh = stage.match(/height:\s*min\((\d+)dvh/)
+    ok(!!vh && !!dvh && vh[1] === dvh[1],
+      `★★ .armodel-stage 要同時寫 vh 退路與 dvh 且數值一致（vh ${vh?.[1] ?? '無'} / dvh ${dvh?.[1] ?? '無'}；舊 iOS 不認 dvh 會整行丟掉）`)
   }
 
   // ── 死路檢查：任何一種「沒救了」都要給得出下一步 ──
@@ -1101,6 +1105,40 @@ const W = 1831, H = 1335
   // ★★ 捲到小挑戰不可用 scrollIntoView：手機捲的是 `.device .body` 不是 window
   ok(/scrollIntoContainer/.test(model) && !/scrollIntoView/.test(model),
     '★★ 捲動要用 scrollIntoContainer（scrollIntoView 對 .body 容器是靜默無效的）')
+
+  // ── 對話面板的排版（2026-08-11 依參考圖調整）──
+  // 角色佔上半 → 對話泡泡（尖端朝上）→ 2×2 選項格 → 底部輸入列。
+  // ⚠️ 這兩條原本一個掃全檔、一個從 `.artalk-grid` 一路 slice 到檔尾，
+  //    於是「把選項改成一欄」「把尖角選擇器改名」都照樣通過（變異測試抓到的）。
+  //    要**抓出那一條規則本身**再比對。
+  const cssRule = (sel) => {
+    const i = SRC.css.indexOf(sel)
+    if (i < 0) return ''
+    const j = SRC.css.indexOf('}', i)
+    return j < 0 ? '' : SRC.css.slice(i, j + 1)
+  }
+  const tail = cssRule('.artalk-bubble::before')
+  ok(/artalk-bubble/.test(talk) && /border-bottom:\s*\d/.test(tail) && /\.artalk-bubble::after/.test(SRC.css),
+    '★ 對話泡泡要有朝上的尖角（指向 3D 舞台裡的角色）')
+  ok(/grid-template-columns:\s*repeat\(2/.test(cssRule('.artalk-grid {')),
+    '★ 選項要排成 2 欄')
+  ok(/artalk-form/.test(talk) && /artalk-input/.test(talk) && /發送/.test(talk),
+    '★ 底部要有手動輸入列與發送鈕')
+
+  // ★★★ 泡泡一定要限高自捲。長答案（例如「查不到」那一則會列出三個建議問題）
+  //   會把底下的選項與輸入列往下推——實測顯示過歷史紀錄時輸入列跑到 top 984，
+  //   而視窗只有 889，使用者要捲下去才打得到字。
+  ok(/\.artalk-bubble[^}]*max-height/.test(SRC.css),
+    '★★★ 對話泡泡要限高自捲（否則長答案會把輸入列推出畫面）')
+
+  // ★★★ 手動輸入的答案也**只能來自卡片自己的資料**。
+  //   這是「可以自由輸入」與「不可以編造」之間唯一誠實的接法。
+  ok(/function findAnswer/.test(talk) && /f\.value/.test(talk),
+    '★★★ 手動輸入要在卡片資料裡找答案（逐字用 fact.value）')
+  // ★★★ 查不到就要**明說查不到**。掰一個看起來合理的句子＝把法規閘門繞過去，
+  //   因為那句話不會經過建置期的營養／療效掃描。
+  ok(/沒有寫到這個|查不到|只認得卡片/.test(talk),
+    '★★★ 查不到時要誠實說查不到（不可掰，掰出來的句子閘門掃不到）')
 }
 
 if (fail.length) {

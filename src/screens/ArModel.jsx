@@ -406,7 +406,7 @@ export default function ArModel({ slug, hotspot }) {
         {/* ★ 對話面板放在 3D 舞台**正下方**、知識卡之上：
             使用者剛看到角色動起來，這時候給他「可以跟它說話」最自然。
             擺到頁尾的話多數人捲不到那裡就離開了。 */}
-        <ArTalk obj={obj} actorRef={actorRef}
+        <ArTalk obj={obj} card={card} actorRef={actorRef}
           // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
           //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
           //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
