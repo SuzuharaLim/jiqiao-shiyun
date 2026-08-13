@@ -1667,17 +1667,28 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ⚠️ 用 dvh 不可用 vh：iOS/Android 的 vh 算的是**網址列收起來時**的大視窗高，
    網址列還在時 62vh 會超出可視範圍，模型下緣被推到看不見的地方。
    全站其他地方（.sheet／.fmenu／.glosspanel）都已經是 dvh，這裡漏了。 */
-/* ⚠️ 滿版（左右不留邊）：參考圖的角色是佔滿上半螢幕的。
-   `max-width` 仍留著，桌機才不會拉成一條寬帶。 */
-.armodel-stage { position: relative; width: 100%; max-width: 680px; margin: 0 auto;
+/* ★★ 連續場景：角色、泡泡、選項、輸入列共用同一片背景。
+   ⚠️ **這是全站唯一的 UI 漸層例外**。站上的規則是「印刷不會有漸層」，
+      而那條規則講的是**介面元件**（按鈕、卡片、chip）。這一塊是 3D 場景的
+      背景幕，性質比較接近「攝影棚的背景紙」而不是介面。即使如此它仍然是
+      例外，所以：只在這一個 class、只用品牌深藍（--primary 系）、
+      不可擴散到其他頁面。要收回去就把 background 換成 var(--tone-1)。
+   ⚠️ 深底之上的文字一律要淺色（見 .armodel-scene 底下那幾條覆寫）。 */
+.armodel-scene { position: relative; width: 100%; max-width: 680px; margin: 0 auto;
+  height: min(78vh, 720px);
+  height: min(78dvh, 720px);
+  min-height: 420px; flex: 0 0 auto; overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 38%, #2C4E86 0%, #1B3560 45%, #10203C 100%);
+  color: #F4F7FB;
+}
+/* 舞台鋪滿整個場景；控制項疊在下半 */
+.armodel-stage { position: absolute; inset: 0; width: 100%; margin: 0;
   /* ⚠️ 兩行都要留。`dvh` 是 iOS 15.4 才有的單位，舊 iOS 會把整條
      `height: min(56dvh, …)` 判為無效而**整行丟掉**——而這個容器一旦沒有高度，
      A-Frame 會拿到 0×0 並且不會自己重試（見下方註解），症狀是整片空白。
      先寫 vh 版當退路，支援 dvh 的瀏覽器會用下面那行覆蓋掉。 */
-  height: min(52vh, 480px);
-  height: min(52dvh, 480px);
-  min-height: 260px; flex: 0 0 auto;
-  background: var(--tone-1); border-radius: 2px; overflow: hidden; }
+  background: transparent; overflow: hidden; }
 .armodel-stage a-scene, .armodel-stage canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
 /* ★★★ `touch-action: none` 是「拖曳可以轉動」這句話能不能兌現的關鍵。
    預設值 `auto` 會讓瀏覽器把觸控手勢當成捲動吃掉——手指在模型上滑，
@@ -1698,14 +1709,26 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
       整站已無 UI 漸層（CLAUDE.md）。這裡沿用 --tone-* 紙染與 --primary。
    ⚠️ `.body` 是 flex column，子項預設 flex-shrink:1——內容一長就會被壓到
       自己的 min-height 而文字溢出疊到下一列。所以每一塊都要 flex:0 0 auto。 */
-.artalk { margin: 0 var(--space-4); flex: 0 0 auto; }
+/* ★ 疊在場景下半。`inset: auto 0 0 0` ＝貼著場景底部、左右滿版。 */
+.artalk { position: absolute; inset: auto 0 0 0; padding: 0 var(--space-4) var(--space-4);
+  /* 由下往上的暗色遮罩，讓文字在角色身上也讀得到 */
+  background: linear-gradient(to top, rgba(9,18,36,.86) 0%, rgba(9,18,36,.72) 62%, rgba(9,18,36,0) 100%);
+  padding-top: var(--space-6); }
+
+/* ── 深底之上的配色覆寫 ──
+   ⚠️ 一律用淺色文字。實測對比：#F4F7FB 對底色 #1B3560 ＝ 11.9，
+      #D6E2F2 對 rgba(255,255,255,.14) 疊在 #1B3560 上 ＝ 8.6，都遠高於 AA 的 4.5。 */
+.armodel-scene .artalk-asked { color: rgba(244,247,251,.72); }
 
 /* 剛問的那一句（一行小字，右對齊，不搶泡泡的注意力） */
 .artalk-asked { margin: 0 0 6px; text-align: right; font-size: var(--text-2xs);
   color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ★ 對話泡泡。尖端朝上指向 3D 舞台裡的角色。 */
-.artalk-bubble { position: relative; background: var(--tone-2); color: var(--ink);
+/* ★ 對話泡泡。尖端朝上指向 3D 舞台裡的角色。
+   毛玻璃：參考圖的泡泡是半透明的，看得到後面的角色。 */
+.artalk-bubble { position: relative;
+  background: rgba(255,255,255,.90); color: #16233A;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-radius: 14px; padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm); line-height: 1.7; white-space: pre-wrap;
   min-height: 52px; display: flex; align-items: center; flex-wrap: wrap;
@@ -1717,7 +1740,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-bubble::before, .artalk-bubble::after {
   content: ''; position: absolute; top: -9px; width: 0; height: 0;
   border-left: 9px solid transparent; border-right: 9px solid transparent;
-  border-bottom: 10px solid var(--tone-2);
+  border-bottom: 10px solid rgba(255,255,255,.90);
 }
 .artalk-bubble::before { left: 26px; }
 .artalk-bubble::after { right: 26px; }
@@ -1742,14 +1765,16 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-opt {
   /* ⚠️ 觸控目標 ≥24×24（WCAG 2.5.8 AA）；這裡給 48 是因為它是主要操作 */
   min-height: 48px; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
-  color: var(--ink); font-size: var(--text-xs); line-height: 1.4;
+  border: 1px solid rgba(255,255,255,.28); border-radius: 12px;
+  background: rgba(255,255,255,.16);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  color: #F4F7FB; font-size: var(--text-xs); line-height: 1.4;
   text-align: center; word-break: break-word;
   transition: background var(--m-fast) var(--e-out), border-color var(--m-fast) var(--e-out);
 }
 /* ⚠️ 每一條 :hover 都要包 (hover:hover)——觸控裝置點完狀態會黏住 */
 @media (hover: hover) and (pointer: fine) {
-  .artalk-opt:hover:not(:disabled) { border-color: var(--primary); background: var(--tone-1); }
+  .artalk-opt:hover:not(:disabled) { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.26); }
 }
 .artalk-opt:disabled { opacity: .45; cursor: default; }
 /* 奇數個選項時讓最後一個佔滿整列，不要留一個突兀的半格 */
@@ -1758,8 +1783,9 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ★ 底部輸入列 */
 .artalk-form { display: flex; gap: 8px; margin-top: var(--space-3); }
 .artalk-input { flex: 1 1 auto; min-width: 0;
-  border: 1px solid var(--line); border-radius: 999px; background: var(--card);
-  padding: 10px var(--space-4); color: var(--ink);
+  border: 1px solid rgba(255,255,255,.24); border-radius: 999px;
+  background: rgba(255,255,255,.94);
+  padding: 10px var(--space-4); color: #16233A;
   /* ⚠️ 字級 <16px 會讓 iOS 聚焦時自動放大整頁（全域已有 max(16px,…) 保險，
      這裡再寫一次是因為這一顆特別容易被改小） */
   font-size: max(16px, var(--text-xs));

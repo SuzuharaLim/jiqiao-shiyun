@@ -616,8 +616,8 @@ const W = 1831, H = 1335
   ok(/forceContextLoss/.test(model), '★ 離開要釋放 WebGL context')
   ok(/look-controls="enabled: false"/.test(model),
     '★ 要關掉 look-controls（開著的話相機會跟手機陀螺儀飄，看模型時畫面自己在動）')
-  ok(/\.armodel-stage\s*\{[^}]*height:/.test(SRC.css),
-    '★★ .armodel-stage 必須有明確高度（A-Frame 拿到 0×0 不會自己重試，症狀是整片空白）')
+  ok(/\.armodel-scene\s*\{[^}]*height:/.test(SRC.css),
+    '★★ .armodel-scene 必須有明確高度（A-Frame 拿到 0×0 不會自己重試，症狀是整片空白）')
 
   // ── 版面比例（2026-08-11 使用者回報「畫面比例怪怪的」）──
   {
@@ -654,7 +654,7 @@ const W = 1831, H = 1335
 
     // ★★ dvh 的退路：舊 iOS（<15.4）不認得 dvh 會把整條 height 丟掉，
     //    而這個容器一旦沒高度 A-Frame 就拿到 0×0。
-    const stage = SRC.css.match(/\.armodel-stage\s*\{[^}]*\}/)?.[0] ?? ''
+    const stage = SRC.css.match(/\.armodel-scene\s*\{[^}]*\}/)?.[0] ?? ''
     // ⚠️ 不寫死數字：高度會隨排版微調（56 → 52dvh 就改過一次）。
     //    要鎖的是「**同一個值**同時有 vh 與 dvh 兩行」這個結構。
     const vh = stage.match(/height:\s*min\((\d+)vh/)
@@ -1139,6 +1139,31 @@ const W = 1831, H = 1335
   //   因為那句話不會經過建置期的營養／療效掃描。
   ok(/沒有寫到這個|查不到|只認得卡片/.test(talk),
     '★★★ 查不到時要誠實說查不到（不可掰，掰出來的句子閘門掃不到）')
+
+  // ── 連續場景（2026-08-11 依參考圖再調一次）──
+  ok(/armodel-scene/.test(model) && /\.armodel-scene/.test(SRC.css),
+    '★ 角色與對話面板要在同一個場景容器裡（參考圖是一整片連續的畫面）')
+  ok(/position:\s*absolute/.test(cssRule('.artalk {')),
+    '★ 對話面板要疊在場景上（不是排在下面）')
+
+  // ★★★ 角色的框景要把「被控制項蓋住的那一段」扣掉，否則臉正好被泡泡遮住
+  //   ——而那是這一頁唯一要看的東西。
+  ok(/visible:\s*\{\s*default/.test(model) && /this\.data\.visible/.test(model),
+    '★★★ jq-fit 要吃「可見比例」')
+  // ⚠️ 不可只驗「有算出 shift」——把它算出來卻不套用照樣通過（變異測試抓到的）。
+  //    要驗**套用**那一行。
+  ok(/tanV \* vis/.test(model) && /y:\s*-shift/.test(model),
+    '★★★ 可見比例要同時用在「算距離」與「把相機往下移」兩處（且真的套用）')
+  // ★★★ 那個比例必須是**量出來的**。對話面板的高度會隨字級、答案長短、
+  //   有沒有小挑戰而變（實測 0.52~0.58），寫死就會在某些狀態下把臉遮掉。
+  ok(/getBoundingClientRect\(\)\.height/.test(model) && /1 - covered \/ h/.test(model),
+    '★★★ 可見比例要量對話面板的實際高度，不可寫死比例')
+
+  // ★★ 深色場景背景是**全站唯一的 UI 漸層例外**（站規是「印刷不會有漸層」）。
+  //   鎖住它是為了兩件事：① 不會被誤刪而變回淺底（淺底配淺色文字＝看不見）；
+  //   ② 不會被複製到別的地方去。
+  ok(/radial-gradient/.test(cssRule('.armodel-scene')),
+    '★★ 場景背景幕（全站唯一的漸層例外，只准在這一個 class）')
 }
 
 if (fail.length) {

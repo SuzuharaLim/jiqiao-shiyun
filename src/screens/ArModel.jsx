@@ -182,7 +182,8 @@ async function ensureAframe() {
       // ⚠️ fov 要與 ProduceStage／demo 一致（44）。描邊 shader 的位移量投影後
       //    ∝ 焦距 ∝ 1/tan(fov/2)**與距離無關**，所以 fov 40 會讓這一頁的描邊
       //    比卡片頁粗 11%——同一隻角色兩頁看起來線條不一樣粗。
-      schema: { margin: { default: 1.1 }, maxPitch: { default: 35 } },
+      // visible：畫布**沒有被控制項蓋住**的縱向比例（由 React 量完傳進來）。
+      schema: { margin: { default: 1.1 }, maxPitch: { default: 35 }, visible: { default: 1 } },
       init() {
         this.metrics = null
         this.onReady = (e) => { this.metrics = e.detail; this.fit() }
@@ -203,12 +204,23 @@ async function ensureAframe() {
         const p = (this.data.maxPitch * Math.PI) / 180
         const needV = m.halfHeight * Math.cos(p) + m.radiusXZ * Math.sin(p)
         const needH = m.radiusXZ
-        const d = Math.max(needV / tanV, needH / tanH) * this.data.margin
+        // ★★★ 只框「沒有被控制項蓋住」的那一段。
+        //
+        // 對話泡泡、選項格、輸入列是疊在畫布**下半**的，如果照整張畫布置中，
+        // 角色的臉會正好被泡泡遮掉——而那是這一頁唯一要看的東西。
+        // 作法：先按可見比例 `vis` 縮小可用的縱向空間，再把相機往下移，
+        // 讓模型中心落在可見區的正中央（也就是整張畫布的 `vis/2` 處）。
+        // ⚠️ 高度用**量到的**而不是寫死比例：控制項的高度會隨字級、
+        //    答案長短、有沒有小挑戰而變（實測 411×889 上是 0.52~0.58）。
+        const vis = Math.max(0.35, Math.min(1, this.data.visible))
+        const d = Math.max(needV / (tanV * vis), needH / tanH) * this.data.margin
+        // 可見區中心在 NDC 的 y = 1 - vis；把相機往下移這麼多，模型就落在那裡。
+        const shift = (1 - vis) * d * tanV
         // ⚠️ 用 setAttribute 不要直接改 object3D.position：position 元件會在
         //    屬性變動時把 object3D 寫回去，直接改會被默默蓋掉。
         // 模型重心已經被移到原點，相機擺在 +z 看向 -z（預設朝向）就正對它，
         // 不需要 lookAt——那反而會與 A-Frame 的 rotation 元件打架。
-        this.el.setAttribute('position', { x: 0, y: 0, z: d })
+        this.el.setAttribute('position', { x: 0, y: -shift, z: d })
       },
       remove() {
         const sc = this.el.sceneEl
@@ -290,7 +302,9 @@ export default function ArModel({ slug, hotspot }) {
     let cancelled = false
     let scene = null
     let ro = null
+    let ro2 = null
     let onActor = null
+    let syncVisible = null
     ;(async () => {
       try {
         await ensureAframe()
@@ -350,6 +364,32 @@ export default function ArModel({ slug, hotspot }) {
           ro = new ResizeObserver(() => { try { scene?.resize?.() } catch { /* 場景還沒好 */ } })
           ro.observe(hostRef.current)
         }
+
+        // ★★ 把「控制項蓋住了畫布多少」量出來餵給 jq-fit。
+        //
+        // ⚠️ **不可以寫死比例**：對話面板的高度會隨字級、答案長短、有沒有小挑戰
+        //    而變（實測 411×889 上落在 0.52~0.58 之間）。寫死就會在某些狀態下
+        //    把臉遮掉，而那是這一頁唯一要看的東西。
+        // ⚠️ 這個窗格的 ResizeObserver 不會觸發（frame-driven），所以除了 RO
+        //    也要在轉向／resize 時算一次——兩條路都留著。
+        syncVisible = () => {
+          const sceneBox = hostRef.current?.parentElement
+          const panel = sceneBox?.querySelector('.artalk')
+          const cam = scene?.querySelector('[jq-fit]')
+          if (!sceneBox || !panel || !cam) return
+          const h = sceneBox.getBoundingClientRect().height
+          if (!h) return
+          const covered = panel.getBoundingClientRect().height
+          const vis = Math.max(0.35, Math.min(1, 1 - covered / h))
+          cam.setAttribute('jq-fit', `visible: ${vis.toFixed(3)}`)
+        }
+        // 版面穩定之後量一次；之後交給 RO 與 window resize
+        setTimeout(syncVisible, 0)
+        if (typeof ResizeObserver !== 'undefined' && hostRef.current?.parentElement) {
+          ro2 = new ResizeObserver(() => syncVisible())
+          ro2.observe(hostRef.current.parentElement)
+        }
+        window.addEventListener('resize', syncVisible)
       } catch (e) {
         console.error('[AR] A-Frame 場景建立失敗', e)
         if (!cancelled) { setErr(e?.message || String(e)); setPhase('failed') }
@@ -358,6 +398,8 @@ export default function ArModel({ slug, hotspot }) {
     return () => {
       cancelled = true
       try { ro?.disconnect() } catch { /* ignore */ }
+      try { ro2?.disconnect() } catch { /* ignore */ }
+      try { if (syncVisible) window.removeEventListener('resize', syncVisible) } catch { /* ignore */ }
       try { if (onActor) scene?.removeEventListener('jq-actor-ready', onActor) } catch { /* ignore */ }
       actorRef.current = null
       // ⚠️ 一定要呼叫 A-Frame 自己的清理：`scene.remove()` 只是把節點拿掉，
@@ -383,34 +425,38 @@ export default function ArModel({ slug, hotspot }) {
     <>
       <TopBar title={`${card.title}｜3D 模型`} onBack />
       <div className="body armodel-body">
-        <div className="armodel-stage" ref={hostRef}>
-          {phase !== 'ready' && (
-            <div className="armodel-cover">
-              {phase === 'loading' && <p className="muted">正在載入 3D 模型…</p>}
-              {phase === 'failed' && (
-                <>
-                  <p><b>3D 模型載不起來</b></p>
-                  <p className="muted">{err}</p>
-                  {/* 不要變成死路：這頁的內容在卡片頁也有 */}
-                  <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
-                    改看卡片頁 ›
-                  </Link>
-                </>
-              )}
-            </div>
-          )}
+        {/* ★★ 一整片連續的場景：角色、對話泡泡、選項、輸入列**共用同一個背景**，
+            而不是「3D 方塊 ＋ 底下一堆控制項」。這是參考圖最主要的特徵——
+            它讓人覺得是「站在角色面前跟它說話」，而不是「在操作一個 3D 檢視器」。
+            ⚠️ 舞台是絕對定位鋪滿整個場景，控制項疊在下半；角色的框景要把
+               被蓋住的那一段扣掉（見 jq-fit 的 `bias`），否則臉會被泡泡遮住。 */}
+        <div className="armodel-scene">
+          <div className="armodel-stage" ref={hostRef}>
+            {phase !== 'ready' && (
+              <div className="armodel-cover">
+                {phase === 'loading' && <p className="muted">正在載入 3D 模型…</p>}
+                {phase === 'failed' && (
+                  <>
+                    <p><b>3D 模型載不起來</b></p>
+                    <p className="muted">{err}</p>
+                    {/* 不要變成死路：這頁的內容在卡片頁也有 */}
+                    <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
+                      改看卡片頁 ›
+                    </Link>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <ArTalk obj={obj} card={card} actorRef={actorRef}
+            // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
+            //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
+            //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
+            onQuiz={() => scrollIntoContainer(quizRef.current)} />
         </div>
 
-        <p className="armodel-hint muted">拖曳可以轉動，放開後會自己慢慢轉。</p>
-
-        {/* ★ 對話面板放在 3D 舞台**正下方**、知識卡之上：
-            使用者剛看到角色動起來，這時候給他「可以跟它說話」最自然。
-            擺到頁尾的話多數人捲不到那裡就離開了。 */}
-        <ArTalk obj={obj} card={card} actorRef={actorRef}
-          // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
-          //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
-          //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
-          onQuiz={() => scrollIntoContainer(quizRef.current)} />
+        <p className="armodel-hint muted">拖曳角色可以轉動，放開後會自己慢慢轉。</p>
 
         {obj && (
           <div className="scan-hit">
