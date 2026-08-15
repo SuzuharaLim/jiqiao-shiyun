@@ -1180,26 +1180,28 @@ const W = 1831, H = 1335
   // ★★★ 資料卡預設收起來，而小挑戰在**它裡面** ⇒「考考我」一定要先展開再捲。
   //   少了 setShowCard(true)，quizRef.current 是 null ⇒ 捲動靜默失敗 ⇒
   //   畫面上什麼都不會發生，而角色剛剛才說「好啊，往下看——我出一題」。
-  ok(/showCard && \(/.test(model) && /aria-expanded=\{showCard\}/.test(model),
+  ok(/showCard && \(/.test(model) && /aria-expanded=\{!!detailOpen\}/.test(talk),
     '★★ 資料卡要收在開關後面，且開關要有 aria-expanded')
-  // ★★★ 底下那條「看資料卡」與手勢說明已依使用者要求移除 ⇒ 入口必須留在場景內，
+  // ★★★ 底下那條「看資料卡」與手勢說明已依使用者要求移除 ⇒ 入口必須另有著落，
   //   否則資料卡只剩「考考我」一條路進得去（那是答題不是查資料）。
-  ok(/armodel-info/.test(model) && /armodel-info/.test(SRC.css)
-    && !/armodel-toggle/.test(model) && !/armodel-hint/.test(model),
-    '★★ 資料卡入口要在場景內的主題列（底下那條開關與手勢說明已移除）')
+  //   ⚠️ 也不可以做成場景頂端獨立的一列：那一列佔掉畫布 56px，而**每一格高度
+  //      都會直接換算成角色變小**（jq-fit 按可見區算距離）。放進選項格是免費的
+  //      ——原本 5 顆就已經是 3 列，加到 6 顆還是 3 列。
+  ok(/onDetail && \(/.test(talk) && /artalk-opt/.test(talk)
+    && !/armodel-toggle/.test(model) && !/armodel-hint/.test(model) && !/armodel-bar/.test(model),
+    '★★ 資料卡入口要放在選項格裡（底下那條開關、手勢說明、場景頂端那一列都已移除）')
 
-  // ★★★ 上下滑動換主題：門檻要夠高**而且**要求縱向明顯大於橫向。
-  //   誤觸的代價是整頁換題，比轉錯角度嚴重得多。
-  ok(/Math\.abs\(dy\) > this\.data\.swipe/.test(model) && /Math\.abs\(dy\) > Math\.abs\(dx\)/.test(model),
-    '★★★ 上下滑動要同時過「距離門檻」與「縱向明顯大於橫向」才算換主題')
-  ok(/this\.swiped = true/.test(model) && /if \(!this\.swiped\) this\.yaw/.test(model),
-    '★★ 一次滑動只換一次，且滑動判定成立後不可再轉動')
-  // ⚠️ 滾輪要 preventDefault ⇒ 必須是**非 passive**，否則在模型上滾動會把整頁
-  //    捲走，而使用者以為自己在縮放。
-  ok(/'wheel', this\.onWheel, \{ passive: false \}/.test(model),
-    '★★ 滾輪縮放的監聽器要非 passive（否則整頁被捲走而不是縮放）')
-  // ★★★ 手勢沒有任何視覺線索，鍵盤與讀屏使用者也比不出來 ⇒ 換主題一定要
-  //   同時有真的按鈕，不可以只留一行提示文字。
+  // ★★★ **上下滑動是改變俯仰角度**（2026-08-11 使用者訂正：先前誤做成「換主題」）。
+  //   ⚠️ 角度要夾住：不夾的話會轉到模型底下再翻過去，使用者迷失方向而且看到穿模。
+  //   ⚠️ 這個上限**必須與 `jq-fit` 的 maxPitch 一致**——那邊拿它當靜態上界去算
+  //      「縱向最多佔多高」，兩邊不一致就會在極端角度被裁掉。
+  ok(/this\.pitch = Math\.max\(-35, Math\.min\(35,/.test(model)
+    && /maxPitch: \{ default: 35 \}/.test(model),
+    '★★★ 上下滑動＝俯仰，且夾角上限要與 jq-fit 的 maxPitch 一致（35）')
+  ok(/rotation\.set\(\s*\n?\s*\(this\.pitch/.test(model),
+    '★★ 俯仰角度要真的畫回去（只更新變數不套用＝拖了沒反應）')
+  ok(!/jq-swap/.test(model), '★ 上下滑動不可再被當成「換主題」（使用者已訂正）')
+
   ok(/artalk-swap/.test(talk) && /aria-label="上一個主題"/.test(talk),
     '★★★ 換主題要有真的按鈕（只靠手勢＝鍵盤與讀屏使用者用不到）')
   ok(/onQuiz=\{\(\) => \{[\s\S]{0,400}?setShowCard\(true\)[\s\S]{0,400}?scrollIntoContainer/.test(model),

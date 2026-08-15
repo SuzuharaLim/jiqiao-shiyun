@@ -1723,30 +1723,6 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
 .armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
-/* ★ 場景內的主題列：左邊「現在在講誰」、右邊資料卡入口。
-   ⚠️ 底下那條「看資料卡」按鈕與手勢說明已依使用者要求移除，
-      所以入口必須留在這裡——否則資料卡只剩「考考我」一條路進得去。 */
-.armodel-bar { position: absolute; inset: 0 0 auto 0; z-index: 4;
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) 0; pointer-events: none; }
-.armodel-who { display: flex; align-items: baseline; gap: 8px; min-width: 0;
-  font-size: var(--text-xs); color: #F4F7FB; text-shadow: 0 1px 6px rgba(6,14,30,.7);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.armodel-who .muted { color: rgba(244,247,251,.72); font-size: var(--text-2xs); }
-/* ⚠️ 高度**固定 36**（不用 padding 撐）：底下的泡泡要用 calc 讓開這一列，
-     而 padding 撐出來的高度會隨字級變動 ⇒ 讓開的量就對不上 ⇒ 「詳細」鈕
-     直接壓在泡泡上（實測 68~109 與泡泡 68~201 整段重疊）。 */
-.armodel-info { pointer-events: auto; flex: 0 0 auto;
-  display: inline-flex; align-items: center; height: 36px; padding: 0 var(--space-4);
-  border: 1px solid rgba(255,255,255,.42); border-radius: 999px;
-  background: rgba(255,255,255,.18); color: #F4F7FB;
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  font-size: var(--text-2xs); font-weight: 700; }
-@media (hover: hover) and (pointer: fine) {
-  .armodel-info:hover { background: rgba(255,255,255,.3); }
-}
-
-
 /* ── 跟角色說話 ──
    排版對齊使用者給的參考圖：角色佔上半 → 對話泡泡（尖端朝上）→ 2×2 選項格
    → 底部輸入列。
@@ -1761,13 +1737,12 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
    ⚠️ `pointer-events:none` 讓泡泡不吃掉舞台的拖曳／滑動手勢；
       裡面若有可點的東西要自己開回 auto。 */
 .artalk-say { position: absolute; top: 0; right: 0; left: 0;
-  /* 讓開上面那一列（--space-3 內距 ＋ 36px 按鈕），再留一點空隙 */
-  padding: calc(var(--space-3) + 36px + var(--space-2)) var(--space-4) 0;
+  padding: var(--space-3) var(--space-4) 0;
   display: flex; flex-direction: column; align-items: flex-end;
   pointer-events: none; z-index: 3; }
 /* ⚠️ 寬度不是美感問題：窄一格就多一行，而每多一行角色就小一截
      （實測 268px 寬時開場白排成 3 行、泡泡 133 高 ⇒ 角色只剩 32.6%）。 */
-.artalk-say .artalk-bubble { width: min(88%, 460px); pointer-events: auto; }
+.artalk-say .artalk-bubble { width: min(94%, 460px); pointer-events: auto; }
 
 /* ★ 疊在場景下半。`inset: auto 0 0 0` ＝貼著場景底部、左右滿版。 */
 .artalk { position: absolute; inset: auto 0 0 0; padding: 0 var(--space-4) var(--space-4);
@@ -1884,6 +1859,9 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-tip { display: flex; align-items: center; justify-content: center; gap: var(--space-2);
   margin: 6px 0 0; font-size: var(--text-2xs);
   color: rgba(244,247,251,.66); text-align: center; }
+.artalk-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: rgba(244,247,251,.86); font-weight: 700; }
+.artalk-topic i { font-style: normal; margin-left: 6px; color: rgba(244,247,251,.6); }
 .artalk-swap { flex: 0 0 auto; min-width: 28px; min-height: 28px;
   border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
   background: rgba(255,255,255,.12); color: #F4F7FB;

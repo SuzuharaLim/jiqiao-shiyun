@@ -88,7 +88,8 @@ function findAnswer(text, card, currentObj) {
   return null
 }
 
-export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, canSwap }) {
+export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, canSwap,
+  topic, topicIdx, topicCount, detailOpen, onDetail }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -298,6 +299,16 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
               考考我
             </button>
           )}
+          {/* ★★ 資料卡入口。放在這裡而不是場景頂端那一列——那一列佔掉 56px，
+              而每一格高度都會直接換算成角色變小。⚠️ 要有 aria-expanded，
+              讀屏才知道它控制什麼、現在是開還是關。 */}
+          {onDetail && (
+            <button className="artalk-opt tap" type="button"
+              aria-expanded={!!detailOpen} aria-controls="armodel-card"
+              onClick={onDetail}>
+              {detailOpen ? '收起詳細資料' : '看詳細資料'}
+            </button>
+          )}
         </div>
 
         {/* ★ 手動輸入。
@@ -322,7 +333,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
         {canSwap && (
           <p className="artalk-tip">
             <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(-1)} aria-label="上一個主題">‹</button>
-            <span>上下滑動換主題・雙指縮放・左右拖曳轉動</span>
+            <span className="artalk-topic">{topic}{topicCount > 1 && <i>{topicIdx}/{topicCount}</i>}</span>
             <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(1)} aria-label="下一個主題">›</button>
           </p>
         )}
