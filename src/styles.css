@@ -1682,6 +1682,28 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
     radial-gradient(120% 80% at 50% 38%, #2C4E86 0%, #1B3560 45%, #10203C 100%);
   color: #F4F7FB;
 }
+/* ★ 光點（參考圖的散景）。純 CSS radial-gradient，零圖檔零 DOM。
+   ⚠️ **只能是裝飾**：`aria-hidden` 天生成立（偽元素讀屏本來就唸不到），
+      `pointer-events:none` 讓它不吃掉舞台的拖曳手勢，而且它**不承載任何內容**——
+      站規「動畫只負責怎麼出現，不可負責是否存在」在這裡是自動滿足的。
+   ⚠️ 疊在 canvas 之下（z-index 0 / canvas 是 1），所以角色永遠在光點前面。 */
+.armodel-scene::before {
+  content: ''; position: absolute; inset: -6%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(190,220,255,.34) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 14%, rgba(214,232,255,.30) 0 3px, transparent 5px),
+    radial-gradient(circle at 88% 42%, rgba(160,200,255,.24) 0 2px, transparent 4px),
+    radial-gradient(circle at 8% 58%, rgba(200,226,255,.22) 0 3px, transparent 5px),
+    radial-gradient(circle at 62% 30%, rgba(255,255,255,.18) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 34% 8%, rgba(255,255,255,.16) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 50% 50%, rgba(120,170,240,.16), transparent 62%);
+  animation: armodel-bokeh 14s ease-in-out infinite alternate;
+}
+@keyframes armodel-bokeh {
+  from { transform: translate3d(0, 0, 0) scale(1); opacity: .85 }
+  to   { transform: translate3d(0, -2.5%, 0) scale(1.04); opacity: 1 }
+}
+@media (prefers-reduced-motion: reduce) { .armodel-scene::before { animation: none } }
 /* 舞台鋪滿整個場景；控制項疊在下半 */
 .armodel-stage { position: absolute; inset: 0; width: 100%; margin: 0;
   /* ⚠️ 兩行都要留。`dvh` 是 iOS 15.4 才有的單位，舊 iOS 會把整條
@@ -1713,7 +1735,12 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk { position: absolute; inset: auto 0 0 0; padding: 0 var(--space-4) var(--space-4);
   /* 由下往上的暗色遮罩，讓文字在角色身上也讀得到 */
   background: linear-gradient(to top, rgba(9,18,36,.86) 0%, rgba(9,18,36,.72) 62%, rgba(9,18,36,0) 100%);
-  padding-top: var(--space-6); }
+  /* ⚠️ 這一塊每高一格，角色就小一格——`jq-fit` 是按「沒被蓋住的比例」算距離的，
+     面板佔掉 61% 時角色只剩 39% 的畫布可用。開場白多了一行說明（+28px）之後，
+     這裡的上內距從 --space-6 收到 --space-4 把它換回來（實測 vis 0.389 → 0.414）。
+     ⚠️ 不可再往下收：這段內距同時是「文字從角色身上淡出」的過渡帶，
+        收成 0 的話深色遮罩會硬邊切在角色身上。 */
+  padding-top: var(--space-4); }
 
 /* ── 深底之上的配色覆寫 ──
    ⚠️ 一律用淺色文字。實測對比：#F4F7FB 對底色 #1B3560 ＝ 11.9，

@@ -91,6 +91,13 @@ function findAnswer(text, card, currentObj) {
 export default function ArTalk({ obj, card, actorRef, onQuiz }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
+  // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
+  //   `busy` 涵蓋「想 → 說完」整段（用來擋重複提問）；三個點只該出現在
+  //   「想」那 480ms。共用一個旗標的話，答案會在**整段朗讀期間**被三個點蓋住
+  //   ——一段 40 字的話要 7 秒才看得到字，而不支援語音合成的瀏覽器上
+  //   `finish()` 立刻執行反而正常。這正好違反站上「語音是輔助不是替代，
+  //   絕不可把文字藏在語音後面」那條原則，而且看起來只是「反應有點慢」。
+  const [thinking, setThinking] = useState(false)
   const [draft, setDraft] = useState('')
   const logRef = useRef(null)
   const speechRef = useRef(null)
@@ -118,7 +125,15 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
   //    繼續把上一段唸完，而畫面上的名字已經換人了。
   useEffect(() => {
     hush()
-    setLog(obj ? [{ who: 'char', text: obj.line || `我是${obj.name}。` }] : [])
+    // ★ 開場白要**把玩法講出來**（參考圖的第一句就是「請選擇一個選項或直接輸入」）。
+    //   這一頁沒有任何前例可循——使用者剛從相機掃到卡片被送過來，畫面上是一隻
+    //   會動的白菜、四顆看起來像標籤的按鈕、一條輸入列。不講的話多數人只會看著它自轉。
+    //   ⚠️ 這句話是**介面說明不是事實陳述**，所以不需要出處；也不可以寫成
+    //      「我什麼都可以回答」——它只認得這張卡上的內容。
+    setThinking(false)
+    setLog(obj
+      ? [{ who: 'char', text: `${obj.line || `我是${obj.name}。`}\n想知道什麼？挑一個問我，或直接打字。`, intro: true }]
+      : [])
     setBusy(false)
   }, [obj, hush])
 
@@ -134,7 +149,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
 
   const say = (item) => {
     if (busy) return
-    setBusy(true)
+    setBusy(true); setThinking(true)
     hush()
     setLog(l => [...l, { who: 'me', text: item.q }])
 
@@ -144,6 +159,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
 
     timerRef.current = setTimeout(() => {
       setLog(l => [...l, { who: 'char', text: item.a, source: item.source }])
+      setThinking(false)   // ⚠️ 答案一進 log 就要停止三個點——字要與聲音同時出現
       try { a?.setAction(item.act || 'nod') } catch { /* ignore */ }
 
       let done = false
@@ -154,6 +170,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
         clearTimeout(guardRef.current); guardRef.current = 0
         try { a?.setOverlay(null) } catch { /* ignore */ }
         try { a?.setAction('present') } catch { /* ignore */ }
+        setThinking(false)
         setBusy(false)
       }
 
@@ -236,7 +253,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
       {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
 
       <div className="artalk-bubble" aria-live="polite" aria-label={`${obj.name}說`}>
-        {busy
+        {thinking
           ? <span className="artalk-typing"><span /><span /><span /></span>
           : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
       </div>

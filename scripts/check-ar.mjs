@@ -1164,6 +1164,36 @@ const W = 1831, H = 1335
   //   ② 不會被複製到別的地方去。
   ok(/radial-gradient/.test(cssRule('.armodel-scene')),
     '★★ 場景背景幕（全站唯一的漸層例外，只准在這一個 class）')
+
+  // ★★ 散景光點是**純裝飾**，必須滿足三件事，否則它就從「氣氛」變成「障礙」：
+  //   ① `pointer-events:none`——它鋪滿整個場景（inset:-6%），會吃掉舞台的拖曳手勢，
+  //      而症狀是「模型轉不動」，畫面上卻完全看不出有東西擋著。
+  //   ② 疊在 canvas **之下**（z-index:0，而 .armodel-stage 是 auto 且在 DOM 之後）
+  //      ——反過來的話一層霧蓋在角色臉上。
+  //   ③ 走 `transform`／`opacity` 的無限動畫要能被 reduce-motion 關掉。
+  const bokeh = cssRule('.armodel-scene::before')
+  ok(/pointer-events:\s*none/.test(bokeh),
+    '★★ 散景光點要 pointer-events:none（否則蓋住舞台、模型拖不動而且看不出原因）')
+  ok(/z-index:\s*0\b/.test(bokeh),
+    '★★ 散景光點要疊在 canvas 之下（否則像一層霧蓋在角色臉上）')
+  ok(/prefers-reduced-motion:\s*reduce\)\s*\{\s*\.armodel-scene::before\s*\{\s*animation:\s*none/.test(SRC.css),
+    '★ 散景光點的無限動畫要能被 reduce-motion 關掉')
+
+  // ★★★ 開場白必須**把玩法講出來**。使用者是剛從相機被送過來的，畫面上是一隻
+  //   會自轉的白菜、幾顆看起來像標籤的按鈕、一條輸入列——沒有任何前例可循。
+  //   不講的話多數人只會看著它轉，而這一頁的全部價值都在「可以問它」。
+  // ★★★ 三個點只能綁「想」那一段，不可綁整個 busy。
+  //   共用旗標時答案會被三個點蓋住整段朗讀時間（40 字＝7 秒才看得到字），
+  //   而那正是站規「語音是輔助不是替代，絕不可把文字藏在語音後面」在擋的事。
+  //   ⚠️ 症狀只是「反應有點慢」，不會被回報成 bug ⇒ 一定要上閘門。
+  ok(/const \[thinking, setThinking\]/.test(talk) && /\{thinking\s*$/m.test(talk)
+    && !/\{busy\s*$/m.test(talk),
+    '★★★ 泡泡的三個點要看 thinking 不是 busy（否則朗讀期間答案是看不到的）')
+  ok(/setLog\(l => \[\.\.\.l, \{ who: 'char'[\s\S]{0,120}?setThinking\(false\)/.test(talk),
+    '★★ 答案一進 log 就要停止三個點（字要與聲音同時出現）')
+
+  ok(/挑一個問我/.test(talk) && /直接打字/.test(talk),
+    '★★★ 開場白要告訴使用者「可以點選項、也可以直接打字」')
 }
 
 if (fail.length) {
