@@ -1674,10 +1674,18 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
       例外，所以：只在這一個 class、只用品牌深藍（--primary 系）、
       不可擴散到其他頁面。要收回去就把 background 換成 var(--tone-1)。
    ⚠️ 深底之上的文字一律要淺色（見 .armodel-scene 底下那幾條覆寫）。 */
+/* ★★★ 場景要**填滿整個頁面**（使用者要求：底下不可以留白）。
+   這一頁已經沒有別的內容了，`flex: 1 1 auto` 讓它把 `.body` 剩下的高度全吃掉。
+   ⚠️ `min-height` 一定要留：桌機的 `.body` 是內容高（`overflow: visible`），
+      flex-basis auto 在那裡不會長出高度 ⇒ `<a-scene embedded>` 會拿到 0×0
+      而且**不會自己重試**（整片空白、零錯誤訊息）。
+   ⚠️ 兩行 `min-height` 都要留：`dvh` 是 iOS 15.4 才有的單位，舊 iOS 會把整行
+      判為無效而丟掉——先寫 `vh` 當退路。 */
 .armodel-scene { position: relative; width: 100%; max-width: 680px; margin: 0 auto;
-  height: min(78vh, 720px);
-  height: min(78dvh, 720px);
-  min-height: 420px; flex: 0 0 auto; overflow: hidden;
+  flex: 1 1 auto;
+  min-height: min(78vh, 720px);
+  min-height: min(78dvh, 720px);
+  overflow: hidden;
   background:
     radial-gradient(120% 80% at 50% 38%, #2C4E86 0%, #1B3560 45%, #10203C 100%);
   color: #F4F7FB;
@@ -1783,6 +1791,8 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
   font-size: var(--text-sm); line-height: 1.7; white-space: pre-wrap;
   min-height: 52px; display: flex; align-items: center; flex-wrap: wrap;
   max-height: 18dvh; overflow-y: auto; border-radius: inherit; }
+/* 招呼語：比答案淡一階，讀得出「這是語氣、後面才是內容」 */
+.artalk-warm { font-style: normal; color: var(--muted); margin-right: 4px; }
 .artalk-bubble i { font-style: normal; font-size: var(--text-2xs); color: var(--muted);
   display: block; width: 100%; margin-top: 2px; }
 /* 兩個小尖角（參考圖就是兩個），用 border 三角形——不需要圖檔也不會有鋸齒 */
@@ -1815,7 +1825,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ⚠️ 使用者要求「縮小，這不是主要的」：縮的是**視覺重量**（字級、內距），
    不是可點範圍——`.artalk-opt` 的 min-height 仍守著 WCAG 2.5.8 的 24×24。 */
 .artalk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px; margin-top: var(--space-3); }
+  gap: 6px; margin-top: var(--space-2); }
 .artalk-opt {
   min-height: 36px; padding: 6px var(--space-3);
   border: 1px solid rgba(255,255,255,.32); border-radius: 12px;
@@ -1876,6 +1886,13 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
    一張卡，限高會把小挑戰**藏進卡片內部的捲軸裡**：實測卡片可視高 354、內容 619，
    答題區完全看不到，而畫面上沒有任何跡象顯示它被截斷了。 */
 .armodel-body .scan-hit { max-height: none; overflow: visible; }
+/* ★ 這一頁只剩場景，`.body` 的下內距會在場景底下留一條白帶（使用者回報）。
+   ⚠️ 只在這一頁歸零，不要去動全站的 `.body`。
+   ⚠️ 桌機那一條是 `.stage.signed-in .screen .body`（**四個 class**）而且在後面，
+      只寫 `.armodel-body` 甚至 `.screen .body.armodel-body` 都蓋不掉——
+      實測桌機仍留 8px。要一路寫到比它更高的專一性。 */
+.armodel-body,
+.stage.signed-in .screen .body.armodel-body { padding-bottom: 0; }
 .armodel-acts { display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-4); flex: 0 0 auto; }
 

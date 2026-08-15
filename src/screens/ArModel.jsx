@@ -280,6 +280,7 @@ async function ensureAframe() {
           const p = e.touches?.[0] ?? e
           this.dragging = true; this.auto = false
           this.lastX = p.clientX; this.lastY = p.clientY
+          this.downYaw = this.yaw; this.downPitch = this.pitch
         }
         this.onMove = (e) => {
           if (this.pinch && e.touches?.length >= 2) {
@@ -299,7 +300,14 @@ async function ensureAframe() {
           this.pitch = Math.max(-35, Math.min(35, this.pitch - (p.clientY - this.lastY) * this.data.speed))
           this.lastX = p.clientX; this.lastY = p.clientY
         }
-        this.onUp = () => { this.dragging = false; this.pinch = 0 }
+        // ★ 「點一下角色」＝做個動作給你看（原本那顆按鈕已依要求砍掉）。
+        //   ⚠️ 一定要與拖曳分開：只有「幾乎沒有移動」才算點，否則轉一轉放手
+        //      就會冒出一個動作，看起來像亂跳。
+        this.onUp = (e) => {
+          if (this.dragging && Math.abs(this.yaw - this.downYaw) < 2
+            && Math.abs(this.pitch - this.downPitch) < 2) el.emit('jq-poke', null, false)
+          this.dragging = false; this.pinch = 0
+        }
         // 桌機沒有捏合，用滾輪。⚠️ 必須是**非 passive** 才能 preventDefault，
         //    否則在模型上滾動會把整頁捲走（而使用者以為自己在縮放）。
         this.onWheel = (e) => {
@@ -385,6 +393,8 @@ export default function ArModel({ slug, hotspot }) {
     let onActor = null
     let syncVisible = null
     let onZoom = null
+    let onPoke = null
+    let pokeTimer = 0
     ;(async () => {
       try {
         await ensureAframe()
@@ -471,6 +481,16 @@ export default function ArModel({ slug, hotspot }) {
           cam.setAttribute('jq-fit', `visible: ${vis.toFixed(3)}; offset: ${off.toFixed(3)}`)
         }
         // 捏合／滾輪縮放（手勢在 jq-drag-rotate 裡判定，這裡只接結果）
+        onPoke = () => {
+          const a = actorRef.current
+          if (!a) return
+          const moves = ['wave', 'nod', 'jump', 'spin', 'dance', 'happy']
+          try { a.setAction(moves[Math.floor(Math.random() * moves.length)]) } catch { /* ignore */ }
+          // ⚠️ 動作是循環的，不收回去它會一直跳
+          clearTimeout(pokeTimer)
+          pokeTimer = setTimeout(() => { try { a.setAction('present') } catch { /* ignore */ } }, 4200)
+        }
+        scene.addEventListener('jq-poke', onPoke)
         onZoom = (e) => {
           const cam = scene?.querySelector('[jq-fit]')
           if (cam) cam.setAttribute('jq-fit', `zoom: ${Number(e.detail?.zoom ?? 1).toFixed(3)}`)
@@ -495,6 +515,8 @@ export default function ArModel({ slug, hotspot }) {
       try { if (syncVisible) window.removeEventListener('resize', syncVisible) } catch { /* ignore */ }
       try { if (onActor) scene?.removeEventListener('jq-actor-ready', onActor) } catch { /* ignore */ }
       try { if (onZoom) scene?.removeEventListener('jq-zoom', onZoom) } catch { /* ignore */ }
+      try { if (onPoke) scene?.removeEventListener('jq-poke', onPoke) } catch { /* ignore */ }
+      clearTimeout(pokeTimer)
       actorRef.current = null
       // ⚠️ 一定要呼叫 A-Frame 自己的清理：`scene.remove()` 只是把節點拿掉，
       //    算繪迴圈與 WebGL context 還在跑。行動裝置的 context 數有上限，
@@ -548,8 +570,6 @@ export default function ArModel({ slug, hotspot }) {
                  （`jq-fit` 是按可見區算距離的）。放進選項格是免費的——原本
                  5 顆就已經是 3 列，加到 6 顆還是 3 列。 */}
           <ArTalk obj={obj} card={card} actorRef={actorRef} speaker={speaker}
-            onSwap={swap} canSwap={spots.length > 1}
-            topic={obj?.name} topicIdx={idx + 1} topicCount={spots.length}
             detailOpen={showCard} onDetail={() => setShowCard(v => !v)}
             // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
             //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409

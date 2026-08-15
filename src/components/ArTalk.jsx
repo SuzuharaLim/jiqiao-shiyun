@@ -30,6 +30,27 @@ import { objectForHotspot } from '../data/arCards.js'
 const ENVELOPE_MS = 90
 
 /**
+ * 回答前的一句招呼，讓它讀起來像在講話而不是在唸資料庫。
+ *
+ * ★★★ **只加語氣，不加事實**：招呼句一律是「我熟這個」「問對時候了」這類
+ *   純語氣的話，後面接的答案仍然是逐字的 `fact.value`。
+ *   ⚠️ 絕對不可以在這裡加任何關於白菜的敘述——那會變成沒有出處、也不會被
+ *      建置期法規閘門（`check-ar.mjs` G 段）掃到的內容。這一層是「語氣」，
+ *      不是「內容」，界線要一直守著。
+ */
+const WARMUP = {
+  nod: ['這個我熟！', '問得好，', '嗯，這個我知道——'],
+  think: ['讓我想想…', '嗯——'],
+  happy: ['嘿嘿，問對時候了！', '這題我最愛講！'],
+  wave: ['哈囉！', '嘿，'],
+  shy: ['唔…', '這個嘛…'],
+}
+const warmupFor = (act) => {
+  const pool = WARMUP[act] || WARMUP.nod
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
+/**
  * 把一個物件的 facts 變成可以點的問題。
  *
  * ⚠️ **答案逐字用 `fact.value`，不改寫**。這裡新增的只有「問句的措辭」
@@ -88,8 +109,7 @@ function findAnswer(text, card, currentObj) {
   return null
 }
 
-export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, canSwap,
-  topic, topicIdx, topicCount, detailOpen, onDetail }) {
+export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -133,7 +153,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
     //      「我什麼都可以回答」——它只認得這張卡上的內容。
     setThinking(false)
     setLog(obj
-      ? [{ who: 'char', text: `${obj.line || `我是${obj.name}。`}\n想知道什麼？挑一個問我，或直接打字。`, intro: true }]
+      ? [{ who: 'char', text: `${obj.line || `我是${obj.name}。`}\n想知道什麼？打字問我，例如「品種」「產地」；點我一下我會動。`, intro: true }]
       : [])
     setBusy(false)
   }, [obj, hush])
@@ -150,6 +170,8 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
 
   const say = (item) => {
     if (busy) return
+    // 招呼在這裡決定（一次），不是在 render 時決定——否則每次重繪都換一句
+    item = { ...item, warm: item.warm ?? warmupFor(item.act) }
     setBusy(true); setThinking(true)
     hush()
     setLog(l => [...l, { who: 'me', text: item.q }])
@@ -159,7 +181,10 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
     try { a?.setAction('think') } catch { /* ignore */ }
 
     timerRef.current = setTimeout(() => {
-      setLog(l => [...l, { who: 'char', text: item.a, source: item.source }])
+      // ⚠️ 招呼與答案分成兩個欄位：畫面上招呼用較淡的樣式，而**答案本身仍逐字**。
+      //    不可以把招呼字串黏進 `item.a` ——那會讓「答案是逐字的 fact.value」
+      //    這件事在程式碼裡看不出來，日後很容易被人順手改掉。
+      setLog(l => [...l, { who: 'char', text: item.a, source: item.source, warm: item.warm }])
       setThinking(false)   // ⚠️ 答案一進 log 就要停止三個點——字要與聲音同時出現
       try { a?.setAction(item.act || 'nod') } catch { /* ignore */ }
 
@@ -191,7 +216,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
       // 中文語速約每秒 5~6 字；除以 4 再加 4 秒緩衝，寬到不會誤殺正常朗讀。
       guardRef.current = setTimeout(finish, (item.a.length / 4) * 1000 + 4000)
 
-      speechRef.current = speak(item.a, {
+      speechRef.current = speak((item.warm ? item.warm + '　' : '') + item.a, {
         onState: (s) => {
           if (s === 'speaking') {
             // ★ 這一行就是「看起來在講話」的全部：疊加通道與 base 動作相加，
@@ -261,35 +286,23 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
           <div className="artalk-bubble-in" aria-live="polite" aria-label={`${who}說`}>
             {thinking
               ? <span className="artalk-typing"><span /><span /><span /></span>
-              : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+              : <>{latest?.warm && <em className="artalk-warm">{latest.warm}</em>}{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
           </div>
         </div>
       </div>
 
       <div className="artalk">
-        {/* ★ 提問選項。使用者要求「縮小，這不是主要的」——所以字級與內距都比
-            泡泡低一階，讀起來像一排建議而不是主要按鈕。
-            ⚠️ 但仍要守住 WCAG 2.5.8 的 24×24：縮小的是視覺重量不是可點範圍，
-               `min-height` 一律 ≥36。 */}
+        {/* ★★★ 選項只留**兩顆**（使用者要求）。
+            原本 6 顆排成 3 列，光那一塊就佔掉畫布 ~136px——而這一頁的每一格
+            高度都會直接換算成角色變小（`jq-fit` 按可見區算距離）。
+            ⚠️ 砍掉的四顆不可以就這樣消失，各自要有著落：
+              · 三顆提問  → 打字問（`findAnswer` 本來就搜整張卡），
+                            開場白已經舉了例子告訴使用者可以問什麼。
+              · 做個動作  → **點角色本人**（`onPoke`），比按鈕自然。
+              · 看詳細資料 → 留在這裡（它是彈窗唯一的入口，而彈窗裡有小挑戰、
+                            完整資料與「再掃一次」）。
+            ⚠️ 縮小的是視覺重量不是可點範圍：min-height 仍守著 WCAG 2.5.8。 */}
         <div className="artalk-grid">
-          {asks.map((a, i) => (
-            <button key={i} className="artalk-opt tap" disabled={busy} onClick={() => say(a)}>
-              {a.q}
-            </button>
-          ))}
-          {/* 動作不牽涉任何事實，純粹讓它「有反應」——這是最便宜的活著感 */}
-          <button className="artalk-opt tap" disabled={busy} onClick={() => {
-            const a = actorRef?.current
-            const moves = ['wave', 'nod', 'jump', 'spin', 'dance', 'happy']
-            const pick = moves[Math.floor(Math.random() * moves.length)]
-            setLog(l => [...l, { who: 'me', text: '做個動作給我看' }, { who: 'char', text: '看好囉！' }])
-            try { a?.setAction(pick) } catch { /* ignore */ }
-            // ⚠️ 要自己收回 present：動作是循環的，不收的話它會一直跳下去
-            clearTimeout(timerRef.current)
-            timerRef.current = setTimeout(() => { try { a?.setAction('present') } catch { /* ignore */ } }, 4200)
-          }}>
-            做個動作給我看
-          </button>
           {obj.quiz && (
             <button className="artalk-opt tap" disabled={busy} onClick={() => {
               setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，我出一題——看跳出來的那張。' }])
@@ -299,9 +312,6 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
               考考我
             </button>
           )}
-          {/* ★★ 資料卡入口。放在這裡而不是場景頂端那一列——那一列佔掉 56px，
-              而每一格高度都會直接換算成角色變小。⚠️ 要有 aria-expanded，
-              讀屏才知道它控制什麼、現在是開還是關。 */}
           {onDetail && (
             <button className="artalk-opt tap" type="button"
               aria-expanded={!!detailOpen} aria-controls="armodel-card"
@@ -327,16 +337,6 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
           </button>
         </form>
 
-        {/* ★★★ 手勢說明不可省略。上下滑動換主題、雙指縮放都是**沒有任何視覺
-            線索**的手勢——不講的話等於沒做。而且鍵盤與讀屏使用者根本比不出
-            手勢，所以「換一個」同時做成真的按鈕（不是只有提示文字）。 */}
-        {canSwap && (
-          <p className="artalk-tip">
-            <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(-1)} aria-label="上一個主題">‹</button>
-            <span className="artalk-topic">{topic}{topicCount > 1 && <i>{topicIdx}/{topicCount}</i>}</span>
-            <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(1)} aria-label="下一個主題">›</button>
-          </p>
-        )}
       </div>
     </>
   )

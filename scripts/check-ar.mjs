@@ -1215,8 +1215,25 @@ const W = 1831, H = 1335
     '★★ 俯仰角度要真的畫回去（只更新變數不套用＝拖了沒反應）')
   ok(!/jq-swap/.test(model), '★ 上下滑動不可再被當成「換主題」（使用者已訂正）')
 
-  ok(/artalk-swap/.test(talk) && /aria-label="上一個主題"/.test(talk),
-    '★★★ 換主題要有真的按鈕（只靠手勢＝鍵盤與讀屏使用者用不到）')
+  // ⚠️ 2026-08-11 使用者要求把主題列整條移除（畫面上只留兩顆選項）。
+  //   換主題的入口因此不再存在——`findAnswer` 本來就會搜**整張卡**的所有物件，
+  //   所以打字仍然問得到其他主題的內容，功能沒有消失。
+  ok(!/artalk-tip/.test(talk) && !/artalk-swap/.test(talk),
+    '★ 主題列已移除（使用者要求）')
+  // ★★★ 選項只留**兩顆**。砍掉的四顆各自要有著落，不可以就這樣消失：
+  //   三顆提問 → 打字（開場白要舉例）；做個動作 → 點角色本人。
+  {
+    const g = talk.slice(talk.indexOf('<div className="artalk-grid">'),
+      talk.indexOf('</div>', talk.indexOf('<div className="artalk-grid">')))
+    const n = (g.match(/className="artalk-opt tap"/g) || []).length
+    ok(n === 2, `★★★ 選項只留兩顆（目前 ${n} 顆；每一列都會直接換算成角色變小）`)
+  }
+  // ⚠️ 第一版寫成 `/downYaw/`，但 downYaw 在 onDown 裡也出現 ⇒ 拿掉判定條件
+  //    照樣通過（變異測試抓到）。要鎖住**比較**這件事本身。
+  ok(/jq-poke/.test(model)
+    && /Math\.abs\(this\.yaw - this\.downYaw\)\s*<\s*\d/.test(model)
+    && /Math\.abs\(this\.pitch - this\.downPitch\)\s*<\s*\d/.test(model),
+    '★★ 「做個動作」改成點角色本人，且必須與拖曳分開（轉完放手不可冒出動作）')
   ok(/onQuiz=\{\(\) => \{[\s\S]{0,400}?setShowCard\(true\)[\s\S]{0,400}?scrollIntoContainer/.test(model),
     '★★★ 「考考我」要先展開資料卡再捲（否則捲向一個還沒渲染的節點＝什麼都不會發生）')
 
@@ -1263,8 +1280,10 @@ const W = 1831, H = 1335
   ok(/width:\s*auto/.test(cssRule('.artalk-send')),
     '★★★ 送出鈕要 width:auto 蓋掉 .btn-primary 的 width:100%（否則輸入框被壓扁）')
 
-  ok(/挑一個問我/.test(talk) && /直接打字/.test(talk),
-    '★★★ 開場白要告訴使用者「可以點選項、也可以直接打字」')
+  // ★★★ 提問的選項砍掉之後，開場白**必須舉例告訴使用者可以問什麼**——
+  //   否則畫面上只剩「考考我／看詳細資料」兩顆，沒有人會知道它答得出品種與產地。
+  ok(/打字問我/.test(talk) && /「品種」/.test(talk),
+    '★★★ 開場白要舉例說明可以打字問什麼（提問選項已砍掉，這是唯一的線索）')
 }
 
 if (fail.length) {
