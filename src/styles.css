@@ -1879,6 +1879,20 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .armodel-acts { display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-4); flex: 0 0 auto; }
 
+/* ★ 詳細資料彈窗。走 .sheet（Esc／焦點鎖／role=dialog／離場動畫都在 SheetMask）。
+   ⚠️ 標題列的 ✕ 要 ≥24×24（WCAG 2.5.8）——這裡給 36。 */
+.armodel-sheet-hd { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding: 2px var(--space-4) var(--space-2); }
+.armodel-sheet-hd b { font-family: var(--serif); font-size: var(--text-base); }
+.armodel-sheet-x { min-width: 36px; min-height: 36px; border-radius: 999px;
+  color: var(--muted); font-size: var(--text-sm); }
+@media (hover: hover) and (pointer: fine) {
+  .armodel-sheet-x:hover { background: var(--field); color: var(--text); }
+}
+/* 彈窗裡的知識卡不要再有自己的外框陰影與邊距——它已經在一張卡片裡了 */
+.armodel-sheet .scan-hit { max-height: none; overflow: visible;
+  margin: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+
 /* 即時比對狀態列 */
 .scan-status { text-align:center; font-size:var(--text-xs); color:var(--muted); padding:10px 20px 0;
   min-height:20px; flex:0 0 auto; }

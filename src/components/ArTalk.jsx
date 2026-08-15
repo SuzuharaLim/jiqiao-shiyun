@@ -292,7 +292,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, c
           </button>
           {obj.quiz && (
             <button className="artalk-opt tap" disabled={busy} onClick={() => {
-              setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，往下看——我出一題。' }])
+              setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，我出一題——看跳出來的那張。' }])
               try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
               onQuiz?.()
             }}>

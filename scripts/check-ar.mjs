@@ -1182,6 +1182,19 @@ const W = 1831, H = 1335
   //   畫面上什麼都不會發生，而角色剛剛才說「好啊，往下看——我出一題」。
   ok(/showCard && \(/.test(model) && /aria-expanded=\{!!detailOpen\}/.test(talk),
     '★★ 資料卡要收在開關後面，且開關要有 aria-expanded')
+  // ★★★ 詳細資料是**彈窗**（使用者要求）。一定要走 SheetMask：
+  //   Esc、焦點鎖、role="dialog"、離場動畫都做在那裡，自己刻一個 div 會少掉
+  //   這四件事，而少掉的每一件在畫面上都看不出來。
+  ok(/<SheetMask/.test(model) && /className="sheet armodel-sheet"/.test(model),
+    '★★★ 詳細資料要走 SheetMask 彈窗（Esc／焦點鎖／role=dialog 都在那裡）')
+  // ★★ 底部那兩顆（看完整內容／再掃一次）已依使用者要求從頁面移除，
+  //   **必須改放進彈窗**——直接刪掉的話，從相機跳進來的人就沒有路回去再掃一張。
+  {
+    const i = model.indexOf('<SheetMask')
+    const j = model.indexOf('</SheetMask>')
+    ok(i > 0 && j > i && model.slice(i, j).includes('armodel-acts'),
+      '★★ 「看完整內容／再掃一次」要在彈窗裡（從頁面移除後不可整個消失）')
+  }
   // ★★★ 底下那條「看資料卡」與手勢說明已依使用者要求移除 ⇒ 入口必須另有著落，
   //   否則資料卡只剩「考考我」一條路進得去（那是答題不是查資料）。
   //   ⚠️ 也不可以做成場景頂端獨立的一列：那一列佔掉畫布 56px，而**每一格高度

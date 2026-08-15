@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { TopBar, Link } from '../components/ui.jsx'
+import { TopBar, Link, SheetMask } from '../components/ui.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
 import { useNav, scrollIntoContainer } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -568,47 +568,75 @@ export default function ArModel({ slug, hotspot }) {
         </div>
 
 
+        {/* ★★★ 詳細資料改成**彈窗**（使用者要求）。
+            ⚠️ 一定要走 `SheetMask`：站上所有浮層的 Esc、焦點鎖、`role="dialog"`、
+               離場動畫都做在那裡（CLAUDE.md）。自己刻一個 div 會少掉這四件事，
+               而少掉的每一件在畫面上都看不出來。
+            ⚠️ 底下原本那兩顆（「看這張卡的完整內容」「再掃一次」）已依使用者要求
+               移除，**改放進這個彈窗的最後**——直接刪掉的話，從相機跳進來的人
+               就沒有路回去再掃一張，而那是這條動線唯一的重來方式。 */}
         {obj && showCard && (
-          <div className="scan-hit" id="armodel-card">
-            <div className="scan-hit-hd">
-              <b>{obj.name}</b>
-              <span className="muted">{card.title}</span>
-            </div>
-            {obj.line && <p className="scan-hit-line">{obj.line}</p>}
-            {obj.facts?.length > 0 && (
-              <dl className="scan-hit-facts">
-                {obj.facts.map(f => (
-                  <div key={f.label}>
-                    <dt>{f.label}</dt>
-                    <dd>{f.value}{f.source && <i className="muted">（{f.source}）</i>}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
-            <SpeakButton obj={obj} className="scan-hit-speak" />
+          <SheetMask onClose={() => setShowCard(false)} label={`${obj.name}的詳細資料`}>
+            {/* ⚠️ `.sheet` 自己就是捲動容器（max-height ＋ overflow-y:auto），
+                高度上限與底部安全區都由它管——**絕不可**用 inline style 覆寫
+                maxHeight／paddingBottom（站上踩過 Scan.jsx 與 AuthWall.jsx 兩次）。
+                ⚠️ 點面板內部不要冒泡到遮罩，否則點一下文字就把彈窗關掉。
+                ⚠️ 這個註解必須在 `{(close) => (` **之前**：那個括號裡是
+                   JS 的運算式位置不是 JSX，JSX 註解放進去會直接語法錯誤。
+                ⚠️ 也**不可以在註解裡寫出 JSX 註解的結束符號**——它會提前收掉
+                   這個註解，剩下的字就變成畫面上的文字。實測踩過：整個彈窗
+                   內容被換成半句註解，而且建置一個字都不會報。 */}
+            {(close) => (
+              <div className="sheet armodel-sheet" onClick={e => e.stopPropagation()}>
+                <div className="sheet-grip" />
+                <div className="armodel-sheet-hd">
+                  <b>{obj.name}</b>
+                  <button className="armodel-sheet-x tap" type="button" onClick={close} aria-label="關閉詳細資料">✕</button>
+                </div>
+                <div>
+                  <div className="scan-hit" id="armodel-card">
+                    <div className="scan-hit-hd">
+                      <b>{obj.name}</b>
+                      <span className="muted">{card.title}</span>
+                    </div>
+                    {obj.line && <p className="scan-hit-line">{obj.line}</p>}
+                    {obj.facts?.length > 0 && (
+                      <dl className="scan-hit-facts">
+                        {obj.facts.map(f => (
+                          <div key={f.label}>
+                            <dt>{f.label}</dt>
+                            <dd>{f.value}{f.source && <i className="muted">（{f.source}）</i>}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                    {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
+                    <SpeakButton obj={obj} className="scan-hit-speak" />
 
-            {/* ★ 小挑戰 —— 這條動線的「成了！」時刻。
-                掃到卡片 → 看 3D 角色 → 讀知識卡 → 答題 → 拿徽章，
-                先前這一段只存在於不用相機的 `/ar/card/:slug`，
-                真的拿卡片掃到的人反而走不到獎勵。
-                ⚠️ 用 `.cardp-quiz`（它自己帶 border-top 分隔線），所以放在
-                   知識卡**裡面**、語音按鈕之後——與卡片頁的結構一致。 */}
-            {obj.quiz && (
-              <div ref={quizRef}><ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
-                term={card.term}
-                // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
-                fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} /></div>
+                    {/* ★ 小挑戰 —— 這條動線的「成了！」時刻。
+                        掃到卡片 → 看 3D 角色 → 讀知識卡 → 答題 → 拿徽章。
+                        ⚠️ 用 `.cardp-quiz`（它自己帶 border-top 分隔線），所以放在
+                           知識卡**裡面**、語音按鈕之後——與卡片頁的結構一致。 */}
+                    {obj.quiz && (
+                      <div ref={quizRef}><ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
+                        term={card.term}
+                        // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
+                        fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} /></div>
+                    )}
+                  </div>
+
+                  <div className="armodel-acts">
+                    <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
+                      看這張卡的完整內容 ›
+                    </Link>
+                    <Link screen="scan" className="btn-ghost tap">再掃一次</Link>
+                  </div>
+                </div>
+              </div>
             )}
-          </div>
+          </SheetMask>
         )}
 
-        <div className="armodel-acts">
-          <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
-            看這張卡的完整內容 ›
-          </Link>
-          <Link screen="scan" className="btn-ghost tap">再掃一次</Link>
-        </div>
       </div>
     </>
   )
