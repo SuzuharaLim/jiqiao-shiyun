@@ -291,6 +291,11 @@ export default function ArModel({ slug, hotspot }) {
   const quizRef = useRef(null)
   const [phase, setPhase] = useState('loading')   // loading | ready | failed
   const [err, setErr] = useState(null)
+  // ★ 資料卡預設收起來。這一頁的主角是「跟角色說話」，一整塊條列資料攤在
+  //   下面會把它變成「3D 檢視器 ＋ 說明書」。要看的人按一下就有。
+  //   ⚠️ hook 一律寫在所有提早 return 之前（站上踩過兩次：PostDetail 的
+  //      hook 順序、Scan.jsx 的 TDZ），下面 `if (!card) return` 就是那個 return。
+  const [showCard, setShowCard] = useState(false)
 
   // 掃描時瞄到的熱區（有的話），沒有就用 primary
   const spot = card?.hotspots?.find(h => h.id === hotspot)
@@ -453,13 +458,33 @@ export default function ArModel({ slug, hotspot }) {
             // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
             //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
             //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
-            onQuiz={() => scrollIntoContainer(quizRef.current)} />
+            // ★★★ 小挑戰在資料卡**裡面**，而資料卡預設是收起來的 ⇒ 一定要先展開
+            //   再捲。少了 `setShowCard(true)`，按「考考我」會捲向一個還沒被渲染的
+            //   節點（`quizRef.current` 是 null）＝**畫面上什麼都不會發生**，
+            //   而角色剛剛才說「好啊，往下看——我出一題」。
+            // ⚠️ 展開之後 DOM 還沒長出來，同一輪捲動一定捲不到 ⇒ 要等下一幀。
+            //    這裡用 setTimeout 而不是 rAF：分頁在背景時 rAF 完全不觸發
+            //    （站上已踩過，見 CLAUDE.md 的捲動還原那一段）。
+            onQuiz={() => {
+              setShowCard(true)
+              setTimeout(() => scrollIntoContainer(quizRef.current), 60)
+            }} />
         </div>
 
         <p className="armodel-hint muted">拖曳角色可以轉動，放開後會自己慢慢轉。</p>
 
+        {/* ★ 資料卡的開關。用真的 `<button>` ＋ `aria-expanded`／`aria-controls`，
+            讀屏才知道它控制的是什麼、現在是開還是關。 */}
         {obj && (
-          <div className="scan-hit">
+          <button className="armodel-toggle tap" type="button"
+            aria-expanded={showCard} aria-controls="armodel-card"
+            onClick={() => setShowCard(v => !v)}>
+            {showCard ? '收起資料卡' : `看${obj.name}的資料卡`}
+          </button>
+        )}
+
+        {obj && showCard && (
+          <div className="scan-hit" id="armodel-card">
             <div className="scan-hit-hd">
               <b>{obj.name}</b>
               <span className="muted">{card.title}</span>

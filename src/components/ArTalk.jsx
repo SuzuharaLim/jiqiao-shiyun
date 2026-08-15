@@ -252,10 +252,14 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
       {/* 剛問的那一句，一行小字——沒有它，答案會像憑空冒出來 */}
       {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
 
-      <div className="artalk-bubble" aria-live="polite" aria-label={`${obj.name}說`}>
-        {thinking
-          ? <span className="artalk-typing"><span /><span /><span /></span>
-          : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+      <div className="artalk-bubble">
+        {/* ⚠️ 限高與捲動在**內層**：尖角是外層的 ::before 且伸出框外，
+            外層一有 overflow 就會把它裁掉（症狀是泡泡變成一塊圓角方塊）。 */}
+        <div className="artalk-bubble-in" aria-live="polite" aria-label={`${obj.name}說`}>
+          {thinking
+            ? <span className="artalk-typing"><span /><span /><span /></span>
+            : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+        </div>
       </div>
 
       {/* ★ 2×2 選項格 */}

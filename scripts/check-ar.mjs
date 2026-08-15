@@ -1118,7 +1118,9 @@ const W = 1831, H = 1335
     return j < 0 ? '' : SRC.css.slice(i, j + 1)
   }
   const tail = cssRule('.artalk-bubble::before')
-  ok(/artalk-bubble/.test(talk) && /border-bottom:\s*\d/.test(tail) && /\.artalk-bubble::after/.test(SRC.css),
+  // ⚠️ 2026-08-11 從兩個尖角改成**一個**：兩個看起來像頁籤不像說話。
+  //    「只有一個」那條在下面的排版段落鎖著（含 `::after` 不可存在）。
+  ok(/artalk-bubble/.test(talk) && /border-bottom:\s*\d/.test(tail) && /top:\s*-\d/.test(tail),
     '★ 對話泡泡要有朝上的尖角（指向 3D 舞台裡的角色）')
   ok(/grid-template-columns:\s*repeat\(2/.test(cssRule('.artalk-grid {')),
     '★ 選項要排成 2 欄')
@@ -1165,6 +1167,14 @@ const W = 1831, H = 1335
   ok(/radial-gradient/.test(cssRule('.armodel-scene')),
     '★★ 場景背景幕（全站唯一的漸層例外，只准在這一個 class）')
 
+  // ★★★ 資料卡預設收起來，而小挑戰在**它裡面** ⇒「考考我」一定要先展開再捲。
+  //   少了 setShowCard(true)，quizRef.current 是 null ⇒ 捲動靜默失敗 ⇒
+  //   畫面上什麼都不會發生，而角色剛剛才說「好啊，往下看——我出一題」。
+  ok(/showCard && \(/.test(model) && /aria-expanded=\{showCard\}/.test(model),
+    '★★ 資料卡要收在開關後面，且開關要有 aria-expanded')
+  ok(/onQuiz=\{\(\) => \{[\s\S]{0,400}?setShowCard\(true\)[\s\S]{0,400}?scrollIntoContainer/.test(model),
+    '★★★ 「考考我」要先展開資料卡再捲（否則捲向一個還沒渲染的節點＝什麼都不會發生）')
+
   // ★★ 散景光點是**純裝飾**，必須滿足三件事，否則它就從「氣氛」變成「障礙」：
   //   ① `pointer-events:none`——它鋪滿整個場景（inset:-6%），會吃掉舞台的拖曳手勢，
   //      而症狀是「模型轉不動」，畫面上卻完全看不出有東西擋著。
@@ -1191,6 +1201,22 @@ const W = 1831, H = 1335
     '★★★ 泡泡的三個點要看 thinking 不是 busy（否則朗讀期間答案是看不到的）')
   ok(/setLog\(l => \[\.\.\.l, \{ who: 'char'[\s\S]{0,120}?setThinking\(false\)/.test(talk),
     '★★ 答案一進 log 就要停止三個點（字要與聲音同時出現）')
+
+  // ★★★ 尖角是「這句話是它說的」的全部。它畫在外層且伸出框外（top:-11px），
+  //   所以**外層絕不可有 overflow**——一有就被裁掉，而症狀只是「泡泡看起來
+  //   像一塊圓角方塊」，沒有錯誤訊息，也沒人會想到是 overflow。
+  //   限高與捲動一律放內層 `.artalk-bubble-in`。
+  ok(/artalk-bubble-in/.test(talk), '★★ 泡泡要有內層（限高與捲動放內層）')
+  ok(!/overflow/.test(cssRule('.artalk-bubble {')) && /overflow-y:\s*auto/.test(cssRule('.artalk-bubble-in')),
+    '★★★ 泡泡外層不可有 overflow（會把尖角裁掉），捲動放內層')
+  ok(/\.artalk-bubble::before\s*\{[\s\S]{0,240}?border-bottom:\s*\d+px solid/.test(SRC.css)
+    && !/\.artalk-bubble::after/.test(SRC.css),
+    '★★ 只要一個朝上的尖角（兩個看起來像頁籤不像說話）')
+
+  // ★★★ `.btn-primary` 帶著 `width:100%`，在 flex 列裡 `flex-basis:auto` 會去讀
+  //   `width` ⇒ 送出鈕的基準寬度是整列，把輸入框壓成一顆小藥丸。實測就是這樣。
+  ok(/width:\s*auto/.test(cssRule('.artalk-send')),
+    '★★★ 送出鈕要 width:auto 蓋掉 .btn-primary 的 width:100%（否則輸入框被壓扁）')
 
   ok(/挑一個問我/.test(talk) && /直接打字/.test(talk),
     '★★★ 開場白要告訴使用者「可以點選項、也可以直接打字」')
