@@ -88,7 +88,7 @@ function findAnswer(text, card, currentObj) {
   return null
 }
 
-export default function ArTalk({ obj, card, actorRef, onQuiz }) {
+export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, onSwap, canSwap }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -239,75 +239,94 @@ export default function ArTalk({ obj, card, actorRef, onQuiz }) {
   const latest = [...log].reverse().find(m => m.who === 'char')
   const lastAsked = [...log].reverse().find(m => m.who === 'me')?.text ?? null
 
-  return (
-    <div className="artalk">
-      {/* ⚠️ **不顯示對話紀錄**（參考圖也只有一個泡泡）。
-          先前做過可捲的歷史區，但它會把底下的輸入列往下推——實測問了四題之後
-          輸入列跑到 top 984，而視窗只有 889，使用者要捲下去才打得到字。
-          這一頁的重點是「現在它說了什麼」，而且每一題都可以再問一次，
-          留著歷史的代價（輸入列被推出畫面）遠大於它的價值。
-          `log` 仍然保留著，泡泡取的就是裡面最後一句角色的話。 */}
-      {/* ★ 對話泡泡：尖端朝上指向角色，緊貼 3D 舞台下緣。
-          aria-live 放這裡而不是紀錄區——螢幕閱讀器要唸的是「角色現在說了什麼」。 */}
-      {/* 剛問的那一句，一行小字——沒有它，答案會像憑空冒出來 */}
-      {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
+  // ★★★ 說話的人**永遠是卡片的主角**（這張卡只有結球白菜有 3D 模型），
+  //   上下滑動換的是「在講哪個主題」不是「換一隻角色」。所以問句的稱謂要用
+  //   `speaker`——用 `obj.name` 會變成「問問小寒 · 身體保健…」。
+  const who = speaker || obj.name
 
-      <div className="artalk-bubble">
-        {/* ⚠️ 限高與捲動在**內層**：尖角是外層的 ::before 且伸出框外，
-            外層一有 overflow 就會把它裁掉（症狀是泡泡變成一塊圓角方塊）。 */}
-        <div className="artalk-bubble-in" aria-live="polite" aria-label={`${obj.name}說`}>
-          {thinking
-            ? <span className="artalk-typing"><span /><span /><span /></span>
-            : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+  return (
+    <>
+      {/* ★★★ 對話泡泡在角色**上方偏右**（使用者指定），尖端朝**下**指向它。
+          ⚠️ 它是絕對定位疊在場景上緣，**不在**底下那個控制面板裡——
+             所以 `jq-fit` 的可見區不再貼著畫布頂端，一定要連 `offset` 一起量，
+             否則角色會被往上頂、臉正好躲進泡泡後面。
+          ⚠️ **不顯示對話紀錄**：先前做過可捲的歷史區，它會把輸入列往下推
+             （實測問四題後輸入列跑到 top 984 而視窗只有 889）。 */}
+      <div className="artalk-say">
+        {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
+        <div className="artalk-bubble">
+          {/* ⚠️ 限高與捲動在**內層**：尖角是外層的 ::after 且伸出框外，
+              外層一有 overflow 就會把它裁掉（症狀是泡泡變成一塊圓角方塊）。 */}
+          <div className="artalk-bubble-in" aria-live="polite" aria-label={`${who}說`}>
+            {thinking
+              ? <span className="artalk-typing"><span /><span /><span /></span>
+              : <>{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+          </div>
         </div>
       </div>
 
-      {/* ★ 2×2 選項格 */}
-      <div className="artalk-grid">
-        {asks.map((a, i) => (
-          <button key={i} className="artalk-opt tap" disabled={busy} onClick={() => say(a)}>
-            {a.q}
-          </button>
-        ))}
-        {/* 動作不牽涉任何事實，純粹讓它「有反應」——這是最便宜的活著感 */}
-        <button className="artalk-opt tap" disabled={busy} onClick={() => {
-          const a = actorRef?.current
-          const moves = ['wave', 'nod', 'jump', 'spin', 'dance', 'happy']
-          const pick = moves[Math.floor(Math.random() * moves.length)]
-          setLog(l => [...l, { who: 'me', text: '做個動作給我看' }, { who: 'char', text: '看好囉！' }])
-          try { a?.setAction(pick) } catch { /* ignore */ }
-          // ⚠️ 要自己收回 present：動作是循環的，不收的話它會一直跳下去
-          clearTimeout(timerRef.current)
-          timerRef.current = setTimeout(() => { try { a?.setAction('present') } catch { /* ignore */ } }, 4200)
-        }}>
-          做個動作給我看
-        </button>
-        {obj.quiz && (
+      <div className="artalk">
+        {/* ★ 提問選項。使用者要求「縮小，這不是主要的」——所以字級與內距都比
+            泡泡低一階，讀起來像一排建議而不是主要按鈕。
+            ⚠️ 但仍要守住 WCAG 2.5.8 的 24×24：縮小的是視覺重量不是可點範圍，
+               `min-height` 一律 ≥36。 */}
+        <div className="artalk-grid">
+          {asks.map((a, i) => (
+            <button key={i} className="artalk-opt tap" disabled={busy} onClick={() => say(a)}>
+              {a.q}
+            </button>
+          ))}
+          {/* 動作不牽涉任何事實，純粹讓它「有反應」——這是最便宜的活著感 */}
           <button className="artalk-opt tap" disabled={busy} onClick={() => {
-            setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，往下看——我出一題。' }])
-            try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
-            onQuiz?.()
+            const a = actorRef?.current
+            const moves = ['wave', 'nod', 'jump', 'spin', 'dance', 'happy']
+            const pick = moves[Math.floor(Math.random() * moves.length)]
+            setLog(l => [...l, { who: 'me', text: '做個動作給我看' }, { who: 'char', text: '看好囉！' }])
+            try { a?.setAction(pick) } catch { /* ignore */ }
+            // ⚠️ 要自己收回 present：動作是循環的，不收的話它會一直跳下去
+            clearTimeout(timerRef.current)
+            timerRef.current = setTimeout(() => { try { a?.setAction('present') } catch { /* ignore */ } }, 4200)
           }}>
-            考考我
+            做個動作給我看
           </button>
+          {obj.quiz && (
+            <button className="artalk-opt tap" disabled={busy} onClick={() => {
+              setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，往下看——我出一題。' }])
+              try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
+              onQuiz?.()
+            }}>
+              考考我
+            </button>
+          )}
+        </div>
+
+        {/* ★ 手動輸入。
+            ⚠️ 這裡**不接語言模型**（理由見檔頭）：先在這張卡自己的資料裡找，
+               找不到就誠實說找不到並列出它知道什麼。 */}
+        <form className="artalk-form" onSubmit={submit}>
+          <input
+            className="artalk-input" type="text" value={draft} disabled={busy}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`問問${who}…`}
+            aria-label={`輸入想問${who}的問題`}
+            enterKeyHint="send" autoComplete="off"
+          />
+          <button className="btn-primary tap artalk-send" type="submit" disabled={busy || !draft.trim()}>
+            發送
+          </button>
+        </form>
+
+        {/* ★★★ 手勢說明不可省略。上下滑動換主題、雙指縮放都是**沒有任何視覺
+            線索**的手勢——不講的話等於沒做。而且鍵盤與讀屏使用者根本比不出
+            手勢，所以「換一個」同時做成真的按鈕（不是只有提示文字）。 */}
+        {canSwap && (
+          <p className="artalk-tip">
+            <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(-1)} aria-label="上一個主題">‹</button>
+            <span>上下滑動換主題・雙指縮放・左右拖曳轉動</span>
+            <button type="button" className="artalk-swap tap" onClick={() => onSwap?.(1)} aria-label="下一個主題">›</button>
+          </p>
         )}
       </div>
-
-      {/* ★ 手動輸入。
-          ⚠️ 這裡**不接語言模型**（理由見檔頭）：先在這張卡自己的資料裡找，
-             找不到就誠實說找不到並列出它知道什麼。 */}
-      <form className="artalk-form" onSubmit={submit}>
-        <input
-          className="artalk-input" type="text" value={draft} disabled={busy}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={`問問${obj.name}…`}
-          aria-label={`輸入想問${obj.name}的問題`}
-          enterKeyHint="send" autoComplete="off"
-        />
-        <button className="btn-primary tap artalk-send" type="submit" disabled={busy || !draft.trim()}>
-          發送
-        </button>
-      </form>
-    </div>
+    </>
   )
 }

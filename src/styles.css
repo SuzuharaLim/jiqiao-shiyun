@@ -1723,21 +1723,29 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
 .armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
-/* ★ 資料卡開關。做成一條低調的次要按鈕——它不該與「跟角色說話」搶注意力，
-   但也不可以低調到看不出可以點（所以有框、有 ›／‹ 以外的明確動詞）。 */
-/* ⚠️ 寬度要「扣掉左右 margin」而不是寫死數字（站上踩過：`calc(100% - 26px)`
-   假設左右各 13，實際是 16 ⇒ 右緣少扣 6px 的不對稱）。這裡的父層沒有內距，
-   所以自己留 --space-4，與同頁其他版心對齊。 */
-.armodel-toggle { display: block;
-  width: min(calc(100% - var(--space-4) * 2), 420px);
-  margin: var(--space-3) auto 0;
-  flex: 0 0 auto; padding: 12px var(--space-4); min-height: 44px;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: var(--card); color: var(--cinnabar);
-  font-size: var(--text-xs); font-weight: 700; text-align: center; }
+/* ★ 場景內的主題列：左邊「現在在講誰」、右邊資料卡入口。
+   ⚠️ 底下那條「看資料卡」按鈕與手勢說明已依使用者要求移除，
+      所以入口必須留在這裡——否則資料卡只剩「考考我」一條路進得去。 */
+.armodel-bar { position: absolute; inset: 0 0 auto 0; z-index: 4;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 0; pointer-events: none; }
+.armodel-who { display: flex; align-items: baseline; gap: 8px; min-width: 0;
+  font-size: var(--text-xs); color: #F4F7FB; text-shadow: 0 1px 6px rgba(6,14,30,.7);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.armodel-who .muted { color: rgba(244,247,251,.72); font-size: var(--text-2xs); }
+/* ⚠️ 高度**固定 36**（不用 padding 撐）：底下的泡泡要用 calc 讓開這一列，
+     而 padding 撐出來的高度會隨字級變動 ⇒ 讓開的量就對不上 ⇒ 「詳細」鈕
+     直接壓在泡泡上（實測 68~109 與泡泡 68~201 整段重疊）。 */
+.armodel-info { pointer-events: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; height: 36px; padding: 0 var(--space-4);
+  border: 1px solid rgba(255,255,255,.42); border-radius: 999px;
+  background: rgba(255,255,255,.18); color: #F4F7FB;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-size: var(--text-2xs); font-weight: 700; }
 @media (hover: hover) and (pointer: fine) {
-  .armodel-toggle:hover { background: var(--field); }
+  .armodel-info:hover { background: rgba(255,255,255,.3); }
 }
+
 
 /* ── 跟角色說話 ──
    排版對齊使用者給的參考圖：角色佔上半 → 對話泡泡（尖端朝上）→ 2×2 選項格
@@ -1746,16 +1754,31 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
       整站已無 UI 漸層（CLAUDE.md）。這裡沿用 --tone-* 紙染與 --primary。
    ⚠️ `.body` 是 flex column，子項預設 flex-shrink:1——內容一長就會被壓到
       自己的 min-height 而文字溢出疊到下一列。所以每一塊都要 flex:0 0 auto。 */
+/* ★★★ 泡泡層：角色**上方偏右**的浮層（使用者指定）。
+   ⚠️ 它與底下的控制面板是**兩個獨立的浮層**，中間那一段才是角色的可見區。
+      `jq-fit` 因此要同時吃 `offset`（可見區從哪裡開始）與 `visible`（有多高）
+      ——只給比例的話角色會被往上頂、臉躲進泡泡後面。
+   ⚠️ `pointer-events:none` 讓泡泡不吃掉舞台的拖曳／滑動手勢；
+      裡面若有可點的東西要自己開回 auto。 */
+.artalk-say { position: absolute; top: 0; right: 0; left: 0;
+  /* 讓開上面那一列（--space-3 內距 ＋ 36px 按鈕），再留一點空隙 */
+  padding: calc(var(--space-3) + 36px + var(--space-2)) var(--space-4) 0;
+  display: flex; flex-direction: column; align-items: flex-end;
+  pointer-events: none; z-index: 3; }
+/* ⚠️ 寬度不是美感問題：窄一格就多一行，而每多一行角色就小一截
+     （實測 268px 寬時開場白排成 3 行、泡泡 133 高 ⇒ 角色只剩 32.6%）。 */
+.artalk-say .artalk-bubble { width: min(88%, 460px); pointer-events: auto; }
+
 /* ★ 疊在場景下半。`inset: auto 0 0 0` ＝貼著場景底部、左右滿版。 */
 .artalk { position: absolute; inset: auto 0 0 0; padding: 0 var(--space-4) var(--space-4);
   /* 由下往上的暗色遮罩，讓文字在角色身上也讀得到 */
-  background: linear-gradient(to top, rgba(9,18,36,.86) 0%, rgba(9,18,36,.72) 62%, rgba(9,18,36,0) 100%);
+  background: linear-gradient(to top, rgba(9,18,36,.88) 0%, rgba(9,18,36,.74) 58%, rgba(9,18,36,0) 100%);
   /* ⚠️ 這一塊每高一格，角色就小一格——`jq-fit` 是按「沒被蓋住的比例」算距離的，
      面板佔掉 61% 時角色只剩 39% 的畫布可用。開場白多了一行說明（+28px）之後，
      這裡的上內距從 --space-6 收到 --space-4 把它換回來（實測 vis 0.389 → 0.414）。
      ⚠️ 不可再往下收：這段內距同時是「文字從角色身上淡出」的過渡帶，
         收成 0 的話深色遮罩會硬邊切在角色身上。 */
-  padding-top: var(--space-4); }
+  padding-top: var(--space-3); }
 
 /* ── 深底之上的配色覆寫 ──
    ⚠️ 一律用淺色文字。實測對比：#F4F7FB 對底色 #1B3560 ＝ 11.9，
@@ -1788,15 +1811,15 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-bubble i { font-style: normal; font-size: var(--text-2xs); color: var(--muted);
   display: block; width: 100%; margin-top: 2px; }
 /* 兩個小尖角（參考圖就是兩個），用 border 三角形——不需要圖檔也不會有鋸齒 */
-/* ★ 尖角朝上指向角色 —— 「這句話是它說的」全靠這一塊。
+/* ★ 尖角朝**下**指向角色 —— 泡泡現在在角色上方偏右（使用者指定），
+   所以尖角要從泡泡底部往下指，才連得起「這句話是它說的」。
    ⚠️ 只要**一個**尖角。兩個看起來像頁籤不像說話。
-   ⚠️ 位置置中：角色是置中框景的（`jq-fit` 把包圍盒中心對到旋轉原點），
-      尖角對著它的正下方才連得起來。 */
+   ⚠️ 尖角偏左（28%）：泡泡靠右、角色在畫面中央偏左下，尖角要指向角色那一側。 */
 .artalk-bubble::before {
-  content: ''; position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+  content: ''; position: absolute; bottom: -11px; left: 28%; transform: translateX(-50%);
   width: 0; height: 0;
   border-left: 11px solid transparent; border-right: 11px solid transparent;
-  border-bottom: 12px solid rgba(255,255,255,.94);
+  border-top: 12px solid rgba(255,255,255,.94);
 }
 
 /* 「正在想」的三點。⚠️ reduce-motion 下要給靜態替代，
@@ -1814,18 +1837,18 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 }
 
 /* ★ 2×2 選項格 */
+/* ⚠️ 使用者要求「縮小，這不是主要的」：縮的是**視覺重量**（字級、內距），
+   不是可點範圍——`.artalk-opt` 的 min-height 仍守著 WCAG 2.5.8 的 24×24。 */
 .artalk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px; margin-top: var(--space-3); }
+  gap: 6px; margin-top: var(--space-3); }
 .artalk-opt {
-  /* ⚠️ 觸控目標 ≥24×24（WCAG 2.5.8 AA）；這裡給 48 是因為它是主要操作 */
-  min-height: 48px; padding: 10px 12px;
-  border: 1px solid rgba(255,255,255,.28); border-radius: 12px;
-  background: rgba(255,255,255,.16);
+  min-height: 36px; padding: 6px var(--space-3);
+  border: 1px solid rgba(255,255,255,.32); border-radius: 12px;
+  background: rgba(255,255,255,.16); color: #F4F7FB;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  color: #F4F7FB; font-size: var(--text-xs); line-height: 1.4;
-  text-align: center; word-break: break-word;
-  transition: background var(--m-fast) var(--e-out), border-color var(--m-fast) var(--e-out);
+  font-size: var(--text-2xs); line-height: 1.4; text-align: center;
 }
+
 /* ⚠️ 每一條 :hover 都要包 (hover:hover)——觸控裝置點完狀態會黏住 */
 @media (hover: hover) and (pointer: fine) {
   .artalk-opt:hover:not(:disabled) { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.26); }
@@ -1835,7 +1858,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-grid > .artalk-opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 /* ★ 底部輸入列 */
-.artalk-form { display: flex; gap: 8px; margin-top: var(--space-3); }
+.artalk-form { display: flex; gap: 8px; margin-top: var(--space-2); }
 .artalk-input { flex: 1 1 auto; min-width: 0;
   border: 1px solid rgba(255,255,255,.24); border-radius: 999px;
   background: rgba(255,255,255,.94);
@@ -1853,6 +1876,21 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-send { flex: 0 0 auto; width: auto; border-radius: 999px;
   padding: 10px var(--space-5); min-height: 44px; }
 .artalk-send:disabled { opacity: .45; cursor: default; }
+
+/* ★ 手勢說明 ＋ 換主題的按鈕。
+   ⚠️ 上下滑動與雙指縮放**沒有任何視覺線索**，不講等於沒做。
+   ⚠️ 而且鍵盤與讀屏使用者比不出手勢 ⇒「換一個」必須是真的按鈕，
+      不可以只留一行提示文字。 */
+.artalk-tip { display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  margin: 6px 0 0; font-size: var(--text-2xs);
+  color: rgba(244,247,251,.66); text-align: center; }
+.artalk-swap { flex: 0 0 auto; min-width: 28px; min-height: 28px;
+  border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
+  background: rgba(255,255,255,.12); color: #F4F7FB;
+  font-size: var(--text-sm); line-height: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .artalk-swap:hover { background: rgba(255,255,255,.26); }
+}
 
 /* ★★ 模型頁的知識卡**不可**限高自捲。
    `.scan-hit` 的 `max-height:40dvh; overflow:auto` 是為 `/AR` 設計的——那裡它是

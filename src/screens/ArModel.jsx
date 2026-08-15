@@ -183,7 +183,14 @@ async function ensureAframe() {
       //    ∝ 焦距 ∝ 1/tan(fov/2)**與距離無關**，所以 fov 40 會讓這一頁的描邊
       //    比卡片頁粗 11%——同一隻角色兩頁看起來線條不一樣粗。
       // visible：畫布**沒有被控制項蓋住**的縱向比例（由 React 量完傳進來）。
-      schema: { margin: { default: 1.1 }, maxPitch: { default: 35 }, visible: { default: 1 } },
+      // visible：畫布**沒有被控制項蓋住**的縱向比例（由 React 量完傳進來）。
+      // offset：那段可見區從畫布頂端往下多少才開始（泡泡移到角色上方之後，
+      //         可見區不再貼著畫布頂端，只給比例是不夠的——還要知道它在哪裡）。
+      // zoom：使用者捏合／滾輪縮放。>1 ＝ 拉近（角色變大）。
+      // ⚠️ maxPitch 預設 0：上下滑動已改成「換一個主題」，不再俯仰
+      //    ⇒ 縱向輪廓不會因俯仰而變高 ⇒ 同樣的框景角色可以更大。
+      schema: { margin: { default: 1.0 }, maxPitch: { default: 0 },
+        visible: { default: 1 }, offset: { default: 0 }, zoom: { default: 1 } },
       init() {
         this.metrics = null
         this.onReady = (e) => { this.metrics = e.detail; this.fit() }
@@ -193,6 +200,12 @@ async function ensureAframe() {
         // A-Frame 自己在視窗 resize 時會發這個事件（相機的 aspect 已經更新過了）
         sc.addEventListener('rendererresize', this.onResize)
       },
+      // ★★★ 沒有這個 `update()`，`setAttribute('jq-fit', …)` 就只是改了資料而
+      //   **不會重新框景**——縮放與可見區都寫得進去卻一點反應都沒有，而且
+      //   完全不會報錯。實測：捏合到 2 倍，相機 z 仍停在 5.88。
+      //   （先前只有 `jq-character-ready` 與 `rendererresize` 兩個事件會呼叫 fit，
+      //    可見區剛好都在那之後才寫入，所以一直沒被發現。）
+      update() { this.fit() },
       fit() {
         const m = this.metrics
         const cam = this.el.getObject3D('camera')
@@ -212,10 +225,19 @@ async function ensureAframe() {
         // 讓模型中心落在可見區的正中央（也就是整張畫布的 `vis/2` 處）。
         // ⚠️ 高度用**量到的**而不是寫死比例：控制項的高度會隨字級、
         //    答案長短、有沒有小挑戰而變（實測 411×889 上是 0.52~0.58）。
-        const vis = Math.max(0.35, Math.min(1, this.data.visible))
-        const d = Math.max(needV / (tanV * vis), needH / tanH) * this.data.margin
-        // 可見區中心在 NDC 的 y = 1 - vis；把相機往下移這麼多，模型就落在那裡。
-        const shift = (1 - vis) * d * tanV
+        const vis = Math.max(0.28, Math.min(1, this.data.visible))
+        const off = Math.max(0, Math.min(1 - vis, this.data.offset))
+        const zoom = Math.max(0.6, Math.min(3, this.data.zoom))
+        const d = Math.max(needV / (tanV * vis), needH / tanH) * this.data.margin / zoom
+        // ★★★ 可見區**不一定貼著畫布頂端**（泡泡在角色上方時，它從 off 才開始），
+        //   所以不能再用「1 - vis」那個只對 top-anchored 成立的簡化式。
+        //   通式：可見區中心距畫布頂端的比例 f = off + vis/2；畫布正中是 0.5；
+        //   在距離 d 處畫布的世界高度 H = 2·d·tanV ⇒ 相機要往「相反方向」
+        //   移 (0.5 − f)·H，模型才會落在可見區正中央。
+        //   ⚠️ 驗算舊行為：off=0 ⇒ f=vis/2 ⇒ −(0.5−vis/2)·2·d·tanV
+        //      ＝ −(1−vis)·d·tanV，與舊式完全一致。
+        const f = off + vis / 2
+        const shift = (0.5 - f) * 2 * d * tanV
         // ⚠️ 用 setAttribute 不要直接改 object3D.position：position 元件會在
         //    屬性變動時把 object3D 寫回去，直接改會被默默蓋掉。
         // 模型重心已經被移到原點，相機擺在 +z 看向 -z（預設朝向）就正對它，
@@ -235,47 +257,82 @@ async function ensureAframe() {
     //    前者會讓相機跟著手機陀螺儀轉（放在桌上看模型時畫面會自己飄），
     //    後者在手機上根本沒有鍵盤。自己寫 20 行轉模型最單純。
     AFRAME.registerComponent('jq-drag-rotate', {
-      schema: { speed: { default: 0.4 }, spin: { default: 6 } },
+      // swipe：判定成「換一個主題」所需的縱向距離（px）。
+      // ⚠️ 太小會與「想轉一下角色但手指有點斜」搶輸入——而誤觸的代價是**整頁換題**，
+      //    比轉錯角度嚴重得多，所以門檻設得比一般 carousel 高，
+      //    而且要求「縱向位移明顯大於橫向」才算數。
+      schema: { speed: { default: 0.4 }, spin: { default: 6 }, swipe: { default: 70 } },
       init() {
         this.dragging = false
         this.lastX = 0; this.lastY = 0
-        this.yaw = 0; this.pitch = 0
+        this.startY = 0; this.startX = 0
+        this.swiped = false
+        this.yaw = 0
         this.auto = true
+        this.pinch = 0            // 兩指起始距離，0 ＝ 目前不是捏合
+        this.zoom = 1
         const el = this.el.sceneEl
+        const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+        /** 縮放交給 React（它才知道要寫回哪一個 jq-fit）。 */
+        this.emitZoom = () => el.emit('jq-zoom', { zoom: this.zoom }, false)
+
         this.onDown = (e) => {
+          if (e.touches?.length >= 2) {           // 兩指：捏合縮放，不轉不換
+            this.dragging = false
+            this.pinch = dist(e.touches); this.pinch0 = this.zoom
+            return
+          }
           const p = e.touches?.[0] ?? e
-          this.dragging = true; this.auto = false
+          this.dragging = true; this.auto = false; this.swiped = false
           this.lastX = p.clientX; this.lastY = p.clientY
+          this.startX = p.clientX; this.startY = p.clientY
         }
         this.onMove = (e) => {
+          if (this.pinch && e.touches?.length >= 2) {
+            const k = dist(e.touches) / this.pinch
+            this.zoom = Math.max(0.6, Math.min(3, this.pinch0 * k))
+            this.emitZoom()
+            return
+          }
           if (!this.dragging) return
           const p = e.touches?.[0] ?? e
-          this.yaw += (p.clientX - this.lastX) * this.data.speed
-          // ⚠️ 上下角度要夾住：不夾的話可以轉到模型底下再翻過去，
-          //    使用者會迷失方向而且看到穿模的內裡。
-          this.pitch = Math.max(-35, Math.min(35, this.pitch - (p.clientY - this.lastY) * this.data.speed))
+          // ★★★ 上下滑動改成「換一個主題」（使用者要求），所以**不再俯仰**。
+          //   ⚠️ 一次滑動只換一次：不鎖的話手指繼續移動會一路換過去，
+          //      使用者會看到主題像吃角子老虎一樣跑。
+          const dy = p.clientY - this.startY
+          const dx = p.clientX - this.startX
+          if (!this.swiped && Math.abs(dy) > this.data.swipe && Math.abs(dy) > Math.abs(dx) * 1.6) {
+            this.swiped = true
+            el.emit('jq-swap', { dir: dy < 0 ? 1 : -1 }, false)
+          }
+          if (!this.swiped) this.yaw += (p.clientX - this.lastX) * this.data.speed
           this.lastX = p.clientX; this.lastY = p.clientY
         }
-        this.onUp = () => { this.dragging = false }
+        this.onUp = () => { this.dragging = false; this.pinch = 0 }
+        // 桌機沒有捏合，用滾輪。⚠️ 必須是**非 passive** 才能 preventDefault，
+        //    否則在模型上滾動會把整頁捲走（而使用者以為自己在縮放）。
+        this.onWheel = (e) => {
+          e.preventDefault()
+          this.zoom = Math.max(0.6, Math.min(3, this.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)))
+          this.emitZoom()
+        }
         const c = el.canvas ?? el
         for (const [n, f] of [['mousedown', this.onDown], ['touchstart', this.onDown]]) c.addEventListener(n, f, { passive: true })
         for (const [n, f] of [['mousemove', this.onMove], ['touchmove', this.onMove]]) window.addEventListener(n, f, { passive: true })
         for (const [n, f] of [['mouseup', this.onUp], ['touchend', this.onUp], ['touchcancel', this.onUp]]) window.addEventListener(n, f, { passive: true })
+        c.addEventListener('wheel', this.onWheel, { passive: false })
         this._c = c
       },
       tick(t, dt) {
         // 沒人碰的時候慢慢自轉——靜止的 3D 看起來像一張圖片，轉起來才讀得出立體
         if (this.auto) this.yaw += (this.data.spin * (dt || 16)) / 1000
-        this.el.object3D.rotation.set(
-          (this.pitch * Math.PI) / 180,
-          (this.yaw * Math.PI) / 180,
-          0,
-        )
+        this.el.object3D.rotation.set(0, (this.yaw * Math.PI) / 180, 0)
       },
       remove() {
         for (const [n, f] of [['mousedown', this.onDown], ['touchstart', this.onDown]]) this._c?.removeEventListener(n, f)
         for (const [n, f] of [['mousemove', this.onMove], ['touchmove', this.onMove]]) window.removeEventListener(n, f)
         for (const [n, f] of [['mouseup', this.onUp], ['touchend', this.onUp], ['touchcancel', this.onUp]]) window.removeEventListener(n, f)
+        this._c?.removeEventListener('wheel', this.onWheel)
       },
     })
   }
@@ -297,11 +354,33 @@ export default function ArModel({ slug, hotspot }) {
   //      hook 順序、Scan.jsx 的 TDZ），下面 `if (!card) return` 就是那個 return。
   const [showCard, setShowCard] = useState(false)
 
+  // ★ 這張卡上「有內容可以聊」的主題。上下滑動就在這個清單裡換。
+  //   ⚠️ 只收 `objectForHotspot` 拿得到東西的熱區——空的一格會讓人以為壞了。
+  const spots = (card?.hotspots ?? []).filter(h => objectForHotspot(h))
   // 掃描時瞄到的熱區（有的話），沒有就用 primary
-  const spot = card?.hotspots?.find(h => h.id === hotspot)
-    ?? card?.hotspots?.find(h => h.primary)
-    ?? card?.hotspots?.[0] ?? null
+  const initial = Math.max(0, spots.findIndex(h => h.id === hotspot)) ||
+    Math.max(0, spots.findIndex(h => h.primary))
+  const [spotIdx, setSpotIdx] = useState(initial)
+  const idx = Math.min(Math.max(0, spotIdx), Math.max(0, spots.length - 1))
+  const spot = spots[idx] ?? null
   const obj = spot ? objectForHotspot(spot) : null
+  // ★★★ 3D 角色**永遠是卡片的主角**（這張卡只有結球白菜有 model），
+  //   換主題只換內容不換模型。所以說話的人一直是它——問句的稱謂要用它，
+  //   不可用 `obj.name`，否則會變成「問問小寒 · 身體保健…」。
+  const speaker = objectForHotspot(card?.hotspots?.find(h => h.primary) ?? card?.hotspots?.[0])?.name
+    ?? obj?.name ?? ''
+
+  /** 換主題。⚠️ 用取模繞回去：到底了就回到第一個，不做「到底了沒反應」——
+   *  那與「手勢沒被辨識到」在畫面上完全無從分辨。 */
+  const swap = (dir) => {
+    if (spots.length < 2) return
+    setSpotIdx(i => (((i + dir) % spots.length) + spots.length) % spots.length)
+  }
+  // ⚠️ 場景只建一次（effect 的相依是 [slug]），所以事件處理函式會**閉包住第一次
+  //    render 的 swap**。用 ref 讓它永遠拿到最新的——這與站上「remember() 不可
+  //    放進 setState 更新函式」是同一類的陳舊閉包問題。
+  const swapRef = useRef(swap)
+  swapRef.current = swap
 
   useEffect(() => {
     let cancelled = false
@@ -310,6 +389,8 @@ export default function ArModel({ slug, hotspot }) {
     let ro2 = null
     let onActor = null
     let syncVisible = null
+    let onSwap = null
+    let onZoom = null
     ;(async () => {
       try {
         await ensureAframe()
@@ -377,17 +458,32 @@ export default function ArModel({ slug, hotspot }) {
         //    把臉遮掉，而那是這一頁唯一要看的東西。
         // ⚠️ 這個窗格的 ResizeObserver 不會觸發（frame-driven），所以除了 RO
         //    也要在轉向／resize 時算一次——兩條路都留著。
+        // ★★★ 泡泡移到角色**上方**之後，可見區不再貼著畫布頂端 ⇒ 只給比例不夠，
+        //   還要給它從哪裡開始（`offset`）。少了 offset 的話角色會被往上頂，
+        //   臉正好躲進泡泡後面——與先前那個 bug 同樣的症狀、不同的成因。
         syncVisible = () => {
           const sceneBox = hostRef.current?.parentElement
           const panel = sceneBox?.querySelector('.artalk')
+          const say = sceneBox?.querySelector('.artalk-say')
           const cam = scene?.querySelector('[jq-fit]')
           if (!sceneBox || !panel || !cam) return
-          const h = sceneBox.getBoundingClientRect().height
+          const box = sceneBox.getBoundingClientRect()
+          const h = box.height
           if (!h) return
+          const top = say ? Math.max(0, say.getBoundingClientRect().bottom - box.top) : 0
           const covered = panel.getBoundingClientRect().height
-          const vis = Math.max(0.35, Math.min(1, 1 - covered / h))
-          cam.setAttribute('jq-fit', `visible: ${vis.toFixed(3)}`)
+          const off = Math.max(0, Math.min(0.6, top / h))
+          const vis = Math.max(0.28, Math.min(1 - off, 1 - off - covered / h))
+          cam.setAttribute('jq-fit', `visible: ${vis.toFixed(3)}; offset: ${off.toFixed(3)}`)
         }
+        // 上下滑動換主題／捏合縮放（手勢在 jq-drag-rotate 裡判定，這裡只接結果）
+        onSwap = (e) => swapRef.current?.(e.detail?.dir ?? 1)
+        onZoom = (e) => {
+          const cam = scene?.querySelector('[jq-fit]')
+          if (cam) cam.setAttribute('jq-fit', `zoom: ${Number(e.detail?.zoom ?? 1).toFixed(3)}`)
+        }
+        scene.addEventListener('jq-swap', onSwap)
+        scene.addEventListener('jq-zoom', onZoom)
         // 版面穩定之後量一次；之後交給 RO 與 window resize
         setTimeout(syncVisible, 0)
         if (typeof ResizeObserver !== 'undefined' && hostRef.current?.parentElement) {
@@ -406,6 +502,8 @@ export default function ArModel({ slug, hotspot }) {
       try { ro2?.disconnect() } catch { /* ignore */ }
       try { if (syncVisible) window.removeEventListener('resize', syncVisible) } catch { /* ignore */ }
       try { if (onActor) scene?.removeEventListener('jq-actor-ready', onActor) } catch { /* ignore */ }
+      try { if (onSwap) scene?.removeEventListener('jq-swap', onSwap) } catch { /* ignore */ }
+      try { if (onZoom) scene?.removeEventListener('jq-zoom', onZoom) } catch { /* ignore */ }
       actorRef.current = null
       // ⚠️ 一定要呼叫 A-Frame 自己的清理：`scene.remove()` 只是把節點拿掉，
       //    算繪迴圈與 WebGL context 還在跑。行動裝置的 context 數有上限，
@@ -436,6 +534,22 @@ export default function ArModel({ slug, hotspot }) {
             ⚠️ 舞台是絕對定位鋪滿整個場景，控制項疊在下半；角色的框景要把
                被蓋住的那一段扣掉（見 jq-fit 的 `bias`），否則臉會被泡泡遮住。 */}
         <div className="armodel-scene">
+          {/* ★ 場景內的主題列。左邊說「現在在講誰」、右邊是資料卡入口。
+              ⚠️ 這兩件事都必須留在場景**裡面**：底下那條「看資料卡」按鈕與
+                 手勢說明已依使用者要求移除，若不在這裡補回入口，資料卡就
+                 只剩「考考我」一條路進得去（而那是答題不是查資料）。 */}
+          <div className="armodel-bar">
+            <div className="armodel-who">
+              <b>{obj?.name}</b>
+              {spots.length > 1 && <span className="muted">{idx + 1}/{spots.length}</span>}
+            </div>
+            {/* ⚠️ 真的 <button> ＋ aria-expanded：讀屏才知道它控制什麼、現在開或關 */}
+            <button className="armodel-info tap" type="button"
+              aria-expanded={showCard} aria-controls="armodel-card"
+              onClick={() => setShowCard(v => !v)}>
+              {showCard ? '收起詳細' : '詳細'}
+            </button>
+          </div>
           <div className="armodel-stage" ref={hostRef}>
             {phase !== 'ready' && (
               <div className="armodel-cover">
@@ -454,7 +568,8 @@ export default function ArModel({ slug, hotspot }) {
             )}
           </div>
 
-          <ArTalk obj={obj} card={card} actorRef={actorRef}
+          <ArTalk obj={obj} card={card} actorRef={actorRef} speaker={speaker}
+            onSwap={swap} canSwap={spots.length > 1}
             // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
             //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
             //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
@@ -471,17 +586,6 @@ export default function ArModel({ slug, hotspot }) {
             }} />
         </div>
 
-        <p className="armodel-hint muted">拖曳角色可以轉動，放開後會自己慢慢轉。</p>
-
-        {/* ★ 資料卡的開關。用真的 `<button>` ＋ `aria-expanded`／`aria-controls`，
-            讀屏才知道它控制的是什麼、現在是開還是關。 */}
-        {obj && (
-          <button className="armodel-toggle tap" type="button"
-            aria-expanded={showCard} aria-controls="armodel-card"
-            onClick={() => setShowCard(v => !v)}>
-            {showCard ? '收起資料卡' : `看${obj.name}的資料卡`}
-          </button>
-        )}
 
         {obj && showCard && (
           <div className="scan-hit" id="armodel-card">

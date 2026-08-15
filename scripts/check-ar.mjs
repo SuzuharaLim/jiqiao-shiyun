@@ -1120,8 +1120,8 @@ const W = 1831, H = 1335
   const tail = cssRule('.artalk-bubble::before')
   // ⚠️ 2026-08-11 從兩個尖角改成**一個**：兩個看起來像頁籤不像說話。
   //    「只有一個」那條在下面的排版段落鎖著（含 `::after` 不可存在）。
-  ok(/artalk-bubble/.test(talk) && /border-bottom:\s*\d/.test(tail) && /top:\s*-\d/.test(tail),
-    '★ 對話泡泡要有朝上的尖角（指向 3D 舞台裡的角色）')
+  ok(/artalk-bubble/.test(talk) && /border-top:\s*\d/.test(tail) && /bottom:\s*-\d/.test(tail),
+    '★ 對話泡泡要有朝下的尖角（泡泡在角色上方，尖角要往下指向它）')
   ok(/grid-template-columns:\s*repeat\(2/.test(cssRule('.artalk-grid {')),
     '★ 選項要排成 2 欄')
   ok(/artalk-form/.test(talk) && /artalk-input/.test(talk) && /發送/.test(talk),
@@ -1158,8 +1158,18 @@ const W = 1831, H = 1335
     '★★★ 可見比例要同時用在「算距離」與「把相機往下移」兩處（且真的套用）')
   // ★★★ 那個比例必須是**量出來的**。對話面板的高度會隨字級、答案長短、
   //   有沒有小挑戰而變（實測 0.52~0.58），寫死就會在某些狀態下把臉遮掉。
-  ok(/getBoundingClientRect\(\)\.height/.test(model) && /1 - covered \/ h/.test(model),
+  ok(/getBoundingClientRect\(\)\.height/.test(model) && /- covered \/ h/.test(model),
     '★★★ 可見比例要量對話面板的實際高度，不可寫死比例')
+  // ★★★ 泡泡移到角色上方之後，可見區**不再貼著畫布頂端** ⇒ 只給比例不夠，
+  //   還要給它從哪裡開始。少了 offset，角色會被往上頂、臉躲進泡泡後面。
+  ok(/offset:\s*\$\{off/.test(model) && /say\.getBoundingClientRect\(\)\.bottom/.test(model),
+    '★★★ 可見區的起點（offset）也要量出來（泡泡在角色上方，不再貼齊畫布頂端）')
+  ok(/const f = off \+ vis \/ 2/.test(model) && /\(0\.5 - f\)/.test(model),
+    '★★ 相機位移要用「可見區中心 vs 畫布中心」的通式（舊的 1-vis 只對貼頂端成立）')
+  // ★★★ 沒有 update() 的話，setAttribute('jq-fit', …) 寫得進去但**不會重新框景**
+  //   ——縮放一點反應都沒有而且不報錯（實測捏合到 2 倍，相機 z 仍停在 5.88）。
+  ok(/update\(\) \{ this\.fit\(\) \}/.test(model),
+    '★★★ jq-fit 要有 update()（否則縮放與可見區寫得進去卻毫無反應，且不報錯）')
 
   // ★★ 深色場景背景是**全站唯一的 UI 漸層例外**（站規是「印刷不會有漸層」）。
   //   鎖住它是為了兩件事：① 不會被誤刪而變回淺底（淺底配淺色文字＝看不見）；
@@ -1172,6 +1182,26 @@ const W = 1831, H = 1335
   //   畫面上什麼都不會發生，而角色剛剛才說「好啊，往下看——我出一題」。
   ok(/showCard && \(/.test(model) && /aria-expanded=\{showCard\}/.test(model),
     '★★ 資料卡要收在開關後面，且開關要有 aria-expanded')
+  // ★★★ 底下那條「看資料卡」與手勢說明已依使用者要求移除 ⇒ 入口必須留在場景內，
+  //   否則資料卡只剩「考考我」一條路進得去（那是答題不是查資料）。
+  ok(/armodel-info/.test(model) && /armodel-info/.test(SRC.css)
+    && !/armodel-toggle/.test(model) && !/armodel-hint/.test(model),
+    '★★ 資料卡入口要在場景內的主題列（底下那條開關與手勢說明已移除）')
+
+  // ★★★ 上下滑動換主題：門檻要夠高**而且**要求縱向明顯大於橫向。
+  //   誤觸的代價是整頁換題，比轉錯角度嚴重得多。
+  ok(/Math\.abs\(dy\) > this\.data\.swipe/.test(model) && /Math\.abs\(dy\) > Math\.abs\(dx\)/.test(model),
+    '★★★ 上下滑動要同時過「距離門檻」與「縱向明顯大於橫向」才算換主題')
+  ok(/this\.swiped = true/.test(model) && /if \(!this\.swiped\) this\.yaw/.test(model),
+    '★★ 一次滑動只換一次，且滑動判定成立後不可再轉動')
+  // ⚠️ 滾輪要 preventDefault ⇒ 必須是**非 passive**，否則在模型上滾動會把整頁
+  //    捲走，而使用者以為自己在縮放。
+  ok(/'wheel', this\.onWheel, \{ passive: false \}/.test(model),
+    '★★ 滾輪縮放的監聽器要非 passive（否則整頁被捲走而不是縮放）')
+  // ★★★ 手勢沒有任何視覺線索，鍵盤與讀屏使用者也比不出來 ⇒ 換主題一定要
+  //   同時有真的按鈕，不可以只留一行提示文字。
+  ok(/artalk-swap/.test(talk) && /aria-label="上一個主題"/.test(talk),
+    '★★★ 換主題要有真的按鈕（只靠手勢＝鍵盤與讀屏使用者用不到）')
   ok(/onQuiz=\{\(\) => \{[\s\S]{0,400}?setShowCard\(true\)[\s\S]{0,400}?scrollIntoContainer/.test(model),
     '★★★ 「考考我」要先展開資料卡再捲（否則捲向一個還沒渲染的節點＝什麼都不會發生）')
 
@@ -1209,9 +1239,9 @@ const W = 1831, H = 1335
   ok(/artalk-bubble-in/.test(talk), '★★ 泡泡要有內層（限高與捲動放內層）')
   ok(!/overflow/.test(cssRule('.artalk-bubble {')) && /overflow-y:\s*auto/.test(cssRule('.artalk-bubble-in')),
     '★★★ 泡泡外層不可有 overflow（會把尖角裁掉），捲動放內層')
-  ok(/\.artalk-bubble::before\s*\{[\s\S]{0,240}?border-bottom:\s*\d+px solid/.test(SRC.css)
+  ok(/\.artalk-bubble::before\s*\{[\s\S]{0,240}?border-top:\s*\d+px solid/.test(SRC.css)
     && !/\.artalk-bubble::after/.test(SRC.css),
-    '★★ 只要一個朝上的尖角（兩個看起來像頁籤不像說話）')
+    '★★ 只要一個朝下的尖角（兩個看起來像頁籤不像說話）')
 
   // ★★★ `.btn-primary` 帶著 `width:100%`，在 flex 列裡 `flex-basis:auto` 會去讀
   //   `width` ⇒ 送出鈕的基準寬度是整列，把輸入框壓成一顆小藥丸。實測就是這樣。
