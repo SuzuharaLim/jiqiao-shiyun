@@ -22,6 +22,7 @@ import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, b
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
 import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS } from '../src/data/almanac.js'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
+import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1393,6 +1394,68 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 【站內導流】適合時可提及：完整國民曆曆頁、解夢、生肖運勢、
 節氣攝影挑戰、做月曆工作室。`
 
+// ════════════════ AR 卡片角色（「跟白菜說話」的開放式問答）════════════════
+//
+// ★ 這是 `/ar/model/:slug` 的第二層：卡面上寫得出來的，`findAnswer` 已經在前端
+//   逐字回答完了（有出處）；問到**卡上沒寫但相關**的問題時才走到這裡。
+//
+// ★★★ 三條紅線，缺一不可：
+//   ① **不可以講營養素與保健功效**。那受《食品安全衛生管理法》規範，未經
+//      食藥署核可不得宣稱。卡面資料本身有建置期閘門（check-ar.mjs 的 G 段）
+//      掃過，但**執行期的 AI 輸出沒有任何建置期閘門碰得到** ⇒ 一定要有
+//      執行期的輸出守門（下面的 `HEALTH_RE`）。
+//      而且讓語言模型扮演一顆白菜，它兩三句之內就會自己講到維生素——
+//      這不是假想的風險，是預設行為。
+//   ② **persona 必須是白名單**：由伺服器從 `arCards.js` 產生系統提示，
+//      前端只能送一個 id。讓前端送自由字串等於把系統提示的控制權交出去。
+//   ③ **卡面資料照抄**：系統提示把該物件的 facts 逐字附上並要求優先引用，
+//      沒寫到的就明說沒寫到——這一頁的信任基礎是「每一句都查得到出處」。
+const AR_PERSONA_RULES = [
+  '你正在扮演一張節氣知識卡上的角色，用第一人稱、口語、親切地回答，像在跟朋友聊天。',
+  '每則回覆 120 字以內，不要條列、不要 Markdown、不要表情符號以外的裝飾。',
+  '【絕對禁止】不可提及任何營養素（維生素、礦物質、膳食纖維、蛋白質、熱量…）',
+  '【絕對禁止】不可宣稱任何保健或療效（增強免疫、抗氧化、幫助消化、預防疾病、養生功效…）。',
+  '  這是台灣《食品安全衛生管理法》的規定，違反會讓這個產品下架，沒有任何例外。',
+  '【資料紀律】卡片資料裡有的，逐字引用不要改寫；卡片沒有的，就說「這張卡上沒有寫到」，',
+  '  然後把你確實知道的相關內容講給他聽（例如節氣、農時、料理方式、產季、民俗）。',
+  '  絕對不要編造品種名、產地、日期、數字。不確定就說不確定。',
+  '【範圍】只聊這張卡、這個節氣、相關的食材與民俗。被問到其他事情就把話題帶回來。',
+].join('\n')
+
+/** 從官方卡包產生 persona 白名單：{ objectId: 系統提示 }。 */
+const AR_PERSONAS = (() => {
+  const out = {}
+  for (const card of OFFICIAL_CARDS) {
+    for (const hs of card.hotspots || []) {
+      const o = hs.objectId ? CARD_OBJECTS[hs.objectId] : null
+      if (!o) continue
+      const facts = (o.facts || [])
+        .map(f => `・${f.label}：${f.value}${f.source ? `（出處：${f.source}）` : ''}`).join('\n')
+      out[hs.objectId] = [
+        `你是「${o.name}」，出現在「${card.title}」這張節氣卡上。`,
+        o.line ? `你的開場白是：「${o.line}」` : '',
+        AR_PERSONA_RULES,
+        facts ? `
+【這張卡上關於你的資料】
+${facts}` : '',
+        o.warn ? `
+【安全提醒，被問到相關話題時要講】${o.warn}` : '',
+      ].filter(Boolean).join('\n')
+    }
+  }
+  return out
+})()
+
+// ★★★ 執行期的法規守門。建置期的閘門掃不到 AI 生成的字，這一層是唯一的防線。
+//   ⚠️ 刻意不列「預防」「避免」：卡面的安全提醒是一氧化碳中毒的公共安全資訊，
+//      那不是食品的健康宣稱，不可被誤殺。
+const HEALTH_RE = new RegExp([
+  '維生素|維他命|礦物質|膳食纖維|蛋白質|胡蘿蔔素|花青素|葉酸|鈣質|鐵質|熱量|卡路里',
+  '抗氧化|抗發炎|抗癌|防癌|增強免疫|提升免疫|免疫力|(幫助|促進|改善|增進|有助)[^。]{0,8}(代謝|消化|吸收|蠕動|循環|免疫|睡眠)',
+  '降血[糖壓脂]|降低膽固醇|排毒|養顏美容|治療|療效|藥效|改善[^。]{0,6}(症狀|體質)',
+].join('|'))
+const AR_HEALTH_REFUSAL = '這個我不能亂講——營養跟保健的說法要有主管機關核可才行。\n不過卡片上寫的內容我都可以跟你聊，要不要問問我的品種或產地？'
+
 const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與國民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
 
 // 最近一次上游失敗的原因（供管理後台「系統狀態」查看）。
@@ -1541,9 +1604,13 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     return res.json({ reply: AI_REFUSAL, refused: true })
   }
 
+  // ★★★ AR 卡片角色：persona **只能是白名單裡的 id**，系統提示由伺服器產生。
+  //   讓前端送自由字串等於把系統提示的控制權交出去（prompt injection 的正門）。
+  const persona = typeof req.body?.persona === 'string' ? AR_PERSONAS[req.body.persona] : null
+
   // ⚠️ 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
   //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
-  const sys = AI_SYSTEM + `\n\n【曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user, req.body?.date)}`
+  const sys = persona || (AI_SYSTEM + `\n\n【曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user, req.body?.date)}`)
 
   // ---------- 串流回應（SSE）----------
   // 沒有串流的 AI 對話，體感就是「三個點轉很久然後整段砸出來」。
@@ -1590,6 +1657,21 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
       blocked = true
       sse({ replace: AI_REFUSAL })
     }
+    // ★★★ 法規守門（只在 persona 模式）：建置期的閘門掃不到 AI 生成的字，
+    //   這一層是唯一的防線。攔到就整段換掉，不是刪字——半句被挖空的句子
+    //   讀起來像亂碼，而且使用者會以為是網路壞了再問一次。
+    const healthGate = async () => {
+      console.warn('[ai] 攔截到營養／保健宣稱，已改為婉拒')
+      await audit('ai_health_claim', req, req.user.id, lastUser.slice(0, 80))
+      blocked = true
+      sse({ replace: AR_HEALTH_REFUSAL })
+    }
+    /** 兩道守門合一：回 true 代表已攔截。 */
+    const bad = async (text) => {
+      if (looksLikeCode(text)) { await gate(); return true }
+      if (persona && HEALTH_RE.test(text)) { await healthGate(); return true }
+      return false
+    }
 
     for await (const chunk of r.body) {
       buf += Buffer.from(chunk).toString('utf8')
@@ -1606,11 +1688,11 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
         full += piece
         if (!released) {
           if (full.length < HOLD) continue          // 還沒湊夠，先扣住
-          if (looksLikeCode(full)) { await gate(); break }
+          if (await bad(full)) break
           released = true
           sse({ delta: full })                      // 一次把扣住的放行
         } else {
-          if (looksLikeCode(full)) { await gate(); break }
+          if (await bad(full)) break
           sse({ delta: piece })
         }
       }
@@ -1618,7 +1700,7 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     }
     // 回覆很短（不到 HOLD）時，扣住的內容還沒送出去
     if (!blocked && !released) {
-      if (looksLikeCode(full)) await gate()
+      if (await bad(full)) { /* 已攔截 */ }
       else sse({ delta: full || '（目前沒有想法，換個問法試試？）' })
     }
     await audit('ai_chat', req, req.user.id)

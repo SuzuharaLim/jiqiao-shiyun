@@ -1057,11 +1057,13 @@ const W = 1831, H = 1335
   const talk = stripComments(read('../src/components/ArTalk.jsx'))
   ok(/ArTalk/.test(model), '★★ 模型頁要有對話面板')
 
-  // ★★★ 對話**不可以**接語言模型：讓 LLM 扮演白菜開口，它兩三句內就會說出
-  //   「富含維生素 C、膳食纖維」——那正是上面那道法規閘門在擋的東西，
-  //   而執行期的 AI 輸出沒有任何閘門掃得到。答案一律取自 facts。
-  ok(!/aiChat|\/api\/ai|openai/i.test(talk),
-    '★★★ 對話面板不可呼叫 AI（執行期輸出沒有法規閘門擋得住）')
+  // ★★★★ 2026-08-11 起對話**可以**接語言模型，但只在「卡片上查不到」時，
+  //   而且一定要走**伺服器的 persona 模式**（白名單系統提示 ＋ 執行期法規守門）。
+  //   ⚠️ 絕對不可以繞過後端直接打模型：那條路沒有 `HEALTH_RE`，
+  //      而讓 LLM 扮演白菜開口，它兩三句內就會自己講到維生素。
+  //   詳細的防線檢查在下面「AR 角色的開放式問答」那一段。
+  ok(!/openai|api\.openai|Authorization/i.test(talk),
+    '★★★★ 對話面板不可自己打模型（必須經過後端的 persona 模式與法規守門）')
   ok(/f\.value/.test(talk) && /facts/.test(talk),
     '★★★ 答案要逐字取自 facts[].value（不改寫才查得到出處）')
 
@@ -1200,6 +1202,57 @@ const W = 1831, H = 1335
   //   ⚠️ 也不可以做成場景頂端獨立的一列：那一列佔掉畫布 56px，而**每一格高度
   //      都會直接換算成角色變小**（jq-fit 按可見區算距離）。放進選項格是免費的
   //      ——原本 5 顆就已經是 3 列，加到 6 顆還是 3 列。
+  // ══════════ AR 角色的開放式問答（AI persona）══════════
+  //
+  // ★★★★ 這一段是**法規防線**。卡面資料有建置期閘門掃過（上面的 G 段），
+  //   但 2026-08-11 起「卡上查不到」會轉給 AI 回答——而**建置期的閘門碰不到
+  //   執行期的模型輸出**。唯一的防線是伺服器的 `HEALTH_RE`，所以這裡要確認：
+  //   ① 它存在且真的接在串流的守門上；② 它抓得到該抓的；③ 不誤殺公共安全提醒。
+  {
+    const srv = SRC.server
+    ok(/const AR_PERSONAS = /.test(srv) && /AR_PERSONAS\[req\.body\.persona\]/.test(srv),
+      '★★★ persona 必須是伺服器端白名單（前端只能送 id，不能送系統提示）')
+    ok(/const persona = typeof req\.body\?\.persona === 'string'/.test(srv),
+      '★★ persona 只接字串 id')
+    ok(/persona && HEALTH_RE\.test\(text\)/.test(srv) && /healthGate\(\)/.test(srv),
+      '★★★★ 法規守門要接在串流的輸出檢查上（建置期閘門掃不到 AI 生成的字）')
+    ok(/sse\(\{ replace: AR_HEALTH_REFUSAL \}\)/.test(srv),
+      '★★ 攔到要**整段換掉**，不是刪字（半句被挖空讀起來像壞掉）')
+
+    // ★★★ 負向檢查要先證明自己抓得到。樣本就是使用者參考圖上的原文，
+    //   以及最典型的療效說法。
+    const m = srv.match(/const HEALTH_RE = new RegExp\(\[([\s\S]*?)\]\.join\('\|'\)\)/)
+    ok(!!m, '★★ 找得到 HEALTH_RE 的定義')
+    if (m) {
+      const src = m[1].split('\n').map(l => l.trim().replace(/^'/, '').replace(/',?$/, ''))
+        .filter(Boolean).join('|')
+      const re = new RegExp(src)
+      for (const bad of [
+        '我富含維生素 C 喔', '膳食纖維可以促進腸道蠕動', '硫化物具有抗氧化作用',
+        '幫助維持免疫力', '熱量很低', '可以幫助消化', '有降血壓的效果',
+      ]) ok(re.test(bad), `★★★★ 法規守門要攔下：「${bad}」`)
+      // ⚠️ 卡面的一氧化碳提醒是**公共安全資訊**不是食品健康宣稱，不可誤殺
+      for (const okText of [
+        '天冷洗澡要保持通風，避免一氧化碳中毒',
+        '小寒前後正是我最甜的時候',
+        '彰化溪湖、雲林元長都有種',
+      ]) ok(!re.test(okText), `★★ 法規守門不可誤殺：「${okText}」`)
+    }
+
+    // ★★ AI 的回答沒有出處，畫面上一定要與卡面資料分開——這一頁的信任基礎
+    //    是「每一句都查得到出處」，混在一起就毀了。
+    ok(/artalk-aitag/.test(talk) && /latest\?\.ai &&/.test(talk),
+      '★★★ AI 生成的回覆要標記（它沒有出處，不可與卡面資料混在一起）')
+    // ⚠️ 訪客沒有 session ⇒ /api/ai/chat 一律 401 ⇒ 要走誠實的「卡上沒寫到」，
+    //    不可以讓使用者按了沒反應。
+    ok(/aiReady && objectId/.test(talk) && /這張卡上沒有寫到這個/.test(talk),
+      '★★ 沒有 AI 可用時要退回誠實的答案（訪客一定會走到這條）')
+    // ⚠️ 順序不可對調：卡上寫得出來的永遠由 findAnswer 逐字回答（有出處），
+    //    AI 只處理「卡上沒寫但相關」的。
+    ok(talk.indexOf('const hit = findAnswer') < talk.indexOf('if (aiReady && objectId)'),
+      '★★★ 先查卡片再問 AI（卡上有的必須逐字回答，不可交給模型改寫）')
+  }
+
   ok(/onDetail && \(/.test(talk) && /artalk-opt/.test(talk)
     && !/armodel-toggle/.test(model) && !/armodel-hint/.test(model) && !/armodel-bar/.test(model),
     '★★ 資料卡入口要放在選項格裡（底下那條開關、手勢說明、場景頂端那一列都已移除）')

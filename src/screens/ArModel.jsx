@@ -570,6 +570,10 @@ export default function ArModel({ slug, hotspot }) {
                  （`jq-fit` 是按可見區算距離的）。放進選項格是免費的——原本
                  5 顆就已經是 3 列，加到 6 顆還是 3 列。 */}
           <ArTalk obj={obj} card={card} actorRef={actorRef} speaker={speaker}
+            // ⚠️ persona 只送 id，系統提示由伺服器產生（白名單）。
+            //    訪客沒有 session ⇒ /api/ai/chat 一律 401 ⇒ aiReady 為 false 時
+            //    走誠實的「這張卡上沒有寫到」，不要讓使用者按了沒反應。
+            objectId={spot?.objectId} aiReady={!!user && !user.guest}
             detailOpen={showCard} onDetail={() => setShowCard(v => !v)}
             // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
             //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409

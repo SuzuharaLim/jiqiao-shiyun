@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { speechSupported, speak } from '../lib/speak.js'
 import { objectForHotspot } from '../data/arCards.js'
+import { api } from '../api.js'
 
 // ============================================================================
 // 跟角色說話 —— `/ar/model/:slug` 的對話面板
@@ -109,7 +110,8 @@ function findAnswer(text, card, currentObj) {
   return null
 }
 
-export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail }) {
+export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail,
+  objectId, aiReady }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -236,6 +238,67 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     }, 480)
   }
 
+  /**
+   * 卡片上查不到時，交給站上的 AI 顧問（persona 模式）回答「相關」的問題。
+   *
+   * ★ 這是刻意的兩層設計，順序不可對調：
+   *   ① `findAnswer` 先在**卡片自己的資料**裡找 → 命中就逐字回答並附上出處。
+   *      卡上寫得出來的事，永遠由這一層回答，不會被模型改寫。
+   *   ② 卡上沒寫但相關的（怎麼煮、產季、節氣民俗…）才走到這裡。
+   *
+   * ⚠️⚠️ **法規**：模型扮演一顆白菜時，兩三句內就會自己講到維生素——那受
+   *    《食品安全衛生管理法》規範。建置期的閘門（check-ar.mjs G 段）**掃不到
+   *    執行期的 AI 輸出**，所以守門做在**伺服器**（`HEALTH_RE`，攔到整段換掉）。
+   *    這裡不做第二套判斷，避免兩份規則分岔——但也因此**不可以繞過後端直接
+   *    呼叫模型**。
+   * ⚠️ AI 的回答**沒有出處**，所以泡泡上要標記，不可與有出處的卡面資料混在一起。
+   * ⚠️ 訪客沒有 session，`/api/ai/chat` 一律 401 ⇒ `aiReady` 為 false 時
+   *    走誠實的「這張卡上沒有寫到」，不要讓使用者按了沒反應。
+   */
+  const askAi = async (q) => {
+    setBusy(true); setThinking(true)
+    hush()
+    setLog(l => [...l, { who: 'me', text: q }])
+    const a = actorRef?.current
+    try { a?.setAction('think') } catch { /* ignore */ }
+
+    // 帶上前幾輪，追問才接得起來（像一般的對話而不是一問一答的查詢機）
+    const hist = log.filter(m => m.who === 'me' || m.who === 'char').slice(-6)
+      .map(m => ({ role: m.who === 'me' ? 'user' : 'assistant', content: m.text }))
+
+    let got = ''
+    try {
+      await api.aiChatStream([...hist, { role: 'user', content: q }], null, {
+        persona: objectId,
+        onDelta: (d) => {
+          got += d
+          setThinking(false)
+          try { a?.setAction('nod') } catch { /* ignore */ }
+          // 逐字長出來（像外面的聊天機器人），不要等整段收完才出現
+          setLog(l => {
+            const last = l[l.length - 1]
+            if (last?.who === 'char' && last.ai) return [...l.slice(0, -1), { ...last, text: got }]
+            return [...l, { who: 'char', text: got, ai: true }]
+          })
+        },
+      })
+    } catch {
+      got = ''
+    }
+    if (!got) {
+      // 失敗就退回誠實的答案，不可以卡在「思考中」
+      const known = asks.slice(0, 2).map(x => x.q).join('、')
+      setLog(l => [...l, { who: 'char', text: `唔，我一時答不上來。卡片上寫的我都可以聊${known ? `，像是${known}` : ''}` }])
+    }
+    setThinking(false)
+    try { a?.setAction('present') } catch { /* ignore */ }
+    setBusy(false)
+    // ⚠️ 語音在整段收完之後才唸：串流中每來一塊就重唸會斷斷續續。
+    if (got && speechSupported()) {
+      try { speechRef.current = speak(got, {}) } catch { /* ignore */ }
+    }
+  }
+
   /** 使用者手打的問題。 */
   const submit = (e) => {
     e.preventDefault()
@@ -248,7 +311,9 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       say({ q: t, a: hit.a, source: hit.source, act: hit.act })
       return
     }
-    // ★★★ 查不到就**明說查不到**，不可以掰。
+    // ★ 卡上沒寫但相關的問題 → 交給 AI 顧問（見 askAi 的註解）。
+    if (aiReady && objectId) { askAi(t); return }
+    // ★★★ 沒有 AI 可用（訪客沒有 session）時就**明說查不到**，不可以掰。
     //   同時把「我知道什麼」列出來——只說「不知道」等於把人丟在原地。
     const known = asks.slice(0, 3).map(a => a.q).join('　')
     say({
@@ -286,7 +351,11 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
           <div className="artalk-bubble-in" aria-live="polite" aria-label={`${who}說`}>
             {thinking
               ? <span className="artalk-typing"><span /><span /><span /></span>
-              : <>{latest?.warm && <em className="artalk-warm">{latest.warm}</em>}{latest?.text}{latest?.source && <i className="muted">（{latest.source}）</i>}</>}
+              : <>{latest?.warm && <em className="artalk-warm">{latest.warm}</em>}{latest?.text}
+                {/* ⚠️ AI 的回答**沒有出處**，一定要與卡面資料在視覺上分開——
+                    這一頁的信任基礎是「每一句都查得到出處」，混在一起就毀了。 */}
+                {latest?.ai && <i className="muted artalk-aitag">AI 生成 · 非卡片原文</i>}
+                {latest?.source && <i className="muted">（{latest.source}）</i>}</>}
           </div>
         </div>
       </div>

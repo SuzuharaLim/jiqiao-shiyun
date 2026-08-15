@@ -135,7 +135,9 @@ export const api = {
   //    （已經在逐字吐出來的回覆，不該因為講得比較長就被砍掉）。
   // ⚠️ date＝「使用者正在看的那一天」（YYYY-MM-DD 或 null＝今天）。
   //    後端只拿它當日期用、所有數字仍自己算，所以不違反「不採用前端傳來的 context」。
-  aiChatStream: async (messages, context, { onDelta, signal, date } = {}) => {
+  // ⚠️ persona＝AR 卡片角色的 objectId。後端只接**白名單**裡的 id，
+  //    對應的系統提示由伺服器產生——前端送不進自由字串（prompt injection 的正門）。
+  aiChatStream: async (messages, context, { onDelta, signal, date, persona } = {}) => {
     const headers = { 'Content-Type': 'application/json' }
     if (csrf) headers['x-csrf-token'] = csrf
 
@@ -149,7 +151,7 @@ export const api = {
     try {
       res = await fetch('/api/ai/chat', {
         method: 'POST', credentials: 'include', headers, signal: ctrl.signal,
-        body: JSON.stringify({ messages, context, date }),
+        body: JSON.stringify({ messages, context, date, persona }),
       })
     } catch (e) {
       clearTimeout(timer); signal?.removeEventListener('abort', abort)
