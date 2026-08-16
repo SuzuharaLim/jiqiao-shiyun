@@ -1667,6 +1667,21 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ⚠️ 用 dvh 不可用 vh：iOS/Android 的 vh 算的是**網址列收起來時**的大視窗高，
    網址列還在時 62vh 會超出可視範圍，模型下緣被推到看不見的地方。
    全站其他地方（.sheet／.fmenu／.glosspanel）都已經是 dvh，這裡漏了。 */
+/* ★★★ 時間狀態帶。三種語氣：還沒到（低調）／當令中（強調）／已過（降彩度）。
+   ⚠️ 這一條是**資訊架構**的修正，不是裝飾：使用者從「今日曆頁」點進來，
+      看到的卻是一張未來的卡，沒有這條就分不出兩者的關係。 */
+.armodel-when { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); flex: 0 0 auto; margin: 0;
+  padding: 8px var(--space-4); font-size: var(--text-2xs);
+  border-bottom: 1px solid var(--line); background: var(--card); }
+.armodel-when b { font-weight: 800; }
+.armodel-when span { color: var(--muted); white-space: nowrap; }
+.armodel-when-before b { color: var(--cinnabar); }
+.armodel-when-during b { color: var(--on-yi); background: var(--yi);
+  padding: 2px 8px; border-radius: 999px; }
+.armodel-when-after { opacity: .72; }
+.armodel-when-after b { color: var(--muted); }
+
 /* ★★ 連續場景：角色、泡泡、選項、輸入列共用同一片背景。
    ⚠️ **這是全站唯一的 UI 漸層例外**。站上的規則是「印刷不會有漸層」，
       而那條規則講的是**介面元件**（按鈕、卡片、chip）。這一塊是 3D 場景的
@@ -1766,11 +1781,19 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 /* ── 深底之上的配色覆寫 ──
    ⚠️ 一律用淺色文字。實測對比：#F4F7FB 對底色 #1B3560 ＝ 11.9，
       #D6E2F2 對 rgba(255,255,255,.14) 疊在 #1B3560 上 ＝ 8.6，都遠高於 AA 的 4.5。 */
-.armodel-scene .artalk-asked { color: rgba(244,247,251,.72); }
+.armodel-scene .artalk-asked { color: #F4F7FB; }
 
-/* 剛問的那一句（一行小字，右對齊，不搶泡泡的注意力） */
-.artalk-asked { margin: 0 0 6px; text-align: right; font-size: var(--text-2xs);
-  color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ★★★ 使用者自己說的那一句 —— **實心氣泡**，不是淺灰小字。
+   ⚠️ 原本是深藍底上的 `--muted` 小字，對比遠低於 AA 的 4.5，而且沒有框，
+      整段對話讀起來像 AI 在自言自語。現在給它與角色泡泡對稱的量體：
+      深色實心底 ＋ 白字（實測對比 8.6 以上），字級與回覆一致。 */
+.artalk-asked { align-self: flex-end; max-width: 82%;
+  margin: 0 0 8px; padding: 8px var(--space-4);
+  border-radius: 16px 16px 4px 16px;
+  background: rgba(9,18,36,.82); color: #F4F7FB;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  font-size: var(--text-xs); line-height: 1.5;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ★ 對話泡泡。尖端朝上指向 3D 舞台裡的角色。
    毛玻璃：參考圖的泡泡是半透明的，看得到後面的角色。 */

@@ -134,6 +134,7 @@ const SRC = {
   cpu: stripComments(read('../src/ar/cpuPipeline.js')),
   css: stripCss(read('../src/styles.css')),
   server: stripComments(read('../server/index.js')),
+  cardTime: stripComments(read('../src/data/cardTime.js')),
 }
 
 // ── stripper 自我測試 ──
@@ -1223,7 +1224,7 @@ const W = 1831, H = 1335
     ok((srv.match(/async function streamGuarded/g) || []).length === 1
       && (srv.match(/HEALTH_RE\.test/g) || []).length === 1,
       '★★★★ 法規守門只能有一份實作（兩支端點共用 streamGuarded）')
-    ok(/streamGuarded\(res, \{ sys: persona/.test(srv) && /streamGuarded\(res, \{\s*\n?\s*sys, hist/.test(srv),
+    ok((srv.match(/await streamGuarded\(res, \{/g) || []).length === 2,
       '★★ /api/ar/talk 與 /api/ai/chat 都要走 streamGuarded')
 
     // ★★★ 訪客也要走得到模型：掃到卡片的人多半還沒註冊，走 /api/ai/chat 的話
@@ -1323,7 +1324,81 @@ const W = 1831, H = 1335
     ok(/\.artalk-aitag \{[^}]*flex: 0 0 auto/.test(SRC.css),
       '★★ 免責標註不可被壓縮（flex: 0 0 auto）')
 
-    // ★ 語言跟隨：使用者用英文問就用英文答，婉拒也一樣。
+    // ══════════ 時間感（語言模型沒有時鐘）══════════
+  //
+  // ★★★★ 先前系統提示裡完全沒有日期，模型只好把卡片上的「小寒」當成此刻——
+  //   8 月的台灣它開口就是「小寒的風有點冷」，問它今天幾號則答「想不出來」。
+  //   使用者看到那句話的第一反應是「這東西壞了」。
+  {
+    ok(/personaTimeBlock/.test(srv) && /const sys = persona \+ personaTimeBlock/.test(srv),
+      '★★★★ 系統提示要接上時間區塊（模型沒有時鐘，一切「現在」都要餵給它）')
+    // ⚠️ 時間區塊必須**逐次請求**算。烤進 AR_PERSONAS 的話那是啟動時算一次的，
+    //    服務跑過午夜就會一直講昨天。
+    {
+      const i = srv.indexOf('const AR_PERSONAS = (() =>')
+      const j = srv.indexOf('})()', i)
+      ok(i > 0 && !srv.slice(i, j).includes('cardTimeContext'),
+        '★★★ 時間不可烤進靜態的 AR_PERSONAS（跑過午夜就會一直講昨天）')
+    }
+    ok(/【現在的時間/.test(srv) && /【語態/.test(srv),
+      '★★★ 提示要同時給「現在是什麼時候」與「該用什麼語態」')
+    ok(/不可以說「想不出來」/.test(srv),
+      '★★★ 要明講被問到日期／節氣時不可以說想不出來（那些值就在提示裡）')
+
+    // ★★★ 語態三態的實測（等同回歸測試 #10：模擬三個日期各跑一次）。
+    //   ⚠️ 這是**確定性**的，不需要等到小寒也不需要動系統時鐘。
+    const { cardTimeContext, greetingFor, cardTimeLabel } = await import('../src/data/cardTime.js')
+    const { OFFICIAL_CARDS, objectForHotspot } = await import('../src/data/arCards.js')
+    const card0 = OFFICIAL_CARDS[0]
+    const obj0 = objectForHotspot(card0.hotspots.find(h => h.primary))
+    const cases = [
+      ['2026-08-16', 'BEFORE', '立秋', 142],
+      ['2027-01-05', 'DURING', '小寒', 0],
+      ['2027-01-25', 'AFTER', '大寒', -20],
+    ]
+    for (const [iso, phase, term, days] of cases) {
+      const [y, m, d] = iso.split('-').map(Number)
+      const ctx = cardTimeContext(card0, new Date(y, m - 1, d))
+      ok(ctx.phase === phase, `★★★ ${iso} 的 phase 應為 ${phase}（實際 ${ctx.phase}）`)
+      ok(ctx.currentTerm === term, `★★★ ${iso} 的實際節氣應為 ${term}（實際 ${ctx.currentTerm}）`)
+      ok(ctx.daysUntil === days, `★★ ${iso} 距小寒應為 ${days} 天（實際 ${ctx.daysUntil}）`)
+      const g = greetingFor(obj0, ctx)
+      ok(!!cardTimeLabel(ctx), `★★ ${iso} 要有狀態帶文案`)
+      // ★★★★ BEFORE／AFTER 絕不可講出卡片那句現在式的開場白
+      if (phase !== 'DURING') {
+        ok(!g.includes(obj0.line),
+          `★★★★ ${iso}（${phase}）不可把卡片的現在式開場白照講（那正是「小寒的風有點冷」那個 bug）`)
+      }
+      // ⚠️ 只驗「沒有照講卡片那句」還不夠：把 AFTER 的分支拿掉會掉進 BEFORE 的
+      //    句子，那句同樣不含卡片原文 ⇒ 照樣通過（變異測試抓到）。
+      //    要各自驗**這一態該說的話**。
+      if (phase === 'BEFORE') ok(g.includes('還要等') && g.includes(String(days)),
+        `★★★★ BEFORE 要用期待式並講出還有幾天（實際：${g.split('\n')[0]}）`)
+      if (phase === 'AFTER') ok(g.includes('已經過去'),
+        `★★★★ AFTER 要用回顧式（實際：${g.split('\n')[0]}）`)
+      if (phase === 'DURING') ok(g.includes(obj0.line),
+        `★★★ DURING 才可以用卡片的現在式開場白（實際：${g.split('\n')[0]}）`)
+    }
+    ok(cardTimeContext(card0, new Date(2027, 0, 5)).cardTermISO === '2027-01-05',
+      '★★★ 2027 小寒的交節日要算成 01-05（termLocalDay 的序號是立春起算，會差一年）')
+
+    // ★★★ 狀態帶：讓使用者一眼看出「我在看的是今天，還是一張未來的卡」。
+    ok(/armodel-when/.test(model) && /cardTimeLabel/.test(model),
+      '★★★ 模型頁要有時間狀態帶')
+    ok(/greetingFor\(obj, cardTimeContext\(card\)\)/.test(talk),
+      '★★★★ 開場白要跟著今天決定語態（不可直接用卡片的現在式那句）')
+
+    // ★★★ 泡泡高度一變就要重新框景，否則泡泡會壓在角色頭上。
+    ok(/onLayout\?\.\(\)/.test(talk) && /\[log, thinking, onLayout\]/.test(talk),
+      '★★★ 泡泡內容變動要通知上層重新框景（否則答案一長就壓到角色頭上）')
+
+    // ★★ 使用者訊息要有實心氣泡：原本是深藍底上的淺灰小字，對比遠低於 AA，
+    //    整段對話讀起來像 AI 在自言自語。
+    ok(/\.artalk-asked \{[^}]*background:/.test(SRC.css),
+      '★★ 使用者說的那一句要有實心氣泡（不可是深底上的淺灰小字）')
+  }
+
+  // ★ 語言跟隨：使用者用英文問就用英文答，婉拒也一樣。
     {
       const i = srv.indexOf('const AR_PERSONA_RULES')
       const rules = i < 0 ? '' : srv.slice(i, srv.indexOf('].join', i))
@@ -1442,7 +1517,8 @@ const W = 1831, H = 1335
 
   // ★★★ 提問的選項砍掉之後，開場白**必須舉例告訴使用者可以問什麼**——
   //   否則畫面上只剩「考考我／看詳細資料」兩顆，沒有人會知道它答得出品種與產地。
-  ok(/打字問我/.test(talk) && /「品種」/.test(talk),
+  // ⚠️ 開場白已移到 `cardTime.js`（語態要跟著今天走），所以要去那裡檢查。
+  ok(/打字問我/.test(SRC.cardTime) && /「品種」/.test(SRC.cardTime),
     '★★★ 開場白要舉例說明可以打字問什麼（提問選項已砍掉，這是唯一的線索）')
 }
 

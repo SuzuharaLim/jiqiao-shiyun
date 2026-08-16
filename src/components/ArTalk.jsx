@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { speechSupported, speak } from '../lib/speak.js'
 import { objectForHotspot } from '../data/arCards.js'
+import { cardTimeContext, greetingFor } from '../data/cardTime.js'
 import { api } from '../api.js'
 
 // ============================================================================
@@ -111,7 +112,7 @@ function findAnswer(text, card, currentObj) {
 }
 
 export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail,
-  objectId }) {
+  objectId, onLayout }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -148,21 +149,25 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
   //    繼續把上一段唸完，而畫面上的名字已經換人了。
   useEffect(() => {
     hush()
-    // ★ 開場白要**把玩法講出來**（參考圖的第一句就是「請選擇一個選項或直接輸入」）。
-    //   這一頁沒有任何前例可循——使用者剛從相機掃到卡片被送過來，畫面上是一隻
-    //   會動的白菜、四顆看起來像標籤的按鈕、一條輸入列。不講的話多數人只會看著它自轉。
-    //   ⚠️ 這句話是**介面說明不是事實陳述**，所以不需要出處；也不可以寫成
-    //      「我什麼都可以回答」——它只認得這張卡上的內容。
+    // ★ 開場白要**把玩法講出來**（使用者剛從相機被送過來，畫面上是一隻會動的
+    //   白菜、兩顆按鈕、一條輸入列，沒有任何前例可循）。
+    //   ⚠️ 這句話是**介面說明不是事實陳述**，所以不需要出處。
+    // ★★★★ 而且**語態要跟著今天走**：`obj.line`（「小寒前後正是我最甜的時候」）
+    //   是現在式，只有真的在小寒那段時間才成立。8 月的台灣講這句話，
+    //   使用者的第一反應是「這東西壞了」。三種語態見 `cardTime.js`。
     setThinking(false)
-    setLog(obj
-      ? [{ who: 'char', text: `${obj.line || `我是${obj.name}。`}\n想知道什麼？打字問我，例如「品種」「產地」；點我一下我會動。`, intro: true }]
-      : [])
+    setLog(obj ? [{ who: 'char', text: greetingFor(obj, cardTimeContext(card)), intro: true }] : [])
     setBusy(false)
-  }, [obj, hush])
+  }, [obj, card, hush])
 
   // ⚠️ `speechSynthesis` 是全域單例、跨頁面存活：不在卸載時 cancel，
   //    使用者按上一頁離開之後聲音**還會繼續唸完**，而畫面上已經沒有東西能停它。
   useEffect(() => hush, [hush])
+
+  // ★★★★ 泡泡的高度一變，就要請上層重新框景——`jq-fit` 的可見區是**量**出來的，
+  //   不重量的話角色會停在舊的框景，而泡泡已經往下長到它頭上了。
+  //   ⚠️ 要等這一輪 render 之後才量得到新高度，所以放在 effect 裡（不是事件裡）。
+  useEffect(() => { onLayout?.() }, [log, thinking, onLayout])
 
   // 新訊息捲到底（只捲對話框自己，不動整頁）
   useEffect(() => {

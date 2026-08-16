@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, Link, SheetMask } from '../components/ui.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
+import { cardTimeContext, cardTimeLabel } from '../data/cardTime.js'
 import { useNav, scrollIntoContainer } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
 // 小挑戰與卡片頁共用同一支元件——同一段動線不該有兩套實作
@@ -356,6 +357,15 @@ export default function ArModel({ slug, hotspot }) {
   //   ⚠️ hook 一律寫在所有提早 return 之前（站上踩過兩次：PostDetail 的
   //      hook 順序、Scan.jsx 的 TDZ），下面 `if (!card) return` 就是那個 return。
   const [showCard, setShowCard] = useState(false)
+  // 今天 vs 這張卡的時間關係（狀態帶與開場白的語態都靠它）
+  const tctx = cardTimeContext(card)
+  // ★★★★ 對話泡泡的高度會變（開場白 2 行、長答案 4 行、思考中 1 行），
+  //   而 `jq-fit` 的可見區是量出來的 ⇒ **泡泡一變就要重量一次**。
+  //   先前只在 ResizeObserver／window resize 時量，所以答案一長，泡泡往下長，
+  //   角色卻還停在原本的框景 ⇒ 泡泡壓在它頭上。
+  //   （這個窗格的 RO 不觸發，正式環境的 RO 也只盯容器、不盯泡泡。）
+  const syncRef = useRef(null)
+  const relayout = useCallback(() => { syncRef.current?.() }, [])
 
   // ★ 這張卡上「有內容可以聊」的主題。上下滑動就在這個清單裡換。
   //   ⚠️ 只收 `objectForHotspot` 拿得到東西的熱區——空的一格會讓人以為壞了。
@@ -497,6 +507,7 @@ export default function ArModel({ slug, hotspot }) {
         }
         scene.addEventListener('jq-zoom', onZoom)
         // 版面穩定之後量一次；之後交給 RO 與 window resize
+        syncRef.current = syncVisible
         setTimeout(syncVisible, 0)
         if (typeof ResizeObserver !== 'undefined' && hostRef.current?.parentElement) {
           ro2 = new ResizeObserver(() => syncVisible())
@@ -513,6 +524,7 @@ export default function ArModel({ slug, hotspot }) {
       try { ro?.disconnect() } catch { /* ignore */ }
       try { ro2?.disconnect() } catch { /* ignore */ }
       try { if (syncVisible) window.removeEventListener('resize', syncVisible) } catch { /* ignore */ }
+      syncRef.current = null
       try { if (onActor) scene?.removeEventListener('jq-actor-ready', onActor) } catch { /* ignore */ }
       try { if (onZoom) scene?.removeEventListener('jq-zoom', onZoom) } catch { /* ignore */ }
       try { if (onPoke) scene?.removeEventListener('jq-poke', onPoke) } catch { /* ignore */ }
@@ -546,6 +558,15 @@ export default function ArModel({ slug, hotspot }) {
             它讓人覺得是「站在角色面前跟它說話」，而不是「在操作一個 3D 檢視器」。
             ⚠️ 舞台是絕對定位鋪滿整個場景，控制項疊在下半；角色的框景要把
                被蓋住的那一段扣掉（見 jq-fit 的 `bias`），否則臉會被泡泡遮住。 */}
+        {/* ★★★ 時間狀態帶：讓使用者一眼看出「我在看的是今天，還是一張未來的卡」。
+            導覽列的「今日曆頁」是 highlight 狀態，而這一頁的內容是 2027 小寒——
+            沒有這一條，使用者無從判斷兩者的關係。
+            ⚠️ 這條做好之後，就算 AI 講錯話，傷害也小很多：他至少知道自己在看什麼。 */}
+        <p className={`armodel-when armodel-when-${tctx.phase.toLowerCase()}`}>
+          <b>{cardTimeLabel(tctx)}</b>
+          <span>今天：{tctx.currentTerm} {tctx.todayISO.slice(5).replace('-', '/')}</span>
+        </p>
+
         <div className="armodel-scene">
           <div className="armodel-stage" ref={hostRef}>
             {phase !== 'ready' && (
@@ -572,7 +593,7 @@ export default function ArModel({ slug, hotspot }) {
           <ArTalk obj={obj} card={card} actorRef={actorRef} speaker={speaker}
             // ⚠️ persona 只送 id，系統提示由伺服器產生（白名單）。
             //    ★ 不再看有沒有登入——訪客走 /api/ar/talk，那支不需要 session。
-            objectId={spot?.objectId}
+            objectId={spot?.objectId} onLayout={relayout}
             detailOpen={showCard} onDetail={() => setShowCard(v => !v)}
             // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
             //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409

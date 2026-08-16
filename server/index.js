@@ -24,6 +24,8 @@ import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS 
 import { StringDecoder } from 'node:string_decoder'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
+import { cardTimeContext } from '../src/data/cardTime.js'
+import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1439,6 +1441,9 @@ const AR_PERSONA_RULES = [
 ].join('\n')
 
 /** 從官方卡包產生 persona 白名單：{ objectId: 系統提示 }。 */
+// persona → 它屬於哪張卡／叫什麼名字（時間區塊要**逐次請求**算，不能烤進靜態提示）
+const AR_PERSONA_CARD = {}
+const AR_PERSONA_NAME = {}
 const AR_PERSONAS = (() => {
   const out = {}
   for (const card of OFFICIAL_CARDS) {
@@ -1457,6 +1462,8 @@ const AR_PERSONAS = (() => {
         .map(h => (h.objectId && h.objectId !== hs.objectId ? CARD_OBJECTS[h.objectId] : null))
         .filter(x => x && (x.facts || []).length)
         .map(x => `【${x.name}】\n${factsOf(x)}`).join('\n')
+      AR_PERSONA_CARD[hs.objectId] = card
+      AR_PERSONA_NAME[hs.objectId] = o.name
       out[hs.objectId] = [
         `你是「${o.name}」，出現在「${card.title}」這張節氣卡上。`,
         o.line ? `你的開場白是：「${o.line}」` : '',
@@ -1626,6 +1633,56 @@ const AI_ABUSE_RE = new RegExp([
 // 輸出守門：正常的國民曆回覆不會出現程式碼；出現就代表被繞過了
 const looksLikeCode = (t) => /```/.test(t)
   || /^\s*(?:function|const|let|var|import|export|def|class|public\s+static|#include|<\?php|SELECT\s+[\s\S]*\sFROM)\b/mi.test(t)
+
+// ════════════════ 時間感：把「現在」算好餵給模型 ════════════════
+//
+// ★★★★ **語言模型沒有時鐘。** 先前系統提示裡完全沒有日期，模型只好把卡片上的
+//   「小寒」當成此刻——於是 8 月的台灣（33 度、剛過大暑）它開口就是「小寒的風
+//   有點冷」，還宣稱自己「正忙著長得圓滾滾」，而結球白菜八月在平地根本不是產季。
+//   使用者看到那句話的第一反應是「這東西壞了」。
+//   問它「今天幾號」，它答「我想不太出來」——不是算錯，是**根本沒有這個資訊**。
+//
+// ⚠️ 這一段必須**逐次請求**產生，不可以烤進 `AR_PERSONAS`（那是啟動時算一次的）。
+/** 這個品項此刻是不是當令（用農業部開放資料的月份表，不是憑印象）。 */
+function inSeasonNow(name, month) {
+  if (!name) return null
+  const list = PRODUCE_BY_MONTH?.[String(month)] || []
+  return list.some(x => x?.name && (x.name.includes(name) || name.includes(x.name)))
+}
+
+function personaTimeBlock(objectId) {
+  const card = AR_PERSONA_CARD[objectId]
+  if (!card) return ''
+  const t = cardTimeContext(card)
+  const name = AR_PERSONA_NAME[objectId] || ''
+  const mon = Number(t.todayISO.slice(5, 7))
+  const season = inSeasonNow(name, mon)
+  const tense = {
+    BEFORE: `現在是「${t.currentTerm}」，離這張卡的「${t.cardTerm}」還有 ${t.daysUntil} 天。`
+      + `用**期待式**講話：「還要等 ${t.daysUntil} 天才輪到我」「${t.cardTerm}那陣子我最甜」。`,
+    DURING: `現在正是「${t.cardTerm}」。這時候才可以用**現在式**講「${t.cardTerm}的風有點冷」這種話。`,
+    AFTER: `今年的「${t.cardTerm}」已經過去了，現在是「${t.currentTerm}」。用**回顧式**講話。`,
+  }[t.phase]
+
+  return [
+    // ⚠️ 開頭要放一個換行，不可用 ''：下面的 .filter(Boolean) 會把空字串濾掉，
+    //    時間區塊就會直接黏在上一行的尾巴（實測「…賞花清單）【現在的時間」）。
+    '\n',
+    '【現在的時間｜以下由系統算好，一律照抄，不得自行推算】',
+    `・今天：${t.todayLabel}（${t.todayISO}）`,
+    `・今天實際的節氣：${t.currentTerm}`,
+    `・這張卡的節氣：${t.cardTerm}（${t.cardTermISO}）`,
+    `・距離：${t.daysUntil} 天（負數代表已經過了）`,
+    season === null ? '' : `・你現在${season ? '正是' : '**不是**'}當令品項（依農業部當令農產月份表，${mon} 月）`,
+    '',
+    '【語態｜最重要，違反會讓使用者以為系統壞了】',
+    `・**絕對不可以把卡片的節氣當成「現在」。** ${tense}`,
+    '・講天氣、產季、口感時，要用**今天實際節氣**的狀況，不是卡片節氣的。',
+    season === false ? '・現在不是你的產季，被問到「現在買得到嗎」要老實說不是時候。' : '',
+    '・被問到今天幾號、現在什麼節氣、離某個節氣多久，直接用上面的值回答，',
+    '  **不可以說「想不出來」**——那些數字就在這裡。',
+  ].filter(Boolean).join('\n')
+}
 
 // ════════════════ 危機情境：固定腳本，**不交給模型** ════════════════
 //
@@ -1835,7 +1892,9 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
   // ⚠️ maxTokens 不可太小：中文一個字約 1~2 token，260 會把「請照醫師或藥師
   //    指示」這種句子腰斬——而事後被截斷的安全類句子語意是壞的。
   //    長度改用提示詞控制（規則裡寫「40~120 字」），不要靠硬上限。
-  const out = await streamGuarded(res, { sys: persona, hist, persona: true, maxTokens: 480 })
+  // ★★★★ 時間區塊逐次請求算（AR_PERSONAS 是啟動時算一次的靜態提示）
+  const sys = persona + personaTimeBlock(req.body.persona)
+  const out = await streamGuarded(res, { sys, hist, persona: true, maxTokens: 480 })
   if (out?.httpError) return res.status(out.httpError).json({ error: 'AI 暫時無法回答，稍後再試' })
 }))
 
