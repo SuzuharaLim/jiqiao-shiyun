@@ -1276,6 +1276,61 @@ const W = 1831, H = 1335
     //   跑起來過（訪客一律 401）。
     ok(/onDelta: \(full\) =>/.test(talk) && /got = full/.test(talk) && !/got \+=/.test(talk),
       '★★★★ onDelta 收到的是累積全文，不可以再累加（否則守門的 replace 會失效）')
+
+    // ★★★★ 後端的**短路分支回 JSON 不是 SSE**（婉拒／危機／未設金鑰），
+    //   那時 onDelta 一次都不會被呼叫。先前這裡只看 `got`，於是所有婉拒都掉進
+    //   「網路好像卡了一下」——對使用者陳述一件不實的事，而且連問三次都一樣，
+    //   反而讓對方確認那是攔截而非故障。
+    ok(/meta = await api\.aiChatStream/.test(talk) && /!got && meta\?\.reply/.test(talk),
+      '★★★★ 要用 aiChatStream 的回傳值處理婉拒／危機（不可只看串流有沒有內容）')
+    ok(!/網路好像卡了一下/.test(talk),
+      '★★★★ 不可用假的網路錯誤當婉拒的替身（不誠實，而且真的斷線時分不出來）')
+
+    // ★★★★ 危機情境：固定腳本、號碼寫死、不經過模型。
+    ok(/const CRISIS_RE = new RegExp/.test(srv) && /crisisReply/.test(srv),
+      '★★★★ 危機情境要有固定腳本（不可交給模型回想電話號碼）')
+    for (const num of ['1925', '1995', '113', '119']) {
+      ok(new RegExp(num).test(srv), `★★★★ 危機腳本要寫死 ${num}`)
+    }
+    {
+      const i = srv.indexOf("app.post('/api/ar/talk'")
+      const seg = srv.slice(i, srv.indexOf('streamGuarded', i))
+      ok(seg.indexOf('CRISIS_RE.test') > 0 && seg.indexOf('CRISIS_RE.test') < seg.indexOf('AI_ABUSE_RE.test'),
+        '★★★★ 危機判定要在最前面（比注入、比模型都早）')
+    }
+    // ★★★ 判定與說法要分開：注入類要用**角色內**的台詞，不可套法規那一句
+    //   （使用者看到的理由會跟他問的事情完全對不上），也不可用顧問的口吻。
+    // ⚠️ 第一版只檢查 AR_REFUSALS 存在 ⇒ 把注入分支換成法規那一句照樣通過
+    //    （變異測試抓到）。要鎖住**注入分支真的用注入的台詞**。
+    ok(/AR_REFUSALS/.test(srv) && /INJECTION:/.test(srv)
+      && /AI_ABUSE_RE\.test\(lastUser\)\) \{[\s\S]{0,120}?AR_REFUSALS\.INJECTION/.test(srv),
+      '★★★ 婉拒要分類，而且注入分支要用注入的台詞（不可套法規那一句）')
+    ok(/persona \? AR_REFUSALS\.CODE : AI_REFUSAL/.test(srv),
+      '★★ persona 模式要用角色內的台詞（AI_REFUSAL 是國民曆顧問的口吻）')
+
+    // ★★★★ 中文在 UTF-8 是 3 bytes，而 chunk 邊界不保證對齊字元邊界——
+    //   對每個 chunk 各自 toString('utf8') 會吐出 U+FFFD（畫面上的「�」）。
+    //   ⚠️ 這個 bug 只在中文＋剛好切在字中間時出現，英文測試永遠測不到，
+    //      本機 localhost 也因為 Node 會合併 chunk 而不容易重現。
+    ok(/new StringDecoder\('utf8'\)/.test(srv) && /decoder\.write\(Buffer\.from\(chunk\)\)/.test(srv)
+      && /decoder\.end\(\)/.test(srv),
+      '★★★★ SSE 解碼要用 StringDecoder（逐 chunk toString 會切出 U+FFFD）')
+
+    // ★★ 免責標註要在捲動區**之外**，否則長回覆會把它捲出可視範圍＝等於沒有。
+    ok(/artalk-aitag/.test(talk)
+      && talk.indexOf('artalk-aitag') > talk.indexOf('</div>', talk.indexOf('artalk-bubble-in')),
+      '★★ 免責標註要釘在泡泡底部、捲動區之外')
+    ok(/\.artalk-aitag \{[^}]*flex: 0 0 auto/.test(SRC.css),
+      '★★ 免責標註不可被壓縮（flex: 0 0 auto）')
+
+    // ★ 語言跟隨：使用者用英文問就用英文答，婉拒也一樣。
+    {
+      const i = srv.indexOf('const AR_PERSONA_RULES')
+      const rules = i < 0 ? '' : srv.slice(i, srv.indexOf('].join', i))
+      ok(/【語言】/.test(rules) && /相同的語言/.test(rules), '★ 系統提示要求跟隨使用者的語言')
+      ok(/絕對不要提到營養或法規/.test(rules),
+        '★★★ 範圍外的問題不可扯到營養法規（那與對方問的事情完全無關）')
+    }
     // ★★★ 2026-08-11 使用者指定把兩層對調：**AI 是主聲道，卡片資料是它查得到
     //   的資料**。所以整張卡（含其他熱區）都要進伺服器端的系統提示——否則問
     //   「臘八是哪一天」它會說不知道，而卡片上明明就有。

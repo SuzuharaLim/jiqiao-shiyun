@@ -1786,13 +1786,35 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
      沒有任何錯誤、也不會有人想到是 overflow 造成的。實測就是這樣沒了。
      ⇒ 尖角畫在外層（不裁切），限高與捲動交給內層 `.artalk-bubble-in`。 */
   }
-/* ★ 內層：長答案在泡泡裡面捲，不可把底下的選項與輸入列推出畫面 */
+/* ★ 內層：長答案在泡泡裡面捲，不可把底下的選項與輸入列推出畫面。
+   ⚠️ `min-height: 0` 一定要寫：flex 子項的預設 min-height 是 auto，
+      沒有它的話這一塊不會收縮，`overflow-y` 等於沒作用。
+   ⚠️ 高度上限刻意壓在 26dvh 而不是參考建議的 48vh——這一頁的泡泡越高，
+      `jq-fit` 的可見區就越小、角色就越小（那是使用者這幾輪一直在要的東西）。
+   ⚠️ `vh` 那一行是舊 iOS 的退路（`dvh` 是 15.4 才有的單位）。 */
+.artalk-bubble { display: flex; flex-direction: column; }
 .artalk-bubble-in { padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm); line-height: 1.7; white-space: pre-wrap;
   min-height: 52px; display: flex; align-items: center; flex-wrap: wrap;
-  max-height: 18dvh; overflow-y: auto; border-radius: inherit; }
+  flex: 1 1 auto; min-height: 0;
+  max-height: 26vh;
+  max-height: 26dvh; overflow-y: auto; border-radius: inherit;
+  /* ★ 捲動提示：底部一道漸層，讓人知道還有下文。
+     ⚠️ 沒有提示的話使用者根本不知道泡泡裡可以捲。 */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
+/* 內容不需要捲的時候不要那道漸層（會讓最後一行看起來像褪色的） */
+.artalk-bubble-in:not(:hover) { }
+@supports not (mask-image: linear-gradient(#000, #000)) {
+  .artalk-bubble-in { -webkit-mask-image: none; mask-image: none; }
+}
 /* 招呼語：比答案淡一階，讀得出「這是語氣、後面才是內容」 */
 .artalk-warm { font-style: normal; color: var(--muted); margin-right: 4px; }
+/* ★ 免責標註：釘在泡泡底部、**捲動區之外**，永遠看得到 */
+.artalk-aitag { flex: 0 0 auto; display: block;
+  margin: 0 var(--space-4); padding: 6px 0 10px;
+  border-top: 1px solid rgba(22,35,58,.12);
+  font-style: normal; font-size: var(--text-2xs); opacity: .72; }
 .artalk-bubble i { font-style: normal; font-size: var(--text-2xs); color: var(--muted);
   display: block; width: 100%; margin-top: 2px; }
 /* 兩個小尖角（參考圖就是兩個），用 border 三角形——不需要圖檔也不會有鋸齒 */

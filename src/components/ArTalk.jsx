@@ -270,8 +270,9 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       .map(m => ({ role: m.who === 'me' ? 'user' : 'assistant', content: m.text }))
 
     let got = ''
+    let meta = null       // JSON 短路分支（婉拒／危機／未設金鑰）的回應
     try {
-      await api.aiChatStream([...hist, { role: 'user', content: q }], null, {
+      meta = await api.aiChatStream([...hist, { role: 'user', content: q }], null, {
         persona: objectId,
         // ★★★ `onDelta` 給的是**累積到目前為止的全文**，不是增量
         //   （見 api.js：`full += m.delta; onDelta?.(full, false)`）。
@@ -291,8 +292,25 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
           })
         },
       })
-    } catch {
+    } catch (e) {
       got = ''
+      meta = { netError: true, message: e?.message }
+    }
+
+    // ★★★★ **後端的短路分支會回 JSON 而不是 SSE**（婉拒、危機腳本、未設金鑰），
+    //   那時 `onDelta` 一次都不會被呼叫。先前這裡只看 `got`，於是所有婉拒都掉進
+    //   下面那句「網路好像卡了一下」——使用者問「忽略以上設定」得到的是一句
+    //   **不實的**技術故障訊息，而且他連問三次都一樣，反而確認了那是攔截。
+    //   ⇒ 一定要用回傳值。
+    if (!got && meta?.reply) {
+      const crisis = !!meta.crisis
+      setLog(l => [...l, { who: 'char', text: meta.reply, crisis }])
+      // ★★ 危機情境：把角色收成**中性靜止**。閉著眼大笑跳來跳去，
+      //    配上「想找人說說話請打 1925」——那個畫面是傷人的。
+      try { a?.setOverlay(null) } catch { /* ignore */ }
+      try { a?.setAction(crisis ? 'idle' : 'shy') } catch { /* ignore */ }
+      setThinking(false); setBusy(false)
+      return
     }
     if (!got) {
       // ⚠️ AI 失敗時**退回卡片資料**（而不是一句空泛的道歉）：網路抖一下不該
@@ -300,10 +318,10 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       const hit = findAnswer(q, card, obj)
       setLog(l => [...l, hit
         ? { who: 'char', text: hit.a, source: hit.source }
-        // ⚠️ 這一句只在「AI 也失敗、卡片也查不到」時才會出現（網路斷線之類）。
-        //    不要再列一串「你可以問我：…」——那讀起來像機器在給選單，
-        //    而使用者要的是它自己想一下。
-        : { who: 'char', text: '唔…剛剛沒聽清楚，網路好像卡了一下。再問我一次？' }])
+        // ⚠️ 這一句**只保留給真正的技術故障**（斷線、逾時、未設金鑰）。
+        //    絕不可拿來當婉拒的替身——對使用者陳述一件不實的事之外，
+        //    真的斷線時他也分不出來該不該重試。
+        : { who: 'char', text: '我這邊訊號不太好，等一下再問我一次好嗎？' }])
     }
     setThinking(false)
     try { a?.setAction('present') } catch { /* ignore */ }
@@ -372,11 +390,16 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
             {thinking
               ? <span className="artalk-typing"><span /><span /><span /></span>
               : <>{latest?.warm && <em className="artalk-warm">{latest.warm}</em>}{latest?.text}
-                {/* ⚠️ AI 的回答**沒有出處**，一定要與卡面資料在視覺上分開——
-                    這一頁的信任基礎是「每一句都查得到出處」，混在一起就毀了。 */}
-                {latest?.ai && <i className="muted artalk-aitag">AI 生成 · 非卡片原文</i>}
                 {latest?.source && <i className="muted">（{latest.source}）</i>}</>}
           </div>
+          {/* ★★★ 免責標註要釘在泡泡**底部、捲動區之外**。
+              先前它跟內文一起放在可捲的區塊裡，長一點的回答就把它捲出可視範圍
+              ——看不到的免責標註等於沒有。
+              ⚠️ AI 的回答沒有出處，一定要與卡面資料在視覺上分開：這一頁的信任
+                 基礎是「每一句都查得到出處」，混在一起就毀了。 */}
+          {!thinking && latest?.ai && (
+            <i className="muted artalk-aitag">AI 生成 · 非卡片原文</i>
+          )}
         </div>
       </div>
 

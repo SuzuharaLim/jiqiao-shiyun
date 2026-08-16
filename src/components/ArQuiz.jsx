@@ -50,6 +50,15 @@ export default function ArQuiz({ quiz, loggedIn, term, fact }) {
   return (
     <div className="cardp-quiz">
       <SectionHead title="小挑戰" />
+      {/* ★★ 「已經有這枚徽章」要放在**題目之前**，而且要寫成邀請。
+          原本它掛在送出鈕底下、作答之前就出現——使用者還沒答題就被告知
+          「你已經有這一枚徽章了」，讀起來像「你做這題也沒用」。
+          徽章狀態應該在**作答之後**才是重點；作答之前只需要讓他知道可以再玩一次。 */}
+      {!submitted && owned && (
+        <p className="muted" style={{ fontSize: 'var(--text-2xs)', margin: '0 0 6px' }}>
+          這枚徽章你已經有了，要不要再玩一次？
+        </p>
+      )}
       <p className="cardp-q">{quiz.question}</p>
       <div className="cardp-opts">
         {quiz.options.map(o => {
@@ -94,11 +103,6 @@ export default function ArQuiz({ quiz, loggedIn, term, fact }) {
           <div className="cardp-again">
             <p>還沒全對——綠色是漏掉的、紅色是多選的。再試一次就好，不會扣分。</p>
           </div>
-        )}
-        {!submitted && owned && (
-          <p className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
-            你已經有這一枚徽章了。
-          </p>
         )}
       </div>
     </div>

@@ -21,6 +21,7 @@ import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, b
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
 import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS } from '../src/data/almanac.js'
+import { StringDecoder } from 'node:string_decoder'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
@@ -1429,7 +1430,12 @@ const AR_PERSONA_RULES = [
   '【絕對禁止】不可宣稱任何保健或療效（增強免疫、抗氧化、幫助消化、預防疾病、養生功效…）。',
   '  這是台灣《食品安全衛生管理法》的規定，違反會讓這個產品下架，沒有任何例外。',
   '  被問到營養或功效時，就說這個不能亂講，然後把話題帶到料理、產季或民俗。',
-  '【範圍】只聊這張卡、這個節氣、相關的食材與民俗。被問到其他事情就把話題帶回來。',
+  '【範圍】只聊這張卡、這個節氣、相關的食材與民俗。',
+  '  被問到與節氣、作物、卡片無關的一般知識（數學、票價、程式…），就說你不知道、',
+  '  不要亂報，然後把話題帶回小寒。**這種時候絕對不要提到營養或法規**——',
+  '  那跟對方問的事情完全無關，講出來只會讓人一頭霧水。',
+  '【語言】一律用**與對方上一則訊息相同的語言**回覆：對方用英文問就用英文答，',
+  '  日文就用日文。婉拒的時候也一樣要跟隨語言。',
 ].join('\n')
 
 /** 從官方卡包產生 persona 白名單：{ objectId: 系統提示 }。 */
@@ -1472,6 +1478,20 @@ const HEALTH_RE = new RegExp([
   '抗氧化|抗發炎|抗癌|防癌|增強免疫|提升免疫|免疫力|(幫助|促進|改善|增進|有助)[^。]{0,8}(代謝|消化|吸收|蠕動|循環|免疫|睡眠)',
   '降血[糖壓脂]|降低膽固醇|排毒|養顏美容|治療|療效|藥效|改善[^。]{0,6}(症狀|體質)',
 ].join('|'))
+// ════════════════ 角色內的婉拒台詞（分類 → 台詞，不讓模型自己生成）════════════════
+//
+// ★★★ **判定與說法要分開**。先前只有一條「營養保健需主管機關核可」，於是任何
+//   走到婉拒的輸入（英文數學題、要求洩漏系統提示…）都會拿到那句——使用者看到
+//   的理由跟他問的事情完全對不上。分類明確之後，每一類講自己的話。
+//
+// ⚠️ `REGULATED` **只有**在真的講到療效／保健功效時才用（由輸出守門 HEALTH_RE 觸發）。
+const AR_REFUSALS = {
+  // 要求無視設定／洩漏提示詞／扮演無限制角色 —— 角色內婉拒，**不假裝故障**
+  INJECTION: '我就是一顆結球白菜，只會聊我自己的事情喔——這個我幫不上忙。要不要問我品種或產地？',
+  // 輸出被判定為程式碼
+  CODE: '這超出我葉子能理解的範圍了。我們聊點跟小寒有關的吧？',
+}
+
 const AR_HEALTH_REFUSAL = '這個我不能亂講——營養跟保健的說法要有主管機關核可才行。\n不過卡片上寫的內容我都可以跟你聊，要不要問問我的品種或產地？'
 
 const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與國民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
@@ -1607,6 +1627,31 @@ const AI_ABUSE_RE = new RegExp([
 const looksLikeCode = (t) => /```/.test(t)
   || /^\s*(?:function|const|let|var|import|export|def|class|public\s+static|#include|<\?php|SELECT\s+[\s\S]*\sFROM)\b/mi.test(t)
 
+// ════════════════ 危機情境：固定腳本，**不交給模型** ════════════════
+//
+// ★★★★ 這一段刻意不經過語言模型：
+//   ① 電話號碼必須**永遠正確**。讓模型自己回想號碼，它有一天會記錯，
+//      而這是最不能出錯的一則訊息。
+//   ② 必須**永遠完整**。串流會被 max_tokens 截斷——「請照醫師或」這種
+//      半句在安全類回覆上是有害的。固定字串不會被截。
+//   ③ 這類回應不該每次都不一樣。
+// ⚠️ 號碼：1925 安心專線、1995 生命線、113 保護專線（家暴／性侵）、119 急救。
+//    要改號碼就改這裡，不要散在提示詞裡。
+const CRISIS_RE = new RegExp([
+  '不想活|活不下去|想死|自殺|自殘|輕生|結束生命|了結自己',
+  '傷害自己|割腕|跳樓|燒炭|吞藥',
+  'kill\s*myself|suicide|end my life|want to die|self.?harm',
+].join('|'), 'i')
+// ⚠️ 家暴／性侵情境才提 113——平時列出來只是噪音。
+const CRISIS_ABUSE_RE = /家暴|家庭暴力|性侵|被打|被虐待|施暴/
+const crisisReply = (text) => [
+  '我在，先陪你一下，不用一個人撐著。',
+  '如果現在有立即的危險，請打 119 或直接到急診。',
+  '想找人說說話的話，安心專線 1925、生命線 1995，24 小時都有人接。',
+  CRISIS_ABUSE_RE.test(text) ? '如果是家裡或關係裡的暴力，保護專線是 113。' : '',
+  '我只是一顆白菜，幫不上什麼忙，但我會在這裡。',
+].filter(Boolean).join('\n')
+
 // ════════════════ 串流 ＋ 輸出守門（兩支端點共用）════════════════
 //
 // ★★★★ **這一份不可以被複製成第二份。** 裡面有法規守門（HEALTH_RE）與程式碼
@@ -1639,6 +1684,12 @@ async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock
     res.flushHeaders?.()
     sentHeaders = true
 
+    // ★★★★ **一定要用 StringDecoder，不可以對每個 chunk 各自 toString('utf8')。**
+    //   中文在 UTF-8 是 3 bytes，而 SSE 的 chunk 邊界不會對齊字元邊界——切在
+    //   字中間的那個 chunk 各自解碼就會吐出 U+FFFD（畫面上的「�」）。
+    //   StringDecoder 會把不完整的位元組序列留到下一次。
+    //   ⚠️ 這個 bug 只在**中文＋剛好切在字中間**時出現，所以英文測試永遠測不到。
+    const decoder = new StringDecoder('utf8')
     let buf = '', full = '', released = false, blocked = false
     const gate = async (kind, replaceWith) => {
       console.warn('[ai] 攔截：' + kind)
@@ -1648,13 +1699,15 @@ async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock
     }
     /** 兩道守門合一：回 true 代表已攔截。 */
     const bad = async (text) => {
-      if (looksLikeCode(text)) { await gate('code', AI_REFUSAL); return true }
+      // ⚠️ persona 模式用**角色內**的台詞：AI_REFUSAL 是「國民曆顧問」的口吻
+      //    （「我是專門陪你看節氣的顧問」），從一顆白菜嘴裡講出來人設就斷了。
+      if (looksLikeCode(text)) { await gate('code', persona ? AR_REFUSALS.CODE : AI_REFUSAL); return true }
       if (persona && HEALTH_RE.test(text)) { await gate('health', AR_HEALTH_REFUSAL); return true }
       return false
     }
 
     for await (const chunk of r.body) {
-      buf += Buffer.from(chunk).toString('utf8')
+      buf += decoder.write(Buffer.from(chunk))
       const events = buf.split(`\n\n`); buf = events.pop() || ''
       for (const ev of events) {
         const line = ev.split('\n').find(l => l.startsWith('data:'))
@@ -1677,6 +1730,7 @@ async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock
       }
       if (blocked) break
     }
+    buf += decoder.end()          // 收尾：把最後殘留的位元組吐出來
     // 回覆很短（不到 HOLD）時，扣住的內容還沒送出去
     if (!blocked && !released) {
       if (await bad(full)) { /* 已攔截 */ }
@@ -1768,9 +1822,20 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
     role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content || '').slice(0, 300),
   })).filter(m => m.content)
   const lastUser = [...hist].reverse().find(m => m.role === 'user')?.content || ''
-  if (AI_ABUSE_RE.test(lastUser)) return res.json({ reply: AI_REFUSAL, refused: true })
 
-  const out = await streamGuarded(res, { sys: persona, hist, persona: true, maxTokens: 260 })
+  // ★★★★ 危機**最優先**，而且完全不經過模型（號碼要永遠正確、永遠不被截斷）。
+  if (CRISIS_RE.test(lastUser)) {
+    return res.json({ reply: crisisReply(lastUser), crisis: true })
+  }
+  // ★★ 注入類要用**角色內**的台詞婉拒，而且不可假裝故障（見 AR_REFUSALS）。
+  if (AI_ABUSE_RE.test(lastUser)) {
+    return res.json({ reply: AR_REFUSALS.INJECTION, refused: true, label: 'INJECTION' })
+  }
+
+  // ⚠️ maxTokens 不可太小：中文一個字約 1~2 token，260 會把「請照醫師或藥師
+  //    指示」這種句子腰斬——而事後被截斷的安全類句子語意是壞的。
+  //    長度改用提示詞控制（規則裡寫「40~120 字」），不要靠硬上限。
+  const out = await streamGuarded(res, { sys: persona, hist, persona: true, maxTokens: 480 })
   if (out?.httpError) return res.status(out.httpError).json({ error: 'AI 暫時無法回答，稍後再試' })
 }))
 
