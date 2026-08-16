@@ -251,7 +251,10 @@ function entryMeta(pathname, route) {
     if (!c) return null
     return {
       title: `${c.title} 3D 模型｜${c.term}｜機巧時運`,
-      desc: `${c.title}（${c.subtitle}）的節氣 3D 角色。掃到卡片之後可以放下卡片、轉動觀察。`,
+      // ⚠️ 不可預設對方「已經掃過卡片」——這一頁**不需要實體卡也能用**，
+      //    直接開網址就進得來（外部稽核就是全程沒掃卡片走完的）。
+      desc: `${c.title}（${c.subtitle}）的節氣 3D 角色：可以轉動觀察，也可以直接問它品種、產地與這個節氣的事。不需要實體卡片。`,
+
     }
   }
   if (p === '/store/:slug') {

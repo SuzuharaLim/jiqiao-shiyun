@@ -231,6 +231,24 @@ export default function App() {
         ) : (
           <>
             <VerifyBanner />
+            {/* ★★★ **堆疊畫面排在根分頁之前**（2026-08-16 外部稽核）。
+                原本 DOM 順序是「首頁那一整塊（H2×3）→ 堆疊畫面（H1）」，於是每個
+                詳情頁的標題大綱都是 H2 → H2 → H2 → H1——搜尋引擎與螢幕閱讀器都吃虧。
+                ⚠️ 這樣調不影響畫面：手機的 `.screen` 是 `position:absolute; z-index:10`
+                   （定位元素本來就畫在流內容之上，與 DOM 先後無關），桌機的
+                   `.rootpane` 在有堆疊時是 `display:none`。兩個斷點都實測過。
+                ⚠️ **不可改成「有堆疊就不渲染 rootpane」**：那會把分頁的捲動位置與
+                   已抓好的清單全部丟掉，而站上的捲動還原正是靠它留在 DOM 裡。 */}
+            {/* 堆疊（詳情）畫面 —— 手機覆蓋在上方，桌機整頁流動；screen-<key> 供桌機各畫面微調版面 */}
+            {/* key 帶畫面名稱：同深度換不同畫面要重新掛載（進場動畫、內部 state
+                都該重置）；replace() 翻日是同名同深度，key 不變＝不重掛，正是我們
+                要的。前綴同 rootpane，避免兩個兄弟的 key 互撞。 */}
+            {TopScreen && (
+              <div className={`screen screen-${top.screen}`} key={`screen-${stack.length}-${top.screen}`}>
+                <TopScreen {...top.props} />
+              </div>
+            )}
+
             {/* 根分頁畫面（rootpane 對版面透明；桌機開堆疊畫面時隱藏）
                 tab-N 供桌機各分頁專屬版面；grid2 讓工具列在桌機排成雙欄卡片 */}
             {/* key={tab} 讓 React 在切分頁時重新掛載 → paneIn 進場動畫才會重播。
@@ -257,15 +275,6 @@ export default function App() {
               <RootScreen />
             </div>
 
-            {/* 堆疊（詳情）畫面 —— 手機覆蓋在上方，桌機整頁流動；screen-<key> 供桌機各畫面微調版面 */}
-            {/* key 帶畫面名稱：同深度換不同畫面要重新掛載（進場動畫、內部 state
-                都該重置）；replace() 翻日是同名同深度，key 不變＝不重掛，正是我們
-                要的。前綴同 rootpane，避免兩個兄弟的 key 互撞。 */}
-            {TopScreen && (
-              <div className={`screen screen-${top.screen}`} key={`screen-${stack.length}-${top.screen}`}>
-                <TopScreen {...top.props} />
-              </div>
-            )}
 
             {!hideTabBar && <TabBar />}
           </>

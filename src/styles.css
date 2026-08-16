@@ -1906,6 +1906,10 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .artalk-send { flex: 0 0 auto; width: auto; border-radius: 999px;
   padding: 10px var(--space-5); min-height: 44px; }
 .artalk-send:disabled { opacity: .45; cursor: default; }
+/* 字數提示：疊在輸入框右下角，不佔版面（這一頁每一格高度都會換算成角色變小） */
+.artalk-count { position: absolute; right: 96px; bottom: -14px;
+  font-size: var(--text-2xs); color: rgba(244,247,251,.7); }
+.artalk-form { position: relative; }
 
 /* ★ 手勢說明 ＋ 換主題的按鈕。
    ⚠️ 上下滑動與雙指縮放**沒有任何視覺線索**，不講等於沒做。

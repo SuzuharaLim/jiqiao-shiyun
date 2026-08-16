@@ -1855,6 +1855,8 @@ ${buildAlmanacContext(req.user, req.body?.date)}`
 //   ④ 輸出仍走 streamGuarded 的法規／程式碼守門
 //   ⚠️ 要收回這個決定，把 `arTalkLimiter` 前面補上 `requireAuth` 即可。
 const AR_TALK_DAILY_MAX = Number(process.env.AR_TALK_DAILY_MAX || 3000)
+// 單則輸入的字數上限。⚠️ 這是**成本防線**不是排版考量。
+const AR_TALK_MAX_CHARS = Number(process.env.AR_TALK_MAX_CHARS || 500)
 let arTalkDay = '', arTalkCount = 0
 const arTalkLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false,
@@ -1874,9 +1876,20 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
 
   const { messages } = req.body || {}
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: '訊息無效' })
-  // ⚠️ 上限比 /api/ai/chat 更緊：這支沒有登入把關，輸入越短越難被拿去做別的事
+
+  // ★★★★ 輸入長度是**唯一會真的花到錢**的攻擊面：這支端點不需要登入，
+  //   有心人寫個迴圈灌長文就直接轉成 OpenAI 帳單。
+  //   ⚠️ 前端的 maxLength 只是提示，**可以繞過**，這一層才算數。
+  //   ⚠️ 而且要**明確拒絕**（413）而不是默默截斷——默默截斷的話使用者以為
+  //      模型讀完了他打的東西，實際上只讀了前面一小段。
+  const last = String(messages[messages.length - 1]?.content ?? '')
+  if (!last.trim()) return res.status(400).json({ error: '說點什麼吧' })
+  if (last.length > AR_TALK_MAX_CHARS) {
+    return res.status(413).json({ error: `一次講太多了（${last.length} 字），請縮短到 ${AR_TALK_MAX_CHARS} 字以內。` })
+  }
+  // 歷史仍然逐則截斷（那是我們自己回傳的內容，不是使用者當下打的）
   const hist = messages.slice(-6).map(m => ({
-    role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content || '').slice(0, 300),
+    role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content || '').slice(0, AR_TALK_MAX_CHARS),
   })).filter(m => m.content)
   const lastUser = [...hist].reverse().find(m => m.role === 'user')?.content || ''
 
@@ -2109,6 +2122,14 @@ if (existsSync(distDir)) {
       if (p === '/work/:id') {
         const r = await db.get('SELECT title, term, image_id FROM works WHERE id=?', [slug])
         return r?.image_id ? { url: `/api/images/${r.image_id}`, alt: `${r.title}｜${r.term || '節氣'}攝影` } : null
+      }
+      // ★ AR 卡片與模型頁：用**這張卡自己的卡面圖**，不要全站共用一張預設圖。
+      //   這個產品的核心體驗就是「掃卡片 → 分享」，24 個節氣分享出去長得一模一樣
+      //   很可惜。⚠️ 用卡面而不是即時算繪的角色圖：卡面是既有的靜態檔，
+      //   不必為了預覽圖多養一條動態產圖的服務。
+      if (p === '/ar/model/:slug' || p === '/ar/card/:slug') {
+        const c = OFFICIAL_CARDS.find(x => x.slug === slug)
+        return c?.target ? { url: c.target, alt: `${c.title}｜${c.subtitle}` } : null
       }
       if (p === '/solarterms/:slug') {
         const a = TERM_ARTICLES.find(x => x.slug === slug)

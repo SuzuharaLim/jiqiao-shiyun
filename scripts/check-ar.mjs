@@ -1324,7 +1324,69 @@ const W = 1831, H = 1335
     ok(/\.artalk-aitag \{[^}]*flex: 0 0 auto/.test(SRC.css),
       '★★ 免責標註不可被壓縮（flex: 0 0 auto）')
 
-    // ══════════ 時間感（語言模型沒有時鐘）══════════
+    // ══════════ 成本與濫用（唯一會真的花到錢的攻擊面）══════════
+  //
+  // ★★★★ `/api/ar/talk` 不需要登入 ⇒ 有心人寫個迴圈灌長文就直接轉成 OpenAI 帳單。
+  //   外部稽核實測：輸入框 maxLength = -1，塞 5,200 字前後端都沒擋。
+  {
+    const srv2 = SRC.server
+    // ⚠️ 第一版寫成掃全檔的 /status\(413\)/，但圖片上傳那支也回 413
+    //    ⇒ 把這裡改掉照樣通過（變異測試抓到）。要**只看這支端點的區段**。
+    {
+      const i = srv2.indexOf("app.post('/api/ar/talk'")
+      const seg = srv2.slice(i, srv2.indexOf('streamGuarded', i))
+      // ⚠️ 只檢查「檔案裡有 413」是不夠的：把條件改成 if (false) 之後那一行
+      //    還在，照樣通過（變異測試抓到）。要鎖住**判斷條件本身**。
+      ok(/if \(last\.length > AR_TALK_MAX_CHARS\) \{[\s\S]{0,160}?res\.status\(413\)/.test(seg),
+        '★★★★ 單則輸入超長要回 413（前端 maxLength 可繞過，這層才算數）')
+    }
+    ok(/if \(!last\.trim\(\)\) return res\.status\(400\)/.test(srv2),
+      '★★ 空白輸入要回 400，不可送進模型')
+    // ⚠️ 不可**默默截斷**：使用者以為模型讀完了他打的東西，其實只讀了前一小段。
+    ok(!/content\)\.slice\(0, 300\)/.test(srv2),
+      '★★ 不可默默把使用者的輸入截短（要明確拒絕）')
+    ok(/maxLength=\{MAX_CHARS\}/.test(talk) && /const MAX_CHARS = /.test(talk),
+      '★★ 輸入框要有 maxLength（即時提示；真正的防線在後端）')
+    ok(/artalk-count/.test(talk), '★ 接近上限要有字數提示')
+    ok(/e\?\.status === 413/.test(talk),
+      '★★★ 413／400 要照實顯示，不可混進「訊號不好」（否則使用者一直重送五千字）')
+  }
+
+  // ══════════ 無障礙與資訊架構 ══════════
+  {
+    // ★★★ 3D 角色是這一頁的主角，但 <canvas> 對輔助技術完全不存在。
+    ok(/setAttribute\('role', 'img'\)/.test(model) && /aria-label.*3D 角色/.test(model),
+      '★★★ 角色 canvas 要有 role="img" 與 aria-label')
+    // ★★★ 只有滑鼠拖曳的話，鍵盤使用者連「轉到背面看看」都做不到。
+    ok(/ArrowLeft/.test(model) && /ArrowUp/.test(model) && /addEventListener\('keydown', this\.onKey\)/.test(model),
+      '★★★ 角色要能用方向鍵轉動（手勢不可是唯一操作方式）')
+    ok(/setAttribute\('tabindex', '0'\)/.test(model), '★★ canvas 要可聚焦，鍵盤才到得了')
+
+    // ★★★ 標題階層：堆疊畫面（H1）必須排在根分頁（H2×3）**之前**。
+    //   原本 DOM 是 H2→H2→H2→H1，搜尋引擎與螢幕閱讀器都吃虧。
+    const app = stripComments(read('../src/App.jsx'))
+    ok(app.indexOf('{TopScreen && (') < app.indexOf('className={`rootpane tab-'),
+      '★★★ 堆疊畫面要排在根分頁之前（否則每個詳情頁都是 H2→H2→H2→H1）')
+    // ⚠️ 而且不可以改成「有堆疊就不渲染 rootpane」——那會把分頁的捲動位置與
+    //    已抓好的清單全部丟掉。rootpane 必須仍然無條件渲染。
+    ok(/<div key=\{`root-\$\{tab\}`\} inert=/.test(app),
+      '★★ rootpane 仍要留在 DOM（捲動還原靠它）且有堆疊時要 inert')
+
+    // ★★ 訪客沒有帳號可登出
+    const nav = stripComments(read('../src/components/WebNav.jsx'))
+    ok(/user\?\.guest \? '登入／註冊' : '登出'/.test(nav),
+      '★★ 訪客要顯示「登入／註冊」而不是「登出」')
+
+    // ★★ meta description 不可預設對方已經掃過卡片（這頁不用卡片也能用）
+    const seo = stripComments(read('../server/seo.js'))
+    ok(/不需要實體卡片/.test(seo) && !/掃到卡片之後可以放下卡片/.test(seo),
+      '★★ 模型頁的 description 不可預設使用者已有實體卡')
+    // ★ 分享預覽圖用這張卡自己的卡面，不要全站共用一張
+    ok(/p === '\/ar\/model\/:slug' \|\| p === '\/ar\/card\/:slug'/.test(srv),
+      '★ AR 頁的 og:image 要用該卡的卡面圖')
+  }
+
+  // ══════════ 時間感（語言模型沒有時鐘）══════════
   //
   // ★★★★ 先前系統提示裡完全沒有日期，模型只好把卡片上的「小寒」當成此刻——
   //   8 月的台灣它開口就是「小寒的風有點冷」，問它今天幾號則答「想不出來」。

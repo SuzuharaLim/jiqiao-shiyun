@@ -28,6 +28,9 @@ import { api } from '../api.js'
 //    瀏覽器一樣看得到全部的字，只是不會出聲。絕不可把文字藏在語音後面。
 // ============================================================================
 
+/** 單則輸入的字數上限（與後端的 AR_TALK_MAX_CHARS 一致）。 */
+const MAX_CHARS = 500
+
 /** 說話時的身體起伏。Web Speech API 拿不到音量，所以自己做一條包絡。 */
 const ENVELOPE_MS = 90
 
@@ -299,7 +302,11 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       })
     } catch (e) {
       got = ''
-      meta = { netError: true, message: e?.message }
+      // ⚠️ 400／413 這類「輸入本身有問題」要照實說，不可以混進「訊號不好」——
+      //    使用者會一直重送同一段五千字。
+      meta = e?.status === 413 || e?.status === 400
+        ? { reply: e.message }
+        : { netError: true, message: e?.message }
     }
 
     // ★★★★ **後端的短路分支會回 JSON 而不是 SSE**（婉拒、危機腳本、未設金鑰），
@@ -341,7 +348,10 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
   const submit = (e) => {
     e.preventDefault()
     const t = draft.trim()
-    if (!t || busy) return
+    // ⚠️ 只有空白時也要把欄位清掉：不清的話 placeholder 不會回來，
+    //    使用者看到一個空的、沒有提示字的框，會以為壞了。
+    if (!t) { setDraft(''); return }
+    if (busy) return
     setDraft('')
     // ★★★ AI 是主聲道（見 askAi 的註解）：整張卡的資料都在它的系統提示裡，
     //   所以「品種是什麼」它也答得出來，而且是用聊天的語氣、接得上上一句。
@@ -444,6 +454,9 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
         <form className="artalk-form" onSubmit={submit}>
           <input
             className="artalk-input" type="text" value={draft} disabled={busy}
+            // ⚠️ 這只是**即時提示**，不是防線——前端可以被繞過，
+            //    真正擋成本的是後端的 413（見 server 的 AR_TALK_MAX_CHARS）。
+            maxLength={MAX_CHARS}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={`問問${who}…`}
             aria-label={`輸入想問${who}的問題`}
@@ -452,6 +465,10 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
           <button className="btn-primary tap artalk-send" type="submit" disabled={busy || !draft.trim()}>
             發送
           </button>
+          {/* 快到上限才顯示，平常不佔版面也不干擾 */}
+          {draft.length > MAX_CHARS * 0.8 && (
+            <span className="artalk-count" aria-live="polite">{draft.length}/{MAX_CHARS}</span>
+          )}
         </form>
 
       </div>

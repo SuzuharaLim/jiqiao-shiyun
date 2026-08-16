@@ -38,7 +38,12 @@ export default function WebNav() {
             </span>
             <span className="wn-uname">{user?.name || '使用者'}</span>
           </Link>
-          <button className="wn-logout tap" onClick={logout}>登出</button>
+          {/* ★★ 訪客沒有帳號，「登出」對他毫無意義——他要的是「登入／註冊」。
+              ⚠️ 訪客身分是純前端狀態（`jq-guest`），所以「登入」也要先清掉它，
+                 否則按下去只會回到同一個訪客畫面。`logout()` 本來就會清。 */}
+          <button className="wn-logout tap" onClick={logout}>
+            {user?.guest ? '登入／註冊' : '登出'}
+          </button>
         </div>
       </div>
     </header>

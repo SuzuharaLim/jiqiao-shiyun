@@ -321,6 +321,19 @@ async function ensureAframe() {
         for (const [n, f] of [['mousemove', this.onMove], ['touchmove', this.onMove]]) window.addEventListener(n, f, { passive: true })
         for (const [n, f] of [['mouseup', this.onUp], ['touchend', this.onUp], ['touchcancel', this.onUp]]) window.addEventListener(n, f, { passive: true })
         c.addEventListener('wheel', this.onWheel, { passive: false })
+        // ★★★ 鍵盤操作：方向鍵轉動。⚠️ 手勢是唯一操作方式時，鍵盤與讀屏
+        //   使用者連「轉到背面看看」都做不到——那是這一頁的核心互動。
+        this.onKey = (e) => {
+          const step = e.shiftKey ? 15 : 5
+          if (e.key === 'ArrowLeft') this.yaw -= step
+          else if (e.key === 'ArrowRight') this.yaw += step
+          else if (e.key === 'ArrowUp') this.pitch = Math.max(-35, Math.min(35, this.pitch + step))
+          else if (e.key === 'ArrowDown') this.pitch = Math.max(-35, Math.min(35, this.pitch - step))
+          else return
+          e.preventDefault()
+          this.auto = false
+        }
+        c.addEventListener('keydown', this.onKey)
         this._c = c
       },
       tick(t, dt) {
@@ -337,6 +350,7 @@ async function ensureAframe() {
         for (const [n, f] of [['mousemove', this.onMove], ['touchmove', this.onMove]]) window.removeEventListener(n, f)
         for (const [n, f] of [['mouseup', this.onUp], ['touchend', this.onUp], ['touchcancel', this.onUp]]) window.removeEventListener(n, f)
         this._c?.removeEventListener('wheel', this.onWheel)
+        this._c?.removeEventListener('keydown', this.onKey)
       },
     })
   }
@@ -432,6 +446,18 @@ export default function ArModel({ slug, hotspot }) {
         scene.setAttribute('renderer',
           'colorManagement: true; antialias: true; alpha: true; toneMapping: neutral; exposure: 1.00')
         scene.setAttribute('background', 'transparent: true')
+        // ★★★ 3D 角色是這一頁的主角，但 `<canvas>` 對輔助技術**完全不存在**
+        //   （沒有 role、沒有 aria-label）。A-Frame 的 canvas 是它自己建的，
+        //   所以要等它出現才掛。⚠️ 純圖形內容用 `role="img"` ＋ 一句敘述即可，
+        //   不要試著把 3D 內容做成可讀的樹狀結構。
+        scene.addEventListener('renderstart', () => {
+          const cv = scene.canvas
+          if (!cv) return
+          cv.setAttribute('role', 'img')
+          cv.setAttribute('aria-label', `${card.title}的 3D 角色，可拖曳或用方向鍵轉動觀察`)
+          // ★★ 鍵盤也要能轉：只有滑鼠拖曳的話，鍵盤使用者連「看另一面」都做不到。
+          cv.setAttribute('tabindex', '0')
+        }, { once: true })
         // ★★★ 四盞燈逐項對齊 demo `_6:62-65`（先前四盞全部漂掉，見 ProduceStage 的註解）
         scene.innerHTML = `
           <a-entity light="type: hemisphere; color: #FFFDF0; groundColor: #AFC3DE; intensity: 1.45"></a-entity>

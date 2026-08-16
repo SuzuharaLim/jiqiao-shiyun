@@ -146,7 +146,10 @@ export default function Settings() {
         <ToolRow iconName="dots" title="聯絡我們" sub="客服信箱 · 服務時間" onClick={() => push('contact')} />
 
         <div className="pad">
-          <button className="btn-ghost tap" onClick={() => { setToast('已登出'); logout() }}>登出</button>
+          {/* 訪客沒有帳號可登出，講「登入／註冊」才對得上他看到的東西 */}
+          <button className="btn-ghost tap" onClick={() => { setToast(user?.guest ? '' : '已登出'); logout() }}>
+            {user?.guest ? '登入／註冊' : '登出'}
+          </button>
         </div>
         <div className="center muted" style={{ fontSize: 'var(--text-2xs)', paddingBottom: 16 }}>機巧時運 · 互動原型 v0.1</div>
       </div>
