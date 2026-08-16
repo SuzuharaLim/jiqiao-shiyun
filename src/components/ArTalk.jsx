@@ -111,7 +111,7 @@ function findAnswer(text, card, currentObj) {
 }
 
 export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail,
-  objectId, aiReady }) {
+  objectId }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -253,8 +253,10 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
    *    這裡不做第二套判斷，避免兩份規則分岔——但也因此**不可以繞過後端直接
    *    呼叫模型**。
    * ⚠️ AI 的回答**沒有逐字保證**，所以泡泡上要標記，不可與卡面原文混為一談。
-   * ⚠️ 訪客沒有 session，`/api/ai/chat` 一律 401 ⇒ `aiReady` 為 false 時
-   *    直接走 `findAnswer`，不要讓使用者按了沒反應。
+   * ★★★ **訪客也走這條**：走 `/api/ar/talk`（不需登入，只吃白名單 persona，
+   *    有 IP 與每日總量上限）。掃到卡片的人多半還沒註冊，先前那句罐頭
+   *    「這張卡上沒有寫到」正是他們**唯一**會看到的回答——模型從頭到尾沒被叫用過。
+   * ⚠️ `findAnswer` 只在**這一條也失敗**時接手（網路斷線、額度用完、未設金鑰）。
    */
   const askAi = async (q) => {
     setBusy(true); setThinking(true)
@@ -271,8 +273,14 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     try {
       await api.aiChatStream([...hist, { role: 'user', content: q }], null, {
         persona: objectId,
-        onDelta: (d) => {
-          got += d
+        // ★★★ `onDelta` 給的是**累積到目前為止的全文**，不是增量
+        //   （見 api.js：`full += m.delta; onDelta?.(full, false)`）。
+        //   寫成 `got += d` 會變成「嗨嗨嗨嗨…」這種平方級的亂碼，
+        //   而且**被守門攔下時的 `replace` 也會被接在髒字後面**——那正是
+        //   守門要移除的東西。這個 bug 我寫進去兩版都沒發現，因為 AI 那條路
+        //   在本機從來沒被真的跑起來過（訪客一律 401）。
+        onDelta: (full) => {
+          got = full
           setThinking(false)
           try { a?.setAction('nod') } catch { /* ignore */ }
           // 逐字長出來（像外面的聊天機器人），不要等整段收完才出現
@@ -290,10 +298,12 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       // ⚠️ AI 失敗時**退回卡片資料**（而不是一句空泛的道歉）：網路抖一下不該
       //    讓「品種是什麼」這種卡上明明有的問題也答不出來。
       const hit = findAnswer(q, card, obj)
-      const known = asks.slice(0, 2).map(x => x.q).join('、')
       setLog(l => [...l, hit
         ? { who: 'char', text: hit.a, source: hit.source }
-        : { who: 'char', text: `唔，我一時答不上來。卡片上寫的我都可以聊${known ? `，像是${known}` : ''}` }])
+        // ⚠️ 這一句只在「AI 也失敗、卡片也查不到」時才會出現（網路斷線之類）。
+        //    不要再列一串「你可以問我：…」——那讀起來像機器在給選單，
+        //    而使用者要的是它自己想一下。
+        : { who: 'char', text: '唔…剛剛沒聽清楚，網路好像卡了一下。再問我一次？' }])
     }
     setThinking(false)
     try { a?.setAction('present') } catch { /* ignore */ }
@@ -312,7 +322,9 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     setDraft('')
     // ★★★ AI 是主聲道（見 askAi 的註解）：整張卡的資料都在它的系統提示裡，
     //   所以「品種是什麼」它也答得出來，而且是用聊天的語氣、接得上上一句。
-    if (aiReady && objectId) { askAi(t); return }
+    // ★★★ 訪客也走 AI（`/api/ar/talk` 不需登入）——掃到卡片的人多半還沒註冊，
+    //   而先前那句罐頭「這張卡上沒有寫到」正是他們**唯一**會看到的回答。
+    if (objectId) { askAi(t); return }
 
     // ── 以下是**降級路徑**：沒有 AI 可用（訪客沒有 session ⇒ 一律 401）──
     const hit = findAnswer(t, card, obj)

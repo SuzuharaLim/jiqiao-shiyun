@@ -1214,10 +1214,28 @@ const W = 1831, H = 1335
       '★★★ persona 必須是伺服器端白名單（前端只能送 id，不能送系統提示）')
     ok(/const persona = typeof req\.body\?\.persona === 'string'/.test(srv),
       '★★ persona 只接字串 id')
-    ok(/persona && HEALTH_RE\.test\(text\)/.test(srv) && /healthGate\(\)/.test(srv),
+    ok(/persona && HEALTH_RE\.test\(text\)/.test(srv) && /gate\('health', AR_HEALTH_REFUSAL\)/.test(srv),
       '★★★★ 法規守門要接在串流的輸出檢查上（建置期閘門掃不到 AI 生成的字）')
-    ok(/sse\(\{ replace: AR_HEALTH_REFUSAL \}\)/.test(srv),
+    ok(/sse\(\{ replace: replaceWith \}\)/.test(srv),
       '★★ 攔到要**整段換掉**，不是刪字（半句被挖空讀起來像壞掉）')
+    // ★★★★ 守門只能有**一份實作**：兩份遲早分岔，而分岔的那一份不會有人發現
+    //   （它平常永遠通過）。兩支端點都必須走同一個 streamGuarded。
+    ok((srv.match(/async function streamGuarded/g) || []).length === 1
+      && (srv.match(/HEALTH_RE\.test/g) || []).length === 1,
+      '★★★★ 法規守門只能有一份實作（兩支端點共用 streamGuarded）')
+    ok(/streamGuarded\(res, \{ sys: persona/.test(srv) && /streamGuarded\(res, \{\s*\n?\s*sys, hist/.test(srv),
+      '★★ /api/ar/talk 與 /api/ai/chat 都要走 streamGuarded')
+
+    // ★★★ 訪客也要走得到模型：掃到卡片的人多半還沒註冊，走 /api/ai/chat 的話
+    //   requireAuth 一律 401 ⇒ 模型從頭到尾不會被叫用，使用者只會看到罐頭回覆。
+    ok(/app\.post\('\/api\/ar\/talk', arTalkLimiter/.test(srv),
+      '★★★ /api/ar/talk 不可加 requireAuth（訪客是這條動線的主要客群）')
+    ok(/if \(!persona\) return res\.status\(400\)/.test(srv),
+      '★★★ 沒有登入把關 ⇒ persona 不合法一律拒絕（這支只服務官方卡包）')
+    ok(/AR_TALK_DAILY_MAX/.test(srv) && /arTalkCount >= AR_TALK_DAILY_MAX/.test(srv),
+      '★★★ 沒有登入把關 ⇒ 要有每日總量上限（被濫用時停掉，不是把帳單燒穿）')
+    ok(/const arTalkLimiter = rateLimit/.test(srv),
+      '★★ /api/ar/talk 要有 IP 速率限制')
 
     // ★★★ 負向檢查要先證明自己抓得到。樣本就是使用者參考圖上的原文，
     //   以及最典型的療效說法。
@@ -1245,8 +1263,19 @@ const W = 1831, H = 1335
       '★★★ AI 生成的回覆要標記（它沒有出處，不可與卡面資料混在一起）')
     // ⚠️ 訪客沒有 session ⇒ /api/ai/chat 一律 401 ⇒ 要走誠實的「卡上沒寫到」，
     //    不可以讓使用者按了沒反應。
-    ok(/aiReady && objectId/.test(talk) && /這張卡上沒有寫到這個/.test(talk),
-      '★★ 沒有 AI 可用時要退回誠實的答案（訪客一定會走到這條）')
+    // ⚠️ 不再看有沒有登入——訪客走 /api/ar/talk。但 `findAnswer` 仍是降級路徑
+    //   （未設金鑰、額度用完、網路斷線），不可以刪掉。
+    ok(/if \(objectId\) \{ askAi\(t\); return \}/.test(talk) && !/aiReady/.test(talk),
+      '★★★ 訪客也要走 AI（不可再用「有沒有登入」當條件）')
+    ok(/const hit = findAnswer\(t, card, obj\)/.test(talk),
+      '★★ AI 走不通時仍要用卡片資料回答（未設金鑰／額度用完／斷線）')
+    // ★★★★ `onDelta` 給的是**累積全文**不是增量（api.js：`full += m.delta;
+    //   onDelta?.(full, false)`）。寫成 `got += d` 會變成平方級的重複亂碼，
+    //   而且**被守門攔下時的 replace 會被接在髒字後面**——那正是守門要移除的
+    //   東西。這個 bug 寫進去兩版都沒被發現，因為 AI 那條路在本機從來沒被真的
+    //   跑起來過（訪客一律 401）。
+    ok(/onDelta: \(full\) =>/.test(talk) && /got = full/.test(talk) && !/got \+=/.test(talk),
+      '★★★★ onDelta 收到的是累積全文，不可以再累加（否則守門的 replace 會失效）')
     // ★★★ 2026-08-11 使用者指定把兩層對調：**AI 是主聲道，卡片資料是它查得到
     //   的資料**。所以整張卡（含其他熱區）都要進伺服器端的系統提示——否則問
     //   「臘八是哪一天」它會說不知道，而卡片上明明就有。

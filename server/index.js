@@ -1607,8 +1607,93 @@ const AI_ABUSE_RE = new RegExp([
 const looksLikeCode = (t) => /```/.test(t)
   || /^\s*(?:function|const|let|var|import|export|def|class|public\s+static|#include|<\?php|SELECT\s+[\s\S]*\sFROM)\b/mi.test(t)
 
+// ════════════════ 串流 ＋ 輸出守門（兩支端點共用）════════════════
+//
+// ★★★★ **這一份不可以被複製成第二份。** 裡面有法規守門（HEALTH_RE）與程式碼
+//   守門，是執行期唯一的防線；兩份實作遲早會分岔，而分岔的那一份不會有人發現
+//   ——它平常永遠通過。`/api/ai/chat` 與 `/api/ar/talk` 都走這裡。
+//
+// ⚠️ 串流會弱化輸出守門：文字一段段送出去，等收完才檢查就已經到瀏覽器了。
+//    作法是前 HOLD 個字先扣住不送，湊夠了做一次完整判定；放行之後仍逐塊檢查。
+//    真的被繞過就送 replace 事件，前端整段換掉。
+async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock }) {
+  const HOLD = 48
+  let sentHeaders = false
+  const sse = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
+  try {
+    const { r, preread } = await callOpenAI({
+      messages: [{ role: 'system', content: sys }, ...hist],
+      stream: true, maxTokens, timeoutMs: 25000,
+    })
+    if (!r.ok) {
+      const detail = (preread ?? await r.text().catch(() => '')).slice(0, 400)
+      console.error('[ai] upstream', r.status, detail)
+      lastAiError = { at: now(), status: r.status, detail }
+      const cfgBroken = [400, 401, 403, 404].includes(r.status)
+      return { httpError: cfgBroken ? 503 : 502, cfgBroken }
+    }
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+    res.flushHeaders?.()
+    sentHeaders = true
+
+    let buf = '', full = '', released = false, blocked = false
+    const gate = async (kind, replaceWith) => {
+      console.warn('[ai] 攔截：' + kind)
+      blocked = true
+      await onBlock?.(kind)
+      sse({ replace: replaceWith })
+    }
+    /** 兩道守門合一：回 true 代表已攔截。 */
+    const bad = async (text) => {
+      if (looksLikeCode(text)) { await gate('code', AI_REFUSAL); return true }
+      if (persona && HEALTH_RE.test(text)) { await gate('health', AR_HEALTH_REFUSAL); return true }
+      return false
+    }
+
+    for await (const chunk of r.body) {
+      buf += Buffer.from(chunk).toString('utf8')
+      const events = buf.split(`\n\n`); buf = events.pop() || ''
+      for (const ev of events) {
+        const line = ev.split('\n').find(l => l.startsWith('data:'))
+        if (!line) continue
+        const payload = line.slice(5).trim()
+        if (payload === '[DONE]') continue
+        let piece = ''
+        try { piece = JSON.parse(payload).choices?.[0]?.delta?.content || '' } catch { continue }
+        if (!piece || blocked) continue
+        full += piece
+        if (!released) {
+          if (full.length < HOLD) continue
+          if (await bad(full)) break
+          released = true
+          sse({ delta: full })
+        } else {
+          if (await bad(full)) break
+          sse({ delta: piece })
+        }
+      }
+      if (blocked) break
+    }
+    // 回覆很短（不到 HOLD）時，扣住的內容還沒送出去
+    if (!blocked && !released) {
+      if (await bad(full)) { /* 已攔截 */ }
+      else sse({ delta: full || '（我想不太出來，換個問法試試？）' })
+    }
+    sse({ done: true })
+    res.end()
+    return { ok: true }
+  } catch (e) {
+    console.error('[ai]', e.message)
+    if (sentHeaders) { sse({ error: 'AI 連線中斷，請稍後再試' }); res.end(); return { ok: false } }
+    return { httpError: 504 }
+  }
+}
+
 app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res) => {
-  const { messages, context } = req.body || {}
+  const { messages } = req.body || {}
   if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: '訊息無效' })
   if (!OPENAI_KEY) return res.json({ fallback: true })     // 未設金鑰 → 前端用內建示範回覆
   const hist = messages.slice(-12).map(m => ({
@@ -1622,114 +1707,71 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     return res.json({ reply: AI_REFUSAL, refused: true })
   }
 
-  // ★★★ AR 卡片角色：persona **只能是白名單裡的 id**，系統提示由伺服器產生。
-  //   讓前端送自由字串等於把系統提示的控制權交出去（prompt injection 的正門）。
-  const persona = typeof req.body?.persona === 'string' ? AR_PERSONAS[req.body.persona] : null
-
   // ⚠️ 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
   //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
-  const sys = persona || (AI_SYSTEM + `\n\n【曆訊｜以下數字一律照抄，不得自行推算】\n${buildAlmanacContext(req.user, req.body?.date)}`)
+  const sys = AI_SYSTEM + `
 
-  // ---------- 串流回應（SSE）----------
-  // 沒有串流的 AI 對話，體感就是「三個點轉很久然後整段砸出來」。
-  // 這裡把 OpenAI 的串流轉成自訂的 SSE 事件：{delta}｜{replace}｜{done}｜{error}
-  //
-  // ⚠️ 串流會弱化「輸出守門」——文字是一段一段送出去的，等全部收完才檢查
-  //    就已經送到瀏覽器了。作法：前 HOLD 個字先扣住不送，湊夠了才做一次
-  //    完整判定；放行之後仍逐塊檢查有沒有冒出程式碼圍籬。
-  //    真的被繞過就送 replace 事件，前端整段換成婉拒。
-  const HOLD = 48
-  let sentHeaders = false
-  const sse = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
-  try {
-    const { r, preread } = await callOpenAI({
-      messages: [{ role: 'system', content: sys }, ...hist],
-      stream: true, maxTokens: 500, timeoutMs: 25000,
+【曆訊｜以下數字一律照抄，不得自行推算】
+${buildAlmanacContext(req.user, req.body?.date)}`
+
+  const out = await streamGuarded(res, {
+    sys, hist, persona: null, maxTokens: 500,
+    onBlock: (kind) => audit(kind === 'health' ? 'ai_health_claim' : 'ai_offtopic_output',
+      req, req.user.id, lastUser.slice(0, 80)),
+  })
+  if (out?.ok) { await audit('ai_chat', req, req.user.id); return }
+  if (out?.httpError) {
+    return res.status(out.httpError).json({
+      error: out.cfgBroken
+        ? 'AI 顧問目前無法使用（服務設定有誤，我們已收到通知）'
+        : (out.httpError === 504 ? 'AI 連線逾時，請稍後再試' : 'AI 顧問暫時忙線，請稍後再試'),
     })
-    if (!r.ok) {
-      const detail = (preread ?? await r.text().catch(() => '')).slice(0, 400)
-      console.error('[ai] upstream', r.status, detail)
-      lastAiError = { at: now(), status: r.status, detail }   // 供管理後台診斷
-      // ⚠️ 上游的失敗要分「設定錯了」和「暫時性」兩類：
-      //    金鑰無效／模型名稱不存在／額度用完，重試一萬次都不會好，
-      //    卻回「線路不穩，再試一次」等於叫使用者做白工，也讓你查不到真因。
-      const cfgBroken = [400, 401, 403, 404].includes(r.status)
-      return res.status(cfgBroken ? 503 : 502).json({
-        error: cfgBroken
-          ? 'AI 顧問目前無法使用（服務設定有誤，我們已收到通知）'
-          : 'AI 服務忙碌中，請稍後再試',
-      })
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-    res.setHeader('Cache-Control', 'no-cache, no-transform')
-    res.setHeader('Connection', 'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no')   // 若日後前面擺代理，避免整包被緩衝掉
-    res.flushHeaders?.()
-    sentHeaders = true
-
-    let buf = '', full = '', released = false, blocked = false
-    const gate = async () => {
-      console.warn('[ai] 攔截到程式碼輸出，已改為婉拒')
-      await audit('ai_offtopic_output', req, req.user.id, lastUser.slice(0, 80))
-      blocked = true
-      sse({ replace: AI_REFUSAL })
-    }
-    // ★★★ 法規守門（只在 persona 模式）：建置期的閘門掃不到 AI 生成的字，
-    //   這一層是唯一的防線。攔到就整段換掉，不是刪字——半句被挖空的句子
-    //   讀起來像亂碼，而且使用者會以為是網路壞了再問一次。
-    const healthGate = async () => {
-      console.warn('[ai] 攔截到營養／保健宣稱，已改為婉拒')
-      await audit('ai_health_claim', req, req.user.id, lastUser.slice(0, 80))
-      blocked = true
-      sse({ replace: AR_HEALTH_REFUSAL })
-    }
-    /** 兩道守門合一：回 true 代表已攔截。 */
-    const bad = async (text) => {
-      if (looksLikeCode(text)) { await gate(); return true }
-      if (persona && HEALTH_RE.test(text)) { await healthGate(); return true }
-      return false
-    }
-
-    for await (const chunk of r.body) {
-      buf += Buffer.from(chunk).toString('utf8')
-      // OpenAI 的 SSE 以空行分隔事件；最後一段可能不完整，留在 buf 等下一輪
-      const events = buf.split('\n\n'); buf = events.pop() || ''
-      for (const ev of events) {
-        const line = ev.split('\n').find(l => l.startsWith('data:'))
-        if (!line) continue
-        const payload = line.slice(5).trim()
-        if (payload === '[DONE]') continue
-        let piece = ''
-        try { piece = JSON.parse(payload).choices?.[0]?.delta?.content || '' } catch { continue }
-        if (!piece || blocked) continue
-        full += piece
-        if (!released) {
-          if (full.length < HOLD) continue          // 還沒湊夠，先扣住
-          if (await bad(full)) break
-          released = true
-          sse({ delta: full })                      // 一次把扣住的放行
-        } else {
-          if (await bad(full)) break
-          sse({ delta: piece })
-        }
-      }
-      if (blocked) break
-    }
-    // 回覆很短（不到 HOLD）時，扣住的內容還沒送出去
-    if (!blocked && !released) {
-      if (await bad(full)) { /* 已攔截 */ }
-      else sse({ delta: full || '（目前沒有想法，換個問法試試？）' })
-    }
-    await audit('ai_chat', req, req.user.id)
-    sse({ done: true })
-    res.end()
-  } catch (e) {
-    console.error('[ai]', e.message)
-    // 已經開始串流就不能再改狀態碼，只能用事件告知前端
-    if (sentHeaders) { sse({ error: 'AI 連線中斷，請稍後再試' }); res.end() }
-    else res.status(504).json({ error: 'AI 連線逾時，請稍後再試' })
   }
+}))
+
+// ════════════════ 跟 AR 卡片角色說話（**訪客也能用**）════════════════
+//
+// ★★★ 為什麼要獨立一支、而且不擋登入：
+//   掃到卡片的人**多半是第一次來、還沒註冊**——那正是這條動線的主要客群。
+//   走 `/api/ai/chat` 的話 `requireAuth` 會一律 401，於是每個訪客得到的都是
+//   一句罐頭「這張卡上沒有寫到」，模型從頭到尾沒有被叫用過。
+//
+// ⚠️ 代價是這支端點**沒有登入把關**，會直接消耗 OpenAI 額度。防護有四層：
+//   ① persona 必須命中白名單（系統提示由伺服器產生，前端只送 id）
+//   ② 每個 IP 每小時 40 次
+//   ③ **全站每日總量上限**（AR_TALK_DAILY_MAX）——被大量濫用時整支停掉，
+//      回 fallback 讓前端退回卡片資料，而不是把帳單燒穿
+//   ④ 輸出仍走 streamGuarded 的法規／程式碼守門
+//   ⚠️ 要收回這個決定，把 `arTalkLimiter` 前面補上 `requireAuth` 即可。
+const AR_TALK_DAILY_MAX = Number(process.env.AR_TALK_DAILY_MAX || 3000)
+let arTalkDay = '', arTalkCount = 0
+const arTalkLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  message: { error: '問得有點快，休息一下再聊 🌾' },
+})
+app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
+  const persona = typeof req.body?.persona === 'string' ? AR_PERSONAS[req.body.persona] : null
+  // ⚠️ persona 不合法就直接拒絕——這支端點**只**服務官方卡包的角色。
+  if (!persona) return res.status(400).json({ error: '未知的角色' })
+  if (!OPENAI_KEY) return res.json({ fallback: true })
+
+  const today = new Date().toISOString().slice(0, 10)
+  if (arTalkDay !== today) { arTalkDay = today; arTalkCount = 0 }
+  if (arTalkCount >= AR_TALK_DAILY_MAX) return res.json({ fallback: true })
+  arTalkCount++
+
+  const { messages } = req.body || {}
+  if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: '訊息無效' })
+  // ⚠️ 上限比 /api/ai/chat 更緊：這支沒有登入把關，輸入越短越難被拿去做別的事
+  const hist = messages.slice(-6).map(m => ({
+    role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content || '').slice(0, 300),
+  })).filter(m => m.content)
+  const lastUser = [...hist].reverse().find(m => m.role === 'user')?.content || ''
+  if (AI_ABUSE_RE.test(lastUser)) return res.json({ reply: AI_REFUSAL, refused: true })
+
+  const out = await streamGuarded(res, { sys: persona, hist, persona: true, maxTokens: 260 })
+  if (out?.httpError) return res.status(out.httpError).json({ error: 'AI 暫時無法回答，稍後再試' })
 }))
 
 // 健康檢查（含 DB 驅動別、金流、AI、寄信是否已接）

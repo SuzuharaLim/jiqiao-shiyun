@@ -149,9 +149,12 @@ export const api = {
 
     let res
     try {
-      res = await fetch('/api/ai/chat', {
+      // ★★★ AR 卡片角色走**不需登入**的 /api/ar/talk：掃到卡片的人多半還沒
+      //   註冊，走 /api/ai/chat 的話 requireAuth 會一律 401，模型從頭到尾不會
+      //   被叫用。⚠️ 那支端點只吃白名單 persona，且有 IP 與每日總量上限。
+      res = await fetch(persona ? '/api/ar/talk' : '/api/ai/chat', {
         method: 'POST', credentials: 'include', headers, signal: ctrl.signal,
-        body: JSON.stringify({ messages, context, date, persona }),
+        body: JSON.stringify(persona ? { messages, persona } : { messages, context, date }),
       })
     } catch (e) {
       clearTimeout(timer); signal?.removeEventListener('abort', abort)
