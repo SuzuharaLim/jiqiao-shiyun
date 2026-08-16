@@ -239,21 +239,22 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
   }
 
   /**
-   * 卡片上查不到時，交給站上的 AI 顧問（persona 模式）回答「相關」的問題。
+   * 跟角色聊天。**AI 是主聲道，卡片資料是它查得到的資料**（2026-08-11 使用者指定）。
    *
-   * ★ 這是刻意的兩層設計，順序不可對調：
-   *   ① `findAnswer` 先在**卡片自己的資料**裡找 → 命中就逐字回答並附上出處。
-   *      卡上寫得出來的事，永遠由這一層回答，不會被模型改寫。
-   *   ② 卡上沒寫但相關的（怎麼煮、產季、節氣民俗…）才走到這裡。
+   * ★ 先前的設計是反過來的：卡上有的由 `findAnswer` 逐字回答、沒有的才問 AI。
+   *   那樣讀起來像查詢機——問一句答一句、句句附出處、不會寒暄也接不了上一句。
+   *   現在整張卡的資料都放進伺服器端的系統提示（`AR_PERSONAS`），由模型自己去
+   *   引用，並被要求「數字、品種名、地名、日期一律照抄並附出處」。
+   *   ⇒ `findAnswer` 退居**降級路徑**：沒有 AI（訪客未登入）或 AI 失敗時才用。
    *
    * ⚠️⚠️ **法規**：模型扮演一顆白菜時，兩三句內就會自己講到維生素——那受
    *    《食品安全衛生管理法》規範。建置期的閘門（check-ar.mjs G 段）**掃不到
    *    執行期的 AI 輸出**，所以守門做在**伺服器**（`HEALTH_RE`，攔到整段換掉）。
    *    這裡不做第二套判斷，避免兩份規則分岔——但也因此**不可以繞過後端直接
    *    呼叫模型**。
-   * ⚠️ AI 的回答**沒有出處**，所以泡泡上要標記，不可與有出處的卡面資料混在一起。
+   * ⚠️ AI 的回答**沒有逐字保證**，所以泡泡上要標記，不可與卡面原文混為一談。
    * ⚠️ 訪客沒有 session，`/api/ai/chat` 一律 401 ⇒ `aiReady` 為 false 時
-   *    走誠實的「這張卡上沒有寫到」，不要讓使用者按了沒反應。
+   *    直接走 `findAnswer`，不要讓使用者按了沒反應。
    */
   const askAi = async (q) => {
     setBusy(true); setThinking(true)
@@ -286,9 +287,13 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
       got = ''
     }
     if (!got) {
-      // 失敗就退回誠實的答案，不可以卡在「思考中」
+      // ⚠️ AI 失敗時**退回卡片資料**（而不是一句空泛的道歉）：網路抖一下不該
+      //    讓「品種是什麼」這種卡上明明有的問題也答不出來。
+      const hit = findAnswer(q, card, obj)
       const known = asks.slice(0, 2).map(x => x.q).join('、')
-      setLog(l => [...l, { who: 'char', text: `唔，我一時答不上來。卡片上寫的我都可以聊${known ? `，像是${known}` : ''}` }])
+      setLog(l => [...l, hit
+        ? { who: 'char', text: hit.a, source: hit.source }
+        : { who: 'char', text: `唔，我一時答不上來。卡片上寫的我都可以聊${known ? `，像是${known}` : ''}` }])
     }
     setThinking(false)
     try { a?.setAction('present') } catch { /* ignore */ }
@@ -305,14 +310,17 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     const t = draft.trim()
     if (!t || busy) return
     setDraft('')
+    // ★★★ AI 是主聲道（見 askAi 的註解）：整張卡的資料都在它的系統提示裡，
+    //   所以「品種是什麼」它也答得出來，而且是用聊天的語氣、接得上上一句。
+    if (aiReady && objectId) { askAi(t); return }
+
+    // ── 以下是**降級路徑**：沒有 AI 可用（訪客沒有 session ⇒ 一律 401）──
     const hit = findAnswer(t, card, obj)
     if (hit) {
-      // 命中就照一般問答走（答案逐字用 fact.value）
+      // 卡片資料逐字回答（附出處）
       say({ q: t, a: hit.a, source: hit.source, act: hit.act })
       return
     }
-    // ★ 卡上沒寫但相關的問題 → 交給 AI 顧問（見 askAi 的註解）。
-    if (aiReady && objectId) { askAi(t); return }
     // ★★★ 沒有 AI 可用（訪客沒有 session）時就**明說查不到**，不可以掰。
     //   同時把「我知道什麼」列出來——只說「不知道」等於把人丟在原地。
     const known = asks.slice(0, 3).map(a => a.q).join('　')

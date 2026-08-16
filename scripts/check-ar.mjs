@@ -1247,10 +1247,33 @@ const W = 1831, H = 1335
     //    不可以讓使用者按了沒反應。
     ok(/aiReady && objectId/.test(talk) && /這張卡上沒有寫到這個/.test(talk),
       '★★ 沒有 AI 可用時要退回誠實的答案（訪客一定會走到這條）')
-    // ⚠️ 順序不可對調：卡上寫得出來的永遠由 findAnswer 逐字回答（有出處），
-    //    AI 只處理「卡上沒寫但相關」的。
-    ok(talk.indexOf('const hit = findAnswer') < talk.indexOf('if (aiReady && objectId)'),
-      '★★★ 先查卡片再問 AI（卡上有的必須逐字回答，不可交給模型改寫）')
+    // ★★★ 2026-08-11 使用者指定把兩層對調：**AI 是主聲道，卡片資料是它查得到
+    //   的資料**。所以整張卡（含其他熱區）都要進伺服器端的系統提示——否則問
+    //   「臘八是哪一天」它會說不知道，而卡片上明明就有。
+    ok(/【同一張卡上的其他資料/.test(srv) && /h\.objectId !== hs\.objectId/.test(srv),
+      '★★★ persona 要帶整張卡的資料（不只自己那一格），模型才答得出別區的東西')
+    // ⚠️ 第一版寫成 `/一律照抄/.test(srv)`，但曆訊那段也有「數字一律照抄」
+    //    ⇒ 拿掉這裡照樣通過（變異測試抓到）。要**只看 AR_PERSONA_RULES 那一塊**。
+    {
+      const i = srv.indexOf('const AR_PERSONA_RULES')
+      const rules = i < 0 ? '' : srv.slice(i, srv.indexOf('].join', i))
+      ok(/一律照抄/.test(rules) && /附上出處/.test(rules),
+        '★★★ 角色的規則裡要求數字／品種／地名／日期照抄並附出處（聊天不等於可以改寫資料）')
+      ok(/聊天/.test(rules) && /寒暄/.test(rules),
+        '★★ 角色的規則要明講「像朋友聊天」（先前的版本讀起來像查詢機）')
+      ok(/不是卡片上寫的/.test(rules),
+        '★★★ 憑常識聊的部分要讓對方知道那不是卡片上寫的')
+    }
+    // ⚠️ `findAnswer` **不可以被刪掉**：它現在是降級路徑。訪客沒有 session ⇒
+    //    /api/ai/chat 一律 401，那是常態不是例外；AI 失敗時也要退回它，
+    //    否則網路抖一下連「品種是什麼」這種卡上明明有的問題都答不出來。
+    ok(/const hit = findAnswer\(q, card, obj\)/.test(talk),
+      '★★★ AI 失敗要退回卡片資料（不可只給一句空泛的道歉）')
+    {
+      const sub = talk.slice(talk.indexOf('const submit ='))
+      ok(sub.indexOf('if (aiReady && objectId)') < sub.indexOf('const hit = findAnswer'),
+        '★★ AI 是主聲道：有 AI 時走 AI，findAnswer 只在沒有 AI 時接手')
+    }
   }
 
   ok(/onDetail && \(/.test(talk) && /artalk-opt/.test(talk)
