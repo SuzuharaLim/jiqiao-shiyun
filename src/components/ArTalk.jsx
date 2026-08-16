@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { speechSupported, speak } from '../lib/speak.js'
 import { objectForHotspot } from '../data/arCards.js'
 import { cardTimeContext, greetingFor } from '../data/cardTime.js'
+import { earnBadge, hasBadge, BADGES } from '../lib/arBadges.js'
 import { api } from '../api.js'
 
 // ============================================================================
@@ -115,7 +116,7 @@ function findAnswer(text, card, currentObj) {
 }
 
 export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpen, onDetail,
-  objectId, onLayout }) {
+  objectId, onLayout, loggedIn }) {
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   // ★★★ `thinking` 與 `busy` **不是同一件事**，分開是必要的：
@@ -126,6 +127,12 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
   //   絕不可把文字藏在語音後面」那條原則，而且看起來只是「反應有點慢」。
   const [thinking, setThinking] = useState(false)
   const [draft, setDraft] = useState('')
+  // ★★★ 小挑戰**在對話串裡**進行（2026-08-16 使用者指定）：題目由角色在泡泡裡
+  //   問出來，選項暫時取代下面那一排 chip，答完再由角色回饋。
+  //   ⚠️ 這一版把彈窗裡的 ArQuiz 從模型頁移除了——同一段動線不該有兩套出題 UI。
+  //      `/ar/card/:slug`（沒有對話框的那一頁）仍然用 ArQuiz。
+  //   ⚠️ 站上的題目**全部是複選**，所以不能做成「點一下就作答」，要能勾選再送出。
+  const [qz, setQz] = useState(null)   // { picked: string[] }
   const logRef = useRef(null)
   const speechRef = useRef(null)
   const envRef = useRef(0)
@@ -159,6 +166,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     //   是現在式，只有真的在小寒那段時間才成立。8 月的台灣講這句話，
     //   使用者的第一反應是「這東西壞了」。三種語態見 `cardTime.js`。
     setThinking(false)
+    setQz(null)
     setLog(obj ? [{ who: 'char', text: greetingFor(obj, cardTimeContext(card)), intro: true }] : [])
     setBusy(false)
   }, [obj, card, hush])
@@ -344,6 +352,54 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
     }
   }
 
+  /**
+   * 出題 —— **在對話串裡**，不彈出另一套 UI。
+   *
+   * ⚠️ 已經有徽章時，要在**題目之前**先講（而且寫成邀請）。掛在送出鈕底下、
+   *    作答之前就說「你已經有這一枚徽章了」，讀起來像「你做這題也沒用」。
+   */
+  const askQuiz = () => {
+    if (busy || !obj?.quiz) return
+    const owned = obj.quiz.badge ? hasBadge(obj.quiz.badge) : false
+    setLog(l => [...l,
+      { who: 'me', text: '考考我' },
+      { who: 'char', text: (owned ? '這枚徽章你已經有了，再玩一次也行——\n' : '好啊，聽好囉——\n') + obj.quiz.question },
+    ])
+    setQz({ picked: [] })
+    try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
+    if (speechSupported()) { try { speechRef.current = speak(obj.quiz.question, {}) } catch { /* ignore */ } }
+  }
+
+  const togglePick = (k) => setQz(q => (q
+    ? { picked: q.picked.includes(k) ? q.picked.filter(x => x !== k) : [...q.picked, k] }
+    : q))
+
+  /** 作答。⚠️ 答錯不扣分、不鎖、不記次數（與卡片頁同一個原則）。 */
+  const answerQuiz = () => {
+    const quiz = obj?.quiz
+    if (!quiz || !qz?.picked.length) return
+    const right = quiz.options.filter(o => o.correct).map(o => o.key).sort().join(',')
+    const ok = [...qz.picked].sort().join(',') === right
+    const names = quiz.options.filter(o => o.correct).map(o => o.label).join('、')
+    let fresh = false
+    if (ok && quiz.badge) fresh = earnBadge(quiz.badge, { loggedIn })
+    const badgeName = quiz.badge ? (BADGES?.[quiz.badge]?.name || quiz.badge) : ''
+    const lines = [
+      ok ? '答對了！' : `還差一點——正解是${names}。`,
+      quiz.note || '',
+      // ★★ 徽章狀態在**作答之後**才是重點
+      ok && fresh && badgeName ? `你拿到徽章：${badgeName}` : '',
+    ].filter(Boolean)
+    setLog(l => [...l,
+      // ⚠️ 這一行是**作答**不是提問，標籤要跟著換（「你問：彰化、雲林」讀起來很怪）
+      { who: 'me', text: quiz.options.filter(o => qz.picked.includes(o.key)).map(o => o.label).join('、'), answer: true },
+      { who: 'char', text: lines.join('\n') },
+    ])
+    setQz(null)
+    try { actorRef?.current?.setAction(ok ? 'happy' : 'shy') } catch { /* ignore */ }
+    if (speechSupported()) { try { speechRef.current = speak(lines.join('。'), {}) } catch { /* ignore */ } }
+  }
+
   /** 使用者手打的問題。 */
   const submit = (e) => {
     e.preventDefault()
@@ -381,7 +437,8 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
 
   // 泡泡裡放**最新一句角色的話**；先前的往來收在上面那個可捲的小紀錄裡。
   const latest = [...log].reverse().find(m => m.who === 'char')
-  const lastAsked = [...log].reverse().find(m => m.who === 'me')?.text ?? null
+  const lastMe = [...log].reverse().find(m => m.who === 'me') ?? null
+  const lastAsked = lastMe?.text ?? null
 
   // ★★★ 說話的人**永遠是卡片的主角**（這張卡只有結球白菜有 3D 模型），
   //   上下滑動換的是「在講哪個主題」不是「換一隻角色」。所以問句的稱謂要用
@@ -397,7 +454,7 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
           ⚠️ **不顯示對話紀錄**：先前做過可捲的歷史區，它會把輸入列往下推
              （實測問四題後輸入列跑到 top 984 而視窗只有 889）。 */}
       <div className="artalk-say">
-        {lastAsked && <p className="artalk-asked">你問：{lastAsked}</p>}
+        {lastAsked && <p className="artalk-asked">{lastMe?.answer ? '你答' : '你問'}：{lastAsked}</p>}
         <div className="artalk-bubble">
           {/* ⚠️ 限高與捲動在**內層**：尖角是外層的 ::after 且伸出框外，
               外層一有 overflow 就會把它裁掉（症狀是泡泡變成一塊圓角方塊）。 */}
@@ -429,24 +486,45 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
               · 看詳細資料 → 留在這裡（它是彈窗唯一的入口，而彈窗裡有小挑戰、
                             完整資料與「再掃一次」）。
             ⚠️ 縮小的是視覺重量不是可點範圍：min-height 仍守著 WCAG 2.5.8。 */}
-        <div className="artalk-grid">
-          {obj.quiz && (
-            <button className="artalk-opt tap" disabled={busy} onClick={() => {
-              setLog(l => [...l, { who: 'me', text: '考考我' }, { who: 'char', text: '好啊，我出一題——看跳出來的那張。' }])
-              try { actorRef?.current?.setAction('happy') } catch { /* ignore */ }
-              onQuiz?.()
-            }}>
-              考考我
+        {/* ★★★ 作答中：這一排 chip **暫時變成選項**（使用者指定）。
+            ⚠️ 站上的題目全部是**複選**，所以不能做成「點一下就作答」——
+               要能勾選（`aria-pressed`）再送出。
+            ⚠️ 答錯不扣分、不鎖、不記次數；**送出後才標對錯**，作答中就標紅
+               等於直接給答案（與 `/ar/card/:slug` 同一個原則）。 */}
+        {qz ? (
+          <div className="artalk-grid artalk-grid-quiz">
+            {obj.quiz.options.map(o => (
+              <button key={o.key} type="button"
+                className={`artalk-opt tap${qz.picked.includes(o.key) ? ' on' : ''}`}
+                aria-pressed={qz.picked.includes(o.key)}
+                onClick={() => togglePick(o.key)}>
+                {o.label}
+              </button>
+            ))}
+            <button type="button" className="artalk-opt tap artalk-opt-send"
+              disabled={!qz.picked.length} onClick={answerQuiz}>
+              送出答案
             </button>
-          )}
-          {onDetail && (
-            <button className="artalk-opt tap" type="button"
-              aria-expanded={!!detailOpen} aria-controls="armodel-card"
-              onClick={onDetail}>
-              {detailOpen ? '收起詳細資料' : '看詳細資料'}
+            <button type="button" className="artalk-opt tap" onClick={() => setQz(null)}>
+              先不答
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="artalk-grid">
+            {obj.quiz && (
+              <button className="artalk-opt tap" disabled={busy} onClick={askQuiz}>
+                考考我
+              </button>
+            )}
+            {onDetail && (
+              <button className="artalk-opt tap" type="button"
+                aria-expanded={!!detailOpen} aria-controls="armodel-card"
+                onClick={onDetail}>
+                {detailOpen ? '收起詳細資料' : '看詳細資料'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ★ 手動輸入。
             ⚠️ 這裡**不接語言模型**（理由見檔頭）：先在這張卡自己的資料裡找，

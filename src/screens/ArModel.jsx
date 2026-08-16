@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, Link, SheetMask } from '../components/ui.jsx'
 import { cardBySlug, objectForHotspot } from '../data/arCards.js'
 import { cardTimeContext, cardTimeLabel } from '../data/cardTime.js'
-import { useNav, scrollIntoContainer } from '../store/nav.jsx'
+import { useNav } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
-// 小挑戰與卡片頁共用同一支元件——同一段動線不該有兩套實作
-import ArQuiz from '../components/ArQuiz.jsx'
 // 跟角色說話：點選提問 → 角色回答並開口（腳本化，理由見該檔檔頭）
 import ArTalk from '../components/ArTalk.jsx'
 
@@ -363,7 +361,6 @@ export default function ArModel({ slug, hotspot }) {
   const hostRef = useRef(null)
   // 對話面板用它驅動角色（換動作、開／關說話疊加通道）
   const actorRef = useRef(null)
-  const quizRef = useRef(null)
   const [phase, setPhase] = useState('loading')   // loading | ready | failed
   const [err, setErr] = useState(null)
   // ★ 資料卡預設收起來。這一頁的主角是「跟角色說話」，一整塊條列資料攤在
@@ -620,21 +617,11 @@ export default function ArModel({ slug, hotspot }) {
             // ⚠️ persona 只送 id，系統提示由伺服器產生（白名單）。
             //    ★ 不再看有沒有登入——訪客走 /api/ar/talk，那支不需要 session。
             objectId={spot?.objectId} onLayout={relayout}
+            loggedIn={!!user && !user.guest}
             detailOpen={showCard} onDetail={() => setShowCard(v => !v)}
-            // ⚠️ 不可用 `scrollIntoView`：手機捲的是 `.device .body` 不是 window，
-            //    對那個容器實測完全沒有作用而且是靜默的（實測小挑戰停在 top 1409
-            //    完全沒動）。走 nav.jsx 匯出的共用工具，它會判斷斷點。
-            // ★★★ 小挑戰在資料卡**裡面**，而資料卡預設是收起來的 ⇒ 一定要先展開
-            //   再捲。少了 `setShowCard(true)`，按「考考我」會捲向一個還沒被渲染的
-            //   節點（`quizRef.current` 是 null）＝**畫面上什麼都不會發生**，
-            //   而角色剛剛才說「好啊，往下看——我出一題」。
-            // ⚠️ 展開之後 DOM 還沒長出來，同一輪捲動一定捲不到 ⇒ 要等下一幀。
-            //    這裡用 setTimeout 而不是 rAF：分頁在背景時 rAF 完全不觸發
-            //    （站上已踩過，見 CLAUDE.md 的捲動還原那一段）。
-            onQuiz={() => {
-              setShowCard(true)
-              setTimeout(() => scrollIntoContainer(quizRef.current), 60)
-            }} />
+            // ★★★ 小挑戰已改成**在對話串裡**出題（ArTalk 內部處理），
+            //   所以這裡不再需要「展開資料卡 → 捲到題目」那一整套。
+            />
         </div>
 
 
@@ -683,16 +670,9 @@ export default function ArModel({ slug, hotspot }) {
                     {obj.warn && <p className="scan-hit-warn">{obj.warn}</p>}
                     <SpeakButton obj={obj} className="scan-hit-speak" />
 
-                    {/* ★ 小挑戰 —— 這條動線的「成了！」時刻。
-                        掃到卡片 → 看 3D 角色 → 讀知識卡 → 答題 → 拿徽章。
-                        ⚠️ 用 `.cardp-quiz`（它自己帶 border-top 分隔線），所以放在
-                           知識卡**裡面**、語音按鈕之後——與卡片頁的結構一致。 */}
-                    {obj.quiz && (
-                      <div ref={quizRef}><ArQuiz quiz={obj.quiz} loggedIn={!!user && !user.guest}
-                        term={card.term}
-                        // 圖卡上那句話用**有出處**的 fact，不用 quiz 的解說
-                        fact={obj.facts?.find(f => f.source) ?? obj.facts?.[0]} /></div>
-                    )}
+                    {/* ⚠️ 小挑戰已改成**在對話串裡**出題（使用者指定），
+                        所以這裡不再放 ArQuiz——同一段動線不該有兩套出題 UI。
+                        `/ar/card/:slug`（沒有對話框的那一頁）仍然用 ArQuiz。 */}
                   </div>
 
                   <div className="armodel-acts">

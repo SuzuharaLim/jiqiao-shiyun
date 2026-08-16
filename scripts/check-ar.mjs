@@ -134,6 +134,7 @@ const SRC = {
   cpu: stripComments(read('../src/ar/cpuPipeline.js')),
   css: stripCss(read('../src/styles.css')),
   server: stripComments(read('../server/index.js')),
+  talkRaw: read('../src/components/ArTalk.jsx'),
   cardTime: stripComments(read('../src/data/cardTime.js')),
 }
 
@@ -1049,14 +1050,28 @@ const W = 1831, H = 1335
   // ★★ 小挑戰是這條 AR 動線唯一的獎勵：掃到 → 看 3D → 讀知識卡 → 答題 → 拿徽章。
   //    先前只有不用相機的 `/ar/card/:slug` 有，**真的拿卡片掃到的人反而走不到**。
   const model = stripComments(read('../src/screens/ArModel.jsx'))
-  ok(/ArQuiz/.test(model), '★★ 模型頁要有小挑戰（掃到卡片的人才是最該拿到獎勵的那群）')
-  ok(/from '\.\.\/components\/ArQuiz\.jsx'/.test(model)
-    && /from '\.\.\/components\/ArQuiz\.jsx'/.test(stripComments(read('../src/screens/CardPage.jsx'))),
-    '★ 兩頁共用同一支小挑戰元件（同一段動線不該有兩套實作）')
+  // ★★★ 2026-08-16 起模型頁的小挑戰改成**在對話串裡**出題（使用者指定）：
+  //   角色在泡泡裡問，下面那排 chip 暫時變成選項，答完再由角色回饋。
+  //   ⚠️ 所以模型頁**不再**掛 ArQuiz——同一段動線不該有兩套出題 UI。
+  //      沒有對話框的 `/ar/card/:slug` 仍然用 ArQuiz。
+  ok(!/ArQuiz/.test(model), '★★ 模型頁不可再掛 ArQuiz（出題已移進對話串）')
+  ok(/from '\.\.\/components\/ArQuiz\.jsx'/.test(stripComments(read('../src/screens/CardPage.jsx'))),
+    '★ 卡片頁仍用 ArQuiz（那一頁沒有對話框）')
 
   // ── 跟角色說話（`src/components/ArTalk.jsx`）──
   const talk = stripComments(read('../src/components/ArTalk.jsx'))
   ok(/ArTalk/.test(model), '★★ 模型頁要有對話面板')
+  ok(/askQuiz/.test(talk) && /answerQuiz/.test(talk) && /const \[qz, setQz\]/.test(talk),
+    '★★★ 對話面板要自己出題與判定')
+  // ⚠️ 站上的題目**全部是複選** ⇒ 不可做成「點一下就作答」，要能勾選再送出。
+  ok(/aria-pressed=\{qz\.picked\.includes\(o\.key\)\}/.test(talk) && /artalk-opt-send/.test(talk),
+    '★★★ 選項要可勾選（aria-pressed）並另有送出鍵（題目全是複選）')
+  ok(/送出後才標對錯|作答中就標紅/.test(SRC.talkRaw),
+    '★★ 送出後才標對錯（作答中就標紅等於直接給答案）')
+  // ★★ 徽章狀態：已擁有要在**題目之前**講，而且寫成邀請；拿到徽章要在**作答之後**講。
+  ok(/這枚徽章你已經有了/.test(talk) && talk.indexOf('這枚徽章你已經有了') < talk.indexOf('你拿到徽章'),
+    '★★ 已擁有的提示要在題目之前，拿到徽章要在作答之後')
+
 
   // ★★★★ 2026-08-11 起對話**可以**接語言模型，但只在「卡片上查不到」時，
   //   而且一定要走**伺服器的 persona 模式**（白名單系統提示 ＋ 執行期法規守門）。
@@ -1105,9 +1120,10 @@ const W = 1831, H = 1335
   ok(/\.armodel-body \.scan-hit\s*\{[^}]*max-height:\s*none/.test(SRC.css),
     '★★ 模型頁的 .scan-hit 要解除限高（否則小挑戰被藏在卡片的內部捲軸裡）')
 
-  // ★★ 捲到小挑戰不可用 scrollIntoView：手機捲的是 `.device .body` 不是 window
-  ok(/scrollIntoContainer/.test(model) && !/scrollIntoView/.test(model),
-    '★★ 捲動要用 scrollIntoContainer（scrollIntoView 對 .body 容器是靜默無效的）')
+  // ⚠️ 出題移進對話串之後，模型頁不再需要捲動到題目——但**也不可以用
+  //    scrollIntoView**（對 `.device .body` 是靜默無效的），所以這條反向鎖著。
+  ok(!/scrollIntoView/.test(model),
+    '★★ 模型頁不可用 scrollIntoView（對 .body 容器是靜默無效的）')
 
   // ── 對話面板的排版（2026-08-11 依參考圖調整）──
   // 角色佔上半 → 對話泡泡（尖端朝上）→ 2×2 選項格 → 底部輸入列。
@@ -1531,8 +1547,8 @@ const W = 1831, H = 1335
     && /Math\.abs\(this\.yaw - this\.downYaw\)\s*<\s*\d/.test(model)
     && /Math\.abs\(this\.pitch - this\.downPitch\)\s*<\s*\d/.test(model),
     '★★ 「做個動作」改成點角色本人，且必須與拖曳分開（轉完放手不可冒出動作）')
-  ok(/onQuiz=\{\(\) => \{[\s\S]{0,400}?setShowCard\(true\)[\s\S]{0,400}?scrollIntoContainer/.test(model),
-    '★★★ 「考考我」要先展開資料卡再捲（否則捲向一個還沒渲染的節點＝什麼都不會發生）')
+  // ⚠️ 「考考我」已改成在對話串裡出題，不再開彈窗、也不再捲動。
+  ok(!/onQuiz=/.test(model), '★★ 「考考我」不可再開彈窗（出題已在對話串裡）')
 
   // ★★ 散景光點是**純裝飾**，必須滿足三件事，否則它就從「氣氛」變成「障礙」：
   //   ① `pointer-events:none`——它鋪滿整個場景（inset:-6%），會吃掉舞台的拖曳手勢，

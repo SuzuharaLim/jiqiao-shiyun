@@ -1884,6 +1884,16 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
   .artalk-opt:hover:not(:disabled) { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.26); }
 }
 .artalk-opt:disabled { opacity: .45; cursor: default; }
+/* ★ 作答中：四個選項 ＋ 送出／先不答，臨時排成三列。
+   ⚠️ 選中狀態要看得出來（實心底 ＋ 白框），但**送出之前不標對錯**——
+      作答中就標紅等於直接給答案。 */
+.artalk-opt.on { background: rgba(255,255,255,.42); border-color: #FFFFFF;
+  color: #0B1526; font-weight: 700; }
+.artalk-opt-send { grid-column: 1 / -1; background: var(--primary); color: var(--pfg);
+  border-color: transparent; font-weight: 800; }
+@media (hover: hover) and (pointer: fine) {
+  .artalk-opt-send:hover:not(:disabled) { filter: brightness(1.08); background: var(--primary); }
+}
 /* 奇數個選項時讓最後一個佔滿整列，不要留一個突兀的半格 */
 .artalk-grid > .artalk-opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
