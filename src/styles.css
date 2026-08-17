@@ -1833,11 +1833,6 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 }
 /* 招呼語：比答案淡一階，讀得出「這是語氣、後面才是內容」 */
 .artalk-warm { font-style: normal; color: var(--muted); margin-right: 4px; }
-/* ★ 免責標註：釘在泡泡底部、**捲動區之外**，永遠看得到 */
-.artalk-aitag { flex: 0 0 auto; display: block;
-  margin: 0 var(--space-4); padding: 6px 0 10px;
-  border-top: 1px solid rgba(22,35,58,.12);
-  font-style: normal; font-size: var(--text-2xs); opacity: .72; }
 .artalk-bubble i { font-style: normal; font-size: var(--text-2xs); color: var(--muted);
   display: block; width: 100%; margin-top: 2px; }
 /* 兩個小尖角（參考圖就是兩個），用 border 三角形——不需要圖檔也不會有鋸齒 */

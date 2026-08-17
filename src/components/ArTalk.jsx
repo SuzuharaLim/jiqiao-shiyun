@@ -464,14 +464,11 @@ export default function ArTalk({ obj, card, actorRef, onQuiz, speaker, detailOpe
               : <>{latest?.warm && <em className="artalk-warm">{latest.warm}</em>}{latest?.text}
                 {latest?.source && <i className="muted">（{latest.source}）</i>}</>}
           </div>
-          {/* ★★★ 免責標註要釘在泡泡**底部、捲動區之外**。
-              先前它跟內文一起放在可捲的區塊裡，長一點的回答就把它捲出可視範圍
-              ——看不到的免責標註等於沒有。
-              ⚠️ AI 的回答沒有出處，一定要與卡面資料在視覺上分開：這一頁的信任
-                 基礎是「每一句都查得到出處」，混在一起就毀了。 */}
-          {!thinking && latest?.ai && (
-            <i className="muted artalk-aitag">AI 生成 · 非卡片原文</i>
-          )}
+          {/* ⚠️ 2026-08-16 使用者指定移除「AI 生成 · 非卡片原文」標記。
+              前一輪已把口頭聲明（「卡片上沒寫，不過…」）也拿掉了，
+              ⇒ **畫面上現在沒有任何「這句不是卡片原文」的線索**。
+              log 裡仍留著 `ai: true`（哪幾則出自模型是可查的），要恢復提示時
+              在這裡把標記渲染回來即可；提示詞那邊的聲明規則也還在原處。 */}
         </div>
       </div>
 
