@@ -309,6 +309,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **★★ 只重建追蹤器，不重建 stage**：`stage.dispose()` 會 `forceContextLoss()`，同一張 canvas 之後不保證拿得回 context（那正是「第 N 次點開變成空白」那個坑）。而 `targetSize`/`projectionMatrix` 完全由「同一個 `.mind` ＋ 同一個影像長寬比」決定 ⇒ 重建後必定相同，本來就不需要動它。
   - **成本**：CPU 路徑要 import `mind-ar/src/…` 原始碼（才拿得到共用的 `tf` 實例；`dist/mindar-image.prod.js` 把 TFJS 包在自己裡面，呼叫不到 `setBackend`），所以會多出兩個懶載入分塊：`controller` 196 kB、`register_all_kernels`（TFJS）1,657 kB。**正常裝置永遠不會載到它們**；主 bundle 只 +1.2 kB。
   - **2026-08-11 實測（正式 build，假相機）**：WebGL 路徑不受影響（照常跳轉）；手動切 CPU 後診斷面板顯示「運算後端：CPU（相容運算，較慢）」、自我測試**第 1 幀 784 ms 通過**、心跳 1 輪/秒；把卡片放進畫面後 **3.36 秒**跳到 `/ar/model/2027-xiaohan`（含 900ms 跳轉延遲），模型 102 mesh／170,456 三角形／102 draw call 全部畫出。
+- **★★★ 節氣知識王 `/quiz`（`src/screens/QuizGame.jsx` ＋ `src/data/quiz.js`，2026-08-16）**：三分鐘計時問答，兩種玩法（闖關生存／兩人對戰）。題庫與規則常數在 `quiz.js`（純資料＋純函式，之後要接 API 只換 `QUESTIONS` 的來源）；**正解一律寫在 `o[0]`，發題時才由 `dealt()` 洗牌**——這樣新增題目不必想「答案要放第幾個」，也不會手滑把索引寫錯。
+  - **樣式一律沿用站內既有詞彙**（`.calpage`／`.tool`／`.chips`／`.yiji`／`.b`／`.sech`），只有血條與選項按鈕是站上沒有的才新增 `.qz-*`。對錯用通勝的宜綠 `--yi`／忌朱 `--ji`，當底色時字色用 `--on-yi`／`--on-ji`。
+  - **★★ 計時器一定要在卸載時清乾淨**：這個畫面是 push 進堆疊的，使用者按返回就會卸載，而它同時有「每秒倒數」「模擬對手」「下一題」「血條殘影」四組計時器。沒清的話會對已卸載的元件 setState。實測對戰進行中離開，12 秒內零錯誤。
+  - **★★★ 桌機的曆頁卡要用 `width: min(100%, 560px)` 另外指定**：全域那條 `.stage.signed-in .calpage { max-width:560px; margin:auto }` 在 flex column 裡會**關掉 stretch**（auto 邊界的必然結果），卡片於是收縮成內容寬——實測 1280px 下只剩 333px、四個選項擠成兩欄各 145px。這與「`.body` 用 max-width+auto 會縮成內容寬」是同一條規則的第二次現形。
+- **★★★★ 「新增畫面要同時改三處路由表」已經做成閘門了**（`check-nav.mjs`，逐一比對 `SCREEN_PATH` × `registry.jsx`／`server/seo.js`／`App.jsx`，目前 77 項）。**CLAUDE.md 早就寫著這條，2026-08-16 加 `/quiz` 時還是漏了 `server/seo.js`**——因為漏掉的症狀是**畫面完全正常、只有 HTTP 狀態碼是 404**：本機點得進去、按得動、玩得完，只有搜尋引擎知道那一頁「不存在」。⇒ **靠人記住的規則遲早會漏，能寫成檢查的就寫成檢查。**
 - **★★★ 掃到卡片 → **跳轉**到 A-Frame 模型頁 `/ar/model/:slug`（`src/screens/ArModel.jsx`，2026-08-11）。**
   `/AR` 用 MindAR 認出卡片後停 `JUMP_DELAY_MS`(900ms) 再 `push('arModel', {slug, hotspot})`。
   - **為什麼是「跳轉」不是「貼在卡片上」**：貼在卡片上需要**持續追蹤**，追蹤一斷內容就消失，使用者得一直維持手、卡片、光線三者都對——那正是先前「掃得到卻用不起來」的主因。跳走之後**辨識只需要成功一次**，看模型不再依賴相機，可以放下卡片、雙手轉動觀察。

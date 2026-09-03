@@ -51,6 +51,8 @@ export default function Almanac() {
           <ToolRow key={t.id} iconName={t.iconName} icon={t.icon} bg={t.bg} title={t.title} sub={t.sub} screen={t.screen} />
         ))}
 
+        <ToolRow iconName="trophy" title="節氣知識王" sub="三分鐘計時問答｜闖關生存・兩人對戰｜節氣・曆法・擇日・民俗" screen="quiz" />
+
         <SectionHead title="附錄 · 查詢表" />
         <ToolRow iconName="basket" title="食物相剋" sub="常見飲食相剋組合與迷思釐清" screen="foodTaboo" />
         <ToolRow iconName="ruler" title="度量衡換算" sub="台斤・台尺・坪・甲・斗石對照" screen="units" />

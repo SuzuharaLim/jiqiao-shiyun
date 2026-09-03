@@ -90,6 +90,37 @@ ok(/export function scrollIntoContainer/.test(code),
     '★★ 要確認那個祖先真的捲得動（只看 overflowY 會挑到捲不動的殼）')
 }
 
+// ── 5. 新增畫面必須同時登記在**三處**路由表 ──
+//
+// ★★★★ CLAUDE.md 早就寫著「新增畫面要同時改三處」，但 2026-08-16 加「節氣知識王」
+//   時還是漏了 `server/seo.js`——因為漏掉的症狀是**畫面完全正常，只有 HTTP 狀態碼
+//   是 404**：本機點得進去、按得動、玩得完，只有搜尋引擎知道那一頁「不存在」。
+//   靠人記顯然靠不住，所以改成逐一比對。
+{
+  const read = (rel) => fs.readFileSync(new URL(rel, import.meta.url), 'utf8')
+  const paths = read('../src/store/paths.js')
+  const reg = read('../src/screens/registry.jsx')
+  const app = read('../src/App.jsx')
+  const seo = read('../server/seo.js')
+
+  // SCREEN_PATH 是路徑的唯一真相：有網址的畫面都在這裡
+  const from = paths.indexOf('export const SCREEN_PATH')
+  const body = paths.slice(from, paths.indexOf('\n}', from))
+  const entries = [...body.matchAll(/^\s*([A-Za-z0-9_]+)\s*:\s*'([^']+)'/gm)]
+  ok(entries.length > 10, `★ 讀得到 SCREEN_PATH（目前 ${entries.length} 筆）`)
+
+  for (const [, screen, tpl] of entries) {
+    // ⚠️ notFound 刻意不進 seo 的 ROUTES——它就是「未知路徑」本身
+    if (screen === 'notFound') continue
+    ok(reg.includes(`${screen}:`) || reg.includes(`${screen} :`),
+      `★★ 畫面「${screen}」要註冊在 registry.jsx 的 SCREENS`)
+    ok(seo.includes(`path: '${tpl}'`),
+      `★★★ 畫面「${screen}」(${tpl}) 要登記在 server/seo.js 的 ROUTES，否則伺服器回 404 狀態碼`)
+    ok(app.includes(`${screen}:`) || app.includes(`${screen} :`),
+      `★★ 畫面「${screen}」要在 App.jsx 的 SCREEN_TITLES 有標題`)
+  }
+}
+
 if (fails.length) {
   console.error(`\n✗ 路由／捲動層檢查失敗 ${fails.length} 項：`)
   for (const f of fails) console.error('  ✗ ' + f)

@@ -54,6 +54,7 @@ import { Editorial, Myths } from './Editorial.jsx'
 import SunTimesScreen, { SunIndex } from './SunTimes.jsx'
 import CardPage from './CardPage.jsx'
 import ArModel from './ArModel.jsx'
+import QuizGame from './QuizGame.jsx'
 
 export const ROOTS = [Feed, Explore, Create, Almanac, Profile]
 
@@ -61,6 +62,7 @@ export const SCREENS = {
   termDetail: TermDetail, deityDetail: DeityDetail, dreamDetail: DreamDetail,
   arCard: CardPage,
   arModel: ArModel,
+  quiz: QuizGame,
   auspiciousIndex: AuspiciousIndex, auspicious: Auspicious,
   glossary: GlossaryIndex, glossaryDetail: GlossaryDetail,
   editorial: Editorial, myths: Myths,

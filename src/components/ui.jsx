@@ -130,7 +130,14 @@ export function CountUp({ value, ms = 900 }) {
       if (p < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    // ★★★★ 保底：**動畫只負責「怎麼出現」，不可負責「數字對不對」**（站規）。
+    //   `requestAnimationFrame` 在**分頁切到背景時完全不觸發**（實測 500ms 內 0 次），
+    //   少了這一行，使用者切出去再切回來就會看到一個永遠停在 0 的數字，
+    //   而且是靜默的——版面在、字在，就是數字錯。
+    //   節氣知識王的「最終積分」尤其致命：積分榜記的是真分數，畫面卻寫 0，
+    //   兩邊對不起來。到時間就把真值寫上去，有畫面的裝置早就跑完動畫了。
+    const guard = setTimeout(() => setShown(n), ms + 80)
+    return () => { cancelAnimationFrame(raf); clearTimeout(guard) }
   }, [n, ms, reduce])
   return <>{shown.toLocaleString()}</>
 }

@@ -25,6 +25,7 @@ export const SCREEN_PATH = {
   dms: '/messages', settings: '/settings', records: '/records',
   creatorConsole: '/creator-console', store: '/store', productDetail: '/store/:slug', orders: '/orders',
   scan: '/AR', camera: '/camera', todayShots: '/today', almanacDay: '/almanac/day/:date?',
+  quiz: '/quiz',
   // 條目頁：一個節氣／一位神明／一個夢境各自一個網址（SEO 長尾）
   termDetail: '/solarterms/:slug', deityDetail: '/deities/:slug', dreamDetail: '/dream/:slug',
   arCard: '/ar/card/:slug',
