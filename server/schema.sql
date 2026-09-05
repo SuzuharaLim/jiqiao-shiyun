@@ -299,3 +299,39 @@ CREATE TABLE IF NOT EXISTS user_badges (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, earned_at);
+
+-- ════════════════ 節氣知識王：真人對戰 ════════════════
+--
+-- ★★★★ 為什麼對戰狀態放 DB 而不是記憶體：
+--   Cloud Run 會**水平擴展成多個實例**，而兩個玩家的請求不保證落在同一台。
+--   把房間放在記憶體裡，在單一實例的本機測起來完全正常，一上正式站就變成
+--   「兩個人各自在不同的房間裡對打」——而且沒有任何錯誤訊息。
+--   （這與站上把 session 從 SQLite 改成 Cloud SQL 是同一個理由。）
+--
+-- ⚠️ 欄位型別守 db.js 的可移植性原則：時間一律 TEXT（ISO 字串，字典序＝時間序），
+--    布林用 INTEGER，不用 SERIAL／AUTOINCREMENT／timestamp。
+CREATE TABLE IF NOT EXISTS quiz_matches (
+  id          TEXT PRIMARY KEY,
+  status      TEXT NOT NULL,           -- waiting | playing | done
+  seed        TEXT NOT NULL,           -- 兩邊用同一副牌，靠它產生
+  -- ★ 每個座位一把**能力金鑰**：訪客沒有帳號也能對戰，而且只動得了自己那一格。
+  p1_key      TEXT NOT NULL,
+  p2_key      TEXT,
+  p1_uid      TEXT,                    -- 有登入才有，用來擋同一人自己跟自己打
+  p2_uid      TEXT,
+  p1_name     TEXT NOT NULL,
+  p2_name     TEXT,
+  p1_hp       INTEGER NOT NULL,
+  p2_hp       INTEGER NOT NULL,
+  p1_score    INTEGER NOT NULL,
+  p2_score    INTEGER NOT NULL,
+  p1_done     INTEGER NOT NULL,        -- 已作答題數
+  p2_done     INTEGER NOT NULL,
+  p1_seen     TEXT NOT NULL,           -- 最後一次輪詢時間，用來判離線
+  p2_seen     TEXT,
+  winner      TEXT,                    -- p1 | p2 | null
+  over_reason TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_quiz_wait ON quiz_matches(status, created_at);

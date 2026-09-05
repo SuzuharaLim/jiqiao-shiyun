@@ -105,7 +105,9 @@ const SEED = {
     { name: '節氣狂人', score: 1940 },
     { name: '路過的訪客', score: 880 },
   ],
-  duel: [
+  // ⚠️ 鍵名要與畫面用的 mode 一致（'pvp'＝真人對戰）。
+  //    留著舊的 'duel' 只會變成一張永遠沒人看得到的榜。
+  pvp: [
     { name: '擇日小生', score: 1510 },
     { name: '甲子先生', score: 1120 },
     { name: '半瓶醋', score: 640 },
@@ -133,4 +135,59 @@ export function pushScore(name, score, mode) {
   mem = next
   try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* 同上 */ }
   return entry
+}
+
+// ════════════════ 真人對戰：兩邊必須拿到同一副牌 ════════════════
+//
+// ★★★ 對戰的公平性建立在「同一副牌、同樣的選項順序」上。
+//   shuffle() 用 Math.random，兩台裝置各洗各的 ⇒ 題目與選項都不一樣，
+//   那就不是同一場比賽了。所以對戰一律用**種子**產生，種子由伺服器發。
+// ⚠️ 這是純函式：同一個 seed 在任何裝置、任何時間都得到同一個結果，
+//    伺服器驗證答案時也用它，不必把整副牌存進資料庫。
+
+/** 32-bit 字串雜湊 → 種子。 */
+function hashSeed(str) {
+  const t = String(str)
+  let h = 2166136261
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) }
+  return h >>> 0
+}
+
+/** mulberry32：小、快、夠均勻的可重現亂數。 */
+function rng(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** 用種子洗一個陣列（Fisher–Yates，不改動原陣列）。 */
+function seededShuffle(arr, rand) {
+  const a = arr.slice()
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp
+  }
+  return a
+}
+
+/**
+ * 對戰用的牌：題目順序與**每題的選項順序**都由種子決定。
+ * @param {string} seed 伺服器發的種子
+ * @param {number} n    要幾題（不足就繞回去接，長局才不會發完）
+ */
+export function seededDeck(seed, n = 60) {
+  const rand = rng(hashSeed(seed))
+  const order = seededShuffle(QUESTIONS, rand)
+  const out = []
+  for (let i = 0; i < n; i++) {
+    const src = order[i % order.length]
+    const correct = src.o[0]
+    const opts = seededShuffle(src.o, rand)
+    out.push({ q: src.q, tag: src.tag, why: src.why, opts, ans: opts.indexOf(correct) })
+  }
+  return out
 }

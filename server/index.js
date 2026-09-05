@@ -25,6 +25,7 @@ import { StringDecoder } from 'node:string_decoder'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
 import { cardTimeContext } from '../src/data/cardTime.js'
+import { seededDeck, RULES as QZ } from '../src/data/quiz.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
@@ -1916,6 +1917,185 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
   const sys = persona + personaTimeBlock(req.body.persona)
   const out = await streamGuarded(res, { sys, hist, persona: true, maxTokens: 480 })
   if (out?.httpError) return res.status(out.httpError).json({ error: 'AI 暫時無法回答，稍後再試' })
+}))
+
+
+// ════════════════ 節氣知識王：真人對戰 ════════════════
+//
+// ★★★★ **狀態存 DB，不存記憶體。** Cloud Run 會水平擴展，兩個玩家的請求不保證
+//   落在同一個實例上——房間放在記憶體裡，在本機單一實例測起來完全正常，
+//   一上正式站就變成「兩個人各自在不同的房間裡對打」，而且沒有任何錯誤訊息。
+//   （這與站上把 session 從 SQLite 改成 Cloud SQL 是同一個理由。）
+//
+// ★★★ 為什麼是**輪詢**不是 WebSocket：
+//   ① 專案沒有 ws 相依，而加相依前要先確認它沒有 git 來源（EALLOWGIT 那個坑）；
+//   ② 就算加了，WebSocket 連線一樣綁在單一實例上，跨實例還是得靠 DB；
+//   ③ 這個遊戲每人每分鐘只有幾個動作，1 秒一次的輪詢完全夠用。
+//   ⇒ 取最單純、而且**在多實例下真的正確**的作法。
+//
+// ⚠️ 傷害一律由**伺服器**依自己那份題庫判定：前端送「第幾題、選了哪個」，
+//    不送「我贏了」。⚠️ 誠實話：題庫在前端 bundle 裡，看得到答案的人仍然可以
+//    每題都答對——這一層擋的是「直接偽造勝利」，不是完整的防作弊方案。
+const QUIZ_DECK_N = 60
+const quizNow = () => new Date().toISOString()
+const quizId = (n) => crypto.randomBytes(n).toString('base64url')
+// 對手多久沒輪詢就算離線（他可能直接關了分頁）
+const QUIZ_STALE_MS = 25000
+
+const quizLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  message: { error: '操作太頻繁，稍等一下' },
+})
+
+/** 轉成「以我為視角」的狀態。⚠️ 對手的金鑰絕不可以出現在回應裡。 */
+function quizView(m, slot) {
+  const me = slot === 'p1' ? 'p1' : 'p2'
+  const foe = me === 'p1' ? 'p2' : 'p1'
+  const seen = m[foe + '_seen']
+  return {
+    id: m.id, status: m.status, seed: m.seed, slot: me,
+    me: { name: m[me + '_name'], hp: m[me + '_hp'], score: m[me + '_score'], done: m[me + '_done'] },
+    foe: m[foe + '_name'] ? {
+      name: m[foe + '_name'], hp: m[foe + '_hp'], score: m[foe + '_score'], done: m[foe + '_done'],
+      // ★ 對手是不是還在線上。少了這個，對方斷線會變成「他不動了」而你不知道為什麼。
+      online: !!seen && (Date.now() - Date.parse(seen)) < QUIZ_STALE_MS,
+    } : null,
+    winner: m.winner, overReason: m.over_reason,
+    won: m.winner ? m.winner === me : null,
+  }
+}
+
+/** 讀出這一場，並確認金鑰對得上座位。 */
+async function quizLoad(id, key) {
+  if (!id || !key) return null
+  const m = await db.get('SELECT * FROM quiz_matches WHERE id=?', [String(id)])
+  if (!m) return null
+  if (m.p1_key === key) return { m, slot: 'p1' }
+  if (m.p2_key === key) return { m, slot: 'p2' }
+  return null
+}
+
+/**
+ * 收局。⚠️ 帶 status 條件：兩邊同時判定時只有一個寫得進去，不會互相覆蓋。
+ * ★★★ reason 一律是**中性代碼**（ko／offline／left），不可寫成「你倒下了」這種
+ *   帶立場的句子——同一個字串要給兩個玩家看，帶立場就一定有一邊是錯的。
+ *   實測踩過：贏的那一方看到「戰報：你倒下了」。句子由前端依自己的勝負轉。
+ */
+async function quizFinish(id, winner, reason) {
+  await db.run(
+    'UPDATE quiz_matches SET status=?, winner=?, over_reason=?, updated_at=? WHERE id=? AND status<>?',
+    ['done', winner, reason, quizNow(), id, 'done'])
+}
+
+// ── 配對：加入等待中的一場，沒有就自己開一場 ──
+app.post('/api/quiz/queue', quizLimiter, ah(async (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 8) || '訪客'
+  const uid = req.user?.id || null
+  const key = quizId(18)
+  const t = quizNow()
+
+  // 清掉沒人配到的舊房間，否則等待佇列會一直累積死房
+  await db.run('DELETE FROM quiz_matches WHERE status=? AND created_at < ?',
+    ['waiting', new Date(Date.now() - 10 * 60 * 1000).toISOString()])
+
+  // ⚠️ 不可以跟自己配對：同一個帳號開兩個分頁時會發生。
+  //    訪客沒有 uid，這一層擋不住——那是刻意的，否則沒辦法自己開兩個分頁驗證。
+  const waiting = await db.get(
+    'SELECT * FROM quiz_matches WHERE status=? AND (p1_uid IS NULL OR p1_uid<>?) ORDER BY created_at LIMIT 1',
+    ['waiting', uid || '-'])
+
+  if (waiting) {
+    // ⚠️ 用 status 當更新條件：兩個人同時搶同一場時，只有一個人的 UPDATE 會生效。
+    const r = await db.run(
+      'UPDATE quiz_matches SET status=?, p2_key=?, p2_uid=?, p2_name=?, p2_seen=?, updated_at=? WHERE id=? AND status=?',
+      ['playing', key, uid, name, t, t, waiting.id, 'waiting'])
+    if (r.changes > 0) {
+      const m = await db.get('SELECT * FROM quiz_matches WHERE id=?', [waiting.id])
+      return res.json({ key, ...quizView(m, 'p2') })
+    }
+    // 被別人搶走了 → 往下自己開一場
+  }
+
+  const id = quizId(9)
+  await db.run(
+    'INSERT INTO quiz_matches (id,status,seed,p1_key,p1_uid,p1_name,p1_hp,p2_hp,p1_score,p2_score,p1_done,p2_done,p1_seen,created_at,updated_at)'
+    + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    [id, 'waiting', quizId(8), key, uid, name, QZ.HP_MAX, QZ.HP_MAX, 0, 0, 0, 0, t, t, t])
+  const m = await db.get('SELECT * FROM quiz_matches WHERE id=?', [id])
+  res.json({ key, ...quizView(m, 'p1') })
+}))
+
+// ── 輪詢：回報我還在，順便拿對手的最新狀態 ──
+app.get('/api/quiz/match/:id', quizLimiter, ah(async (req, res) => {
+  const found = await quizLoad(req.params.id, req.query?.key)
+  if (!found) return res.status(404).json({ error: '找不到這一場' })
+  const { m, slot } = found
+  await db.run('UPDATE quiz_matches SET ' + slot + '_seen=? WHERE id=?', [quizNow(), m.id])
+
+  // ★★ 對手離線就收局。少了這一段，對方關掉分頁時你會一直等一個不會回來的人，
+  //    而畫面上還寫著「對戰中」——那是最糟的一種卡住：看起來完全正常。
+  if (m.status === 'playing') {
+    const foe = slot === 'p1' ? 'p2' : 'p1'
+    const fseen = m[foe + '_seen']
+    if (fseen && (Date.now() - Date.parse(fseen)) > QUIZ_STALE_MS) {
+      await quizFinish(m.id, slot, 'offline')
+    }
+  }
+  const m2 = await db.get('SELECT * FROM quiz_matches WHERE id=?', [m.id])
+  res.json(quizView(m2, slot))
+}))
+
+// ── 作答：伺服器自己判對錯並結算傷害 ──
+app.post('/api/quiz/answer', quizLimiter, ah(async (req, res) => {
+  const found = await quizLoad(req.body?.id, req.body?.key)
+  if (!found) return res.status(404).json({ error: '找不到這一場' })
+  const { m, slot } = found
+  if (m.status !== 'playing') return res.json(quizView(m, slot))
+
+  const qi = Number(req.body?.qi)
+  const pick = Number(req.body?.pick)
+  if (!Number.isInteger(qi) || qi < 0 || qi >= QUIZ_DECK_N) return res.status(400).json({ error: '題號無效' })
+  // ⚠️ 只認「下一題」：擋掉跳題，也擋掉同一題重複送出灌傷害。
+  if (qi !== m[slot + '_done']) return res.json(quizView(m, slot))
+
+  const deck = seededDeck(m.seed, QUIZ_DECK_N)
+  const correct = pick === deck[qi].ans
+  const used = Math.max(0, Math.min(30, Number(req.body?.used) || 0))
+  const speed = Math.max(0, 1 - used / QZ.SPEED_REF)
+
+  const foe = slot === 'p1' ? 'p2' : 'p1'
+  let myHp = m[slot + '_hp']; let foeHp = m[foe + '_hp']; let myScore = m[slot + '_score']
+  let dmg = 0
+  if (correct) {
+    dmg = 10 + Math.round(speed * 14)
+    foeHp = Math.max(0, foeHp - dmg)
+    myHp = Math.min(QZ.HP_MAX, myHp + QZ.HEAL_ON_HIT)
+    myScore += Math.round(100 + speed * 120)
+  } else {
+    myHp = Math.max(0, myHp - QZ.DUEL_SELF_DMG)
+  }
+  const t = quizNow()
+  await db.run(
+    'UPDATE quiz_matches SET ' + slot + '_hp=?, ' + foe + '_hp=?, ' + slot + '_score=?, '
+    + slot + '_done=?, ' + slot + '_seen=?, updated_at=? WHERE id=? AND status=?',
+    [myHp, foeHp, myScore, qi + 1, t, t, m.id, 'playing'])
+
+  if (foeHp <= 0) await quizFinish(m.id, slot, 'ko')
+  else if (myHp <= 0) await quizFinish(m.id, foe, 'ko')
+
+  const m2 = await db.get('SELECT * FROM quiz_matches WHERE id=?', [m.id])
+  res.json({ correct, dmg, ans: deck[qi].ans, why: deck[qi].why, ...quizView(m2, slot) })
+}))
+
+// ── 離開：取消等待，或對戰中認輸 ──
+app.post('/api/quiz/leave', quizLimiter, ah(async (req, res) => {
+  const found = await quizLoad(req.body?.id, req.body?.key)
+  if (!found) return res.json({ ok: true })
+  const { m, slot } = found
+  if (m.status === 'waiting') await db.run('DELETE FROM quiz_matches WHERE id=? AND status=?', [m.id, 'waiting'])
+  else if (m.status === 'playing') await quizFinish(m.id, slot === 'p1' ? 'p2' : 'p1', 'left')
+  res.json({ ok: true })
 }))
 
 // 健康檢查（含 DB 驅動別、金流、AI、寄信是否已接）

@@ -17,8 +17,16 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, CountUp, Disclaimer } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import {
-  QUESTIONS, KEYS, RULES, shuffle, dealt, makeFoe, loadBoards, pushScore,
+  QUESTIONS, KEYS, RULES, shuffle, dealt, makeFoe, seededDeck, loadBoards, pushScore,
 } from '../data/quiz.js'
+import { api } from '../api.js'
+
+/** 收局原因 → 依勝負各自的說法。伺服器只給中性代碼。 */
+const QZ_REASON = {
+  ko: { win: '你擊倒了對手', lose: '你倒下了' },
+  offline: { win: '對手離線，你獲勝', lose: '你離線了' },
+  left: { win: '對手離開，你獲勝', lose: '你離開了這一局' },
+}
 
 const fmtClock = (s) => {
   const v = Math.max(0, s)
@@ -63,7 +71,7 @@ export default function QuizGame() {
   const rerender = useCallback(() => force(n => n + 1), [])
 
   const G = useRef(null)                            // 遊戲狀態（可變，不進 render 迴圈）
-  const timers = useRef({ tick: null, foe: null, next: null, log: null, ghost: [] })
+  const timers = useRef({ tick: null, foe: null, next: null, log: null, poll: null, ghost: [] })
   const [ghost, setGhost] = useState({ me: 100, foe: 100 })
   const [hit, setHit] = useState({ me: false, foe: false })
   const [log, setLog] = useState(null)              // 對手動態
@@ -71,15 +79,33 @@ export default function QuizGame() {
   const [lastEntry, setLastEntry] = useState(null)
   const [lastMode, setLastMode] = useState('solo')
   const [float, setFloat] = useState(null)          // 飄字
+  // ★ 真人對戰的狀態。ref 給計時器讀（不受閉包影響），state 給畫面用。
+  const pvp = useRef(null)
+  const [pvpState, setPvp] = useState(null)
+  const [queuedAt, setQueuedAt] = useState(0)
+  const [queueErr, setQueueErr] = useState(null)
+  const [waited, setWaited] = useState(0)
 
   // ⚠️ 卸載時把所有計時器清掉（返回鍵會卸載這個畫面）
   const clearAll = useCallback(() => {
     const t = timers.current
-    clearInterval(t.tick); clearTimeout(t.foe); clearTimeout(t.next); clearTimeout(t.log)
+    clearInterval(t.tick); clearTimeout(t.foe); clearTimeout(t.next); clearTimeout(t.log); clearTimeout(t.poll)
     t.ghost.forEach(clearTimeout); t.ghost = []
-    t.tick = t.foe = t.next = t.log = null
+    t.tick = t.foe = t.next = t.log = t.poll = null
   }, [])
   useEffect(() => clearAll, [clearAll])
+
+  // ★★ 使用者按返回離開這個畫面時，順手告訴伺服器一聲，對手才不用空等 25 秒
+  //    才被判離線。⚠️ 卸載時 fetch 會被取消，所以用 sendBeacon（它是為這件事設計的）。
+  //    ⚠️ 這只是**加速**：真正的保底是伺服器端的離線判定，beacon 送不到也不會壞。
+  useEffect(() => () => {
+    const st = pvp.current
+    if (!st) return
+    try {
+      const body = new Blob([JSON.stringify({ id: st.id, key: st.key })], { type: 'application/json' })
+      navigator.sendBeacon?.('/api/quiz/leave', body)
+    } catch { /* 送不出去就交給伺服器的離線判定 */ }
+  }, [])
 
   /* 血條殘影：本體立刻退，殘影 0.3s 後才跟上 */
   const bleed = (who, to) => {
@@ -101,19 +127,32 @@ export default function QuizGame() {
   }
 
   /* ---------------- 開局 ---------------- */
-  const start = (mode) => {
+  //
+  // ★★★ mode 有三種：
+  //   solo —— 闖關生存（單人計時）
+  //   pvp  —— **真人對戰**：先排隊配對，狀態由伺服器判定
+  //   bot  —— 練習對手（模擬）。⚠️ 它必須**明確標示成模擬**，
+  //           絕不可以在配不到真人時偷偷拿它冒充人類。
+  const start = (mode, pvpState) => {
     const who = (name || '').trim().slice(0, 8) || user?.name || '訪客'
+    // ★ 對戰用**種子牌**：兩邊必須拿到同一副牌、同樣的選項順序，
+    //   各洗各的就不是同一場比賽了。
+    const deck = mode === 'pvp' ? seededDeck(pvpState.seed) : shuffle(QUESTIONS)
     G.current = {
-      mode, name: who,
-      deck: shuffle(QUESTIONS), i: 0,
-      score: 0, combo: 0, right: 0, wrong: 0,
-      hp: RULES.HP_MAX, timeLeft: RULES.TOTAL_TIME,
-      foe: mode === 'duel' ? makeFoe() : null,
+      // ⚠️ 對戰的名字以**伺服器**為準：本地 state 可能還沒更新，
+      //    那會變成「我看到自己叫訪客、對手看到我叫阿明」，兩邊對不起來。
+      mode, name: mode === 'pvp' ? (pvpState.me?.name || who) : who,
+      deck, i: mode === 'pvp' ? (pvpState.me?.done || 0) : 0,
+      score: mode === 'pvp' ? (pvpState.me?.score || 0) : 0,
+      combo: 0, right: 0, wrong: 0,
+      hp: mode === 'pvp' ? pvpState.me.hp : RULES.HP_MAX,
+      timeLeft: RULES.TOTAL_TIME,
+      foe: mode === 'bot' ? makeFoe() : (mode === 'pvp' ? { name: pvpState.foe.name, hp: pvpState.foe.hp } : null),
       foeAnswered: 0, foeRight: 0,
       locked: false, qStart: Date.now(), current: null, picked: -1,
     }
-    G.current.current = dealt(G.current.deck[0])
-    setGhost({ me: 100, foe: 100 })
+    G.current.current = mode === 'pvp' ? deck[G.current.i] : dealt(deck[0])
+    setGhost({ me: G.current.hp, foe: G.current.foe ? G.current.foe.hp : 100 })
     setLog(null); setResult(null); setFloat(null)
     setLastMode(mode)
     setPhase('play')
@@ -126,9 +165,104 @@ export default function QuizGame() {
         if (g.timeLeft <= 0) finish('時間到')
         else rerender()
       }, 1000)
-    } else {
+    } else if (mode === 'bot') {
       foeLoop()
     }
+    // pvp 的節奏由 pollLoop() 帶（在 queue 階段就已經開始輪詢）
+  }
+
+  /* ---------------- 真人對戰：排隊、輪詢 ---------------- */
+  //
+  // ★★★ 為什麼是輪詢不是 WebSocket：Cloud Run 會水平擴展，WebSocket 連線綁在
+  //   單一實例上，跨實例還是得靠 DB；而這個遊戲每人每分鐘只有幾個動作，
+  //   1.2 秒一次的輪詢完全夠用，也不必多一個相依。
+  // ⚠️ 輪詢一定要能停：這個畫面 push 進堆疊，使用者按返回就卸載。
+  const pollLoop = useCallback(() => {
+    const st = pvp.current
+    if (!st) return
+    timers.current.poll = setTimeout(async () => {
+      const cur = pvp.current
+      if (!cur) return
+      try {
+        const r = await api.quizPoll(cur.id, cur.key)
+        pvp.current = { ...cur, ...r }
+        setPvp(pvp.current)
+
+        // 配到人了 → 開局（只做一次）
+        if (r.status === 'playing' && !G.current) start('pvp', pvp.current)
+
+        // ★ 血量以**伺服器**為準：本地只負責顯示。
+        const g = G.current
+        if (g && g.mode === 'pvp' && r.foe) {
+          if (g.foe.hp !== r.foe.hp) { g.foe.hp = r.foe.hp; bleed('foe', Math.max(0, r.foe.hp)) }
+          if (g.hp !== r.me.hp) {
+            const drop = r.me.hp < g.hp
+            g.hp = r.me.hp
+            if (drop) { bleed('me', Math.max(0, r.me.hp)); showLog(`${r.foe.name} 出手了`, 'bad') }
+          }
+          g.foe.name = r.foe.name
+          rerender()
+        }
+
+        if (r.status === 'done') { finishPvp(r); return }
+      } catch { /* 一次失敗不中斷，下一輪再試 */ }
+      pollLoop()
+    }, 1200)
+  }, [])
+
+  /** 排隊配對。⚠️ 配不到人時**不可以**偷偷換成模擬對手——那是騙人。 */
+  const queueUp = async () => {
+    const who = (name || '').trim().slice(0, 8) || user?.name || '訪客'
+    setQueueErr(null)
+    setPhase('queue')
+    setQueuedAt(Date.now())
+    try {
+      const r = await api.quizQueue(who)
+      pvp.current = r
+      setPvp(r)
+      if (r.status === 'playing') start('pvp', r)
+      pollLoop()
+    } catch (e) {
+      setQueueErr(e?.message || '連不上配對伺服器')
+      setPhase('start')
+    }
+  }
+
+  /** 離開排隊或認輸。 */
+  const leavePvp = async (backToStart) => {
+    const st = pvp.current
+    pvp.current = null
+    setPvp(null)
+    clearTimeout(timers.current.poll)
+    if (st) { try { await api.quizLeave({ id: st.id, key: st.key }) } catch { /* best effort */ } }
+    if (backToStart) { G.current = null; setPhase('start') }
+  }
+
+  /** 對戰收局：勝負由伺服器判定，前端不自己算。 */
+  const finishPvp = (r) => {
+    const g = G.current
+    clearAll()
+    pvp.current = null
+    setPvp(null)
+    G.current = null
+    const right = g ? g.right : 0
+    const wrong = g ? g.wrong : 0
+    const total = right + wrong
+    const score = r.me?.score || 0
+    setLastEntry(pushScore(g ? g.name : '訪客', score, 'pvp'))
+    setBoardTab('pvp')
+    setResult({
+      mode: 'pvp',
+      title: r.won ? '勝' : '敗',
+      // ★★★ 收局原因是**中性代碼**，句子由自己的勝負轉——同一個字串給兩個立場看，
+      //   帶立場就一定有一邊是錯的（實測踩過：贏的那一方看到「戰報：你倒下了」）。
+      note: `${QZ_REASON[r.overReason]?.[r.won ? 'win' : 'lose'] || '對戰結束'}。`
+        + (r.foe ? `對手 ${r.foe.name} 剩 ${Math.max(0, r.foe.hp)} 點血，你剩 ${Math.max(0, r.me.hp)} 點。` : ''),
+      score, right, wrong,
+      acc: total ? Math.round((right / total) * 100) : 0,
+      ok: !!r.won,
+    })
+    setPhase('end')
   }
 
   /* 對手跑自己的節奏，不中斷你手上這一題 */
@@ -158,9 +292,57 @@ export default function QuizGame() {
   }
 
   /* ---------------- 作答 ---------------- */
+  /** 真人對戰的作答：送給伺服器判定，回來的狀態就是唯一真相。 */
+  const answerPvp = async (idx) => {
+    const g = G.current
+    const st = pvp.current
+    if (!g || !st) return
+    const used = (Date.now() - g.qStart) / 1000
+    g.locked = true
+    g.picked = idx
+    rerender()
+    try {
+      const r = await api.quizAnswer({ id: st.id, key: st.key, qi: g.i, pick: idx, used })
+      pvp.current = { ...st, ...r }
+      setPvp(pvp.current)
+
+      const correct = !!r.correct
+      if (correct) { g.right++; g.combo++ } else { g.wrong++; g.combo = 0 }
+      g.score = r.me?.score ?? g.score
+      // 血量以伺服器為準
+      if (r.me) { const drop = r.me.hp < g.hp; g.hp = r.me.hp; if (drop) bleed('me', Math.max(0, r.me.hp)) }
+      if (r.foe) { const drop = r.foe.hp < g.foe.hp; g.foe.hp = r.foe.hp; if (drop) bleed('foe', Math.max(0, r.foe.hp)) }
+      flash(correct ? `−${r.dmg}` : `−${RULES.DUEL_SELF_DMG}`, correct ? 'yi' : 'ji')
+      g.verdict = correct
+        ? { ok: true, head: '答對，出手', detail: `對手受到 ${r.dmg} 點傷害，你回復 ${RULES.HEAL_ON_HIT} 點血。` }
+        : { ok: false, head: '答錯', detail: `你受到 ${RULES.DUEL_SELF_DMG} 點傷害。` }
+      g.i++
+      rerender()
+
+      if (r.status === 'done') { finishPvp(r); return }
+
+      timers.current.next = setTimeout(() => {
+        const gg = G.current
+        if (!gg) return
+        gg.current = gg.deck[gg.i % gg.deck.length]
+        gg.locked = false; gg.picked = -1; gg.verdict = null; gg.qStart = Date.now()
+        rerender()
+      }, 1100)
+    } catch (e) {
+      // ⚠️ 送不出去就解鎖讓他重按，不可以卡在「已作答」——那會變成整局動不了
+      g.locked = false; g.picked = -1
+      showLog(e?.message || '連線不穩，再按一次', 'bad')
+      rerender()
+    }
+  }
+
   const answer = (idx) => {
     const g = G.current
     if (!g || g.locked) return
+    // ★★★ 真人對戰：對錯與傷害一律由**伺服器**判定，前端只送「第幾題、選了哪個」。
+    //   ⚠️ 血量不可以在本地算完就顯示——兩邊各算各的會對不起來，
+    //      而且等於把勝負交給客戶端說了算。
+    if (g.mode === 'pvp') { answerPvp(idx); return }
     const used = (Date.now() - g.qStart) / 1000
     const correct = idx === g.current.ans
     const speed = Math.max(0, 1 - used / RULES.SPEED_REF)
@@ -172,7 +354,7 @@ export default function QuizGame() {
       const mult = 1 + Math.floor(g.combo / 3)
       const gain = Math.round((100 + speed * 120) * mult)
       g.score += gain
-      if (g.mode === 'duel') {
+      if (g.mode !== 'solo') {
         const dmg = 10 + Math.round(speed * 14)
         g.foe.hp -= dmg
         g.hp = Math.min(RULES.HP_MAX, g.hp + RULES.HEAL_ON_HIT)
@@ -185,17 +367,17 @@ export default function QuizGame() {
       }
     } else {
       g.wrong++; g.combo = 0
-      const dmg = g.mode === 'duel' ? RULES.DUEL_SELF_DMG : RULES.SOLO_DMG
+      const dmg = g.mode !== 'solo' ? RULES.DUEL_SELF_DMG : RULES.SOLO_DMG
       g.hp -= dmg
       bleed('me', Math.max(0, g.hp))
       flash(`−${dmg}`, 'ji')
-      g.verdict = { ok: false, head: '答錯', detail: g.mode === 'duel' ? `你受到 ${dmg} 點傷害。` : `扣 ${dmg} 點血，連擊歸零。` }
+      g.verdict = { ok: false, head: '答錯', detail: g.mode !== 'solo' ? `你受到 ${dmg} 點傷害。` : `扣 ${dmg} 點血，連擊歸零。` }
     }
 
     g.i++
     rerender()
 
-    if (g.hp <= 0) return finish(g.mode === 'duel' ? '你倒下了' : '血量歸零')
+    if (g.hp <= 0) return finish(g.mode !== 'solo' ? '你倒下了' : '血量歸零')
     if (g.foe && g.foe.hp <= 0) return finish('擊倒對手')
 
     // 對戰講節奏，生存給多一點閱讀時間
@@ -207,7 +389,7 @@ export default function QuizGame() {
       gg.current = dealt(gg.deck[gg.i])
       gg.locked = false; gg.picked = -1; gg.verdict = null; gg.qStart = Date.now()
       rerender()
-    }, g.mode === 'duel' ? 1100 : 1600)
+    }, g.mode !== 'solo' ? 1100 : 1600)
   }
 
   /* ---------------- 結算 ---------------- */
@@ -223,7 +405,7 @@ export default function QuizGame() {
     let title = reason
     let note
 
-    if (g.mode === 'duel') {
+    if (g.mode !== 'solo') {
       const won = g.foe.hp <= 0 && g.hp > 0
       title = won ? '勝' : '敗'
       note = (won
@@ -240,9 +422,17 @@ export default function QuizGame() {
     const entry = pushScore(g.name, score, g.mode)
     setLastEntry(entry)
     setBoardTab(g.mode)
-    setResult({ mode: g.mode, title, note, score, right: g.right, wrong: g.wrong, acc, ok: g.mode === 'duel' ? title === '勝' : g.hp > 0 })
+    setResult({ mode: g.mode, title, note, score, right: g.right, wrong: g.wrong, acc, ok: g.mode !== 'solo' ? title === '勝' : g.hp > 0 })
     setPhase('end')
   }
+
+  /* 配對等待秒數。⚠️ 用 effect 綁 phase，離開配對就停。 */
+  useEffect(() => {
+    if (phase !== 'queue') return
+    setWaited(0)
+    const t = setInterval(() => setWaited(w => w + 1), 1000)   // waited 秒數計時
+    return () => clearInterval(t)
+  }, [phase])
 
   /* 鍵盤 1–4 作答 */
   useEffect(() => {
@@ -291,11 +481,22 @@ export default function QuizGame() {
               </div>
               <Icon name="chev" />
             </button>
-            <button className="tool tap" onClick={() => start('duel')}>
+            <button className="tool tap" onClick={queueUp}>
               <div className="ti" style={{ background: 'var(--ji)', color: 'var(--on-ji)', fontFamily: 'var(--serif)', fontWeight: 800 }}>鬥</div>
               <div className="tn2">
                 <b>兩人對戰</b>
-                <span>各答各的，送出就換下一題，不必等對方。答對出手扣血，先倒下的人輸。</span>
+                <span>跟線上的真人配對。各答各的，答對出手扣血，先倒下的人輸。</span>
+              </div>
+              <Icon name="chev" />
+            </button>
+            {/* ★★★ 練習對手是**模擬**的，必須講明白。
+                配不到真人時偷偷換成機器人、還讓人以為在跟人打，是騙人——
+                寧可讓他自己選。 */}
+            <button className="tool tap" onClick={() => start('bot')}>
+              <div className="ti" style={{ background: 'var(--field)', color: 'var(--muted)', fontFamily: 'var(--serif)', fontWeight: 800 }}>練</div>
+              <div className="tn2">
+                <b>練習對手</b>
+                <span>電腦模擬的對手，不用等人。想先熟悉節奏再去對戰就選這個。</span>
               </div>
               <Icon name="chev" />
             </button>
@@ -303,7 +504,7 @@ export default function QuizGame() {
             <SectionHead title="積分榜" extra="前六名" />
             <div className="chips">
               <button className={`chip${boardTab === 'solo' ? ' on' : ''}`} onClick={() => setBoardTab('solo')}>闖關生存</button>
-              <button className={`chip${boardTab === 'duel' ? ' on' : ''}`} onClick={() => setBoardTab('duel')}>兩人對戰</button>
+              <button className={`chip${boardTab === 'pvp' ? ' on' : ''}`} onClick={() => setBoardTab('pvp')}>兩人對戰</button>
             </div>
             <Board mode={boardTab} />
 
@@ -312,11 +513,37 @@ export default function QuizGame() {
           </>
         )}
 
+        {/* ================= 配對中 ================= */}
+        {/* ★★★ 等待狀態必須**看得出還在等**，而且要有出口。
+            只寫一句「配對中」而沒有經過幾秒、也不能取消，使用者會分不出
+            「還在排隊」與「壞掉了」——那是最讓人不信任的一種畫面。 */}
+        {phase === 'queue' && (
+          <>
+            <div className="calpage">
+              <div className="hd">配對中</div>
+              <div className="gz"><div className="zi">等<small>對手</small></div></div>
+              <div className="meta">
+                <span className="term">已等 {waited} 秒</span><br />
+                正在幫你找一位線上的真人對手。找到就直接開始，兩邊拿到的題目與選項順序完全一樣。
+              </div>
+            </div>
+            <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button className="b" style={{ width: '100%' }} onClick={() => leavePvp(true)}>取消配對</button>
+              {/* ⚠️ 這顆是給「現在沒人在線」的出口。它明講是模擬對手，
+                     不會把機器人講成真人。 */}
+              <button className="b" style={{ width: '100%' }}
+                onClick={() => { leavePvp(false); start('bot') }}>改跟練習對手打（電腦模擬）</button>
+            </div>
+            <Disclaimer text="真人對戰需要另一位玩家同時在線。等太久的話，可以先跟練習對手打幾局熟悉節奏。" />
+            <div style={{ height: 16 }} />
+          </>
+        )}
+
         {/* ================= 遊戲中 ================= */}
         {phase === 'play' && g && (
           <>
             <div className="calpage">
-              <div className="hd">{g.mode === 'duel' ? '兩人對戰' : '闖關生存'}</div>
+              <div className="hd">{g.mode !== 'solo' ? '兩人對戰' : '闖關生存'}</div>
 
               <div className="qz-hud">
                 {g.mode === 'solo' ? (
@@ -373,7 +600,7 @@ export default function QuizGame() {
             </div>
 
             <div className="pad">
-              <button className="b" style={{ width: '100%' }} onClick={() => finish('提前收工')}>結束這局</button>
+              <button className="b" style={{ width: '100%' }} onClick={() => (g.mode === 'pvp' ? leavePvp(true) : finish('提前收工'))}>結束這局</button>
             </div>
             <div style={{ height: 16 }} />
           </>
@@ -383,16 +610,16 @@ export default function QuizGame() {
         {phase === 'end' && result && (
           <>
             <div className="calpage">
-              <div className="hd">{result.mode === 'duel' ? '戰果' : '結算'}</div>
+              <div className="hd">{result.mode !== 'solo' ? '戰果' : '結算'}</div>
               <div className="gz"><div className="zi">{result.title}</div></div>
               <div className="meta">
-                <span className="term">{result.mode === 'duel' ? '兩人對戰' : '闖關生存'}</span>
+                <span className="term">{result.mode !== 'solo' ? '兩人對戰' : '闖關生存'}</span>
               </div>
               <div className="qz-big"><CountUp value={result.score} /><small>最終積分</small></div>
             </div>
 
             <div className={`qz-verdict ${result.ok ? 'good' : 'bad'}`} style={{ margin: '0 var(--space-4)' }}>
-              <b>{result.mode === 'duel' ? '戰報' : '總評'}</b><span>{result.note}</span>
+              <b>{result.mode !== 'solo' ? '戰報' : '總評'}</b><span>{result.note}</span>
             </div>
 
             <div className="yiji">
@@ -406,7 +633,7 @@ export default function QuizGame() {
             <SectionHead title="積分榜" extra="前六名" />
             <div className="chips">
               <button className={`chip${boardTab === 'solo' ? ' on' : ''}`} onClick={() => setBoardTab('solo')}>闖關生存</button>
-              <button className={`chip${boardTab === 'duel' ? ' on' : ''}`} onClick={() => setBoardTab('duel')}>兩人對戰</button>
+              <button className={`chip${boardTab === 'pvp' ? ' on' : ''}`} onClick={() => setBoardTab('pvp')}>兩人對戰</button>
             </div>
             <Board mode={boardTab} highlight={boardTab === result.mode ? lastEntry : null} />
 

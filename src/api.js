@@ -73,6 +73,14 @@ export const api = {
   following: (handle) => req('/users/' + encodeURIComponent(handle) + '/following'),
   // 節氣徽章（AR 小挑戰）。POST 接受 { ids } 陣列＝登入後合併本機紀錄。
   badges: () => req('/badges'),
+
+  // ── 節氣知識王：真人對戰 ──
+  // ⚠️ 這幾支**不需要登入**（訪客也要能對戰），身分靠伺服器發的 key 認。
+  //    key 只在這一場有效，而且只動得了自己那一格。
+  quizQueue: (name) => req('/quiz/queue', { method: 'POST', body: { name } }),
+  quizPoll: (id, key) => req(`/quiz/match/${encodeURIComponent(id)}?key=${encodeURIComponent(key)}`),
+  quizAnswer: (b) => req('/quiz/answer', { method: 'POST', body: b }),
+  quizLeave: (b) => req('/quiz/leave', { method: 'POST', body: b }),
   earnBadges: (ids) => req('/badges', { method: 'POST', body: { ids } }),
   notifications: () => req('/notifications'),
   notificationsRead: () => req('/notifications/read', { method: 'POST' }),
