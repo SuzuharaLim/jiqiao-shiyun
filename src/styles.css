@@ -4061,11 +4061,26 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
    ⚠️ 顏色一律走語意 token：對＝`--yi`（青綠加深）、錯＝`--ji`（橙加深）、
       主強調＝`--cinnabar`（名字是舊的，現值為深藍）。**不可寫死色碼**——
       那正是原本那份 HTML 的問題：它自帶一整套 :root，改版時不會跟著換。
+
+   ★★★ 動效時長一律用 token（--m-fast/.13s、--m-base/.26s、--m-slow/.44s）。
+      改版前這一支自己寫了 .16/.22/.32/.34/.38/.4/.42/.55/1s **九種**速度，
+      而站規明講「不要每支各寫各的秒數——同畫面出現 4 種速度，體感會散」。
+      現在只有三種：按壓與 hover 用 fast、進場用 base、揭曉與蓋印用 slow。
    ========================================================================== */
+
+/* ★★★★ 這一支的進場**只動 transform，不動 opacity**。
+   站規：「動畫只負責『怎麼出現』，不可負責『是否存在』」——
+   `riseIn` 的 from 是 opacity:0，配上 `backwards` ＋ 延遲，動畫一旦沒有推進
+   （分頁在背景、UA 停用動畫、某些 WebView、不合成畫面的環境），
+   題目與四個選項就**永久隱形**，而且是靜默的：版面在、文字在，就是看不見。
+   ⚠️ 實測就是這樣：在不合成畫面的環境下四顆選項全部 opacity:0。
+   ⇒ 元素越大、越是內容本體，可見性就越不該依賴動畫。最壞情況只是偏移 10px。 */
+@keyframes qzRise { from { transform:translateY(10px) } to { transform:none } }
 
 .qz-label { display:block; font-size:var(--text-2xs); color:var(--muted); letter-spacing:.04em; margin-bottom:6px; }
 .qz-input { width:100%; font-family:inherit; font-size:var(--text-base); color:var(--text);
-  padding:11px 12px; background:var(--card); border:1px solid var(--line2); border-radius:2px; }
+  padding:11px 12px; background:var(--card); border:1px solid var(--line2); border-radius:2px;
+  transition:border-color var(--m-fast) var(--e-out); }
 .qz-input:focus { outline:2px solid var(--cinnabar); outline-offset:0; border-color:var(--cinnabar); }
 
 .qz-hud { padding:14px var(--space-4) var(--space-4); display:flex; flex-direction:column; gap:12px; }
@@ -4079,12 +4094,12 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .qz-hp { position:relative; height:8px; background:var(--field); border:1px solid var(--line);
   border-radius:2px; overflow:hidden; }
 .qz-hp-ghost { position:absolute; inset:0; background:var(--ji); opacity:.34;
-  transition:width .55s var(--e-out); }
+  transition:width var(--m-slow) var(--e-out); }
 .qz-hp-fill { position:absolute; inset:0; height:100%; background:var(--yi);
-  transition:width .22s var(--e-out); }
+  transition:width var(--m-base) var(--e-out); }
 .qz-hp-fill.low { background:var(--ji); }
 .qz-hp.foe .qz-hp-fill { background:var(--gold-hi); }
-.qz-hp.hit { animation:qzShake .38s var(--e-out); }
+.qz-hp.hit { animation:qzShake var(--m-slow) var(--e-out); }
 @keyframes qzShake {
   0%,100% { transform:translateX(0) }
   15% { transform:translateX(-5px) } 30% { transform:translateX(4px) }
@@ -4097,11 +4112,14 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qz-who b { font-weight:700; color:var(--text); }
 .qz-vs { font-family:var(--serif); color:var(--muted); font-size:var(--text-2xs); letter-spacing:.1em; }
+/* 對手離線：整欄降彩度，讓「他不在了」一眼看得出來，而不是血條莫名不動 */
+.qz-duel .off { opacity:.5; }
+.qz-duel .off .qz-who::after { content:'　離線'; color:var(--ji); }
 
 /* 對手動態：不打斷你，只在旁邊閃一下 */
 .qz-ticker { font-size:var(--text-2xs); padding:7px 11px; border-radius:2px;
   background:var(--field); border-left:3px solid var(--line2); color:var(--muted);
-  animation:riseIn .32s var(--e-out) both; }
+  animation:qzRise var(--m-base) var(--e-out) both; }
 .qz-ticker.bad { border-left-color:var(--ji); color:var(--ji); }
 .qz-ticker.good { border-left-color:var(--yi); color:var(--yi); }
 
@@ -4109,7 +4127,7 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   font-size:var(--text-xs); color:var(--muted); }
 .qz-tag { font-family:var(--serif); color:var(--cinnabar); font-weight:700; letter-spacing:.06em; }
 .qz-q { margin:0; font-family:var(--serif); font-size:var(--text-lg); line-height:1.6;
-  letter-spacing:.02em; text-wrap:balance; animation:riseIn .42s var(--e-out) both; }
+  letter-spacing:.02em; text-wrap:balance; animation:qzRise var(--m-base) var(--e-out) both; }
 
 /* ---- 選項：甲乙丙丁用印記，揭曉時由左往右暈染 ---- */
 .qz-opts { display:flex; flex-direction:column; gap:8px; }
@@ -4117,29 +4135,53 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   text-align:left; width:100%; min-height:48px; padding:12px 13px;
   background:var(--field); color:var(--text); border:1px solid var(--line); border-radius:2px;
   line-height:1.6; font-size:var(--text-sm); position:relative; overflow:hidden;
-  transition:border-color .16s var(--e-out), background .16s var(--e-out);
-  animation:riseIn .4s var(--e-out) backwards; animation-delay:calc(var(--i,0) * 55ms + 90ms); }
+  transition:border-color var(--m-fast) var(--e-out), background var(--m-fast) var(--e-out),
+             opacity var(--m-base) var(--e-out);
+  animation:qzRise var(--m-base) var(--e-out) backwards; animation-delay:calc(var(--i,0) * 55ms + 90ms); }
+
+/* ★★★ 選項是**大面積元素**（343×48），不可套 .tap 預設的 scale(.92)。
+   站規：「340px 寬的 ToolRow 縮 10% 等於整條塌 34px，看起來像壞掉不像回饋。」
+   大面積一律「輕縮 .985 ＋ 換底」。 */
+.qz-opt.tap:active:not(:disabled) { transform:scale(.985); opacity:1; background:var(--chip); }
+
+/* ⚠️ 每一條 hover 都要包這個 media query：觸控裝置沒有真正的 hover，
+   點一下之後狀態會**黏住**直到點別處，使用者會看到某一顆莫名一直亮著。 */
+@media (hover:hover) and (pointer:fine) {
+  .qz-opt:hover:not(:disabled) { border-color:var(--cinnabar); background:var(--card); }
+  .qz-row:hover { background:var(--field); }
+}
+
 .qz-opt:disabled { cursor:default; }
+/* ★ 作答之後，**沒被選中也不是正解**的那幾顆要退到後面去。
+   四顆都維持同樣的視覺重量時，對錯反而讀不出來——揭曉的重點是對比。 */
+.qz-opt:disabled:not(.right):not(.wrong) { opacity:.42; }
+
 .qz-opt::after { content:""; position:absolute; inset:0; z-index:0; opacity:0;
   transform-origin:left; transform:scaleX(0); pointer-events:none; }
-.qz-opt.right::after { background:var(--ok-bg); opacity:1; animation:qzWash .42s var(--e-out) both; }
-.qz-opt.wrong::after { background:var(--no-bg); opacity:1; animation:qzWash .42s var(--e-out) both; }
+/* 揭曉：由左往右暈染。⚠️ 曲線用 easeOutCubic——站規記過「曲線太前傾等於白做」，
+   cubic-bezier(.22,1,.3,1) 在 1s 動畫裡 80ms 就跑到終點，看起來仍是瞬間就位。 */
+.qz-opt.right::after { background:var(--ok-bg); opacity:1; animation:qzWash var(--m-slow) cubic-bezier(.33,1,.68,1) both; }
+.qz-opt.wrong::after { background:var(--no-bg); opacity:1; animation:qzWash var(--m-slow) cubic-bezier(.33,1,.68,1) both; }
 .qz-opt > * { position:relative; z-index:1; }
 .qz-opt.right { border-color:var(--yi); }
-.qz-opt.wrong { border-color:var(--ji); animation:qzShake .4s var(--e-out); }
+.qz-opt.wrong { border-color:var(--ji); animation:qzShake var(--m-slow) var(--e-out); }
 @keyframes qzWash { from { transform:scaleX(0) } to { transform:scaleX(1) } }
 
+/* ★★★ 實心底＋白字一律用 `--primary`，**不可用 `--cinnabar`**。
+   深色模式的 --cinnabar 是淺藍 #6E9CD2，白字只有 **2.86**（AA 要 4.5）——
+   站上這個坑一次踩過 14 處，這裡是第 15 處。改 --primary 後是 8.24。 */
 .qz-k { width:20px; height:20px; display:grid; place-items:center; border-radius:2px;
-  background:var(--cinnabar); color:var(--pfg); font-family:var(--serif);
+  background:var(--primary); color:var(--pfg); font-family:var(--serif);
   font-size:var(--text-2xs); transform:translateY(3px); }
 /* 蓋章：印記落下。⚠️ 位移要寫進 keyframe，否則動畫會覆蓋掉 translateY(3px) 的對齊 */
-.qz-opt.right .qz-k { background:var(--yi); color:var(--on-yi); animation:qzStamp .34s var(--e-spring) both; }
-.qz-opt.wrong .qz-k { background:var(--ji); color:var(--on-ji); animation:qzStamp .34s var(--e-spring) both; }
+.qz-opt.right .qz-k { background:var(--yi); color:var(--on-yi); animation:qzStamp var(--m-slow) var(--e-spring) both; }
+.qz-opt.wrong .qz-k { background:var(--ji); color:var(--on-ji); animation:qzStamp var(--m-slow) var(--e-spring) both; }
 @keyframes qzStamp { 0% { transform:translateY(3px) scale(1.7); opacity:0 }
   55% { transform:translateY(3px) scale(.92); opacity:1 } 100% { transform:translateY(3px) scale(1) } }
 
 .qz-verdict { font-size:var(--text-xs); line-height:1.75; padding:11px 13px; min-height:46px;
-  background:var(--field); border-left:3px solid var(--line2); animation:riseIn .34s var(--e-out) both; }
+  background:var(--field); border-left:3px solid var(--line2);
+  animation:qzRise var(--m-base) var(--e-out) both; }
 .qz-verdict b { font-family:var(--serif); letter-spacing:.08em; margin-right:8px; }
 .qz-verdict span { color:var(--muted); }
 .qz-verdict.good { border-left-color:var(--yi); } .qz-verdict.good b { color:var(--yi); }
@@ -4156,7 +4198,8 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .qz-board { padding:0 var(--space-4); }
 .qz-row { display:grid; grid-template-columns:22px 1fr auto; gap:12px; align-items:baseline;
   padding:9px 0; border-top:1px dotted var(--line2); font-size:var(--text-sm);
-  animation:riseIn .38s var(--e-out) backwards; }
+  transition:background var(--m-fast) var(--e-out);
+  animation:qzRise var(--m-base) var(--e-out) backwards; }
 .qz-row:first-child { border-top:0; }
 .qz-row .rk { font-family:var(--serif); color:var(--muted); font-variant-numeric:tabular-nums; }
 .qz-row .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -4169,6 +4212,8 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   animation:qzFloat 1s var(--e-out) forwards;
   text-shadow:0 0 12px var(--card), 0 0 6px var(--card), 0 0 3px var(--card); }
 .qz-float.yi { color:var(--yi); } .qz-float.ji { color:var(--ji); }
+/* ⚠️ 這一支刻意保留 1s：它是「飄上去再淡出」的完整弧線，壓到 .44s 會看不清數字。
+   其餘一律用 token。 */
 @keyframes qzFloat {
   0% { opacity:0; transform:translate(-50%,14px) scale(.8) }
   20% { opacity:1; transform:translate(-50%,0) scale(1.12) }

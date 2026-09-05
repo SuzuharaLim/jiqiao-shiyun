@@ -63,7 +63,7 @@ function Board({ mode, highlight }) {
 }
 
 export default function QuizGame() {
-  const { user, setToast } = useNav()
+  const { user, setToast, setStamp } = useNav()
   const [phase, setPhase] = useState('start')       // start | play | end
   const [name, setName] = useState(user?.name || '')
   const [boardTab, setBoardTab] = useState('solo')
@@ -263,15 +263,18 @@ export default function QuizGame() {
       ok: !!r.won,
     })
     setPhase('end')
+    // ★ 站上的招牌動作：成功＝蓋一枚印（註冊／發佈／下單／掃描辨識都用它）。
+    //   贏一場真人對戰是這條動線的「成了！」時刻，沒有理由不用同一個語彙。
+    if (r.won) setStamp('勝')
   }
 
   /* 對手跑自己的節奏，不中斷你手上這一題 */
   const foeLoop = () => {
     const g = G.current
-    if (!g || g.mode !== 'duel') return
+    if (!g || g.mode !== 'bot') return
     timers.current.foe = setTimeout(() => {
       const gg = G.current
-      if (!gg || gg.mode !== 'duel') return
+      if (!gg || gg.mode !== 'bot') return
       gg.foeAnswered++
       if (Math.random() < gg.foe.accuracy) {
         const dmg = 9 + Math.floor(Math.random() * 9)
@@ -422,7 +425,10 @@ export default function QuizGame() {
     const entry = pushScore(g.name, score, g.mode)
     setLastEntry(entry)
     setBoardTab(g.mode)
-    setResult({ mode: g.mode, title, note, score, right: g.right, wrong: g.wrong, acc, ok: g.mode !== 'solo' ? title === '勝' : g.hp > 0 })
+    const survived = g.mode !== 'solo' ? title === '勝' : g.hp > 0
+    setResult({ mode: g.mode, title, note, score, right: g.right, wrong: g.wrong, acc, ok: survived })
+    // ★ 撐過三分鐘／擊倒對手都是「成功」，用站上的蓋印語彙。
+    if (survived) setStamp(g.mode === 'solo' ? '撐住了' : '勝')
     setPhase('end')
   }
 
