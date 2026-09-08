@@ -3480,7 +3480,20 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto;
   font-size: var(--text-2xs); color: var(--muted);
 }
-.crumb a { color: var(--cinnabar); text-decoration: none; }
+/* ★★ 麵包屑連結必須自己撐出 24×24（WCAG 2.5.8 AA）。
+   ⚠️ reset.css 的全域 44px 觸控規則**刻意豁免** `a[href]:not([class])`
+      （行內文字連結套 44px 會撐破行高），而麵包屑的連結剛好沒有 class ⇒ 被豁免掉。
+   ⚠️★ 而且那裡原本補的 `min-height` 對這裡是**完全無效的**：麵包屑每一節被包在
+      `<span>` 裡（Breadcrumb 要在節與節之間插入分隔符 `›`），所以 `a` 不是
+      `.crumb` 這個 flex 容器的直接子元素 ⇒ 不會被 blockify ⇒ 仍是 `display:inline`
+      ⇒ **`min-height` 對 inline 元素不生效**。實測 26×17，高度只有 17。
+      這是「修過了但靜默沒生效」——畫面上完全看不出來，只有量才知道。
+   ⇒ 一定要同時改 `display`，光寫 min-height 沒有用。用 inline-flex 不用
+      inline-block：需要 `align-items:center` 讓文字在 24px 高的盒子裡置中。
+   ⚠️ 這裡不套 44px：`.crumb` 是資訊列不是主要操作區，44px 會讓它比下方的
+      頁面標題還高。24px 是 AA 的門檻，也是站規對緊湊型元件的一貫選擇。 */
+.crumb a { color: var(--cinnabar); text-decoration: none;
+  display: inline-flex; align-items: center; min-height: 24px; }
 .crumb i { font-style: normal; margin: 0 2px; color: var(--muted); }
 .crumb b { color: var(--text); font-weight: 600; }
 @media (hover: hover) and (pointer: fine) { .crumb a:hover { text-decoration: underline; } }
