@@ -19,16 +19,20 @@ export default function Create() {
             拍照 →（IG 式）寫說明、標節氣地點、決定是否上架 → 發布。
             分成兩個入口會讓人以為是兩種不同功能，且「發貼文」那條會跳過拍攝。
             合併成單一入口，想用既有照片的人從相機裡選相簿即可。 */}
-        <ToolRow iconName="camera" title="拍照發布"
+        <div className="toolgrid">
+<ToolRow iconName="camera" title="拍照發布"
           sub="拍攝／選圖 · 濾鏡特效 · 標節氣地點 · 上架市集" onClick={() => push('camera')} />
         <ToolRow iconName="scroll" title="做月曆工作室" sub="選圖 → AI 排版 → 詩詞 → 預覽" onClick={() => push('makeCalendar')} />
         <ToolRow iconName="fortune" title="明年預拍" sub="節氣提醒 → 一鍵成曆" onClick={() => push('prePlan')} />
+        </div>
 
         {/* ⚠️ 專案子系統尚未建置，這裡曾經列出 mock.js 的示範專案，
             會讓使用者看到自己從未建立過的東西。改成單一入口，實際清單交給 MyProjects 顯示空狀態。 */}
         <SectionHead title="我的專案" />
-        <ToolRow iconName="book2" title="查看我的專案" sub="做好的月曆與手帳"
+        <div className="toolgrid">
+<ToolRow iconName="book2" title="查看我的專案" sub="做好的月曆與手帳"
           onClick={() => push('myProjects')} />
+        </div>
         <div style={{ height: 16 }} />
       </div>
     </>

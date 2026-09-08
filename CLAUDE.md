@@ -597,6 +597,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
 - **桌機內容卡 `.device` 用 `overflow:clip` 不能 `overflow:hidden`**：`hidden` 會讓它變 sticky 的捲動容器，害 sticky 頂列偏移出空白帶。
 - **`.webnav,.webfoot` 的基礎 `display:none` 要放在 `@media(min-width:900px)` 之前**：同 specificity 時後者勝，放後面會永遠隱藏。
+- **★★★ 桌機雙欄的「水平沒有平均」不是邊界沒對齊，是奇數段尾巴留洞**（2026-08-16）：`/almanac` 與 `/create` 的工具列是一段一段的（各有 `SectionHead`），但 `.rootpane.grid2 .body` 是**整個 body 一張 grid** ⇒ 每一段的最後一顆若讓那一段變成奇數，右欄就空一格，而下一段的標題又跨滿寬 ⇒ 看起來像左右不平均。⚠️ **先量再改**：實測三條水平節奏（內容 body／頁尾 inner／導覽 inner）本來就完全一致（都是 213~1213），往「邊界對齊」的方向修一整輪都不會有任何改變。
+  - 解法是每一段包一層 `.toolgrid`：**手機 `display:contents`**（版面完全透明，維持原本的長條列）、**桌機才變成那一段自己的雙欄**，並用 `.toolgrid > .tool:last-child:nth-child(odd) { grid-column:1 / -1 }` 讓奇數段的最後一顆補滿整列。⚠️ 這件事**沒有包裝層就做不到**：CSS 選得到「body 裡的第幾顆」，選不到「這一段的最後一顆、而且這一段是奇數」——段落的邊界只存在於 DOM 結構裡。
+  - ⚠️ **加了 `display:contents` 的包裝層就一定要把它列進 `flex-shrink:0` 那條規則**（站規別處已寫過 `.ex-top`／`.feed-main` 同一個坑）：`.body > *` 比對的是 DOM 不是盒模型，選到的是包裝層本身，裡面真正變成 flex 項目的工具列**一顆都沒被選到** ⇒ 手機上被壓成 `min-height` 44px（實際需要 86~117）⇒ 標題與副標疊在一起。
+  - ⚠️ 還有三條既有選擇器是寫 `.grid2 .body > .tool` 的（卡片外觀、`:active` 壓底、`:hover`），**多一層包裝之後 `>` 就對不上了**：症狀是桌機的工具列突然沒有邊框、沒有白底、按下去沒反應——三者都要補上 `.toolgrid > .tool` 那一支。
+  - 驗法：桌機量每一顆 `.tool` 的寬與 top，找「同一列只有自己一顆、而且寬度不到滿版」的（那就是洞）。實測 `/almanac` 9 顆、`/create` 4 顆，兩頁都 0 洞；手機端包裝層 `display:contents`、工具列仍是單欄滿寬、無橫向溢出。
 - **grid2 雙欄**：`.rootpane.grid2 .body` 由 flex 改 grid，非 `.tool` 子元素要 `grid-column:1/-1` 才不會被塞進雙欄。
 - **flex column 內用 `margin:auto` 置中會關閉 stretch**：`.screen` 是 flex column，其子項 `.body` 若用 `max-width + margin:auto` 置中，auto 邊界會取消 stretch → `.body` 收縮成內容寬（詳情頁看起來太窄/稀疏）。要用 **`width:min(100%, Npx)`**（確定寬度）才會真的填滿到 N 再置中。
 - **桌機堆疊畫面的版心（2026-07 修）**：通則 `.screen .body` 是 `width:min(100%,720px)` ＋ `margin:auto`，40 頁實測有 30 頁因此變成「1440px 視窗中間一條 720px 手機欄」、1000px 內容卡裡左右各 140px 死白。已按內容性質分三類：**讀字型**（條款/關於/專欄/貼文/表單）維持窄欄；**清單型**（設定/安全/神佛/諺語/慶典/賞花/食材/相剋/干支/商店/排行/創作者後台）改**雙欄**；**時序型**（通知/收益/訂單/紀錄/專案/挑戰/生肖/今日）維持單欄但放寬到內容卡滿寬。雙欄沿用 `.rootpane.grid2` 約定：直接子元素預設 `grid-column:1/-1`，只有列出的 `.tool/.opt/.kv/.list-item/.card/.acc-form` 才 `grid-column:auto`。

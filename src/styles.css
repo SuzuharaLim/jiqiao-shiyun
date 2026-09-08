@@ -264,9 +264,26 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .rootpane.grid2 .body { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
     gap:12px 16px; align-content:start; }
   .stage.signed-in .rootpane.grid2 .body > :not(.tool) { grid-column:1 / -1; }
-  .stage.signed-in .rootpane.grid2 .body > .tool { border:1px solid var(--line); border-radius:2px;
+
+  /* ★★★ 每個區段自己一個雙欄格。
+     ⚠️ 為什麼要包一層：`.body` 是一個扁平的大格子，區段標題用 `grid-column:1/-1`
+        換行，所以**整頁的欄位是連續的**——CSS 沒有辦法知道「這一顆是不是自己那
+        一段的最後一顆、而且那一段是奇數」。包成一段一格之後，
+        `:last-child:nth-child(odd)` 就精準了。
+     ⚠️ 落單的最後一顆要橫跨兩欄：右邊留一個洞，看起來就是「水平沒平均」。
+        站上 ArTalk 的選項格用的是同一條規則。 */
+  .stage.signed-in .rootpane.grid2 .body > .toolgrid {
+    grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:12px 16px; align-content:start; }
+  .stage.signed-in .rootpane.grid2 .toolgrid > .tool:last-child:nth-child(odd) { grid-column:1 / -1; }
+
+  /* ⚠️ 這幾條原本只比對 `.body >` 的直接子元素。包了 .toolgrid 之後工具列不再是
+     .body 的直接子元素，不一起列的話**卡片樣式會整組掉光**（變回長條列）。 */
+  .stage.signed-in .rootpane.grid2 .body > .tool,
+  .stage.signed-in .rootpane.grid2 .toolgrid > .tool { border:1px solid var(--line); border-radius:2px;
     background:var(--card); padding:16px; transition:transform var(--m-fast) var(--e-out), box-shadow var(--m-fast) var(--e-out), border-color var(--m-fast); }
-  .stage.signed-in .rootpane.grid2 .body > .tool:active { background:var(--card); }
+  .stage.signed-in .rootpane.grid2 .body > .tool:active,
+  .stage.signed-in .rootpane.grid2 .toolgrid > .tool:active { background:var(--card); }
 
   /* 個人名帖 banner 化 */
   .stage.signed-in .tiepost { margin:4px 0 14px; }
@@ -539,8 +556,14 @@ a { color:inherit; text-decoration:none; }
    （需要 108px），整塊蓋到下面的「本月人氣創作者」。 */
 .body > *,
 .ex-top > *, .ex-main > *, .ex-side > *,
-.feed-main > *, .feed-side > * { flex-shrink:0; }
+.feed-main > *, .feed-side > *,
+/* ⚠️ .toolgrid 手機上也是 display:contents 的包裝層，同上：不列進來的話
+   它裡面的工具列會被壓成 min-height，標題與副標疊在一起。 */
+.toolgrid > * { flex-shrink:0; }
 .body::-webkit-scrollbar { width:0; }
+/* ★ 工具列分組容器。手機上對版面透明（維持原本的長條列），
+   桌機才變成這一段自己的雙欄——見下方 grid2 的說明。 */
+.toolgrid { display:contents; }
 /* ⚠️ 全站水平內距統一 16px（--space-4）。原本 12/13/14/15/16 混用，
    同一頁會出現 3~5 條不同的內容左緣，看起來就是「不對稱／沒對齊」。 */
 .pad { padding:14px var(--space-4); }
@@ -2576,7 +2599,8 @@ button.calnote.asrow.on .v { white-space:normal; overflow:visible; }
 
 /* hover 不再位移＋投影，改為墨線加深（紙不會浮起來，但線可以加重） */
 .stage.signed-in .album .it:hover,
-.stage.signed-in .rootpane.grid2 .body > .tool:hover {
+.stage.signed-in .rootpane.grid2 .body > .tool:hover,
+.stage.signed-in .rootpane.grid2 .toolgrid > .tool:hover {
   transform: none;
   box-shadow: none;
   border-color: var(--cinnabar);
