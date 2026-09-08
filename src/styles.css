@@ -275,7 +275,17 @@ a { color:inherit; text-decoration:none; }
   .stage.signed-in .rootpane.grid2 .body > .toolgrid {
     grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
     gap:12px 16px; align-content:start; }
-  .stage.signed-in .rootpane.grid2 .toolgrid > .tool:last-child:nth-child(odd) { grid-column:1 / -1; }
+  /* 區塊標題在 section 內，桌機要跨滿兩欄（手機 .toolgrid 是 display:contents，
+     標題本來就是 .body 的 flex 項目，不受這條影響）。 */
+  .stage.signed-in .rootpane.grid2 .toolgrid > .sech { grid-column:1 / -1; }
+  /* ⚠️★ 標題進到 .toolgrid 裡之後會**佔掉 nth-child 的第 1 格**，奇偶整個反過來：
+     5 顆工具列時最後一顆從 :nth-child(5)(奇) 變成 :nth-child(6)(偶)，
+     原本那條 `:nth-child(odd)` 就再也不會命中 ⇒ 右邊的洞會整組跑回來，
+     而畫面上沒有任何錯誤，只是「又變得不平均了」。
+     用 :has() 把「有標題」與「沒標題」兩種情況分開，兩條必須互斥——
+     只改成偶數的話，沒有標題的那種又會反過來壞掉。 */
+  .stage.signed-in .rootpane.grid2 .toolgrid:not(:has(> .sech)) > .tool:last-child:nth-child(odd),
+  .stage.signed-in .rootpane.grid2 .toolgrid:has(> .sech) > .tool:last-child:nth-child(even) { grid-column:1 / -1; }
 
   /* ⚠️ 這幾條原本只比對 `.body >` 的直接子元素。包了 .toolgrid 之後工具列不再是
      .body 的直接子元素，不一起列的話**卡片樣式會整組掉光**（變回長條列）。 */
@@ -4248,4 +4258,52 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* 桌機：曆頁卡本來就限寬 560 置中，選項改雙欄才不會每行都很長 */
 @media (min-width:900px) {
   .stage.signed-in .qz-opts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* ==========================================================================
+   閱讀型畫面的「正文」排印（2026-09-08，依 redesign-skill 稽核）
+
+   ★ 起因：styles.css 的 `.card p` 是
+       font-size: var(--text-xs)(15px); color: var(--muted); line-height: 1.6;
+     而 `.card` 全站有 83 處——它同時服務兩種完全不同的東西：
+       (a) 鍵值列底下的小字附註（本來就該小、該淡）
+       (b) 24 節氣專文／12 神佛由來／解夢條目／編輯室的**正文本體**
+     於是站上最該被讀的長文，被排成了「次要說明」：15px、**灰色次文**、行高 1.6。
+     這是層級倒置，不是美感問題——`--leading-body: 1.75` 這個 token 的註解
+     白紙黑字寫著「中文內文」，但它從來沒有被用在任何一段中文內文上。
+
+   ⚠️ 為什麼不直接改 `.card p`：那 83 處裡多數是 (a)，全域改會把每一張卡
+      底下的小字附註一起放大加深，反而把層級**再倒置一次**。
+   ⚠️ 為什麼用 `screen-<key>`：那是 App.jsx 已經為堆疊畫面掛好的機制
+      （CLAUDE.md 有記），改 CSS 就好，一行 JSX 都不用動。
+   ⚠️ 為什麼用 `:not([class])`：純正文是 `<p>{a.origin}</p>`（無 class），
+      而附註是 `<p className="muted td-note">`、`.td-crops`、`.td-saying`
+      ——它們**應該**維持小字。用有沒有 class 來分，剛好與語意一致。
+      React 在 className 是 undefined 時不會輸出屬性，所以這個判準是可靠的。
+   ⚠️ text-wrap 用 `pretty` 不是 `balance`：balance 是給 2~4 行的標題用的
+      （瀏覽器對長段落本來就會放棄），pretty 才是處理長文末行孤字的那一個。
+   ⚠️ 名單裡刻意**沒有** /about、/terms、/privacy：實測那三頁用的是 `.article`
+      而不是 `.card`，本來就已經是 16px / 1.75 / 墨色。列進來只會多三條永遠
+      不命中的選擇器，讓人以為它們有在做事。
+   ========================================================================== */
+.screen-termDetail    .card > p:not([class]),
+.screen-deityDetail   .card > p:not([class]),
+.screen-dreamDetail   .card > p:not([class]),
+.screen-glossaryDetail .card > p:not([class]),
+.screen-editorial     .card > p:not([class]),
+.screen-myths         .card > p:not([class]) {
+  font-size: var(--text-sm);          /* 15 → 16px：正文級，不是附註級 */
+  color: var(--text);                 /* 次文灰 → 墨。這一項改動最大 */
+  line-height: var(--leading-body);   /* 1.6 → 1.75，中文長文的舒適行高 */
+  max-width: var(--measure);          /* 68ch，避免寬螢幕上一行過長 */
+  text-wrap: pretty;                  /* 收掉末行孤字 */
+}
+/* 同一張卡裡連續兩段之間要有段距，否則 1.75 行高之下段落界線會消失 */
+.screen-termDetail    .card > p:not([class]) + p:not([class]),
+.screen-deityDetail   .card > p:not([class]) + p:not([class]),
+.screen-dreamDetail   .card > p:not([class]) + p:not([class]),
+.screen-glossaryDetail .card > p:not([class]) + p:not([class]),
+.screen-editorial     .card > p:not([class]) + p:not([class]),
+.screen-myths         .card > p:not([class]) + p:not([class]) {
+  margin-top: var(--space-3);
 }

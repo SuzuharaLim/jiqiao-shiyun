@@ -597,6 +597,18 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
 - **桌機內容卡 `.device` 用 `overflow:clip` 不能 `overflow:hidden`**：`hidden` 會讓它變 sticky 的捲動容器，害 sticky 頂列偏移出空白帶。
 - **`.webnav,.webfoot` 的基礎 `display:none` 要放在 `@media(min-width:900px)` 之前**：同 specificity 時後者勝，放後面會永遠隱藏。
+- **★★★ 長文正文被排成「次要說明」（2026-09-08，依 `redesign-skill` 稽核修正）**：`styles.css` 的 `.card p` 是 `font-size:var(--text-xs)(15px); color:var(--muted); line-height:1.6`，而 `.card` 全站有 **83 處**——它同時服務兩種完全不同的東西：(a) 鍵值列底下的小字附註（本來就該小該淡）、(b) **24 節氣專文／12 神佛由來／解夢條目／編輯政策的正文本體**。於是站上最該被讀的長文被排成灰色 15px、行高 1.6，**層級整個倒置**。而 `--leading-body: 1.75` 這個 token 的註解白紙黑字寫著「中文內文」，卻從來沒有被用在任何一段中文內文上。
+  - 修正後：正文 **16px／墨色／1.75／`max-width:var(--measure)`／`text-wrap:pretty`**，對比從 5.28 → **14.36**；附註維持 15px 灰 1.6。
+  - **不可直接改 `.card p`**：83 處裡多數是 (a)，全域改會把每張卡的小字附註一起放大加深，等於把層級**再倒置一次**。用 `screen-<key>`（App.jsx 早就為堆疊畫面掛好）限定在閱讀型畫面，**一行 JSX 都不用動**。
+  - **用 `:not([class])` 分辨正文與附註**：純正文是 `<p>{a.origin}</p>`（無 class），附註是 `.td-note`／`.td-crops`／`.td-saying`。React 在 className 是 undefined 時不會輸出屬性，所以這個判準可靠，而且剛好與語意一致。
+  - ⚠️ **名單裡刻意沒有 `/about`／`/terms`／`/privacy`**：實測那三頁用的是 `.article` 不是 `.card`，本來就已經是 16px/1.75/墨色。列進去只會多三條**永遠不命中**的選擇器，讓人以為它們有在做事。
+  - ⚠️ `text-wrap` 用 **`pretty`** 不是 `balance`：balance 是給 2~4 行標題用的（瀏覽器對長段落本來就會放棄），pretty 才是處理長文末行孤字的那一個。
+- **★★★ 工具列分段改用 `<section>` 並把 `SectionHead` 收進去，但這會打壞 `nth-child` 的奇偶**（2026-09-08）：`.toolgrid` 從 `<div>` 改成 `<section>` 並把該段的 `<h2>` 移進去（原本 h2 是 section 的**兄弟**，section 裡沒有自己的標題＝語意空殼）。⚠️★ **標題會佔掉 `nth-child` 的第 1 格，奇偶整個反過來**：5 顆工具列時最後一顆從 `:nth-child(5)`（奇）變成 `:nth-child(6)`（偶），原本補滿整列的那條規則再也不會命中 ⇒ **右邊的洞會整組跑回來**，而畫面上沒有任何錯誤訊息，只是「又變得不平均了」。用 `:has(> .sech)` 把「有標題」與「沒標題」兩種情況分成兩條**互斥**的規則——只改成偶數的話，沒有標題的那種會反過來壞掉。另需 `.toolgrid > .sech { grid-column:1 / -1 }` 讓標題跨滿兩欄。
+- **★★ 稽核要「先量再改」，量到不成立就不要改**（2026-09-08 用 `redesign-skill` 跑全站稽核的收穫）：這一輪有三項看起來很像問題、實測全部不成立，**都沒有動**——
+  - **焦點環**：程式化 `.focus()` 不會觸發 `:focus-visible`，於是掃出「41 個互動元素有 39 個沒有焦點環」。實際上 `styles.css:1181` 的全域 `:focus-visible` 一直都在，用真的鍵盤路徑量到 `2px solid` 深藍。**照那份假報告去修，等於把一個好東西改壞。**
+  - **`tabular-nums`**：站上是資料密集的曆法介面，看起來理當要用表格數字。實測**加了完全沒有效果**——大字走的是 **Georgia**，它沒有表格數字組（前後每位數寬度一模一樣）；而真正排成欄的十二時辰用的是無襯線字且置中，四格量出來都是 37.2px，本來就沒有錯位。
+  - **換字體**（skill 建議 Geist／Satoshi／Outfit）：本站刻意用零下載的系統字（0 檔 0KB、無 FOUT/CLS），換 web font 是拿明確的效能與穩定性去換一個主觀偏好。**否決。**
+  - 同理否決的還有漸層／glassmorphism／噪點疊層／spotlight 邊框／GSAP 捲動動效／picsum 佔位圖／打散圓角——前六項直接違反站規「印刷不會有漸層」與零相依原則，最後一項（2px 統一圓角）**本來就是印刷卡片的語彙，不是偷懶**。
 - **★★★ 桌機雙欄的「水平沒有平均」不是邊界沒對齊，是奇數段尾巴留洞**（2026-08-16）：`/almanac` 與 `/create` 的工具列是一段一段的（各有 `SectionHead`），但 `.rootpane.grid2 .body` 是**整個 body 一張 grid** ⇒ 每一段的最後一顆若讓那一段變成奇數，右欄就空一格，而下一段的標題又跨滿寬 ⇒ 看起來像左右不平均。⚠️ **先量再改**：實測三條水平節奏（內容 body／頁尾 inner／導覽 inner）本來就完全一致（都是 213~1213），往「邊界對齊」的方向修一整輪都不會有任何改變。
   - 解法是每一段包一層 `.toolgrid`：**手機 `display:contents`**（版面完全透明，維持原本的長條列）、**桌機才變成那一段自己的雙欄**，並用 `.toolgrid > .tool:last-child:nth-child(odd) { grid-column:1 / -1 }` 讓奇數段的最後一顆補滿整列。⚠️ 這件事**沒有包裝層就做不到**：CSS 選得到「body 裡的第幾顆」，選不到「這一段的最後一顆、而且這一段是奇數」——段落的邊界只存在於 DOM 結構裡。
   - ⚠️ **加了 `display:contents` 的包裝層就一定要把它列進 `flex-shrink:0` 那條規則**（站規別處已寫過 `.ex-top`／`.feed-main` 同一個坑）：`.body > *` 比對的是 DOM 不是盒模型，選到的是包裝層本身，裡面真正變成 flex 項目的工具列**一顆都沒被選到** ⇒ 手機上被壓成 `min-height` 44px（實際需要 86~117）⇒ 標題與副標疊在一起。
