@@ -2227,13 +2227,44 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
 .ya-tai .d { font-size:var(--text-2xs); color:var(--muted); margin-top:3px; line-height:1.5; }
 
 /* 桌機：完整曆頁／年度總覽收斂為單欄宜讀寬度（避免格子過寬） */
+/* ★★★ 節氣知識王的版面必須從 **600px**（網站版面的斷點）就開始修，不是 900px。
+   ⚠️ 這裡踩過一次：兩條規則原本寫在 `@media (min-width:900px)` 裡，於是
+      **600–899 的平板整段沒被涵蓋**，實測 768px 下——
+      ① 卡片只有 417px 寬（不是 560）：那個寬度沒有任何規則指定，是全站那條
+         `.stage.signed-in .calpage { max-width:560px; margin:auto }` 在 flex column
+         裡**用 auto 邊界關掉了 stretch**，卡片於是縮成內容寬。這正是站規記載
+         「flex column 內用 margin:auto 置中會關閉 stretch」的同一個坑。
+      ② 卡片盒落在 168、其他區塊內容落在 36 ⇒ 相差 132px。
+   ⇒ 修 RWD 的規則要跟著**版面模式**的斷點走（本站登入後是 600px），
+      不要順手寫進手邊那個 900px 的區塊。 */
+@media (min-width:600px) and (min-height:600px) {
+  /* 用 width 給確定寬度，不可只寫 max-width（理由見上：auto 邊界會關掉 stretch） */
+  .stage.signed-in .screen-quiz .calpage { width:min(100%, 560px); max-width:none; }
+
+  /* ★★★ 版心收成 636 —— 讓曆頁卡與**其他每一個區塊**共用同一條左緣。
+     ⚠️ 問題不在卡片，在「同一頁上有兩個內容欄」：通則 `.screen .body` 是
+        `width:min(100%,720px); padding:0 22px` ⇒ 內容盒 676，而 `.calpage` 又被
+        獨立置中成 560 ⇒ **卡片盒落在 80、其他區塊盒落在 22**，左右各差 58px。
+        畫面上就是「按鈕比卡片寬、卡片莫名往內縮」。
+     ⚠️ 手機端本來就是對的（每個區塊的內容左緣都是 16~17，卡片靠自己的 16px
+        margin 對齊），所以正解是**把手機那套關係搬到桌機**，而不是另外湊數字：
+        636 − 22×2 = 592 內容盒；560 置中後左右剛好各 16 ⇒
+        卡片盒的左緣 = 其他區塊「內容」的左緣，與手機完全一致。
+     ⚠️ 不要改成「把 calpage 放寬」：560 是這張卡在全站的固定寬度（首頁曆頁也是），
+        放寬會讓同一張卡在兩個地方長得不一樣。 */
+  /* ⚠️ 內距要**明寫 22**：通則在 600–899 是 `padding:0 20px`、≥900 才是 22px，
+     不寫死的話兩個斷點的內容盒寬不同（596 vs 592）⇒ 560 置中後的邊距是
+     18 vs 16 ⇒ 卡片左緣與其他區塊差 2px。實測 768 下就是差這 2px。 */
+  .stage.signed-in .screen-quiz .body { width:min(100%, 636px);
+    padding-left:22px; padding-right:22px; }
+}
+
 @media (min-width:900px) and (min-height:600px) {
   /* ★★ 節氣知識王：桌機把曆頁卡放寬。
      ⚠️ 上面那條「.stage.signed-in .calpage { max-width:560px; margin:auto }」
         在 flex column 裡會**關掉 stretch**（auto 邊界的必然結果），於是卡片收縮成
         內容寬——實測 1280px 下只有 333px，四個選項擠成兩欄各 145px。
         照站規用 width:min(100%, N) 給確定寬度，不要靠 max-width ＋ auto。 */
-  .stage.signed-in .screen-quiz .calpage { width:min(100%, 560px); max-width:none; }
 
   .stage.signed-in .screen-almanacDay .body,
   .stage.signed-in .screen-yearAlmanac .body { width:min(100%, 760px); margin-left:auto; margin-right:auto; }
@@ -4267,6 +4298,17 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   34% { transform:translate(-50%,-4px) scale(1) }
   100% { opacity:0; transform:translate(-50%,-46px) scale(.96) }
 }
+
+/* ★★★ 知識王的曆頁卡不吃全站那條 `min-height:318px`。
+   那條的理由寫在它自己的註解裡——「讓不同日期的宜忌長短不影響整體版面」，
+   服務的是**首頁翻日**：翻到不同天時宜忌行數會變，沒有地板的話整頁會跳。
+   ⚠️ 知識王沒有翻日，這個地板在這裡**哪一個狀態都沒有作用，只會製造死空白**：
+      實測「配對中」與「模式選擇」內容只有 202px，被撐到 318 ⇒ 卡片下半空 116px
+      （使用者截圖上那一大塊白）；而「遊戲中」自然高度就有 421px，地板根本碰不到。
+   ⚠️ 也不必另外給遊戲中一個地板：45 題的題目最長 22 字、選項最長 13 字，
+      桌機內容區 528px 下**每一題都只有一行**，逐題實測卡高恆為 421、落差 0。
+      沒有在跳的東西不需要防跳。 */
+.screen-quiz .calpage { min-height:0; }
 
 /* 桌機：曆頁卡本來就限寬 560 置中，選項改雙欄才不會每行都很長 */
 @media (min-width:900px) {
