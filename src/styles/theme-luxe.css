@@ -145,7 +145,20 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
    都已豁免），只是 `.ty`／`.tn` 漏掉了。豁免後實測 49×34（桌機）／29（手機），
    仍遠高於 WCAG 2.5.8 AA 的 24×24。 */
 .ty, .tn, .yjcols .it > *, .ad-yj .ty, .ad-yj .tn { min-height: 0; }
-.ty, .tn { padding: 3px 11px; font-size: var(--text-2xs); letter-spacing: .03em; }
+/* ★★ 宜忌 chip 的**字級**也不可以看「這個詞有沒有詞條」。
+   ⚠️★ `styles.css:2424` 的 `button.ty.glossable { font: inherit }` 是 `font` **簡寫**，
+     它會把 `font-size` 一併重設成「繼承自父層」＝18px，而權重 (0,2,1) 蓋過
+     `.ty` (0,1,0) ⇒ **有詞條的 chip 18px、沒詞條的 13px**（實測手機 38 vs 29px）。
+     那條規則的原意只是「按鈕要繼承字體家族」，卻順手把字級也換掉了。
+   ⚠️ 桌機碰巧看不出來：≥900 的 `.stage.signed-in .yiji .ty`(0,3,0) 又把兩者壓成 15px，
+     所以**只驗桌機完全發現不了**——這與 oracle 那顆按鈕是同一種「只驗一種情境會漏」。
+   ⇒ 這裡用同權重 (0,2,1) 且後載入來收斂，統一走 --text-xs（15px，與桌機一致；
+     宜忌是必讀內容，不該用 --text-2xs 那階「僅限非必讀資訊」的字級）。 */
+.ty, .tn,
+button.ty.glossable, button.tn.glossable {
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 500; line-height: 1.75;
+}
+.ty, .tn { padding: 4px 12px; letter-spacing: .03em; }
 .chip { padding: 8px 16px; }
 .stage:not(.signed-in) .device { border-radius: 34px; box-shadow: var(--shadow-lg); }
 
@@ -356,3 +369,28 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
    完全無效，實測只有 21px 高（與麵包屑那次一模一樣）。標題型連結不套 44px
    （會撐破卡片），補到 WCAG 2.5.8 AA 的 24 即可。 */
 .st-item .st-name { display: inline-flex; align-items: center; min-height: 24px; }
+
+/* ---------- 11. 宜忌卡：桌機的 .yiji 是「透明包裝層」，不可套卡片外觀 ----------
+   ⚠️★ 2026-09-09 使用者回報「文字太過靠邊」。成因是權重打架打了一半：
+     styles.css 的 `.stage.signed-in .yiji`（0,2,0）刻意把它做成
+     `border:none; background:transparent; padding:0`——桌機真正的卡片是裡面的
+     宜／忌兩欄。而本層第 2 節把 `.yiji`（0,1,0）一起列進雙層嵌套清單，
+     **border／background／padding 被那條高權重規則打回透明，
+     `border-radius` 與 `box-shadow` 卻沒有被覆寫** ⇒ 畫面上是一個有陰影的
+     圓角空盒，而裡面那行「今日·白露…」只縮排 2px、幾乎貼著圓角邊緣。
+   ⇒ 桌機把 .yiji 的卡片外觀收乾淨，改把雙層嵌套給真正的兩欄；
+     「今日…」那行回到「卡片上方的說明文字」的角色，內縮對齊兩欄的卡片邊。
+   ⚠️ 手機端的 .yiji 本來就是一張真卡片（styles.css:778 有 padding），
+     所以這一段只寫在 ≥900，不可拉到全域。 */
+@media (min-width:900px) and (min-height:600px) {
+  .stage.signed-in .yiji { box-shadow: none; border-radius: 0; }
+  .stage.signed-in .yiji .gz { padding: 0 4px 14px; line-height: 1.7; }
+  .stage.signed-in .yiji .yj > div {
+    border: 4px solid var(--color-shell); border-radius: var(--radius-lg);
+    background: var(--card); background-clip: padding-box; padding: 16px 18px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-md), var(--inset-hi);
+  }
+  /* 宜綠／忌朱的頂邊保留（一眼分辨兩欄），但改成與外殼同厚度才不會看起來缺一角 */
+  .stage.signed-in .yiji .yj > div:first-child { border-top: 4px solid var(--yi); }
+  .stage.signed-in .yiji .yj > div:last-child  { border-top: 4px solid var(--ji); }
+}
