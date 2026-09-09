@@ -1,3 +1,4 @@
+import { stripEmoji } from '../lib/text.js'
 import { useState, useRef, useEffect, Fragment } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, Disclaimer } from '../components/ui.jsx'
@@ -11,7 +12,7 @@ import { localAnswer } from '../data/aiKnowledge.js'
 // system prompt 已明確禁止 Markdown（server/index.js 的 AI_SYSTEM），但模型不是
 // 每次都聽話，而 .msg 是 white-space:pre-wrap 的純文字容器、不會 render。
 // 沒有這一層，模型一吐 **粗體** 或 ### 標題，使用者看到的就是滿螢幕星號與井字號。
-function stripMd(s) {
+function stripMdRaw(s) {
   return String(s)
     .replace(/```[\s\S]*?```/g, '')            // 整塊程式碼圍籬（後端也擋，這是雙保險）
     .replace(/^#{1,6}\s+/gm, '')               // # 標題
@@ -38,7 +39,7 @@ function AiSegments({ text }) {
 // 續問建議：對話式介面最常見的流失點，就是使用者答完第一題後面對一個空輸入框。
 // 依「上一則問的是什麼」給三個方向，沿用現成的 .qchip 樣式。
 const FOLLOWUPS = [
-  // ⚠️ 站上沒有抽籤功能，續問建議不可出現「這支籤怎麼解？」「再抽一支」——
+  // 站上沒有抽籤功能，續問建議不可出現「這支籤怎麼解？」「再抽一支」——
   //    一支籤都沒抽到，這兩句只會讓人更困惑。
   { keys: ['籤'], list: ['今天的宜忌是什麼？', '這幾天適合出遊嗎？', '這個節氣要注意什麼？'] },
   { keys: ['夢', '解夢'], list: ['夢裡還有別的細節', '這代表要注意什麼？'] },
@@ -50,14 +51,14 @@ const followupsFor = (q) =>
   || ['那明天呢？', '今天沖什麼生肖？', '這個節氣要注意什麼？']
 
 // 對話持久化（階段一：sessionStorage）。
-// ⚠️ msgs 原本是純 useState，pop() 讓元件卸載 → 整段對話蒸發。
+// msgs 原本是純 useState，pop() 讓元件卸載 → 整段對話蒸發。
 //    使用者從 AI 頁點去看完整國民曆再回來，得從頭問起。
 //    帶 date 是為了跨日自動重置——昨天的「今日運勢」今天看沒有意義。
 const LS_KEY = 'jq-ai-chat'
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
 export default function AIChat() {
-  // ⚠️ 要用「使用者正在看的那一天」，不是永遠today。先前在 8/31 的曆頁點進來，
+  // 要用「使用者正在看的那一天」，不是永遠today。先前在 8/31 的曆頁點進來，
   //    開場白仍寫「今天是大暑、庚戌日」——剛翻的日期被整個丟掉。
   const { setToast, requireAccount, push, user, homeDate } = useNav()
   const viewOff = homeDate
@@ -82,7 +83,7 @@ export default function AIChat() {
   const taRef = useRef(null)
   const abortRef = useRef(null)
   const undoRef = useRef(null)
-  // ⚠️ 送出鎖必須是 ref 不能是 state：state 更新是非同步的，
+  // 送出鎖必須是 ref 不能是 state：state 更新是非同步的，
   //    同一個 render 內連點三次讀到的 typing 都還是 false，三個請求照樣送出去
   //    （實測連點 3 下＝3 則訊息、3 次 token）。ref 是同步寫入，才擋得住。
   const busyRef = useRef(false)
@@ -92,7 +93,7 @@ export default function AIChat() {
   }, [msgs])
 
   // 登入之後要把「請先登入」那類系統訊息清掉。
-  // ⚠️ 對話存在 sessionStorage，所以訪客時期跳出的
+  // 對話存在 sessionStorage，所以訪客時期跳出的
   //    「這一段要登入才能請顧問開口／去註冊・登入」在登入後仍然掛在畫面上，
   //    使用者已經登入了卻還被叫去登入——那顆 CTA 也已經沒有意義。
   //    這一則的生命週期綁的是登入狀態，不是對話內容，所以要單獨處理。
@@ -108,7 +109,7 @@ export default function AIChat() {
     return () => { alive = false }
   }, [])
 
-  // ⚠️ 只在「已經接近底部」時才自動捲：使用者往回讀舊訊息時被硬拉到底非常惱人。
+  // 只在「已經接近底部」時才自動捲：使用者往回讀舊訊息時被硬拉到底非常惱人。
   const nearBottom = () => {
     const el = scroller.current
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 80
@@ -124,7 +125,7 @@ export default function AIChat() {
     undoRef.current = msgs                       // 留一份，讓「復原」有東西可回
     setMsgs([{ who: 'ai', text: opening, t: Date.now() }])
     setText('')
-    setToast('已開始新的對話 🌿', {
+    setToast('已開始新的對話 ', {
       label: '復原',
       onClick: () => { if (undoRef.current) { setMsgs(undoRef.current); undoRef.current = null } },
     })
@@ -143,7 +144,7 @@ export default function AIChat() {
     setAtBottom(true)
     setTyping(true)
 
-    // ⚠️ 先讓本地知識層接手（見 aiKnowledge.js）。
+    // 先讓本地知識層接手（見 aiKnowledge.js）。
     //    這些題目本來就有確定答案（來自 dayFor 的真實曆算或站內事實），
     //    交給模型只會多花 token 又多一次幻覺機會——實測金鑰接上後，
     //    模型會編出不存在的商品價格與退費政策。
@@ -191,19 +192,19 @@ export default function AIChat() {
         pushMsg({ who: 'ai', text: stripMd(r.reply), followups: followupsFor(q) })
       }
     } catch (e) {
-      // ⚠️ 舊版是 `catch { reply = aiReply(q) }`——任何錯誤都被靜默換成寫死的腳本，
+      // 舊版是 `catch { reply = aiReply(q) }`——任何錯誤都被靜默換成寫死的腳本，
       //    使用者完全不知道自己在跟 5 條 if 講話。降級必須「看得見」。
       if (e?.stopped) { /* 使用者自己按停止，保留已收到的內容 */ }
       else {
-        // ⚠️ 503（設定有誤）不可給「再試一次」——金鑰無效或模型名稱不對時，
+        // 503（設定有誤）不可給「再試一次」——金鑰無效或模型名稱不對時，
         //    重試一萬次都不會好，那顆按鈕只是讓使用者做白工。
         //    改成誠實說明＋導向站內還能用的東西（曆頁、聯絡我們）。
         const map = {
-          401: { text: '這一段要登入才能請顧問開口 🌿 免費註冊後，今日運勢、解籤、解夢都能問。', cta: 'login' },
-          429: { text: '問得有點快，讓顧問喘口氣～稍等十秒再試 🍃', cta: 'retry' },
+          401: { text: '這一段要登入才能請顧問開口 免費註冊後，今日運勢、解籤、解夢都能問。', cta: 'login' },
+          429: { text: '問得有點快，讓顧問喘口氣～稍等十秒再試 ', cta: 'retry' },
           502: { text: '顧問那頭線路不穩，要再問一次嗎？', cta: 'retry' },
-          503: { text: 'AI 顧問暫時休息中 🌿 我們已經收到通知，會盡快恢復。\n\n這期間曆頁、宜忌、吉時、沖煞這些還是查得到——你也可以直接問我這類問題，我不用連線就答得出來。', cta: 'almanac' },
-          504: { text: '這題想太久了，換個問法或稍後再試 🌾', cta: 'retry' },
+          503: { text: 'AI 顧問暫時休息中 我們已經收到通知，會盡快恢復。\n\n這期間曆頁、宜忌、吉時、沖煞這些還是查得到——你也可以直接問我這類問題，我不用連線就答得出來。', cta: 'almanac' },
+          504: { text: '這題想太久了，換個問法或稍後再試 ', cta: 'retry' },
         }
         const hit = map[e?.status] || { text: e?.message || '發生錯誤，請稍後再試', cta: 'retry' }
         if (started) setMsgs(list => list.map((m, i) => i === list.length - 1 ? { ...m, live: false } : m))
@@ -236,7 +237,7 @@ export default function AIChat() {
         <div className="l">今日運勢 · {today.ganzhi} · 宜{today.yi.slice(0, 2).join('')}</div>
       </div>
 
-      {/* ⚠️ 免責文案依實際狀態切換：接了金鑰之後還寫「示範內容」就是不實陳述 */}
+      {/* 免責文案依實際狀態切換：接了金鑰之後還寫「示範內容」就是不實陳述 */}
       <Disclaimer text={aiLive === false
         ? 'AI 尚未接上，目前顯示的是示範內容；命理僅供參考娛樂，不構成專業建議'
         : '命理與宜忌僅供參考娛樂，不構成醫療、投資、法律或婚姻的專業建議'} />
@@ -258,8 +259,8 @@ export default function AIChat() {
                     ) : m.cta === 'almanac' ? (
                       /* 設定有誤時「再試一次」是白工，改導向還能用的功能 */
                       <>
-                        <button className="qchip tap" onClick={() => push('almanacDay')}>📜 看完整國民曆</button>
-                        <button className="qchip tap" onClick={() => push('dms')}>✉️ 回報問題</button>
+                        <button className="qchip tap" onClick={() => push('almanacDay')}> 看完整國民曆</button>
+                        <button className="qchip tap" onClick={() => push('dms')}> 回報問題</button>
                       </>
                     ) : (
                       <button className="qchip tap" onClick={() => send(m.q)} disabled={typing || streaming}>再試一次</button>
@@ -287,7 +288,7 @@ export default function AIChat() {
         {typing && <div className="typing"><i /><i /><i /></div>}
 
         {/* 回到最新：使用者往回讀時，新訊息不該把他硬拉走，但要讓他知道有新的。
-            ⚠️ 必須放在 .chat 內部——sticky 只在自己的捲動容器裡有效；
+             必須放在 .chat 內部——sticky 只在自己的捲動容器裡有效；
                放外面用 absolute 的話，桌機的 .screen 是 position:static，定位會飄掉。 */}
         {!atBottom && (
           <button className="tolatest tap" onClick={() => {
@@ -316,7 +317,7 @@ export default function AIChat() {
 
       <div className="cinput">
         <div className="f">
-          {/* ⚠️ textarea 不是 input：長問題要能換行。
+          {/* textarea 不是 input：長問題要能換行。
               Enter 送出、Shift+Enter 換行；輸入法組字中（isComposing）不可送出，
               否則中文選字按 Enter 會把半成品送出去。 */}
           <textarea
@@ -344,3 +345,4 @@ export default function AIChat() {
     </>
   )
 }
+function stripMd(s) { return stripEmoji(stripMdRaw(s)) }

@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Breadcrumb, Link, JsonLd, productLd } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { PRODUCTS, productBySlug, SHIPPING_NOTE } from '../data/products.js'
@@ -37,7 +38,7 @@ export default function ProductDetail({ slug }) {
         })} />
 
         <div className="pd-hero">
-          <div className="pd-ph" style={{ background: p.bg }}>{p.emoji}</div>
+          <div className="pd-ph" style={{ background: p.bg }}><Icon name="gift" className="ph-ic" /></div>
           <div className="pd-head">
             <h2 className="pd-name">{p.name}</h2>
             <p className="pd-tag">{p.tagline}</p>

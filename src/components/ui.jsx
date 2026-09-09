@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Icon from './Icon.jsx'
+import { hasEmoji, glyphOf, stripEmoji } from '../lib/text.js'
 import { useNav, hrefForScreen, hrefForTab } from '../store/nav.jsx'
 import { useContent } from '../hooks/useApi.js'
 
@@ -73,7 +74,7 @@ export function TabBar() {
 }
 
 // SPA 內部導覽連結 —— 必須是真的 <a href>，不是 <button>。
-// ⚠️ 為什麼：實測全站原本只有 1 個 <a>（跳過主要內容），導覽列、頁尾全是
+// 為什麼：實測全站原本只有 1 個 <a>（跳過主要內容），導覽列、頁尾全是
 //    <button>——中鍵／Cmd+點擊開新分頁完全失效，搜尋引擎也爬不到任何內部連結
 //    （逐頁 meta 都做了，卻沒有連結能讓爬蟲走到那些頁）。
 // 行為：一般左鍵 → preventDefault 走 SPA 導覽（不重整）；
@@ -190,8 +191,8 @@ export function ToolRow({ icon, iconName, bg, title, sub, onClick, right, screen
         ? <div className="ti ti-line"><Icon name={iconName} /></div>
         : icon && <div className="ti" style={{ background: bg }}>{icon}</div>}
       <div className="tn2">
-        <b>{title}</b>
-        {sub && <span>{sub}</span>}
+        <b>{stripEmoji(title)}</b>
+        {sub && <span>{stripEmoji(sub)}</span>}
       </div>
       {right !== undefined ? right : <Icon name="chev" style={{ width: 18, stroke: 'var(--muted)' }} />}
     </>
@@ -373,7 +374,7 @@ export function GlossTerm({ term, cls = '', gl }) {
   //    也沒有 nowrap，而有詞條的 `.glossable` 兩者都有——於是只要連續出現兩個沒詞條的
   //    詞（例如平日的「修飾垣牆」「平治道塗」）就會**黏成一坨八個字**，
   //    在 356px 手機寬度下還會從詞的中間硬切成「修／飾垣牆平治道塗」。
-  // ⚠️ 同時要讓「不可點」看得出來：使用者會直覺去點這些罕見詞，發現沒反應。
+  // 同時要讓「不可點」看得出來：使用者會直覺去點這些罕見詞，發現沒反應。
   //    有詞條的是虛線底線（暗示可點），沒詞條的就不畫底線。
   if (!gl?.map[term]) return <span className={`${cls} gterm`}>{term}</span>
   const on = gl.open === term
@@ -541,8 +542,14 @@ export function SheetMask({ onClose, children, label = '對話框' }) {
 
 // 頭像：有上傳的照片就顯示照片，否則回退 emoji。
 // 放在 .pf-av/.av/.wn-ava 等既有圓形容器內，靠 object-fit 填滿。
-export function Avatar({ imageId, emoji = '🌾' }) {
-  if (!imageId) return <>{emoji}</>
+export function Avatar({ imageId, emoji = '', name = '' }) {
+  // ★ 2026-09 全站禁用 emoji：資料庫裡舊帳號的 avatar 仍是 emoji 字串，這裡一律不印。
+  // 順序：真圖片 → 已知的線條圖示名稱（新版頭像選項）→ 名字首字 → 人像圖示。
+  if (!imageId) {
+    if (emoji && !hasEmoji(emoji) && /^[a-z0-9]+$/.test(emoji)) return <Icon name={emoji} className="av-ic" />
+    const g = glyphOf(name)
+    return g ? <span className="av-glyph" aria-hidden="true">{g}</span> : <Icon name="user" className="av-ic" />
+  }
   return <img src={`/api/images/${imageId}`} alt=""
     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
 }

@@ -28,7 +28,7 @@ export default function VerifyBanner() {
 
   return (
     <div className="verify-banner" role="status">
-      <span className="vb-t">✉️ 你的 Email（{user.email}）尚未驗證</span>
+      <span className="vb-t">你的 Email（{user.email}）尚未驗證</span>
       {!devToken
         ? <button className="vb-btn tap" onClick={resend} disabled={busy}>{busy ? '寄送中…' : '重寄驗證信'}</button>
         : <button className="vb-btn on tap" onClick={verify}>完成驗證</button>}

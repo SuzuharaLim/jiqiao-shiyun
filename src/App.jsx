@@ -1,3 +1,4 @@
+import Icon from './components/Icon.jsx'
 import { useEffect, useRef } from 'react'
 import { useNav } from './store/nav.jsx'
 import { TabBar, Toast, Seal, StampMark } from './components/ui.jsx'
@@ -215,7 +216,7 @@ export default function App() {
 
       {/* ⚠️ 要把事件物件傳進去——圓形擴散的圓心就是這顆按鈕被按到的位置 */}
       <button className="theme-fab tap" onClick={(e) => toggleTheme(e)} aria-label="切換主題">
-        {theme === 'dark' ? '☀️' : '🌙'}
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
       </button>
 
       {/* 桌機頂部網站式導覽列（≥900px；登入後才出現，取代底部分頁列） */}

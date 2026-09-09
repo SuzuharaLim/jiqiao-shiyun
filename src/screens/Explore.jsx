@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg } from '../components/ui.jsx'
+import { TopBar, PhotoImg, Avatar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { useWorksPaged } from '../hooks/useApi.js'
 import { api } from '../api.js'
@@ -143,7 +143,7 @@ export default function Explore() {
             ))}
           </div>
         ) : list.length === 0 ? (
-          /* ⚠️ 空狀態是新使用者看到最多次的畫面（社群剛起步時尤其）。
+          /* 空狀態是新使用者看到最多次的畫面（社群剛起步時尤其）。
              原本只寫「找不到作品」＝「這裡沒東西」；該傳達的是「這裡在等你」。
              真正的修法不是動畫，是把空狀態變成入口——那顆 CTA 比會浮動的圖示值錢得多。 */
           <div className="empty">
@@ -159,7 +159,7 @@ export default function Explore() {
             {list.map(w => (
               <button key={w.id} className="it tap" onClick={() => push('workDetail', { id: w.id })}>
                 <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
-                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品，攝影者 @${w.user}`} /> : w.emoji}
+                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品，攝影者 @${w.user}`} /> : <Icon name="image" className="ph-ic" />}
                   {w.price && <div className="gbadge">NT${w.price}</div>}
                 </div>
                 <div className="cap">{w.title}<small>@{w.author} · {w.term}</small></div>
@@ -180,7 +180,7 @@ export default function Explore() {
         <div className="ex-side">
           {/* 挑戰改為精簡卡：原本是一行標題+一行字撐出約 170px 的空看板 */}
           <button className="ex-chal tap" onClick={() => push('challenges')}>
-            <div className="xc-t">🎯 {nowTerm}攝影挑戰</div>
+            <div className="xc-t">{nowTerm}攝影挑戰</div>
             <div className="xc-d">拍下你的{nowTerm}，前 3 名收錄官方植物月曆</div>
             <span className="xc-go">參加投稿 ›</span>
           </button>
@@ -193,7 +193,7 @@ export default function Explore() {
               <button key={c.user} className="ex-cr tap"
                 onClick={() => push('creatorPage', { user: c.user, avatar: c.emoji, avatarBg: c.bg })}>
                 <span className="xr-rank">{i + 1}</span>
-                <span className="xr-ava" style={{ background: c.bg }}>{c.emoji}</span>
+                <span className="xr-ava" style={{ background: c.bg }}><Avatar name={c.user} /></span>
                 <span className="xr-name">@{c.user}</span>
                 <span className="xr-n">{c.works} 件</span>
               </button>

@@ -35,7 +35,7 @@ export function DeityDetail({ slug }) {
         ]} />
 
         <div className="td-head">
-          <div className="td-term">{a.emoji} {a.name}</div>
+          <div className="td-term">{a.name}</div>
           <div className="td-meta">{a.alias?.length ? `又稱 ${a.alias.join('、')}` : ''}</div>
         </div>
 

@@ -28,7 +28,7 @@ export default function Settings() {
     setPushBusy(false)
     if (!r.ok) { setToast(r.reason || '設定失敗'); return }
     setPushOn(v)
-    setToast(v ? '已開啟推播通知 🔔' : '已關閉推播通知')
+    setToast(v ? '已開啟推播通知 ' : '已關閉推播通知')
     if (v) api.pushPrefs().then(setPushInfo).catch(() => {})
   }
 
@@ -56,18 +56,18 @@ export default function Settings() {
         {['admin', 'moderator'].includes(user?.role) && (
           <>
             <SectionHead title="站務" />
-            <ToolRow icon="🛡️" bg="var(--tone-3)" title="管理後台"
+            <ToolRow iconName="shield" title="管理後台"
               sub={user.role === 'admin' ? '使用者角色 · 內容 CMS' : '內容 CMS（版主）'} onClick={() => push('admin')} />
           </>
         )}
 
         <SectionHead title="偏好" />
         <div className="opt">
-          <div className="l">🌙 深色模式</div>
+          <div className="l"> 深色模式</div>
           <Switch on={theme === 'dark'} onChange={toggleTheme} />
         </div>
         <div className="opt">
-          <div className="l">🔔 推播通知{pushBusy ? '（處理中…）' : ''}</div>
+          <div className="l">推播通知{pushBusy ? '（處理中…）' : ''}</div>
           <Switch on={pushOn} onChange={togglePush} />
         </div>
         {/* 只有真的訂閱成功才顯示分類開關——沒訂閱時這些設定沒有意義 */}
@@ -105,7 +105,7 @@ export default function Settings() {
           </p>
         )}
         <div className="opt">
-          <div className="l">🔤 文字大小</div>
+          <div className="l"> 文字大小</div>
           <div className="segbtns" role="radiogroup" aria-label="文字大小">
             {[['sm', '小'], ['md', '標準'], ['lg', '大']].map(([k, label]) => (
               <button key={k} role="radio" aria-checked={prefs.textSize === k}
@@ -115,13 +115,13 @@ export default function Settings() {
           </div>
         </div>
         <div className="opt">
-          <div className="l">🎬 減少動態效果</div>
+          <div className="l"> 減少動態效果</div>
           <Switch on={!!prefs.reduceMotion} onChange={(v) => { setPref('reduceMotion', v); setToast(v ? '已減少動態效果' : '已恢復動態效果') }} />
         </div>
 
         <SectionHead title="隱私與授權" />
         <div className="opt">
-          <div className="l">🔒 私密帳號</div>
+          <div className="l"> 私密帳號</div>
           <Switch on={prefs.priv} onChange={async (v) => {
             setPref('priv', v)
             // ⚠️ 隱私設定不可靜默失敗：先前用 .catch(() => {}) 吞錯，
@@ -139,7 +139,7 @@ export default function Settings() {
           }} />
         </div>
         <ToolRow iconName="scroll" title="服務條款" sub="使用規範 · 市集分潤 70% · 非商用授權" onClick={() => push('terms')} />
-        <ToolRow icon="🛡️" bg="var(--tone-4)" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
+        <ToolRow iconName="shield" title="隱私權政策" sub="資料使用 · GDPR 權利" onClick={() => push('privacy')} />
 
         <SectionHead title="關於" />
         <ToolRow iconName="book2" title="品牌故事" sub="五位資工生的文化實驗" onClick={() => push('about')} />

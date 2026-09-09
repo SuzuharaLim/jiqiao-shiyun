@@ -95,7 +95,7 @@ export default function AlmanacDay({ off, date }) {
             <div className="col"><div className="yl" style={{ color: 'var(--ji)' }}>忌</div>{d.ji.map(t => <GlossTerm key={t} term={t} cls="tn" gl={gl} />)}</div>
           </div>
           <GlossPanel gl={gl} />
-          <div className="ad-note">💡 點任一宜忌詞可看白話解釋</div>
+          <div className="ad-note"> 點任一宜忌詞可看白話解釋</div>
         </div>
         </section>
 

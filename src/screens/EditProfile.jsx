@@ -1,9 +1,10 @@
+import Icon from '../components/Icon.jsx'
 import { useRef, useState } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
-const AVATARS = ['🌾', '🌸', '🌊', '🌅', '🪷', '🍃', '⛰️', '🌻']
+const AVATARS = ['user', 'branch', 'wave', 'sparkle', 'fortune', 'basket', 'dragon', 'photo2']
 
 // 頭像壓縮：正方形裁切 + 最長邊 512px（頭像不需要 1600px，省流量與 DB 空間）
 function cropSquare(file) {
@@ -28,7 +29,7 @@ export default function EditProfile() {
   const { user, updateProfile, pop, setToast, requireAccount } = useNav()
   const [name, setName] = useState(user?.name || '')
   const [bio, setBio] = useState(user?.bio || '')
-  const [avatar, setAvatar] = useState(user?.avatar || '🌾')
+  const [avatar, setAvatar] = useState(user?.avatar || 'user')
   const [avatarImageId, setAvatarImageId] = useState(user?.avatarImageId || null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
@@ -74,7 +75,7 @@ export default function EditProfile() {
           <div className="pf-av" style={{ background: user?.avatarBg || 'var(--tone-1)', margin: '0 auto', fontSize: 'var(--text-2xl)', overflow: 'hidden' }}>
             {avatarImageId
               ? <img src={`/api/images/${avatarImageId}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : avatar}
+              : <Icon name={avatar} className="av-ic" />}
           </div>
         </div>
 
@@ -83,7 +84,7 @@ export default function EditProfile() {
         <div className="pad" style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           <button className="b tap" style={{ flex: '0 1 200px' }} disabled={uploading}
             onClick={() => fileRef.current?.click()}>
-            {uploading ? '上傳中…' : avatarImageId ? '換一張照片' : '📷 上傳照片'}
+            {uploading ? '上傳中…' : avatarImageId ? '換一張照片' : ' 上傳照片'}
           </button>
           {avatarImageId && (
             <button className="b tap" style={{ flex: '0 1 120px' }}

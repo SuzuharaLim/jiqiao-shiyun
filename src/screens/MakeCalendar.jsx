@@ -91,7 +91,7 @@ export default function MakeCalendar() {
             const on = sel.has(p.key)
             return (
               <button key={p.key} className="gimg tap" style={{ background: p.bg, position: 'relative', overflow: 'hidden' }} onClick={() => toggle(p.key)}>
-                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜可放進月曆的節氣照片`} /> : p.emoji}
+                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜可放進月曆的節氣照片`} /> : <Icon name="image" className="ph-ic" />}
                 {on && <><div className="selo" /><div className="chk">✓</div></>}
               </button>
             )
@@ -99,7 +99,7 @@ export default function MakeCalendar() {
         </div>
 
         <button className="ai-hint tap" onClick={aiPick}>
-          ✨ 自動補滿 {N} 張
+          自動補滿 {N} 張
           <Icon name="chev" style={{ width: 16, height: 16, stroke: 'var(--accent)' }} />
         </button>
         <div style={{ height: 12 }} />

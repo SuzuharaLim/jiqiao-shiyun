@@ -1,0 +1,253 @@
+/* ==========================================================================
+   theme-luxe.css —— 「編輯奢華」元件重塑層（2026-09-09，依 soft-skill）
+
+   ★ 為什麼是一層覆蓋：styles.css 有 4,364 行、上百處 2px 直角／朱紅雙框／印章
+     散在各模組。這一層**只改外觀**（色、形、字、影、動效），**不改任何版面尺寸
+     邏輯**（flex／grid／高度／捲動容器），站規的版面雷區全部不受影響。
+   ★ 必須在 styles.css 與 components.css 之後載入（main.jsx）。
+   ★ 語言（高端代理商感）：
+     - 雙層嵌套（double-bezel）：卡片是「奶油外殼 ＋ 白色內核」，外殼 22px、
+       內核 16px 同心圓角，內核上緣一道高光——像玻璃板放在鋁托盤裡。
+     - 極度擴散的環境陰影（-22px 內縮、<25% 不透明），hover 時浮起 4px。
+     - 主鈕膠囊；列項尾端的箭頭裝進自己的圓形托盤（button-in-button）。
+     - 桌機頂列是「浮起的玻璃膠囊」，不是貼死在頂端的長條。
+     - 彈簧曲線 cubic-bezier(0.32,0.72,0,1)；捲動進場 800ms 上浮＋去模糊。
+     - 3% 紙紋顆粒固定在畫面上（pointer-events:none），有紙的體溫。
+   ★ 全站禁用 emoji：頭像／縮圖佔位／空狀態一律線條圖示或字形磚（.glyph）。
+   ⚠️ 觸控大小、焦點環、reduce-motion、深色對比全部沿用站規。
+   ========================================================================== */
+
+/* ---------- 0. 紙紋顆粒：固定層、不吃點擊、放在浮層之下 ---------- */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  opacity: .05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+[data-theme="dark"] body::after { opacity: .06; }
+
+/* ---------- 1. 字：襯線大標緊字距、正文濃縮咖啡 ---------- */
+h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tight); }
+.topbar .ttl, .topbar .brand, .calcap .mo, .railhd .t, .tiepost .nm .n, .card h4,
+.article h3, .auth-title, .stamp-tx, .qz-val, .plan .price, .daystrip .mid .big,
+.calpage .gz .zi, .yjcols .hh, .ad-solar, .td-term, .au-lead, .wn-word, .wf-brand,
+.coverbig .bt, .aicard .t, .empty-t {
+  font-family: var(--font-serif); letter-spacing: var(--ls-tight); font-weight: 500;
+}
+.daystrip .mid .big { font-size: var(--text-3xl); letter-spacing: -0.03em; }
+.calpage .gz .zi { letter-spacing: .02em; }
+.topbar .brand, .wn-word { letter-spacing: -0.01em; }
+
+/* 欄目眉標（eyebrow）：微小、膠囊、寬字距 */
+.sech { padding: 30px var(--space-4) 10px; align-items: center; }
+.sech .sech-t, .sech b {
+  display: inline-block; font-family: var(--font-sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  background: var(--color-shell); border-radius: var(--radius-full); padding: 5px 12px;
+}
+.sech-t::before { content: none; }
+.sech span:not(.sech-t) { font-size: var(--text-2xs); letter-spacing: 0; color: var(--muted); }
+.ad-sheet .sech { font-family: var(--font-sans); border-bottom: none; }
+.stage.signed-in .sech { padding: 34px 2px 12px; font-size: var(--text-2xs); }
+
+/* ---------- 2. 雙層嵌套卡片（外殼 ＋ 內核）---------- */
+/* 外殼：奶油底、髮絲線、22px；內核：白、16px、上緣高光。
+   用 border（外殼色）＋ background-clip 做外殼，不動任何版面尺寸。 */
+.calpage, .card, .aicard, .yiji, .sumcard, .plan, .coverbig, .tiepost, .qz-board,
+.ad-blk, .cardp-card, .td-card, .lp-map, .album .it, .railcard .ph, .auth-dev, .ai-hint, .note {
+  border: 6px solid var(--color-shell);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  background-clip: padding-box;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-md), var(--inset-hi);
+  transition: transform var(--m-base) var(--e-out), box-shadow var(--m-base) var(--e-out);
+}
+.card { padding: 18px var(--space-4); }
+.aicard, .plan { border-color: var(--color-shell); }
+.plan.pro { box-shadow: 0 0 0 1.5px var(--text), var(--shadow-md), var(--inset-hi); background: var(--card); }
+.railcard .ph, .album .it { box-shadow: 0 0 0 1px var(--line), var(--shadow-sm), var(--inset-hi); }
+[data-theme="dark"] .card, [data-theme="dark"] .plan, [data-theme="dark"] .sumcard, [data-theme="dark"] .yiji {
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-md), var(--inset-hi);
+}
+.stage.signed-in .rootpane.grid2 .body > .tool,
+.stage.signed-in .rootpane.grid2 .toolgrid > .tool {
+  border: 6px solid var(--color-shell); border-radius: var(--radius-xl); background: var(--card);
+  background-clip: padding-box; padding: 18px;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm), var(--inset-hi);
+}
+
+/* 曆頁卡：去朱紅雙框、去光暈；標題帶改成眉標 */
+.calpage::before { content: none; }
+.calpage .hd {
+  background: transparent; color: var(--muted); font-family: var(--font-sans);
+  font-size: 11px; font-weight: 600; letter-spacing: .18em; text-indent: .18em; text-transform: uppercase;
+  padding: 14px 10px 10px; border-bottom: 1px solid var(--line);
+}
+.calpage .meta .term {
+  background: var(--season-tint); color: var(--season-hue); font-family: var(--font-sans);
+  font-size: var(--text-2xs); font-weight: 600; letter-spacing: .06em; padding: 4px 12px; border-radius: var(--radius-full);
+}
+.yjcols { border-top: 1px solid var(--line); }
+.calnote:first-of-type { border-top: 1px solid var(--line); }
+.calpage .gz .zi { color: var(--text); }
+.yjcols .hh i { border-radius: 8px; }
+
+/* 封面卡：白內核＋咖啡字；占卜變體改灰藍紙 */
+.coverbig { color: var(--text); }
+.coverbig::after { opacity: .05; }
+.coverbig .bt { color: var(--text); }
+.coverbig .bd { color: var(--muted); opacity: 1; }
+.coverbig .cta { background: var(--primary); color: var(--pfg); border: 1px solid var(--primary); border-radius: var(--radius-full); padding: 10px 18px; }
+.coverbig.oracle { background: var(--pale-blue); }
+[data-theme="dark"] .coverbig.oracle { background: var(--tone-3); }
+.coverbig.oracle .bt { color: var(--text); }
+.coverbig.oracle .bd { color: var(--muted); }
+.luck { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.luck .l { color: var(--text); }
+.meter > div { background: var(--yi); }
+.selo { background: rgba(43, 33, 24, .18); }
+.tiepost .band { height: 6px; background: var(--tone-2); }
+.tiepost .seal { box-shadow: none; border-radius: var(--radius-md); }
+
+/* ---------- 3. 形：圓角、膠囊、圖示托盤 ---------- */
+.sheet { border-radius: 26px 26px 0 0; border: none; background: var(--card); box-shadow: var(--shadow-lg); }
+.sheet-mask { background: rgba(43, 33, 24, .28); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.msg { border-radius: 18px; }
+.msg.ai { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-sm); border-bottom-left-radius: 6px; }
+.msg.me { border-bottom-right-radius: 6px; }
+.toast { background: var(--ink-900); color: #FFFDF8; border-radius: var(--radius-full); padding: 12px 20px; box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .toast { background: #F1EAE0; color: #1E1814; }
+.field input, .qz-input, .cinput .f, .search, .ui-field__input, .wn-icon, .wn-user, .wn-logout, .wn-link,
+.daystrip .side, .daystrip .mid, .calcell, .calcap button, .qz-opt, .qz-ticker, .seg, .ct-opt, .fsel,
+.lp-item, .ad-more, .au-item, .term-item, .dream-item, .stamp-seal, .empty-cta, .btn-ghost {
+  border-radius: var(--radius-md);
+}
+.qz-k, .chk { border-radius: 8px; }
+.b, .btn-primary, .go, .auth-btn, .sendbtn, .pill, .pill.sm, .chip, .ty, .tn, .gbadge, .ph-like,
+.termwheel .tm, .ad-sheet .ad-term, .ad-sheet .ad-flag, .td-now, .qz-hp, .au-chip, .lp-chip,
+.cs-bg, .qchip, .tp-t, .badge, .coverbig .cta, .empty-cta, .wn-logout {
+  border-radius: var(--radius-full);
+}
+.ty, .tn { padding: 3px 11px; font-size: var(--text-2xs); letter-spacing: .03em; }
+.chip { padding: 8px 16px; }
+.stage:not(.signed-in) .device { border-radius: 34px; box-shadow: var(--shadow-lg); }
+
+/* 工具列圖示磚：奶油圓角磚；尾端箭頭裝進圓形托盤（button-in-button） */
+.tool { padding: 14px var(--space-4); }
+.tool .ti, .ti-line { border-radius: 12px; background: var(--color-shell) !important; border: none; color: var(--text) !important; }
+.tool .ti .ic, .ti-line .ic { stroke: var(--text); }
+.tool > .ic:last-child {
+  width: 32px !important; height: 32px !important; padding: 7px; border-radius: 50%;
+  background: rgba(43, 33, 24, .06); stroke: var(--text) !important; flex: 0 0 auto;
+  transition: transform var(--m-base) var(--e-out), background-color var(--m-fast);
+}
+[data-theme="dark"] .tool > .ic:last-child { background: rgba(255, 255, 255, .08); }
+
+/* 按鈕：咖啡膠囊主鈕、奶油幽靈鈕；按下微縮（站規既有 .985） */
+.b { border: 1px solid var(--line2); background: var(--card); padding: 12px 0; }
+.b.dark, .btn-primary, .go, .auth-btn, .pill.dark, .chip.on, .calcell.on, .termwheel .tm.on, .gbadge {
+  background: var(--primary); color: var(--pfg); border-color: var(--primary);
+  box-shadow: 0 10px 24px -12px rgba(43, 33, 24, .45);
+}
+[data-theme="dark"] .b.dark, [data-theme="dark"] .btn-primary, [data-theme="dark"] .auth-btn { box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .8); }
+.calcell.on, .chip.on, .termwheel .tm.on, .gbadge { box-shadow: none; }
+.btn-primary { padding: 15px; }
+.btn-ghost { background: var(--card); border: 1px solid var(--line2); }
+.pill { border: 1px solid var(--line2); background: var(--card); }
+.pill.on { background: var(--ok-bg); color: var(--ok-fg); border-color: transparent; }
+.chip { background: var(--color-shell); }
+.termwheel .tm { border: 1px solid var(--line); background: var(--card); font-family: var(--font-sans); }
+.termwheel .tm.now { border-color: var(--text); color: var(--text); }
+.acc, .auth-link, .tag, .td-more, .railhd .t small { color: var(--text); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line2); }
+.auth-btn:active { background: var(--cinnabar-d); }
+.calcell { border-color: var(--line); background: var(--card); }
+.calcell.today { box-shadow: inset 0 0 0 1.5px var(--text); color: var(--text); }
+.daystrip .side { border: 1px solid var(--line); color: var(--text); background: var(--card); box-shadow: var(--shadow-sm); }
+
+/* 輸入：白內核、髮絲線、聚焦咖啡細環 */
+.search { background: var(--card); border: 1px solid var(--line); height: 44px; box-shadow: var(--inset-hi); }
+.search:focus-within { border-color: var(--text); background: var(--card); outline: none; box-shadow: 0 0 0 4px rgba(43, 33, 24, .07); }
+.field input, .qz-input, .cinput .f { background: var(--card); border: 1px solid var(--line2); }
+.field input:focus, .qz-input:focus, .cinput .f:focus-within {
+  border-color: var(--text); outline: none; box-shadow: 0 0 0 4px rgba(43, 33, 24, .08);
+}
+[data-theme="dark"] .field input:focus, [data-theme="dark"] .qz-input:focus,
+[data-theme="dark"] .search:focus-within { box-shadow: 0 0 0 4px rgba(241, 234, 224, .12); }
+.sw { background: var(--line2); }
+.sw.on { background: var(--yi); }
+
+/* ---------- 4. 導覽：浮起的玻璃膠囊（桌機）、白色底部列（手機）---------- */
+@media (min-width:600px) and (min-height:600px) {
+  .webnav { background: transparent; border-bottom: none; padding: 12px 16px 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .wn-inner {
+    max-width: 1080px; height: 58px; padding: 0 10px 0 16px; gap: 14px;
+    background: rgba(253, 251, 247, .78); backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);
+    border: 1px solid var(--line); border-radius: var(--radius-full);
+    box-shadow: var(--shadow-md), var(--inset-hi);
+  }
+  [data-theme="dark"] .wn-inner { background: rgba(25, 21, 18, .78); }
+  .stage.signed-in .screen .topbar { top: 82px; }
+}
+.wn-link { color: var(--muted); font-weight: 500; border-radius: var(--radius-full); padding: 9px 14px; }
+.wn-link.on { color: var(--text); font-weight: 600; background: var(--color-shell); }
+.wn-link::after { content: none; }
+.wn-icon { border: 1px solid var(--line); background: var(--card); border-radius: 50%; box-shadow: var(--shadow-sm); }
+.wn-logout { border: 1px solid var(--line2); padding: 8px 16px; }
+.webfoot { background: var(--bg); border-top: 1px solid var(--line); }
+.topbar { background: var(--bg); }
+.tabbar { background: rgba(253, 251, 247, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 -8px 24px -18px rgba(43, 33, 24, .3); }
+[data-theme="dark"] .tabbar { background: rgba(25, 21, 18, .92); }
+.tabbar::before { background-image: linear-gradient(var(--text), var(--text)); }
+.tabbtn.on .tablbl { color: var(--text); }
+.tabbtn.on .ic, .tabbtn.on .ic.fill { stroke: var(--text); }
+.tabbtn.on .ic.fill { fill: var(--text); }
+.theme-fab { box-shadow: var(--shadow-md); border-color: var(--line); }
+.stamp-seal { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+
+/* 國民曆頁 */
+.ad-sheet .ad-term { border: none; background: var(--pale-yellow); color: var(--yellow-ink); letter-spacing: .06em; font-weight: 600; }
+[data-theme="dark"] .ad-sheet .ad-term { background: var(--tone-5); color: var(--gold); }
+.ad-sheet .ad-flag { border-color: var(--line); }
+.ad-sheet .ad-gz > div, .ad-sheet .ad-hour { border-color: var(--line); }
+.qz-hp { border: none; background: var(--field); }
+.qz-ticker { border-left: none; background: var(--color-shell); }
+
+/* ---------- 5. 去 emoji 後的字形磚與圖示佔位 ---------- */
+.glyph { font-family: var(--font-serif); font-weight: 500; letter-spacing: 0; color: var(--text); line-height: 1; }
+.glyph-hero { font-family: var(--font-serif); font-size: var(--text-3xl); font-weight: 500; letter-spacing: .04em; color: var(--text); }
+.av-glyph { font-family: var(--font-serif); font-weight: 500; font-size: .9em; color: var(--text); line-height: 1; }
+.av-ic { width: 60%; height: 60%; stroke: var(--text); }
+.ph-ic { width: 34px; height: 34px; stroke: var(--muted); opacity: .8; }
+.empty .big .ic, .empty .big > .ic { width: 44px; height: 44px; stroke: var(--muted); margin: 0 auto; }
+.about-seal { width: 84px; height: 84px; }
+.cam-denied .ic { width: 40px; height: 40px; stroke: currentColor; margin: 0 auto 8px; }
+.lp-pin .ic, .lp-ic .ic { width: 18px; height: 18px; }
+.wn-icon .ic, .iconbtn .ic { stroke: var(--text); }
+.tb-seal.seal-mark { width: 24px; height: 24px; }
+
+/* ---------- 6. 動效：彈簧、浮起、捲動進場（上浮＋去模糊）---------- */
+@media (hover:hover) and (pointer:fine) {
+  .tool.tap:hover, .ad-more.tap:hover, .feedchal.tap:hover, .b.tap:hover, .plan.tap:hover, .album .it.tap:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-lg), var(--inset-hi);
+    border-color: var(--color-shell);
+  }
+  .tool.tap:hover > .ic:last-child { transform: translate(3px, -1px) scale(1.06); background: rgba(43, 33, 24, .1); }
+  .stage.signed-in .railcard:hover .ph { box-shadow: 0 0 0 1px var(--line), var(--shadow-lg); }
+  .b.dark:hover:not(:disabled), .btn-primary:hover:not(:disabled) { background: var(--color-brand-hover); border-color: var(--color-brand-hover); transform: translateY(-1px); }
+  .wn-link:hover { background: var(--color-shell); color: var(--text); }
+  .wn-icon:hover { border-color: var(--text); transform: translateY(-1px); }
+  .tiepost .nums > *:hover b { color: var(--text); }
+  .wf-links a:hover, .wf-links button:hover { color: var(--text); }
+  .calpage:hover { transform: none; }
+}
+.b.dark, .btn-primary, .wn-icon { transition: transform var(--m-base) var(--e-out), background-color var(--m-fast) var(--e-out), box-shadow var(--m-base) var(--e-out), border-color var(--m-fast) var(--e-out); }
+/* 捲動進場：站上既有 .reveal（JS 加 .in），只換成更重、更慢、帶去模糊的曲線
+   ⚠️ 基礎隱形是安全的：class 由 JS 加，JS 沒跑就沒有 .reveal（站規） */
+.reveal { transition: opacity .8s var(--e-out), transform .8s var(--e-out); transform: translateY(18px); }
+.reveal.in { transform: none; }
+
+/* ---------- 7. 間距：多一點呼吸 ---------- */
+.railhd { padding-top: 26px; }
+.stage.signed-in .screen .body,
+.stage.signed-in .rootpane .body { padding-bottom: 48px; }

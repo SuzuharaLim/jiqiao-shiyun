@@ -87,7 +87,7 @@ export default function Wallet() {
 
         <SectionHead title="收益明細" extra={data === null ? '載入中' : `${entries.length} 筆`} />
         {data === null && <div className="empty">載入中…</div>}
-        {data?.error && <div className="empty"><div className="big">⚠️</div>載入失敗，請稍後再試</div>}
+        {data?.error && <div className="empty"><div className="big"><Icon name="wallet" /></div>載入失敗，請稍後再試</div>}
         {data && !data.error && entries.length === 0 && (
           <div className="empty">
             <div className="empty-ic"><Icon name="coin" /></div>

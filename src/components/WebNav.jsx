@@ -31,10 +31,10 @@ export default function WebNav() {
             <Icon name="bell" />{!notifRead && <span className="badge-dot" />}
           </Link>
           <Link screen="dms" className="wn-icon tap" aria-label="私訊"><Icon name="send" /></Link>
-          <button className="wn-icon tap" onClick={(e) => toggleTheme(e)} aria-label="切換主題">{theme === 'dark' ? '☀️' : '🌙'}</button>
+          <button className="wn-icon tap" onClick={(e) => toggleTheme(e)} aria-label="切換主題"><Icon name={theme === 'dark' ? 'sun' : 'moon'} /></button>
           <Link screen="settings" className="wn-user tap" aria-label="帳號與設定">
             <span className="wn-ava" style={{ overflow: 'hidden' }}>
-              <Avatar imageId={user?.avatarImageId} emoji={user?.avatar || (user?.guest ? '👤' : '🌾')} />
+              <Avatar imageId={user?.avatarImageId} emoji={user?.avatar} name={user?.name} />
             </span>
             <span className="wn-uname">{user?.name || '使用者'}</span>
           </Link>

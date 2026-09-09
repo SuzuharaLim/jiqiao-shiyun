@@ -245,7 +245,7 @@ export default function Feed() {
           {shots.map((p, i) => (
             <button key={`${p.id}-${i}`} className="railcard tap" onClick={() => push('postDetail', { id: p.id })}>
               <div className="ph" style={{ background: p.bg, fontSize: 56, position: 'relative', overflow: 'hidden' }}>
-                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜${p.term || "節氣"}攝影，攝影者 @${p.user}`} /> : p.emoji}
+                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜${p.term || "節氣"}攝影，攝影者 @${p.user}`} /> : <Icon name="image" className="ph-ic" />}
                 <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>
                   <Icon name="heart" fill style={{ width: 11, height: 11, verticalAlign: -1 }} /> {p.likes + (liked[p.id] ? 1 : 0)}
                 </span>

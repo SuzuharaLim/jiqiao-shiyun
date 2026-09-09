@@ -144,7 +144,7 @@ export default function Auspicious({ kind, ym }) {
                   {/* ⚠️ 月／日填錯不可靜默忽略——這兩格存在的意義就是處理立春換年，
                       填錯＝拿到錯的生肖＝挑到錯的日子，而使用者不會發現。 */}
                   {born.mdInvalid
-                    ? <span className="zy-warn">　⚠ 月／日看起來不對（月填 1–12、日填該月實際天數），這次沒有採用，先以整年計算</span>
+                    ? <span className="zy-warn">　 月／日看起來不對（月填 1–12、日填該月實際天數），這次沒有採用，先以整年計算</span>
                     : !born.usedMD && <span className="muted">　＊生肖以立春換年，年初出生的人請補上月日</span>}
                 </p>
               : <p className="zy-out muted">看不懂這個年份（可輸入西元 1900–2100，或民國 1–200）。</p>

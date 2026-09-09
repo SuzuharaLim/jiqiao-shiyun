@@ -117,7 +117,7 @@ export default function CardPage({ slug }) {
           {poster
             ? <img className="cardp-img" src={poster} alt={`${card.title} 節氣明信片卡面`} />
             : (
-              // ⚠️ 沒有卡面圖時不可假裝有：畫一個空的比例框並說明原因，
+              // 沒有卡面圖時不可假裝有：畫一個空的比例框並說明原因，
               //    熱區位置仍然標得出來（校對比例還是有用的）。
               <div className="cardp-noimg">
                 <p>卡面圖尚未安裝</p>

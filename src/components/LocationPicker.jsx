@@ -1,3 +1,4 @@
+import Icon from './Icon.jsx'
 import { useState, useEffect } from 'react'
 import { api } from '../api.js'
 import { SheetMask } from './ui.jsx'
@@ -18,7 +19,7 @@ function MapPreview({ lat, lon }) {
       <div className="lp-tiles">
         {tiles.map(t => <img key={`${t.x}-${t.y}`} src={`/api/map/tile/${Z}/${t.x}/${t.y}`} alt="" width={92} height={92} loading="lazy" />)}
       </div>
-      <div className="lp-pin" aria-hidden="true">📍</div>
+      <div className="lp-pin" aria-hidden="true"><Icon name="pin" /></div>
     </div>
   )
 }
@@ -72,7 +73,7 @@ export default function LocationPicker({ onClose, onPick }) {
 
         <div className="lp-search">
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋地點（如：台北101、鹿港）" aria-label="搜尋地點" autoFocus />
-          <button className="lp-cur tap" onClick={useCurrent} disabled={locating}>{locating ? '定位中…' : '📍 目前位置'}</button>
+          <button className="lp-cur tap" onClick={useCurrent} disabled={locating}>{locating ? '定位中…' : <><Icon name="pin" style={{ width: 16, height: 16, display: 'inline-block', verticalAlign: '-3px', marginRight: 4 }} />目前位置</>}</button>
         </div>
 
         <div className="lp-scroll">
@@ -92,7 +93,7 @@ export default function LocationPicker({ onClose, onPick }) {
             <div className="lp-list">
               {results.map((p, i) => (
                 <button key={i} className="lp-item tap" onClick={() => setSel({ name: p.short || p.name, lat: p.lat, lon: p.lon })}>
-                  <span className="lp-ic">📍</span>
+                  <span className="lp-ic"><Icon name="pin" /></span>
                   <span className="lp-txt"><b>{p.short || p.name.split(',')[0]}</b><small>{p.name}</small></span>
                 </button>
               ))}
@@ -106,7 +107,7 @@ export default function LocationPicker({ onClose, onPick }) {
                 {favs.map(p => (
                   <div key={p.id} className="lp-item">
                     <button className="lp-pick tap" onClick={() => { onPick({ name: p.name, lat: p.lat, lon: p.lon }); api.savePlace({ name: p.name, lat: p.lat, lon: p.lon, fav: p.fav }).catch(() => {}); close() }}>
-                      <span className="lp-ic">{p.fav ? '⭐' : '🕘'}</span>
+                      <span className="lp-ic"><Icon name={p.fav ? 'bookmark' : 'clock'} /></span>
                       <span className="lp-txt"><b>{p.name}</b></span>
                     </button>
                     <button className="lp-star tap" aria-label={p.fav ? '取消常用' : '設為常用'} onClick={() => toggleFav(p)}>{p.fav ? '★' : '☆'}</button>

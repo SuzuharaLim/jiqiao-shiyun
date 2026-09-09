@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { useState, useRef } from 'react'
 import { TopBar, Switch, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -14,8 +15,8 @@ import { dayFor, todayOffset } from '../data/almanac.js'
 // 說明裡的 #標籤 仍會解析並存進資料庫，繼續供「搜尋」比對。
 
 const COVERS = [
-  { e: '🌾', bg: 'var(--tone-2)' }, { e: '🌊', bg: 'var(--tone-3)' }, { e: '🌸', bg: 'var(--tone-4)' },
-  { e: '🌅', bg: 'var(--tone-6)' }, { e: '🪷', bg: 'var(--tone-3)' },
+  { e: '', bg: 'var(--tone-2)' }, { e: '', bg: 'var(--tone-3)' }, { e: '', bg: 'var(--tone-4)' },
+  { e: '', bg: 'var(--tone-6)' }, { e: '', bg: 'var(--tone-3)' },
 ]
 
 // 裝置端壓縮：最長邊 1600px、JPEG 0.82（上傳前先縮，省流量也符合後端 body 上限）
@@ -83,7 +84,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
       if (onSale) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, tags, price: price || 0, imageId })
       popAll()
       setStamp('已發佈')
-      setToast(`已發佈「${term}」貼文 🌾` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
+      setToast(`已發佈「${term}」貼文 ` + (onSale ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
     } catch (e) {
       setBusy(false)
       setToast(e?.message || '發佈失敗，請稍後再試')
@@ -96,13 +97,13 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         right={<button className="acc tap" onClick={publish}>發佈</button>} />
       <div className="body">
         <div className="img" style={{ background: photo ? '#000' : COVERS[sel].bg, height: 260, fontSize: 56, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {photo ? <PhotoImg src={photo} alt="剛拍好、待發布的照片預覽" /> : COVERS[sel].e}
+          {photo ? <PhotoImg src={photo} alt="剛拍好、待發布的照片預覽" /> : <Icon name="image" className="ph-ic" />}
         </div>
 
         {/* 從相機帶照片進來時，就不再顯示選圖選項（照片已定案，要重拍請返回相機）*/}
         {fromCamera ? (
           <div className="note" style={{ marginTop: 10 }}>
-            📷 這張照片來自相機（已套用你選的濾鏡）
+             這張照片來自相機（已套用你選的濾鏡）
             <button className="acc tap" onClick={pop}>返回重拍</button>
           </div>
         ) : (
@@ -121,7 +122,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
             </div>
             <div className="thumbs">
               {COVERS.map((t, i) => (
-                <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}>{t.e}</button>
+                <button key={i} className={`th tap ${i === sel ? 'on' : ''}`} style={{ background: t.bg }} onClick={() => setSel(i)}><Icon name="image" /></button>
               ))}
             </div></>}
           </>
@@ -135,7 +136,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
 
         {/* 標記節氣 —— 真的可選 */}
         <button className="opt tap" onClick={() => setPickTerm(v => !v)}>
-          <div className="l">🕓 標記節氣</div>
+          <div className="l"> 標記節氣</div>
           <div className="muted" style={{ color: 'var(--cinnabar)' }}>{term} {pickTerm ? '▾' : '›'}</div>
         </button>
         {pickTerm && (
@@ -149,12 +150,12 @@ export default function NewPost({ photo: incomingPhoto = null }) {
 
         {/* 新增地點 —— 開地圖搜尋/目前位置/常用位置 */}
         <button className="opt tap" onClick={() => setLocOpen(true)}>
-          <div className="l">📍 新增地點</div>
+          <div className="l"> 新增地點</div>
           <div className="muted" style={{ color: place ? 'var(--cinnabar)' : undefined }}>{place || '搜尋或定位'} ›</div>
         </button>
 
         <div className="opt">
-          <div className="l">🏷️ 同時上架市集販售</div>
+          <div className="l"> 同時上架市集販售</div>
           <Switch on={onSale} onChange={setOnSale} />
         </div>
 

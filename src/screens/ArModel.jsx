@@ -431,11 +431,11 @@ export default function ArModel({ slug, hotspot }) {
         //   舊名字在 1.8 裡**根本不存在**，所以 `vr-mode-ui="enabled: false"`
         //   會被**靜默忽略**——實測使用者的 Android Chrome 上就冒出一顆「VR」
         //   按鈕（桌機因為偵測不到 XR 裝置而自動隱藏，所以本機完全看不出來）。
-        //   ⚠️ A-Frame 對不認識的元件不會警告，這一類錯誤只會在支援 WebXR 的
+        // A-Frame 對不認識的元件不會警告，這一類錯誤只會在支援 WebXR 的
         //      裝置上現形。`check-ar.mjs` 已鎖「自帶的那份 A-Frame 有這個元件」。
         scene.setAttribute('xr-mode-ui', 'enabled: false')
         scene.setAttribute('device-orientation-permission-ui', 'enabled: false')
-        // ⚠️ `antialias`／`colorManagement`／**`toneMapping`** 都要明講。
+        // `antialias`／`colorManagement`／**`toneMapping`** 都要明講。
         //    A-Frame 1.8 的 renderer 預設**不做 tone mapping**，而主光 2.15 ＋
         //    半球 1.45 打在 #FFFDF0 的葉柄上會超過 1.0 被直接裁掉 ⇒ 受光面削平
         //    成純白、皺褶與圓肋的層次全部消失。先前這一頁漏了，於是同一隻白菜在

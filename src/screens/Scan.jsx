@@ -582,7 +582,7 @@ export default function Scan() {
                       這是唯一能解釋「為什麼突然變慢」的欄位，藏起來只會被當成當機。 */}
                   <div><dt>運算後端</dt><dd>{info.backend ?? '—'}</dd></div>
                   <div><dt>相容模式</dt><dd>{info.compat ?? '—'}{info.compat === '開啟' ? '（用原廠比對門檻）' : ''}</dd></div>
-                  <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ⚠️` : '一般瀏覽器'}</dd></div>
+                  <div><dt>瀏覽器</dt><dd>{inApp ? `${inApp} 內建瀏覽器 ` : '一般瀏覽器'}</dd></div>
                   <div><dt>繪圖晶片</dt><dd>{info.gpu ?? '—'}</dd></div>
                   <div><dt>WebGL2</dt><dd>{info.webgl2 ?? '—'}　像素比 {info.dpr ?? '—'}</dd></div>
                 </dl>
@@ -635,7 +635,7 @@ export default function Scan() {
                       `瀏覽器：${inApp ? inApp + ' 內建' : '一般'}`,
                       `繪圖晶片：${i.gpu ?? '—'}　WebGL2 ${i.webgl2 ?? '—'}　像素比 ${i.dpr ?? '—'}`,
                       `自我測試：${selfTest === 'idle' ? '尚未執行' : selfTest === 'running' ? '執行中'
-                        // ⚠️ 一定要帶 stage：「跑不起來」與「跑得起來但沒認出」是完全
+                        // 一定要帶 stage：「跑不起來」與「跑得起來但沒認出」是完全
                         //    不同的結論，只寫「失敗」等於把最有用的資訊丟掉。
                         : selfTest.ok ? `成功（第 ${selfTest.frames} 幀 / ${selfTest.ms} ms）`
                           : `失敗［${selfTest.stage}］${selfTest.reason}`}`,

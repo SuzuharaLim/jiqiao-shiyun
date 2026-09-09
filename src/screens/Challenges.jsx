@@ -34,7 +34,7 @@ export default function Challenges() {
       <TopBar title="節氣挑戰活動" onBack />
       <div className="body">
         <div className="card">
-          <h4>🎯 {term}攝影挑戰</h4>
+          <h4>{term}攝影挑戰</h4>
           <div className="kv"><span>獎勵</span><span className="muted">{prize}</span></div>
           <div className="kv">
             <span>參加人數</span>

@@ -26,7 +26,7 @@ export default function Matchmaking() {
             style={{
               border: `1.5px solid ${val?.sign === z.sign ? 'var(--cinnabar)' : 'var(--line2)'}`, borderRadius: 2,
               padding: '6px 0', background: val?.sign === z.sign ? 'var(--acard-bg)' : 'var(--bg)',
-            }} onClick={() => set(z)}><div style={{ fontSize: 'var(--text-lg)' }}>{z.emoji}</div></button>
+            }} onClick={() => set(z)}><div className="glyph" style={{ fontSize: 'var(--text-lg)' }}>{z.sign}</div></button>
         ))}
       </div>
     </div>
@@ -71,7 +71,7 @@ export default function Matchmaking() {
             {res.zodiac && (
               <>
                 <div className="kv" style={{ padding: '10px 0 4px' }}>
-                  <span>生肖　{za.emoji} × {zb.emoji}</span><b>{res.zodiac.level}　{res.zodiac.score} 分</b>
+                  <span>生肖　{za.sign} × {zb.sign}</span><b>{res.zodiac.level}　{res.zodiac.score} 分</b>
                 </div>
                 <p style={{ lineHeight: 1.9 }}>{res.zodiac.reason}</p>
               </>

@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
 // 創作者頁 —— 來自資料庫（GET /api/users/:handle）：真實貼文/作品/粉絲數，追蹤走後端。
-export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'var(--tone-2)' }) {
+export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--tone-2)' }) {
   const { push, setToast, requireAccount } = useNav()
   const [data, setData] = useState(null)
   const [following, setFollowing] = useState(false)
@@ -69,7 +69,7 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'va
           {['creator', 'moderator', 'admin'].includes(u.role) &&
             <span title="認證創作者" style={{ color: 'var(--gold)', marginLeft: 4, fontSize: 'var(--text-xs)' }}>✦ 創作者</span>}
         </div>
-        <div className="pf-bio">{u.bio || '節氣風景攝影 📷'}</div>
+        <div className="pf-bio">{u.bio || '節氣風景攝影 '}</div>
         <div className="pf-btns">
           <button className={`b tap ${following ? '' : 'dark'}`} onClick={onFollow}>{following ? '追蹤中' : '追蹤'}</button>
           <button className="b tap" onClick={() => push('dms')}>訊息</button>
@@ -85,7 +85,7 @@ export default function CreatorPage({ user = '', avatar = '🌾', avatarBg = 'va
             {gallery.map(it => (
               <button key={`${it.kind}-${it.id}`} className="gimg tap" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}
                 onClick={() => push(it.kind === 'work' ? 'workDetail' : 'postDetail', { id: it.id })}>
-                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} /> : it.emoji}
+                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} /> : <Icon name="image" className="ph-ic" />}
                 {it.price ? <div className="gbadge">${it.price}</div> : null}
               </button>
             ))}

@@ -1,3 +1,4 @@
+import { glyphOf } from '../lib/text.js'
 import { useState, useMemo, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link, Breadcrumb } from '../components/ui.jsx'
@@ -57,10 +58,10 @@ export function Proverbs() {
       <TopBar title="台灣諺語" onBack />
       <div className="body">
         {cur && <div className="aicard">
-          <div className="t">💬 每日一句</div>
+          <div className="t"> 每日一句</div>
           <div className="d" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--acard-t)' }}>「{cur.tw}」</div>
           <div className="d" style={{ margin: '0 0 10px' }}>{cur.mean}</div>
-          <button className="go tap" onClick={() => { setI(n => ((n ?? baseIdx) + 1) % proverbs.length); setToast('換一句 🗣️') }}>換一句</button>
+          <button className="go tap" onClick={() => { setI(n => ((n ?? baseIdx) + 1) % proverbs.length); setToast('換一句 ') }}>換一句</button>
         </div>}
         {/* 節氣俗語：先講當令那一句，再列全年 */}
         {curGuide?.sayings?.length > 0 && (
@@ -78,7 +79,7 @@ export function Proverbs() {
         <SectionHead title="更多諺語" />
         {proverbs.map((p, k) => (
           <div key={k} className="list-item">
-            <div className="big">🗣️</div>
+            <div className="big"><Icon name="sound" /></div>
             <div className="txt"><b>{p.tw}</b><span>{p.mean}</span></div>
           </div>
         ))}
@@ -143,7 +144,7 @@ export function Festivals() {
             {dated.map((f, i) => (
               <div key={i} className="kv" style={{ padding: '10px 16px', alignItems: 'flex-start',
                 background: f.term === today ? 'var(--tone-1)' : undefined }}>
-                <b style={{ flex: '0 0 5.5em' }}>{f.emoji} {f.name}</b>
+                <b style={{ flex: '0 0 5.5em' }}>{f.name}</b>
                 <span style={{ textAlign: 'right' }}>
                   {f.md}
                   <small className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)' }}>
@@ -158,7 +159,7 @@ export function Festivals() {
         <SectionHead title="慶典詳細介紹" />
         {festivals.map((f, i) => (
           <div key={i} className="card">
-            <h4>{f.emoji} {f.name}</h4>
+            <h4>{f.name}</h4>
             <div className="kv"><span>時間</span><span className="muted">{f.time}</span></div>
             <div className="kv"><span>地點</span><span className="muted">{f.place}</span></div>
             <p style={{ marginTop: 8 }}>{f.desc}</p>
@@ -198,7 +199,7 @@ export function Flowers() {
         <SectionHead title="賞花景點" />
         {flowers.map((f, i) => (
           <div key={i} className="list-item">
-            <div className="big">{f.emoji}</div>
+            <div className="big glyph">{glyphOf(f.name)}</div>
             <div className="txt"><b>{f.name}</b><span>花期 {f.period}　·　{f.place}</span></div>
           </div>
         ))}
@@ -365,12 +366,12 @@ export function SolarTerms() {
           {solarTermArticles.map(t => (
             <button key={t.term} className={`chip tap ${a?.term === t.term ? 'on' : ''}`} onClick={() => setTerm(t.term)}
               ref={t.term === today ? centerChip : null}>
-              {t.emoji} {t.term}
+              {t.term}
             </button>
           ))}
         </div>
         {a && <>
-          <div className="img" style={{ height: 150, background: 'var(--tone-1)', fontSize: 56 }}>{a.emoji}</div>
+          <div className="img glyph-hero" style={{ height: 150, background: 'var(--tone-1)' }}>{a.term}</div>
           <div className="article">
             <h3>{a.term}{a.term === today && <span className="ty" style={{ marginLeft: 8, verticalAlign: 'middle' }}>今日節氣</span>}</h3>
             <p className="muted" style={{ fontSize: 'var(--text-xs)' }}>{g?.date || a.sub}</p>

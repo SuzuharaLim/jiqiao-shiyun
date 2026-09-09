@@ -24,7 +24,7 @@ export const PRODUCTS = [
   {
     slug: 'planner',
     id: 's1',
-    emoji: '📔',
+    emoji: '',
     bg: 'var(--tone-1)',
     name: '植物萬年曆手帳（無時效）',
     // ⚠️ title 打的是使用者真的會搜的詞（節氣手帳／農民曆手帳／鋼筆不透墨），
@@ -46,7 +46,7 @@ export const PRODUCTS = [
   {
     slug: 'collection-set',
     id: 's2',
-    emoji: '🖊️',
+    emoji: '',
     bg: 'var(--tone-3)',
     name: '時光訊息典藏套組',
     title: '時光訊息典藏套組｜節氣手帳＋自立式鋼筆＋皮革收納',
@@ -64,7 +64,7 @@ export const PRODUCTS = [
   {
     slug: 'digital-stickers',
     id: 's4',
-    emoji: '✨',
+    emoji: '',
     bg: 'var(--tone-4)',
     name: '數位手帳素材包',
     title: '數位手帳素材包｜節氣貼紙與電子手帳模板（下載版）',
@@ -88,7 +88,7 @@ export const PRODUCTS = [
     //    但原本連一個獨立網址都沒有，全擠在 /store 的一列裡。
     slug: 'enterprise',
     id: 's3',
-    emoji: '🎁',
+    emoji: '',
     bg: 'var(--tone-3)',
     name: '企業客製版',
     title: '企業客製手帳與月曆｜封面壓印 LOGO．尾牙與週年贈禮',

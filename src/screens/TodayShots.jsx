@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { usePosts, useWorks } from '../hooks/useApi.js'
@@ -23,7 +24,7 @@ export default function TodayShots({ term }) {
           {sorted.map((it, i) => (
             <button key={`${it.kind}-${it.id}-${i}`} className="it tap" onClick={() => open(it)}>
               <div className="ph" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}>
-                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} /> : it.emoji}
+                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} /> : <Icon name="image" className="ph-ic" />}
                 {it.price && <div className="gbadge">NT${it.price}</div>}
               </div>
               <div className="cap">{it.title}<small>@{it.by} · {it.term}</small></div>

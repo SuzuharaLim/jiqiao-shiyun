@@ -1,3 +1,4 @@
+import { stripEmoji } from '../lib/text.js'
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { TopBar } from '../components/ui.jsx'
@@ -27,8 +28,8 @@ export default function Notifications() {
         {notifications.map(n => (
           <button key={n.id} className="list-item tap" style={{ width: '100%', textAlign: 'left', background: 'var(--bg)' }}
             onClick={() => n.to && push(n.to, n.props || {})}>
-            <div className="big">{n.emoji}</div>
-            <div className="txt"><b style={{ fontWeight: 500 }}>{n.text}</b><span>{n.time}</span></div>
+            <div className="big"><Icon name="bell" /></div>
+            <div className="txt"><b style={{ fontWeight: 500 }}>{stripEmoji(n.text)}</b><span>{n.time}</span></div>
             <Icon name="chev" style={{ width: 16, stroke: 'var(--muted)' }} />
           </button>
         ))}

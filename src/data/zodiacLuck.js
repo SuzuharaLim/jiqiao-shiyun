@@ -38,7 +38,7 @@ export function zodiacOfBirth(year, month, day) {
   if (y >= 1 && y <= 200) y += 1911            // 民國年
   if (y < 1900 || y > 2100) return null
   let effY = y
-  // ⚠️ 一定要先擋空字串。畫面上的月／日是選填的 <input>，沒填時是 ''，
+  // 一定要先擋空字串。畫面上的月／日是選填的 <input>，沒填時是 ''，
   //    而 `Number('')` 是 **0**（不是 NaN），`Number.isFinite(0)` 為真——
   //    於是「月 0 日 0」永遠小於立春，每個人都被算成前一年的生肖
   //    （實測民國 87 年沒填月日時顯示「牛」，正解是虎）。

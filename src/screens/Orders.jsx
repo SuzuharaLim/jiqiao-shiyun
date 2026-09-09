@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { useState } from 'react'
 import { TopBar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -36,7 +37,7 @@ export default function Orders() {
       <div className="body">
         {orders.length === 0 ? (
           <div className="empty" style={{ padding: '48px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--text-3xl)' }}>🧾</div>
+            <div className="big"><Icon name="receipt" /></div>
             <div className="muted" style={{ margin: '10px 0 16px' }}>還沒有任何訂單</div>
             <button className="btn-primary tap" style={{ maxWidth: 220, margin: '0 auto' }}
               onClick={() => { popAll(); setTab(1) }}>逛逛市集 / 做一本月曆</button>

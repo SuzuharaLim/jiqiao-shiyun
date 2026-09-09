@@ -46,7 +46,7 @@ export default function Dream() {
           <div className="aicard" style={{ marginTop: 14 }}>
             {/* ⚠️ 標題要顯示「實際比對到的那個詞」，不是使用者輸入的整句。
                 原本原封不動印出整句，看起來像古書針對那一整句話下了斷語。 */}
-            <div className="t">🌙 夢見「{res.hit?.matchedKeyword || res.term}」</div>
+            <div className="t">夢見「{res.hit?.matchedKeyword || res.term}」</div>
             {res.hit?.matchedKeyword && res.hit.matchedKeyword !== res.term && (
               <div className="dream-kw">
                 從你寫的「{res.term}」比對到關鍵字：<b>{res.hit.matchedKeyword}</b>

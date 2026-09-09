@@ -114,7 +114,7 @@ export default function AccountSecurity() {
         <div className="acc-form">
           {sess.map(s => (
             <div key={s.id} className="kv" style={{ padding: '5px 0' }}>
-              <span style={{ fontSize: 'var(--text-xs)' }}>{s.current ? '🟢 本裝置' : '💻 其他裝置'}
+              <span style={{ fontSize: 'var(--text-xs)' }}>{s.current ? ' 本裝置' : ' 其他裝置'}
                 <span className="muted" style={{ fontSize: 'var(--text-2xs)', marginLeft: 6 }}>{s.ip || ''}</span></span>
               <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>{(s.created_at || '').slice(0, 10)}</span>
             </div>
@@ -127,7 +127,7 @@ export default function AccountSecurity() {
         <SectionHead title="我的資料（GDPR）" />
         <div className="acc-form">
           <button className="b tap" style={{ width: '100%' }} onClick={exportData} disabled={exporting}>
-            {exporting ? '打包中…' : '⬇️ 匯出我的資料（JSON）'}
+            {exporting ? '打包中…' : ' 匯出我的資料（JSON）'}
           </button>
           <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>包含帳號基本資料與近期登入紀錄（資料可攜權）。</p>
         </div>
@@ -139,7 +139,7 @@ export default function AccountSecurity() {
           ) : (
             <>
               <p className="muted" style={{ fontSize: 'var(--text-xs)', lineHeight: 1.7, marginBottom: 10 }}>
-                ⚠️ 刪除後帳號與登入 Session 立即銷毀、<b>無法復原</b>。請輸入密碼確認（被遺忘權）。
+                 刪除後帳號與登入 Session 立即銷毀、<b>無法復原</b>。請輸入密碼確認（被遺忘權）。
               </p>
               <label className="f-label" htmlFor="as-delpw">密碼</label>
               <div className="field"><input id="as-delpw" type="password" autoComplete="current-password"

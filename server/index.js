@@ -690,7 +690,7 @@ app.post('/api/posts', requireAuth, requireCsrf, ah(async (req, res) => {
   }
   await db.run(`INSERT INTO posts (id,user_id,emoji,bg,term,title,caption,tags_json,place,image_id,like_count,comment_count,created_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,0,0,?)`,
-    [id, req.user.id, String(b.emoji || '🌾').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
+    [id, req.user.id, String(b.emoji || '').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
      String(b.term || '').slice(0, 8), title, String(b.caption || '').slice(0, 400), JSON.stringify(tags),
      String(b.place || '').slice(0, 40), imageId, now()])
   await audit('post_create', req, req.user.id, id)
@@ -711,7 +711,7 @@ app.post('/api/posts/:id/like', requireAuth, requireCsrf, ah(async (req, res) =>
     await db.run('INSERT INTO post_likes (post_id,user_id,created_at) VALUES (?,?,?)', [pid, req.user.id, now()])
     await db.run('UPDATE posts SET like_count = like_count + 1 WHERE id=?', [pid])
     if (post.user_id !== req.user.id)
-      await notify(post.user_id, '❤️', `@${req.user.handle || req.user.name} 喜歡你的貼文「${post.title}」`, 'postDetail', { id: pid })
+      await notify(post.user_id, '', `@${req.user.handle || req.user.name} 喜歡你的貼文「${post.title}」`, 'postDetail', { id: pid })
   }
   const r = await db.get('SELECT like_count FROM posts WHERE id=?', [pid])
   res.json({ liked: !has, likeCount: r.like_count })
@@ -729,7 +729,7 @@ app.post('/api/posts/:id/comments', requireAuth, requireCsrf, ah(async (req, res
   await db.run('UPDATE posts SET comment_count = comment_count + 1 WHERE id=?', [pid])
   await audit('comment_create', req, req.user.id, pid)
   if (post.user_id !== req.user.id)
-    await notify(post.user_id, '💬', `@${req.user.handle || req.user.name} 在「${post.title}」留言：${body.slice(0, 40)}`, 'postDetail', { id: pid })
+    await notify(post.user_id, '', `@${req.user.handle || req.user.name} 在「${post.title}」留言：${body.slice(0, 40)}`, 'postDetail', { id: pid })
   res.json({ comment: { id, user: req.user.handle || req.user.name, avatar: req.user.avatar, avatarBg: req.user.avatar_bg, body, time: '剛剛' } })
 }))
 
@@ -775,7 +775,7 @@ app.post('/api/works', requireAuth, requireCsrf, ah(async (req, res) => {
     ? b.tags.map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 8)
     : []
   await db.run(`INSERT INTO works (id,user_id,emoji,bg,term,title,tags_json,price,image_id,like_count,created_at) VALUES (?,?,?,?,?,?,?,?,?,0,?)`,
-    [id, req.user.id, String(b.emoji || '🌾').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
+    [id, req.user.id, String(b.emoji || '').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
      String(b.term || '').slice(0, 8), title, JSON.stringify(tags), price, imageId, now()])
   await audit('work_create', req, req.user.id, id)
   res.json({ work: { id, title, price, image: imageId ? `/api/images/${imageId}` : null } })
@@ -992,7 +992,7 @@ app.patch('/api/push/prefs', requireAuth, requireCsrf, ah(async (req, res) => {
 app.post('/api/push/test', requireAuth, requireCsrf, ah(async (req, res) => {
   const subs = await db.all('SELECT * FROM push_subs WHERE user_id=?', [req.user.id])
   if (!subs.length) return res.status(400).json({ error: '這個帳號還沒有任何裝置訂閱推播' })
-  const r = await sendPushToAll(subs, { title: '機巧時運', body: '推播測試成功 🌾 你會收到節氣與互動提醒', to: '/' })
+  const r = await sendPushToAll(subs, { title: '機巧時運', body: '推播測試成功 你會收到節氣與互動提醒', to: '/' })
   if (r.goneIds.length) for (const id of r.goneIds) await db.run('DELETE FROM push_subs WHERE id=?', [id])
   res.json({ ...r, enabled: pushEnabled() })
 }))
@@ -1047,7 +1047,7 @@ app.post('/api/follow', requireAuth, requireCsrf, ah(async (req, res) => {
   if (has) await db.run('DELETE FROM follows WHERE follower_id=? AND followee_id=?', [req.user.id, target.id])
   else {
     await db.run('INSERT INTO follows (follower_id,followee_id,created_at) VALUES (?,?,?)', [req.user.id, target.id, now()])
-    await notify(target.id, '➕', `@${req.user.handle || req.user.name} 開始追蹤你`, 'creatorPage',
+    await notify(target.id, '', `@${req.user.handle || req.user.name} 開始追蹤你`, 'creatorPage',
       { user: req.user.handle || req.user.name, avatar: req.user.avatar, avatarBg: req.user.avatar_bg })
   }
   const fc = await db.get('SELECT COUNT(*) AS c FROM follows WHERE followee_id=?', [target.id])
@@ -1365,7 +1365,7 @@ const AI_SYSTEM = `你是「機巧時運」App 的 AI 時光顧問。
 5. 語氣溫暖、簡潔、正向，善用節氣意象，每則回覆控制在 200 字內。
 
 【輸出格式｜務必遵守】
-⚠️ 對話氣泡是純文字（white-space:pre-wrap），不會解析 Markdown。
+ 對話氣泡是純文字（white-space:pre-wrap），不會解析 Markdown。
 輸出 Markdown 的話，使用者看到的會是滿螢幕的星號與井字號。
 · 只輸出純文字。禁止 **粗體**、*斜體*、# 標題、--- 分隔線、| 表格，
   也不要用「- 」或「* 」開頭的清單。
@@ -1432,7 +1432,7 @@ const AR_PERSONA_RULES = [
   '  · 被問到資料裡有的，**數字、品種名、地名、日期一律照抄**，不要改寫也不要四捨五入，',
   '    並在句子後面用括號附上出處，例如「（農業部開放資料）」。',
   '  · 資料裡沒有的，就**直接回答**（怎麼煮、怎麼挑、節氣、農時、民俗都可以聊）。',
-  '    ⚠️ **不要每次都先聲明「卡片上沒寫」**——那句開場白每一則都出現會很囉嗦，',
+  ' **不要每次都先聲明「卡片上沒寫」**——那句開場白每一則都出現會很囉嗦，',
   '    而且畫面上已經標了「AI 生成 · 非卡片原文」，出處那件事由那個標記負責。',
   '  · 絕對不要編造品種名、產地、日期、數字。不確定就直說不確定，',
   '    也不要把自己的推測講得像卡片上的事實。',
@@ -1509,7 +1509,7 @@ const AR_REFUSALS = {
 
 const AR_HEALTH_REFUSAL = '這個我不能亂講——營養跟保健的說法要有主管機關核可才行。\n不過卡片上寫的內容我都可以跟你聊，要不要問問我的品種或產地？'
 
-const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與國民曆的顧問 🌾\n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
+const AI_REFUSAL = '這超出我的守備範圍囉——我是專門陪你看節氣與國民曆的顧問 \n要不要問問今天的宜忌，或這個節氣適合拍些什麼？'
 
 // 最近一次上游失敗的原因（供管理後台「系統狀態」查看）。
 // ⚠️ 只在記憶體、只給 admin 看：內容可能含金鑰前綴等敏感訊息，不可外洩給一般使用者。
@@ -1650,7 +1650,7 @@ const looksLikeCode = (t) => /```/.test(t)
 //   使用者看到那句話的第一反應是「這東西壞了」。
 //   問它「今天幾號」，它答「我想不太出來」——不是算錯，是**根本沒有這個資訊**。
 //
-// ⚠️ 這一段必須**逐次請求**產生，不可以烤進 `AR_PERSONAS`（那是啟動時算一次的）。
+// 這一段必須**逐次請求**產生，不可以烤進 `AR_PERSONAS`（那是啟動時算一次的）。
 /** 這個品項此刻是不是當令（用農業部開放資料的月份表，不是憑印象）。 */
 function inSeasonNow(name, month) {
   if (!name) return null
@@ -1673,7 +1673,7 @@ function personaTimeBlock(objectId) {
   }[t.phase]
 
   return [
-    // ⚠️ 開頭要放一個換行，不可用 ''：下面的 .filter(Boolean) 會把空字串濾掉，
+    // 開頭要放一個換行，不可用 ''：下面的 .filter(Boolean) 會把空字串濾掉，
     //    時間區塊就會直接黏在上一行的尾巴（實測「…賞花清單）【現在的時間」）。
     '\n',
     '【現在的時間｜以下由系統算好，一律照抄，不得自行推算】',
@@ -1700,14 +1700,14 @@ function personaTimeBlock(objectId) {
 //   ② 必須**永遠完整**。串流會被 max_tokens 截斷——「請照醫師或」這種
 //      半句在安全類回覆上是有害的。固定字串不會被截。
 //   ③ 這類回應不該每次都不一樣。
-// ⚠️ 號碼：1925 安心專線、1995 生命線、113 保護專線（家暴／性侵）、119 急救。
+// 號碼：1925 安心專線、1995 生命線、113 保護專線（家暴／性侵）、119 急救。
 //    要改號碼就改這裡，不要散在提示詞裡。
 const CRISIS_RE = new RegExp([
   '不想活|活不下去|想死|自殺|自殘|輕生|結束生命|了結自己',
   '傷害自己|割腕|跳樓|燒炭|吞藥',
   'kill\s*myself|suicide|end my life|want to die|self.?harm',
 ].join('|'), 'i')
-// ⚠️ 家暴／性侵情境才提 113——平時列出來只是噪音。
+// 家暴／性侵情境才提 113——平時列出來只是噪音。
 const CRISIS_ABUSE_RE = /家暴|家庭暴力|性侵|被打|被虐待|施暴/
 const crisisReply = (text) => [
   '我在，先陪你一下，不用一個人撐著。',
@@ -1723,7 +1723,7 @@ const crisisReply = (text) => [
 //   守門，是執行期唯一的防線；兩份實作遲早會分岔，而分岔的那一份不會有人發現
 //   ——它平常永遠通過。`/api/ai/chat` 與 `/api/ar/talk` 都走這裡。
 //
-// ⚠️ 串流會弱化輸出守門：文字一段段送出去，等收完才檢查就已經到瀏覽器了。
+// 串流會弱化輸出守門：文字一段段送出去，等收完才檢查就已經到瀏覽器了。
 //    作法是前 HOLD 個字先扣住不送，湊夠了做一次完整判定；放行之後仍逐塊檢查。
 //    真的被繞過就送 replace 事件，前端整段換掉。
 async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock }) {
@@ -1753,7 +1753,7 @@ async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock
     //   中文在 UTF-8 是 3 bytes，而 SSE 的 chunk 邊界不會對齊字元邊界——切在
     //   字中間的那個 chunk 各自解碼就會吐出 U+FFFD（畫面上的「�」）。
     //   StringDecoder 會把不完整的位元組序列留到下一次。
-    //   ⚠️ 這個 bug 只在**中文＋剛好切在字中間**時出現，所以英文測試永遠測不到。
+    // 這個 bug 只在**中文＋剛好切在字中間**時出現，所以英文測試永遠測不到。
     const decoder = new StringDecoder('utf8')
     let buf = '', full = '', released = false, blocked = false
     const gate = async (kind, replaceWith) => {
@@ -1764,7 +1764,7 @@ async function streamGuarded(res, { sys, hist, persona, maxTokens = 500, onBlock
     }
     /** 兩道守門合一：回 true 代表已攔截。 */
     const bad = async (text) => {
-      // ⚠️ persona 模式用**角色內**的台詞：AI_REFUSAL 是「國民曆顧問」的口吻
+      // persona 模式用**角色內**的台詞：AI_REFUSAL 是「國民曆顧問」的口吻
       //    （「我是專門陪你看節氣的顧問」），從一顆白菜嘴裡講出來人設就斷了。
       if (looksLikeCode(text)) { await gate('code', persona ? AR_REFUSALS.CODE : AI_REFUSAL); return true }
       if (persona && HEALTH_RE.test(text)) { await gate('health', AR_HEALTH_REFUSAL); return true }
@@ -1826,7 +1826,7 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     return res.json({ reply: AI_REFUSAL, refused: true })
   }
 
-  // ⚠️ 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
+  // 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
   //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
   const sys = AI_SYSTEM + `
 
@@ -1855,25 +1855,25 @@ ${buildAlmanacContext(req.user, req.body?.date)}`
 //   走 `/api/ai/chat` 的話 `requireAuth` 會一律 401，於是每個訪客得到的都是
 //   一句罐頭「這張卡上沒有寫到」，模型從頭到尾沒有被叫用過。
 //
-// ⚠️ 代價是這支端點**沒有登入把關**，會直接消耗 OpenAI 額度。防護有四層：
+// 代價是這支端點**沒有登入把關**，會直接消耗 OpenAI 額度。防護有四層：
 //   ① persona 必須命中白名單（系統提示由伺服器產生，前端只送 id）
 //   ② 每個 IP 每小時 40 次
 //   ③ **全站每日總量上限**（AR_TALK_DAILY_MAX）——被大量濫用時整支停掉，
 //      回 fallback 讓前端退回卡片資料，而不是把帳單燒穿
 //   ④ 輸出仍走 streamGuarded 的法規／程式碼守門
-//   ⚠️ 要收回這個決定，把 `arTalkLimiter` 前面補上 `requireAuth` 即可。
+// 要收回這個決定，把 `arTalkLimiter` 前面補上 `requireAuth` 即可。
 const AR_TALK_DAILY_MAX = Number(process.env.AR_TALK_DAILY_MAX || 3000)
-// 單則輸入的字數上限。⚠️ 這是**成本防線**不是排版考量。
+// 單則輸入的字數上限。 這是**成本防線**不是排版考量。
 const AR_TALK_MAX_CHARS = Number(process.env.AR_TALK_MAX_CHARS || 500)
 let arTalkDay = '', arTalkCount = 0
 const arTalkLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false,
   keyGenerator: (req) => req.ip,
-  message: { error: '問得有點快，休息一下再聊 🌾' },
+  message: { error: '問得有點快，休息一下再聊 ' },
 })
 app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
   const persona = typeof req.body?.persona === 'string' ? AR_PERSONAS[req.body.persona] : null
-  // ⚠️ persona 不合法就直接拒絕——這支端點**只**服務官方卡包的角色。
+  // persona 不合法就直接拒絕——這支端點**只**服務官方卡包的角色。
   if (!persona) return res.status(400).json({ error: '未知的角色' })
   if (!OPENAI_KEY) return res.json({ fallback: true })
 
@@ -1887,8 +1887,8 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
 
   // ★★★★ 輸入長度是**唯一會真的花到錢**的攻擊面：這支端點不需要登入，
   //   有心人寫個迴圈灌長文就直接轉成 OpenAI 帳單。
-  //   ⚠️ 前端的 maxLength 只是提示，**可以繞過**，這一層才算數。
-  //   ⚠️ 而且要**明確拒絕**（413）而不是默默截斷——默默截斷的話使用者以為
+  // 前端的 maxLength 只是提示，**可以繞過**，這一層才算數。
+  // 而且要**明確拒絕**（413）而不是默默截斷——默默截斷的話使用者以為
   //      模型讀完了他打的東西，實際上只讀了前面一小段。
   const last = String(messages[messages.length - 1]?.content ?? '')
   if (!last.trim()) return res.status(400).json({ error: '說點什麼吧' })
@@ -1910,7 +1910,7 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
     return res.json({ reply: AR_REFUSALS.INJECTION, refused: true, label: 'INJECTION' })
   }
 
-  // ⚠️ maxTokens 不可太小：中文一個字約 1~2 token，260 會把「請照醫師或藥師
+  // maxTokens 不可太小：中文一個字約 1~2 token，260 會把「請照醫師或藥師
   //    指示」這種句子腰斬——而事後被截斷的安全類句子語意是壞的。
   //    長度改用提示詞控制（規則裡寫「40~120 字」），不要靠硬上限。
   // ★★★★ 時間區塊逐次請求算（AR_PERSONAS 是啟動時算一次的靜態提示）
@@ -1933,8 +1933,8 @@ app.post('/api/ar/talk', arTalkLimiter, ah(async (req, res) => {
 //   ③ 這個遊戲每人每分鐘只有幾個動作，1 秒一次的輪詢完全夠用。
 //   ⇒ 取最單純、而且**在多實例下真的正確**的作法。
 //
-// ⚠️ 傷害一律由**伺服器**依自己那份題庫判定：前端送「第幾題、選了哪個」，
-//    不送「我贏了」。⚠️ 誠實話：題庫在前端 bundle 裡，看得到答案的人仍然可以
+// 傷害一律由**伺服器**依自己那份題庫判定：前端送「第幾題、選了哪個」，
+// 不送「我贏了」。 誠實話：題庫在前端 bundle 裡，看得到答案的人仍然可以
 //    每題都答對——這一層擋的是「直接偽造勝利」，不是完整的防作弊方案。
 const QUIZ_DECK_N = 60
 const quizNow = () => new Date().toISOString()
@@ -1948,7 +1948,7 @@ const quizLimiter = rateLimit({
   message: { error: '操作太頻繁，稍等一下' },
 })
 
-/** 轉成「以我為視角」的狀態。⚠️ 對手的金鑰絕不可以出現在回應裡。 */
+/** 轉成「以我為視角」的狀態。 對手的金鑰絕不可以出現在回應裡。 */
 function quizView(m, slot) {
   const me = slot === 'p1' ? 'p1' : 'p2'
   const foe = me === 'p1' ? 'p2' : 'p1'
@@ -1977,7 +1977,7 @@ async function quizLoad(id, key) {
 }
 
 /**
- * 收局。⚠️ 帶 status 條件：兩邊同時判定時只有一個寫得進去，不會互相覆蓋。
+ * 收局。 帶 status 條件：兩邊同時判定時只有一個寫得進去，不會互相覆蓋。
  * ★★★ reason 一律是**中性代碼**（ko／offline／left），不可寫成「你倒下了」這種
  *   帶立場的句子——同一個字串要給兩個玩家看，帶立場就一定有一邊是錯的。
  *   實測踩過：贏的那一方看到「戰報：你倒下了」。句子由前端依自己的勝負轉。
@@ -1999,14 +1999,14 @@ app.post('/api/quiz/queue', quizLimiter, ah(async (req, res) => {
   await db.run('DELETE FROM quiz_matches WHERE status=? AND created_at < ?',
     ['waiting', new Date(Date.now() - 10 * 60 * 1000).toISOString()])
 
-  // ⚠️ 不可以跟自己配對：同一個帳號開兩個分頁時會發生。
+  // 不可以跟自己配對：同一個帳號開兩個分頁時會發生。
   //    訪客沒有 uid，這一層擋不住——那是刻意的，否則沒辦法自己開兩個分頁驗證。
   const waiting = await db.get(
     'SELECT * FROM quiz_matches WHERE status=? AND (p1_uid IS NULL OR p1_uid<>?) ORDER BY created_at LIMIT 1',
     ['waiting', uid || '-'])
 
   if (waiting) {
-    // ⚠️ 用 status 當更新條件：兩個人同時搶同一場時，只有一個人的 UPDATE 會生效。
+    // 用 status 當更新條件：兩個人同時搶同一場時，只有一個人的 UPDATE 會生效。
     const r = await db.run(
       'UPDATE quiz_matches SET status=?, p2_key=?, p2_uid=?, p2_name=?, p2_seen=?, updated_at=? WHERE id=? AND status=?',
       ['playing', key, uid, name, t, t, waiting.id, 'waiting'])
@@ -2056,7 +2056,7 @@ app.post('/api/quiz/answer', quizLimiter, ah(async (req, res) => {
   const qi = Number(req.body?.qi)
   const pick = Number(req.body?.pick)
   if (!Number.isInteger(qi) || qi < 0 || qi >= QUIZ_DECK_N) return res.status(400).json({ error: '題號無效' })
-  // ⚠️ 只認「下一題」：擋掉跳題，也擋掉同一題重複送出灌傷害。
+  // 只認「下一題」：擋掉跳題，也擋掉同一題重複送出灌傷害。
   if (qi !== m[slot + '_done']) return res.json(quizView(m, slot))
 
   const deck = seededDeck(m.seed, QUIZ_DECK_N)
@@ -2122,10 +2122,10 @@ app.post('/api/admin/mail-test', requireAuth, requireRole('admin'), requireCsrf,
 }))
 
 // AI 自我檢測（admin 限定）——直接打一次上游，把「真正的失敗原因」帶回來。
-// ⚠️ 為什麼需要這支：使用者只會看到「AI 顧問目前無法使用」，真因（金鑰無效／
+// 為什麼需要這支：使用者只會看到「AI 顧問目前無法使用」，真因（金鑰無效／
 //    模型名稱不存在／額度用完）原本只寫進 Cloud Run log，等於要翻雲端日誌才查得到。
 //    金鑰錯與模型名稱錯的症狀完全一樣，沒有這支就只能猜。
-// ⚠️ 只給 admin，且金鑰一律只回前後各 4 碼，不可回完整值。
+// 只給 admin，且金鑰一律只回前後各 4 碼，不可回完整值。
 app.post('/api/admin/ai-test', requireAuth, requireRole('admin'), requireCsrf, authLimiter, ah(async (req, res) => {
   const mask = (k) => k ? `${k.slice(0, 6)}…${k.slice(-4)}（長度 ${k.length}）` : '（未設定）'
   const base = { model: OPENAI_MODEL, baseUrl: OPENAI_BASE, key: mask(OPENAI_KEY), lastError: lastAiError,

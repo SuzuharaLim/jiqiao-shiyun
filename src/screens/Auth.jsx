@@ -72,7 +72,7 @@ export default function Auth() {
     const r = await api.register({ name: f.name.trim(), handle: f.handle, email: f.email.trim(), password: f.pw, website: hp })
     if (r.devVerifyLink) setDevLink({ type: 'verify', token: tokenFrom(r.devVerifyLink) })
     login(r.user, r.csrfToken)
-    setStamp('註冊成功'); setToast('歡迎加入 🌾（請記得驗證 Email）')
+    setStamp('註冊成功'); setToast('歡迎加入 （請記得驗證 Email）')
   })
   const doForgot = () => run(async () => {
     if (!f.email.trim()) return setErr('請輸入註冊 Email')
@@ -94,7 +94,7 @@ export default function Auth() {
     <div className="field"><label>{label}</label>
       <div className="pw-wrap">
         <input type={showPw ? 'text' : 'password'} value={f[key]} onChange={set(key)} autoComplete={ac} aria-label={label} />
-        <button type="button" className="pw-eye tap" onClick={() => setShowPw(s => !s)} aria-label={showPw ? '隱藏密碼' : '顯示密碼'}>{showPw ? '🙈' : '👁'}</button>
+        <button type="button" className="pw-eye tap" onClick={() => setShowPw(s => !s)} aria-label={showPw ? '隱藏密碼' : '顯示密碼'}>{showPw ? '' : ''}</button>
       </div>
     </div>
   )
@@ -180,7 +180,7 @@ export default function Auth() {
         {/* Demo：無真實信箱，把驗證/重設連結就地顯示可點 */}
         {devLink?.token && (
           <div className="auth-dev">
-            📩 示範信件（正式版會寄到你的 Email）：
+            示範信件（正式版會寄到你的 Email）：
             {devLink.type === 'verify'
               ? <button className="auth-link tap" onClick={() => run(async () => { await api.verifyEmail({ token: devLink.token }); setToast('Email 已驗證 ✓'); setDevLink(null) })}>點此立即驗證 Email</button>
               : <button className="auth-link tap" onClick={() => { setResetToken(devLink.token); setMode('reset'); setDevLink(null); setErr('') }}>點此重設密碼</button>}

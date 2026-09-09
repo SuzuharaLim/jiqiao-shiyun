@@ -19,7 +19,7 @@ export default function Profile() {
 
   const me = {
     name: user?.name || user?.handle || '訪客', handle: user?.handle || 'guest',
-    bio: user?.bio || '尚未填寫簡介', avatar: user?.avatar || '🌾', avatarImageId: user?.avatarImageId || null,
+    bio: user?.bio || '尚未填寫簡介', avatar: user?.avatar || '', avatarImageId: user?.avatarImageId || null,
     avatarBg: user?.avatarBg || 'var(--tone-1)', guest: user?.guest,
   }
   // 統計與作品嚴格來自資料庫；未登入/未載入 → 顯示 0 與空狀態
@@ -109,7 +109,7 @@ export default function Profile() {
             {shown.map(w => (
               <button key={w.id} className="it tap" onClick={() => openItem(w)}>
                 <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
-                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品`} /> : w.emoji}
+                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品`} /> : <Icon name="image" className="ph-ic" />}
                   {w.price ? <div className="gbadge">NT${w.price}</div> : null}
                 </div>
                 <div className="cap">{w.title}<small>{w.term}{w.price ? ' · 市集上架' : ''}</small></div>

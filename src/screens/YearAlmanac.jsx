@@ -20,7 +20,7 @@ export default function YearAlmanac() {
         </div>
 
         <SectionHead title="春牛圖・芒神" />
-        <div className="card"><div className="article" style={{ padding: '2px 2px' }}>🐂 {y.chunniu}</div></div>
+        <div className="card"><div className="article" style={{ padding: '2px 2px' }}>{y.chunniu}</div></div>
 
         <SectionHead title="地母經" />
         <div className="card">
@@ -50,7 +50,7 @@ export default function YearAlmanac() {
           ))}
         </div>
 
-        <Disclaimer text={`⚠️ ${y.note}`} />
+        <Disclaimer text={` ${y.note}`} />
         <div style={{ height: 16 }} />
       </div>
     </>

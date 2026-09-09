@@ -158,14 +158,14 @@ export default function Camera({ onDone }) {
   return (
     <div className="cam">
       <TopBar title="相機" onClose={popAll}
-        right={<button className="iconbtn tap" aria-label="切換鏡頭" onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')}>🔄</button>} />
+        right={<button className="iconbtn tap" aria-label="切換鏡頭" onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')}></button>} />
 
       {mode === 'layout'
         ? <LayoutMode videoRef={videoRef} grab={grabPhoto} onComposed={setShot} setToast={setToast} status={status} facing={facing} />
         : (
           <div className="cam-stage">
             {status === 'denied'
-              ? <div className="cam-denied">📷<p>無法存取相機</p><small>請在瀏覽器允許相機權限，或用「建立」模式做純文字限動</small><button className="b dark tap" onClick={retryCam}>再試一次</button></div>
+              ? <div className="cam-denied"><Icon name="camera" /><p>無法存取相機</p><small>請在瀏覽器允許相機權限，或用「建立」模式做純文字限動</small><button className="b dark tap" onClick={retryCam}>再試一次</button></div>
               : <video ref={videoRef} autoPlay playsInline muted className={facing === 'user' ? 'mirror' : ''} />}
           </div>
         )}
@@ -219,7 +219,7 @@ function LayoutMode({ videoRef, grab, onComposed, setToast, status, facing }) {
   return (
     <>
       <div className="cam-stage">
-        {status === 'denied' ? <div className="cam-denied">📷<p>無法存取相機</p></div>
+        {status === 'denied' ? <div className="cam-denied"><Icon name="camera" /><p>無法存取相機</p></div>
           : <video ref={videoRef} autoPlay playsInline muted className={facing === 'user' ? 'mirror' : ''} />}
         <div className="lay-badge">{shots.length}/{lay.n}</div>
       </div>
@@ -354,7 +354,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onExit, onUse, se
         {/* 搖晃顯影框（拍立得）*/}
         {shake && reveal < 0.98 && (
           <div className="rv-shakeframe">
-            <span>📳 搖一搖手機讓照片顯影（{Math.round(reveal * 100)}%）</span>
+            <span>搖一搖手機讓照片顯影（{Math.round(reveal * 100)}%）</span>
             <button className="b tap" onClick={() => setReveal(r => Math.min(1, r + 0.25))}>沒有體感？點我模擬搖晃</button>
           </div>
         )}
@@ -376,7 +376,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onExit, onUse, se
               <small>{f.name}</small>
             </button>
           ))}
-          <button className="rvf mag tap" onClick={() => setEffOpen(true)} aria-label="特效庫">🔍<small>特效</small></button>
+          <button className="rvf mag tap" onClick={() => setEffOpen(true)} aria-label="特效庫"><Icon name="search" /><small>特效</small></button>
         </div>
         {showSlider && lib === 'feed' && (
           <div className="rv-slider">
@@ -387,7 +387,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onExit, onUse, se
       </div>
 
       <div className="cam-bottom row">
-        <button className={`chip tap ${shake ? 'on' : ''}`} onClick={() => setShake(s => !s)}>📳 搖晃顯影框</button>
+        <button className={`chip tap ${shake ? 'on' : ''}`} onClick={() => setShake(s => !s)}> 搖晃顯影框</button>
         <button className="btn-primary tap" disabled={baking}
           onClick={async () => {
             setBaking(true)
@@ -435,7 +435,7 @@ function Review({ shot, filters, feedFilters, effects, onBack, onExit, onUse, se
 // ═══════ 特效庫（美顏/疊加/變形）═══════
 function EffectsLibrary({ effects, shotUrl, onClose, onPick }) {
   const [q, setQ] = useState('')
-  const list = effects.filter(e => !q || e.name.includes(q) || e.id.includes(q))
+  const list = effects.filter(e => e.type !== 'overlay' && (!q || e.name.includes(q) || e.id.includes(q)))
   return (
     <SheetMask onClose={onClose}>{close => (
       <div className="sheet lp" onClick={e => e.stopPropagation()}>
@@ -447,7 +447,7 @@ function EffectsLibrary({ effects, shotUrl, onClose, onPick }) {
             {list.map(e => (
               <button key={e.id} className="eff-it tap" onClick={() => onPick(e)}>
                 <span className="eff-th" style={{ filter: e.css || 'none' }}><img src={shotUrl} alt="" />{e.type === 'overlay' && <em>{e.emoji}</em>}</span>
-                <small>{e.icon} {e.name}</small>
+                <small>{e.name}</small>
               </button>
             ))}
             {list.length === 0 && <div className="muted center" style={{ gridColumn: '1/-1', padding: 20 }}>找不到「{q}」</div>}
@@ -469,14 +469,14 @@ const toLocalInput = (d) => {
 function CreateStory({ onExit, onLeave, onUse, setToast }) {
   const gradients = useContent('gradients', [{ id: 'ink', name: '墨', css: 'linear-gradient(160deg,#232526,#414345)' }])
   const [bg, setBg] = useState(0)
-  const [text, setText] = useState('今天，芒種 🌾')
+  const [text, setText] = useState('今天，芒種 ')
   const [tfx, setTfx] = useState('neon')
   const [sticker, setSticker] = useState(null)   // poll | qa | countdown
   const bgCss = gradients[bg]?.css || '#141210'
 
   // 貼紙內容（皆可自行編輯）
   const [poll, setPoll] = useState({ q: '你喜歡哪個節氣？', opts: ['芒種', '夏至'] })
-  const [qa, setQa] = useState({ q: '問我任何事 💬', hint: '輸入你的問題…' })
+  const [qa, setQa] = useState({ q: '問我任何事 ', hint: '輸入你的問題…' })
   const [cd, setCd] = useState(() => ({
     q: '端午連假倒數',
     target: toLocalInput(new Date(Date.now() + 7 * 86400000)),   // 預設七天後
@@ -525,7 +525,7 @@ function CreateStory({ onExit, onLeave, onUse, setToast }) {
             <div className="q">{cd.q || '（輸入倒數標題）'}</div>
             {remain > 0
               ? <div className="nums">{cdParts.map(pad2).join(' : ')}</div>
-              : <div className="nums">時間到 🎉</div>}
+              : <div className="nums">時間到 </div>}
             <div className="cd-lbl"><span>天</span><span>時</span><span>分</span><span>秒</span></div>
           </div>
         )}
@@ -542,7 +542,7 @@ function CreateStory({ onExit, onLeave, onUse, setToast }) {
           ))}
         </div>
         <div className="tfx-row">
-          {[['poll', '📊 票選'], ['qa', '💬 問答'], ['countdown', '⏳ 倒數']].map(([k, l]) => (
+          {[['poll', ' 票選'], ['qa', ' 問答'], ['countdown', ' 倒數']].map(([k, l]) => (
             <button key={k} className={`chip tap ${sticker === k ? 'on' : ''}`} onClick={() => setSticker(s => s === k ? null : k)}>{l}</button>
           ))}
         </div>
@@ -569,7 +569,7 @@ function CreateStory({ onExit, onLeave, onUse, setToast }) {
           <div className="cs-edit">
             <label className="cs-lbl" htmlFor="cs-qa-q">問答標題</label>
             <input id="cs-qa-q" className="cs-input" value={qa.q} maxLength={40}
-              onChange={e => setQa(v => ({ ...v, q: e.target.value }))} placeholder="例：問我任何事 💬" />
+              onChange={e => setQa(v => ({ ...v, q: e.target.value }))} placeholder="例：問我任何事 " />
             <label className="cs-lbl" htmlFor="cs-qa-h">輸入框提示字</label>
             <input id="cs-qa-h" className="cs-input" value={qa.hint} maxLength={20}
               onChange={e => setQa(v => ({ ...v, hint: e.target.value }))} placeholder="例：輸入你的問題…" />
@@ -583,7 +583,7 @@ function CreateStory({ onExit, onLeave, onUse, setToast }) {
             <label className="cs-lbl" htmlFor="cs-cd-t">結束時間</label>
             <input id="cs-cd-t" className="cs-input" type="datetime-local" value={cd.target}
               onChange={e => setCd(v => ({ ...v, target: e.target.value }))} />
-            {remain <= 0 && <div className="cs-warn">⚠️ 這個時間已經過了，倒數會顯示「時間到」</div>}
+            {remain <= 0 && <div className="cs-warn"> 這個時間已經過了，倒數會顯示「時間到」</div>}
           </div>
         )}
       </div>

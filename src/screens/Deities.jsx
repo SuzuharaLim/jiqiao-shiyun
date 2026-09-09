@@ -33,12 +33,12 @@ export default function Deities() {
   const flip = (d) => {
     const willOn = !reminders[d.id]
     toggleReminder(d.id)
-    setToast(willOn ? `已開啟「${d.name}」提醒 🔔` : '已關閉提醒')
+    setToast(willOn ? `已開啟「${d.name}」提醒 ` : '已關閉提醒')
   }
   const allOn = deities.every(d => reminders[d.id])
   const toggleAll = () => {
     deities.forEach(d => { if (!!reminders[d.id] === allOn) toggleReminder(d.id) })
-    setToast(allOn ? '已關閉全部提醒' : '已開啟全部提醒 🔔')
+    setToast(allOn ? '已關閉全部提醒' : '已開啟全部提醒 ')
   }
 
   return (
@@ -49,7 +49,7 @@ export default function Deities() {
         <Breadcrumb items={[{ label: '首頁', tab: 0 }, { label: '臺灣神佛誕辰' }]} />
         <SectionHead title="近期誕辰 · 開啟提醒" extra={allOn ? '全部已開' : '點鈴鐺全開'} />
         {list.map(d => (
-          <ToolRow key={d.id} icon={d.icon} bg={d.bg} title={d.name}
+          <ToolRow key={d.id} iconName="seal2" title={d.name}
             sub={[
               d.date,
               d.solar ? `國曆 ${d.solar.getMonth() + 1}/${d.solar.getDate()}` : null,
@@ -68,7 +68,7 @@ export default function Deities() {
             const art = deityByName(d.name)
             return art ? (
               <Link key={art.slug} screen="deityDetail" params={{ slug: art.slug }}>
-                {art.emoji} {art.name}
+                {art.name}
               </Link>
             ) : null
           })}

@@ -1,136 +1,128 @@
 /* ==========================================================================
-   Design Tokens — 機巧時運「編輯極簡」（2026-09-09 全站改版）
+   Design Tokens — 機巧時運「編輯奢華」（2026-09-09 全站改版，依 soft-skill）
 
-   ★ 這一版推翻了先前的「宣紙／墨／朱紅印章」語言，改為 minimalist-ui：
-     暖色單色系畫布（骨白 #F7F6F3）、炭黑 #111 實心主按鈕、極淡 #EAEAEA 級邊線、
-     8–12px 圓角、洗淡的粉彩只用在標籤與語意色、緊字距的編輯型襯線標題。
-     顏色是稀缺資源：只用在語意（宜／忌／警示）與極少量點綴，不再有品牌三色。
+   ★ 方向：高端代理商感（Editorial Luxury）——溫暖奶油畫布、濃縮咖啡色文字、
+     鼠尾草綠點綴、極度擴散的環境陰影、雙層嵌套（double-bezel）的卡片、
+     膠囊主鈕、緊字距襯線大標、彈簧曲線動效、3% 紙紋顆粒。
+     不是極簡扁平、不是軍規終端；要有厚度與體溫。
 
-   架構不變（重要）：
-     1) Primitives  原始色階，元件不得直接引用
-     2) Semantic    元件只引用這層
-     3) Legacy 別名 既有 styles.css 用的舊變數名，全部指向 Semantic
-                    → 改這裡的值，全站自動套用，無需改 JSX
-     ⚠️ 舊名字一個都不可刪（styles.css 有上百處引用），只能改值。
-        例如 --cinnabar 這個名字留著，但它現在是「炭黑強調色」。
+   架構不變：Primitives → Semantic → Legacy 別名（舊變數名一個都不可刪，只改值）。
 
    對比實測（WCAG 2.2 AA）：
-     主文 #111 on 骨白 17.4 ✓　次文 #6B6B68 on 白 5.1 ✓ on 骨白 4.7 ✓
-     白字 on #111 18.4 ✓　宜 #346538 on 白 7.4 ✓　忌 #9F2F2D on 白 7.1 ✓
-     深色：主文 #ECEBE8 on #161616 15.3 ✓　次文 #A3A29E 6.4 ✓
-     ⚠️ 粉彩底（#EDF3EC 等）只能當「底」不能當「字」；當字一律用同名 -ink 版。
+     主文 #2B2118 on 奶油 #FDFBF7 13.8 ✓　次文 #6F6259 on 白 5.6 ✓ on 奶油 5.3 ✓
+     白字 on #2B2118 13.8 ✓　宜 #4E6B3F on 白 6.1 ✓　忌 #9A3B2E on 白 6.5 ✓
+     深色：主文 #F1EAE0 on #191512 14.6 ✓　次文 #B3A79A 7.0 ✓
    ========================================================================== */
 
 :root {
-  /* ---- Primitives（原始值，元件不得直接引用）------------------------- */
-  --paper-50:  #FBFBFA;   /* 極淺，卡片次層 */
-  --paper-100: #F7F6F3;   /* 主背景＝骨白（不是純白，純白留給卡片浮起） */
-  --paper-200: #F1EFEA;   /* 欄位／chip 底 */
-  --ink-900:   #111111;   /* 炭黑，主文 */
-  --ink-700:   #2F3437;
-  --ink-500:   #6B6B68;   /* 次文 */
-  --ink-300:   #9C9B97;
+  /* ---- Primitives ---------------------------------------------------- */
+  --paper-50:  #FFFFFF;   /* 卡片內核 */
+  --paper-100: #FDFBF7;   /* 主背景＝奶油 */
+  --paper-200: #F4EFE7;   /* 欄位／chip／外殼底 */
+  --paper-300: #EBE4D8;   /* 外殼較深一階（雙層嵌套用） */
+  --ink-900:   #2B2118;   /* 濃縮咖啡，主文 */
+  --ink-700:   #47372B;
+  --ink-500:   #6F6259;   /* 次文 */
+  --ink-300:   #A3978C;
 
-  /* 粉彩（底）＋ 對應墨色（字）。四組語意：綠＝宜／可、紅＝忌／警示、藍＝資訊、黃＝提醒 */
-  --pale-green: #EDF3EC;  --green-ink: #346538;
-  --pale-red:   #FDEBEC;  --red-ink:   #9F2F2D;
-  --pale-blue:  #E1F3FE;  --blue-ink:  #1F6C9F;
-  --pale-yellow:#FBF3DB;  --yellow-ink:#956400;
-  --amber-fill: #B7862B;  /* 需要「填色」而非字的暖色（白底 3.3，非文字 3:1 ✓） */
+  /* 語意四色：粉彩（底）＋ 墨（字） */
+  --pale-green: #E6EDE0;  --green-ink: #4E6B3F;   /* 鼠尾草 */
+  --pale-red:   #F6E3DE;  --red-ink:   #9A3B2E;   /* 陶土 */
+  --pale-blue:  #E0E9EF;  --blue-ink:  #34617A;   /* 灰藍 */
+  --pale-yellow:#F6EBD3;  --yellow-ink:#8A6414;   /* 蜂蜜 */
+  --amber-fill: #C39A4A;
   --white:     #FFFFFF;
 
-  /* 舊名保留（部分 styles.css 直接引用 primitives） */
+  /* 舊名保留 */
   --teal-500:  var(--pale-green);
   --teal-ink:  var(--green-ink);
   --orange-500:var(--amber-fill);
   --orange-ink:var(--yellow-ink);
   --navy-500:  var(--ink-900);
   --navy-400:  var(--ink-700);
-  --navy-700:  #000000;
+  --navy-700:  #1A130E;
 
-  /* ---- Semantic（元件只引用這層）------------------------------------ */
+  /* ---- Semantic ------------------------------------------------------- */
   --color-bg:          var(--paper-100);
-  --color-surface:     var(--white);
-  --color-surface-2:   var(--paper-50);
+  --color-surface:     var(--paper-50);
+  --color-surface-2:   var(--paper-200);
+  --color-shell:       var(--paper-200);   /* 雙層嵌套的外殼 */
   --color-text:        var(--ink-900);
   --color-text-muted:  var(--ink-500);
-  --color-brand:       var(--ink-900);      /* 強調色＝炭黑：靠字重與底線區分，不靠色相 */
+  --color-brand:       var(--ink-900);
   --color-brand-hover: var(--ink-700);
   --color-accent:      var(--green-ink);
   --color-gold:        var(--amber-fill);
-  --color-border:      #E8E6E1;             /* 極淡邊線（骨白上仍看得見） */
+  --color-border:      rgba(43, 33, 24, 0.08);   /* 髮絲線，不是灰邊框 */
   --color-focus:       var(--ink-900);
 
-  --color-brand-solid: var(--ink-900);      /* 實心主按鈕 #111 ＋ 白字 */
-  --color-on-brand:    var(--white);
+  --color-brand-solid: var(--ink-900);
+  --color-on-brand:    #FFFDF8;
 
-  /* 節氣主題色：只換語意標記的色相，主色全年炭黑 */
   --season-hue: var(--green-ink);
-  --season-tint: rgba(52, 101, 56, .08);
+  --season-tint: rgba(78, 107, 63, .10);
 
-  /* ---- Typography ---------------------------------------------------- */
-  /* 零下載系統字（0 檔 / 0KB，無 FOUT／CLS）。拉丁字優先幾何無襯線，
-     中文落到各 OS 原生字；標題走編輯型襯線，緊字距、緊行高。 */
-  --font-sans:  "Helvetica Neue", "SF Pro Display", "SF Pro Text", system-ui, -apple-system,
-                "Segoe UI",
+  /* ---- Typography ----------------------------------------------------- */
+  --font-sans:  "Plus Jakarta Sans", "Geist", "SF Pro Display", "SF Pro Text", system-ui, -apple-system,
+                "Segoe UI Variable", "Segoe UI",
                 "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC",
                 sans-serif;
-  --font-serif: "Newsreader", "Instrument Serif", "Playfair Display", Georgia, "Times New Roman",
+  --font-serif: "PP Editorial New", "Newsreader", "Playfair Display", Georgia, "Times New Roman",
                 "Songti TC", "PMingLiU", "MingLiU",
                 "Noto Serif CJK TC", "Noto Serif TC", "Source Han Serif TC",
                 serif;
-  --font-mono:  "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas",
-                "JetBrains Mono", Menlo, monospace;
+  --font-mono:  "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", Menlo, monospace;
 
-  /* type scale（9 階不變；元件一律用 token，不寫 px） */
-  --text-2xs:  0.8125rem; /* 13px   徽章／角標 */
-  --text-xs:   0.9375rem; /* 15px   次要說明 */
-  --text-sm:   1rem;      /* 16px   輔助文字 */
-  --text-base: 1.125rem;  /* 18px   內文 */
-  --text-lg:   1.375rem;  /* 22px   小標 */
-  --text-xl:   1.625rem;  /* 26px   標題 */
-  --text-2xl:  2.0625rem; /* 33px   大標 */
-  --text-3xl:  2.875rem;  /* 46px   特大：干支／日期 */
-  --text-4xl:  4.5rem;    /* 72px   裝飾字（不放大，避免撐破容器） */
+  --text-2xs:  0.8125rem;
+  --text-xs:   0.9375rem;
+  --text-sm:   1rem;
+  --text-base: 1.125rem;
+  --text-lg:   1.375rem;
+  --text-xl:   1.625rem;
+  --text-2xl:  2.0625rem;
+  --text-3xl:  2.875rem;
+  --text-4xl:  4.5rem;
 
-  --leading-tight:  1.15;   /* 標題：編輯型緊行高 */
-  --leading-normal: 1.6;    /* UI */
-  --leading-body:   1.75;   /* 中文內文 */
+  --leading-tight:  1.12;
+  --leading-normal: 1.6;
+  --leading-body:   1.75;
 
-  /* ---- Spacing（4px base）------------------------------------------- */
+  /* ---- Spacing -------------------------------------------------------- */
   --space-1:  0.25rem;  --space-2:  0.5rem;  --space-3:  0.75rem;
   --space-4:  1rem;     --space-5:  1.5rem;  --space-6:  2rem;
   --space-8:  3rem;     --space-10: 4rem;    --space-12: 6rem;
 
-  /* ---- Radius（極簡：容器 12、元件 8、小件 6；標籤才用膠囊）---------- */
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
+  /* ---- Radius（奢華：外殼 22、內核 16、元件 12、主鈕膠囊）------------ */
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --radius-xl:   26px;
   --radius-full: 999px;
 
-  /* ---- Shadow（幾乎不存在：超擴散、<5% 不透明）------------------------- */
-  --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.04);
-  --shadow-md: 0 2px 8px rgba(17, 17, 17, 0.04);
+  /* ---- Shadow（環境光：極度擴散、低不透明、雙層）--------------------- */
+  --shadow-sm: 0 1px 2px rgba(43, 33, 24, .04), 0 10px 24px -14px rgba(43, 33, 24, .14);
+  --shadow-md: 0 2px 4px rgba(43, 33, 24, .04), 0 22px 44px -22px rgba(43, 33, 24, .22);
+  --shadow-lg: 0 4px 8px rgba(43, 33, 24, .04), 0 36px 64px -28px rgba(43, 33, 24, .28);
+  --inset-hi:  inset 0 1px 0 rgba(255, 255, 255, .7);   /* 內核上緣高光 */
 
-  /* ---- Motion -------------------------------------------------------- */
-  --duration-fast:   0.15s;
-  --duration-normal: 0.3s;
-  --duration-slow:   0.4s;
-  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* ---- Motion（彈簧／質量感；不用 linear、不用 ease-in-out）------------ */
+  --duration-fast:   0.18s;
+  --duration-normal: 0.36s;
+  --duration-slow:   0.7s;
+  --ease-out:    cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out: cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* 動效三檔（規則不變：主動回饋 ≤200ms、呈現內容 260–450ms、儀式性 >500ms） */
-  --m-fast: 0.13s;
-  --m-base: 0.26s;
-  --m-slow: 0.44s;
-  --e-out:    cubic-bezier(0.2, 0.8, 0.3, 1);
+  --m-fast: 0.16s;
+  --m-base: 0.34s;
+  --m-slow: 0.7s;
+  --e-out:    cubic-bezier(0.32, 0.72, 0, 1);
   --e-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
   --e-in:     cubic-bezier(0.5, 0, 0.75, 0);
 
-  --measure: 68ch;
+  --measure: 66ch;
 
   /* ======================================================================
-     Legacy 別名 —— 舊變數名全部指向 Semantic 層（一個都不可刪）
+     Legacy 別名
      ====================================================================== */
   --bg:        var(--color-bg);
   --stage:     var(--paper-200);
@@ -138,18 +130,16 @@
   --text:      var(--color-text);
   --muted:     var(--color-text-muted);
   --line:      var(--color-border);
-  --line2:     #DEDBD5;
+  --line2:     rgba(43, 33, 24, .14);
   --chip:      var(--paper-200);
   --field:     var(--paper-200);
   --primary:   var(--color-brand-solid);
   --pfg:       var(--color-on-brand);
   --accent:    var(--color-brand);
   --heart:     var(--red-ink);
-  /* ⚠️ --cinnabar 名字留著（上百處引用），值＝炭黑強調色 */
   --cinnabar:  var(--color-brand);
   --cinnabar-d:var(--ink-700);
   --seal:      var(--ink-900);
-  /* --gold 當文字 → 黃墨；--gold-hi 當填色／邊框 → 琥珀填色 */
   --gold:      var(--yellow-ink);
   --gold-hi:   var(--amber-fill);
   --bronze:    var(--yellow-ink);
@@ -162,21 +152,18 @@
   --acard-t:   var(--ink-900);
   --acard-d:   var(--color-text-muted);
   --luck-bg:   var(--paper-50);
-  --note-bg:   var(--paper-50);
+  --note-bg:   var(--paper-200);
 
-  /* 宜／忌：文字用途 AA */
   --yi:        var(--green-ink);
   --ji:        var(--red-ink);
-  --on-yi:     var(--white);
-  --on-ji:     var(--white);
+  --on-yi:     #FFFDF8;
+  --on-ji:     #FFFDF8;
   --ok-bg:     var(--pale-green);  --ok-fg: var(--green-ink);
   --no-bg:     var(--pale-red);    --no-fg: var(--red-ink);
 
-  /* 占卜卡：不再是靛青夜空，改為深炭底＋骨白字（單色系） */
-  --oracle-bg: var(--ink-900);  --oracle-fg: #ECEBE8;  --oracle-ln: #2A2A2A;
+  --oracle-bg: var(--ink-900);  --oracle-fg: #F1EAE0;  --oracle-ln: #47372B;
   --st-full:   var(--green-ink);  --st-partial: var(--yellow-ink); --st-demo: var(--ink-500);
 
-  /* primitives 元件別名 */
   --c-bg: var(--color-bg);            --c-surface: var(--color-surface);
   --c-border: var(--color-border);    --c-border-2: var(--line2);
   --c-text: var(--color-text);        --c-text-2: var(--color-text-muted);
@@ -185,12 +172,11 @@
   --c-focus: var(--color-focus);      --c-danger: var(--ji);
   --f-sans: var(--font-sans);         --f-serif: var(--font-serif);
   --f-mono: var(--font-mono);
-  /* ⚠️ --t-* 是字級的舊別名（與動效 --m-* 是兩套），新增 token 前先 grep 撞名 */
   --t-2xs: var(--text-2xs); --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
   --t-lg: var(--text-lg);   --t-xl: var(--text-xl);   --t-2xl: var(--text-2xl);
   --t-3xl: var(--text-4xl);
   --lh-tight: var(--leading-tight);   --lh-body: var(--leading-body);
-  --ls-tight: -0.02em;
+  --ls-tight: -0.022em;
   --s-1: var(--space-1);  --s-2: var(--space-2);  --s-3: var(--space-3);
   --s-4: var(--space-4);  --s-5: var(--space-5);  --s-6: var(--space-6);
   --s-7: var(--space-8);  --s-8: var(--space-10); --s-9: var(--space-12);
@@ -202,88 +188,91 @@
   --ease: var(--ease-out);
   --dur-fast: var(--duration-fast);   --dur: var(--duration-normal);
 
-  /* ---- 相機／掃描介面（恆為深色，像原生相機 App）---------------------- */
-  --cam-bg:      #0E0E0E;
-  --cam-bg-deep: #0A0A0A;
-  --cam-bg-2:    #161616;
-  --cam-field:   #1C1C1C;
-  --cam-line:    #262626;
-  --cam-line-2:  #3A3A3A;
-  --cam-fg:      #D8D7D3;
-  --cam-fg-2:    #C0BFBB;
-  --cam-muted:   #9A9995;
-  --cam-muted-2: #8A8985;
-  --cam-chip:    #ECEBE8;
-  --cam-warn:    #E5C46A;
-  --cinnabar-dd: #000000;
+  /* 相機／掃描（恆深色） */
+  --cam-bg:      #14100D;
+  --cam-bg-deep: #0F0C0A;
+  --cam-bg-2:    #1C1714;
+  --cam-field:   #241E1A;
+  --cam-line:    #2E2723;
+  --cam-line-2:  #423A34;
+  --cam-fg:      #E5DDD2;
+  --cam-fg-2:    #CFC5B8;
+  --cam-muted:   #A69A8D;
+  --cam-muted-2: #948879;
+  --cam-chip:    #F1EAE0;
+  --cam-warn:    #E7C57B;
+  --cinnabar-dd: #1A130E;
   --oracle-bg-2: var(--ink-700);
 
-  /* 內容色票（縮圖／工具圖示底色，非文字）＝ 洗淡粉彩 */
-  --tone-1: #F1EFEA;  /* 中性 */
-  --tone-2: #EDF3EC;  /* 淡綠 */
-  --tone-3: #E1F3FE;  /* 淡藍 */
-  --tone-4: #FDEBEC;  /* 淡紅 */
-  --tone-5: #FBF3DB;  /* 淡黃 */
-  --tone-6: #EFE9F7;  /* 淡紫 */
+  /* 內容色票（縮圖／磚底，非文字） */
+  --tone-1: #F4EFE7;
+  --tone-2: #E6EDE0;
+  --tone-3: #E0E9EF;
+  --tone-4: #F6E3DE;
+  --tone-5: #F6EBD3;
+  --tone-6: #ECE3EE;
 }
 
-/* ── 四季換裝：只換「語意標記」的色相，主色全年炭黑 ── */
-:root[data-season="spring"] { --season-hue: var(--green-ink);  --season-tint: rgba(52, 101, 56, .08); }
-:root[data-season="summer"] { --season-hue: var(--red-ink);    --season-tint: rgba(159, 47, 45, .07); }
-:root[data-season="autumn"] { --season-hue: var(--yellow-ink); --season-tint: rgba(149, 100, 0, .08); }
-:root[data-season="winter"] { --season-hue: var(--blue-ink);   --season-tint: rgba(31, 108, 159, .08); }
-/* 深色：色相提亮，底色 tint 要比淺色濃（.16），否則膠囊在深底上幾乎看不出是一顆標籤 */
-:root[data-theme="dark"][data-season="spring"] { --season-hue: #8FCB93; --season-tint: rgba(143, 203, 147, .16); }
-:root[data-theme="dark"][data-season="summer"] { --season-hue: #F29A97; --season-tint: rgba(242, 154, 151, .16); }
-:root[data-theme="dark"][data-season="autumn"] { --season-hue: #E5C46A; --season-tint: rgba(229, 196, 106, .16); }
-:root[data-theme="dark"][data-season="winter"] { --season-hue: #8CC5EA; --season-tint: rgba(140, 197, 234, .16); }
+:root[data-season="spring"] { --season-hue: var(--green-ink);  --season-tint: rgba(78, 107, 63, .10); }
+:root[data-season="summer"] { --season-hue: var(--red-ink);    --season-tint: rgba(154, 59, 46, .09); }
+:root[data-season="autumn"] { --season-hue: var(--yellow-ink); --season-tint: rgba(138, 100, 20, .10); }
+:root[data-season="winter"] { --season-hue: var(--blue-ink);   --season-tint: rgba(52, 97, 122, .10); }
+:root[data-theme="dark"][data-season="spring"] { --season-hue: #9DB58E; --season-tint: rgba(157, 181, 142, .16); }
+:root[data-theme="dark"][data-season="summer"] { --season-hue: #E29A8C; --season-tint: rgba(226, 154, 140, .16); }
+:root[data-theme="dark"][data-season="autumn"] { --season-hue: #E0BC6B; --season-tint: rgba(224, 188, 107, .16); }
+:root[data-theme="dark"][data-season="winter"] { --season-hue: #93B7CB; --season-tint: rgba(147, 183, 203, .16); }
 
 /* ==========================================================================
-   Dark mode —— 暖炭色系；實心主按鈕反轉為骨白底＋炭字
+   Dark mode —— 深濃縮咖啡；主鈕反轉為奶油底＋咖啡字
    ========================================================================== */
 :root[data-theme="dark"] {
-  --color-bg:          #161616;
-  --color-surface:     #1F1F1F;
-  --color-surface-2:   #262626;
-  --color-text:        #ECEBE8;
-  --color-text-muted:  #A3A29E;   /* 深底 6.4 ✓ */
-  --color-brand:       #ECEBE8;
+  --color-bg:          #191512;
+  --color-surface:     #221D19;
+  --color-surface-2:   #2A2420;
+  --color-shell:       #2A2420;
+  --color-text:        #F1EAE0;
+  --color-text-muted:  #B3A79A;
+  --color-brand:       #F1EAE0;
   --color-brand-hover: #FFFFFF;
-  --color-accent:      #8FCB93;
-  --color-gold:        #C9A24A;
+  --color-accent:      #9DB58E;
+  --color-gold:        #CDA45A;
   --color-border:      rgba(255, 255, 255, 0.08);
-  --color-focus:       #ECEBE8;
+  --color-focus:       #F1EAE0;
 
-  --color-brand-solid: #ECEBE8;   /* 反轉：亮底 */
-  --color-on-brand:    #111111;   /* 炭字（15.3 ✓） */
+  --color-brand-solid: #F1EAE0;
+  --color-on-brand:    #1E1814;
 
-  --stage:     #101010;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 24px -14px rgba(0, 0, 0, .6);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, .3), 0 22px 44px -22px rgba(0, 0, 0, .7);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, .3), 0 36px 64px -28px rgba(0, 0, 0, .8);
+  --inset-hi:  inset 0 1px 0 rgba(255, 255, 255, .06);
+
+  --stage:     #120F0D;
   --line2:     rgba(255, 255, 255, .14);
-  --chip:      #262626;
-  --field:     #262626;
-  --cinnabar-d:#D6D5D1;
-  --heart:     #F29A97;
-  --gold-hi:   #C9A24A;
-  --bronze:    #E5C46A;
-  --seal:      #ECEBE8;
+  --chip:      #2A2420;
+  --field:     #2A2420;
+  --cinnabar-d:#DCD3C7;
+  --heart:     #E29A8C;
+  --gold-hi:   #CDA45A;
+  --bronze:    #E0BC6B;
+  --seal:      #F1EAE0;
   --acard-bg:  var(--color-surface-2);
   --acard-t:   var(--color-text);
   --acard-d:   var(--color-text-muted);
   --luck-bg:   var(--color-surface-2);
-  --note-bg:   #1B1B1B;
-  --yi:        #8FCB93;  --ji: #F29A97;          /* 深底 9.1 / 8.2 ✓ */
-  --on-yi:     #111111;  --on-ji: #111111;        /* 亮底 → 炭字 */
-  --gold:      #E5C46A;
-  --ok-bg:     #1E2A1F;  --ok-fg: #8FCB93;
-  --no-bg:     #2E1C1C;  --no-fg: #F29A97;
-  --oracle-bg: #262626;  --oracle-fg: #ECEBE8;  --oracle-ln: #3A3A3A;
-  --st-full:   #8FCB93;  --st-partial: #E5C46A; --st-demo: #A3A29E;
-  --c-text-3:  #8A8985;
-  --tone-1: #262626;  --tone-2: #1E2A1F;  --tone-3: #172733;
-  --tone-4: #2E1C1C;  --tone-5: #2B2415;  --tone-6: #261F2E;
+  --note-bg:   #1E1915;
+  --yi:        #9DB58E;  --ji: #E29A8C;
+  --on-yi:     #1E1814;  --on-ji: #1E1814;
+  --gold:      #E0BC6B;
+  --ok-bg:     #23301F;  --ok-fg: #9DB58E;
+  --no-bg:     #33221E;  --no-fg: #E29A8C;
+  --oracle-bg: #2A2420;  --oracle-fg: #F1EAE0;  --oracle-ln: #3D352F;
+  --st-full:   #9DB58E;  --st-partial: #E0BC6B; --st-demo: #B3A79A;
+  --c-text-3:  #8F8478;
+  --tone-1: #2A2420;  --tone-2: #23301F;  --tone-3: #1F2A31;
+  --tone-4: #33221E;  --tone-5: #33291A;  --tone-6: #2C2431;
 }
 
-/* 尊重使用者的動效偏好——token 歸零，全站自動生效 */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast:   0.01ms;

@@ -42,20 +42,20 @@ export const almanacDays = [
 // 首頁貼文
 export const posts = [
   {
-    id: 'p1', user: 'wang_photo', avatar: '🌾', avatarBg: 'var(--tone-2)',
-    emoji: '🌾', bg: 'var(--tone-2)', term: '芒種', title: '芒種・田間',
+    id: 'p1', user: 'wang_photo', avatar: '', avatarBg: 'var(--tone-2)',
+    emoji: '', bg: 'var(--tone-2)', term: '芒種', title: '芒種・田間',
     caption: '芒種的稻浪，風一吹就是一整片金黃。', tags: ['芒種', '田間'],
     likes: 128, comments: 12, time: '2 小時前', place: '台中・外埔',
   },
   {
-    id: 'p2', user: 'lin_ocean', avatar: '🌊', avatarBg: 'var(--tone-3)',
-    emoji: '🌊', bg: 'var(--tone-3)', term: '夏至', title: '夏至・海線',
+    id: 'p2', user: 'lin_ocean', avatar: '', avatarBg: 'var(--tone-3)',
+    emoji: '', bg: 'var(--tone-3)', term: '夏至', title: '夏至・海線',
     caption: '夏至前的海，天亮得特別早。', tags: ['夏至', '海'],
     likes: 96, comments: 8, time: '5 小時前', place: '台南・七股',
   },
   {
-    id: 'p3', user: 'flora.tw', avatar: '🌸', avatarBg: 'var(--tone-4)',
-    emoji: '🪷', bg: 'var(--tone-4)', term: '芒種', title: '荷風初起',
+    id: 'p3', user: 'flora.tw', avatar: '', avatarBg: 'var(--tone-4)',
+    emoji: '', bg: 'var(--tone-4)', term: '芒種', title: '荷風初起',
     caption: '植物園的荷花開了第一朵，記錄給明年的月曆。', tags: ['芒種', '荷花', '植物曆'],
     likes: 214, comments: 21, time: '昨天', place: '台北・植物園',
   },
@@ -63,18 +63,18 @@ export const posts = [
 
 // 探索市集網格
 export const works = [
-  { id: 'w1', emoji: '🌾', bg: 'var(--tone-2)', term: '芒種', author: 'wang_photo', title: '芒種稻浪' },
-  { id: 'w2', emoji: '🌊', bg: 'var(--tone-3)', term: '夏至', author: 'lin_ocean', title: '七股晨海', price: 30 },
-  { id: 'w3', emoji: '🌸', bg: 'var(--tone-4)', term: '芒種', author: 'flora.tw', title: '初荷' },
-  { id: 'w4', emoji: '🌅', bg: 'var(--tone-6)', term: '夏至', author: 'sky_diary', title: '夏至日出', price: 45 },
-  { id: 'w5', emoji: '🪷', bg: 'var(--tone-3)', term: '芒種', author: 'flora.tw', title: '池上蓮' },
-  { id: 'w6', emoji: '🍃', bg: 'var(--tone-3)', term: '花卉', author: 'green_life', title: '蕨之呼吸' },
-  { id: 'w7', emoji: '🏯', bg: 'var(--tone-6)', term: '慶典', author: 'temple_walk', title: '廟埕', price: 30 },
-  { id: 'w8', emoji: '🌾', bg: 'var(--tone-2)', term: '芒種', author: 'farm_note', title: '割稻' },
-  { id: 'w9', emoji: '🌺', bg: 'var(--tone-4)', term: '花卉', author: 'flora.tw', title: '扶桑' },
-  { id: 'w10', emoji: '⛰️', bg: 'var(--tone-3)', term: '海', author: 'hike_tw', title: '合歡' },
-  { id: 'w11', emoji: '🌻', bg: 'var(--tone-1)', term: '花卉', author: 'sun_field', title: '向日葵田', price: 60 },
-  { id: 'w12', emoji: '🌿', bg: 'var(--tone-5)', term: '芒種', author: 'green_life', title: '青草' },
+  { id: 'w1', emoji: '', bg: 'var(--tone-2)', term: '芒種', author: 'wang_photo', title: '芒種稻浪' },
+  { id: 'w2', emoji: '', bg: 'var(--tone-3)', term: '夏至', author: 'lin_ocean', title: '七股晨海', price: 30 },
+  { id: 'w3', emoji: '', bg: 'var(--tone-4)', term: '芒種', author: 'flora.tw', title: '初荷' },
+  { id: 'w4', emoji: '', bg: 'var(--tone-6)', term: '夏至', author: 'sky_diary', title: '夏至日出', price: 45 },
+  { id: 'w5', emoji: '', bg: 'var(--tone-3)', term: '芒種', author: 'flora.tw', title: '池上蓮' },
+  { id: 'w6', emoji: '', bg: 'var(--tone-3)', term: '花卉', author: 'green_life', title: '蕨之呼吸' },
+  { id: 'w7', emoji: '', bg: 'var(--tone-6)', term: '慶典', author: 'temple_walk', title: '廟埕', price: 30 },
+  { id: 'w8', emoji: '', bg: 'var(--tone-2)', term: '芒種', author: 'farm_note', title: '割稻' },
+  { id: 'w9', emoji: '', bg: 'var(--tone-4)', term: '花卉', author: 'flora.tw', title: '扶桑' },
+  { id: 'w10', emoji: '', bg: 'var(--tone-3)', term: '海', author: 'hike_tw', title: '合歡' },
+  { id: 'w11', emoji: '', bg: 'var(--tone-1)', term: '花卉', author: 'sun_field', title: '向日葵田', price: 60 },
+  { id: 'w12', emoji: '', bg: 'var(--tone-5)', term: '芒種', author: 'green_life', title: '青草' },
 ]
 
 export const exploreChips = ['全部', '芒種', '夏至', '花卉', '海', '慶典']
@@ -100,36 +100,36 @@ export const cultureTools = [
 
 // 神佛生日
 export const deities = [
-  { id: 'mazu', icon: '⛩️', bg: 'var(--tone-6)', name: '媽祖 天上聖母', date: '農曆 3/23', note: '九月初九飛昇' },
+  { id: 'mazu', icon: '', bg: 'var(--tone-6)', name: '媽祖 天上聖母', date: '農曆 3/23', note: '九月初九飛昇' },
   // ⚠️ 土地公原本寫農曆 8/15——那是「成道日」（另有 12/16 尾牙酬謝），
   // 誕辰是二月初二。已依台灣省城隍廟神明誕辰表（sim.org.tw）更正。
-  { id: 'tudi', icon: '🛕', bg: 'var(--tone-1)', name: '土地公 福德正神', date: '農曆 2/2', note: '八月十五為成道日、十二月十六尾牙酬謝' },
-  { id: 'guan', icon: '⚔️', bg: 'var(--tone-6)', name: '關聖帝君', date: '農曆 6/24', note: '正月十三飛昇' },
-  { id: 'xuan', icon: '🌙', bg: 'var(--tone-3)', name: '玄天上帝', date: '農曆 3/3', note: '九月初九飛昇' },
-  { id: 'guanyin', icon: '🪷', bg: 'var(--tone-2)', name: '觀世音菩薩', date: '農曆 2/19', note: '六月十九得道、九月十九出家' },
-  { id: 'cheng', icon: '🏮', bg: 'var(--tone-3)', name: '城隍爺', date: '農曆 5/11', note: '台灣府城隍；霞海、南鯤鯓為五月十三' },
-  { id: 'baosheng', icon: '💊', bg: 'var(--tone-3)', name: '保生大帝', date: '農曆 3/15' },
-  { id: 'wangye', icon: '⚜️', bg: 'var(--tone-6)', name: '五府千歲', date: '農曆 4/26' },
-  { id: 'zhusheng', icon: '🌸', bg: 'var(--tone-4)', name: '註生娘娘', date: '農曆 3/20' },
-  { id: 'yuelao', icon: '❤️', bg: 'var(--tone-6)', name: '月下老人', date: '農曆 8/15' },
-  { id: 'wenchang', icon: '📖', bg: 'var(--tone-3)', name: '文昌帝君', date: '農曆 2/3' },
-  { id: 'shennong', icon: '🌾', bg: 'var(--tone-2)', name: '神農大帝', date: '農曆 4/26' },
+  { id: 'tudi', icon: '', bg: 'var(--tone-1)', name: '土地公 福德正神', date: '農曆 2/2', note: '八月十五為成道日、十二月十六尾牙酬謝' },
+  { id: 'guan', icon: '', bg: 'var(--tone-6)', name: '關聖帝君', date: '農曆 6/24', note: '正月十三飛昇' },
+  { id: 'xuan', icon: '', bg: 'var(--tone-3)', name: '玄天上帝', date: '農曆 3/3', note: '九月初九飛昇' },
+  { id: 'guanyin', icon: '', bg: 'var(--tone-2)', name: '觀世音菩薩', date: '農曆 2/19', note: '六月十九得道、九月十九出家' },
+  { id: 'cheng', icon: '', bg: 'var(--tone-3)', name: '城隍爺', date: '農曆 5/11', note: '台灣府城隍；霞海、南鯤鯓為五月十三' },
+  { id: 'baosheng', icon: '', bg: 'var(--tone-3)', name: '保生大帝', date: '農曆 3/15' },
+  { id: 'wangye', icon: '', bg: 'var(--tone-6)', name: '五府千歲', date: '農曆 4/26' },
+  { id: 'zhusheng', icon: '', bg: 'var(--tone-4)', name: '註生娘娘', date: '農曆 3/20' },
+  { id: 'yuelao', icon: '', bg: 'var(--tone-6)', name: '月下老人', date: '農曆 8/15' },
+  { id: 'wenchang', icon: '', bg: 'var(--tone-3)', name: '文昌帝君', date: '農曆 2/3' },
+  { id: 'shennong', icon: '', bg: 'var(--tone-2)', name: '神農大帝', date: '農曆 4/26' },
 ]
 
 // 生肖運勢
 export const zodiacs = [
-  { sign: '鼠', emoji: '🐭', score: 82, luck: '正財旺，午後宜談合作' },
-  { sign: '牛', emoji: '🐮', score: 74, luck: '穩中求進，忌衝動決策' },
-  { sign: '虎', emoji: '🐯', score: 90, luck: '貴人相助，宜主動出擊' },
-  { sign: '兔', emoji: '🐰', score: 68, luck: '注意溝通，多聆聽' },
-  { sign: '龍', emoji: '🐲', score: 88, luck: '事業有成，宜開市納財' },
-  { sign: '蛇', emoji: '🐍', score: 71, luck: '守成為上，理財謹慎' },
-  { sign: '馬', emoji: '🐴', score: 95, luck: '本命芒種日，諸事順遂' },
-  { sign: '羊', emoji: '🐏', score: 66, luck: '情緒平穩，宜靜心' },
-  { sign: '猴', emoji: '🐵', score: 79, luck: '靈感佳，適合創作' },
-  { sign: '雞', emoji: '🐔', score: 73, luck: '人際熱絡，慎防口舌' },
-  { sign: '狗', emoji: '🐶', score: 80, luck: '忠於本心，得長輩緣' },
-  { sign: '豬', emoji: '🐷', score: 77, luck: '財氣平順，宜儲蓄' },
+  { sign: '鼠', emoji: '', score: 82, luck: '正財旺，午後宜談合作' },
+  { sign: '牛', emoji: '', score: 74, luck: '穩中求進，忌衝動決策' },
+  { sign: '虎', emoji: '', score: 90, luck: '貴人相助，宜主動出擊' },
+  { sign: '兔', emoji: '', score: 68, luck: '注意溝通，多聆聽' },
+  { sign: '龍', emoji: '', score: 88, luck: '事業有成，宜開市納財' },
+  { sign: '蛇', emoji: '', score: 71, luck: '守成為上，理財謹慎' },
+  { sign: '馬', emoji: '', score: 95, luck: '本命芒種日，諸事順遂' },
+  { sign: '羊', emoji: '', score: 66, luck: '情緒平穩，宜靜心' },
+  { sign: '猴', emoji: '', score: 79, luck: '靈感佳，適合創作' },
+  { sign: '雞', emoji: '', score: 73, luck: '人際熱絡，慎防口舌' },
+  { sign: '狗', emoji: '', score: 80, luck: '忠於本心，得長輩緣' },
+  { sign: '豬', emoji: '', score: 77, luck: '財氣平順，宜儲蓄' },
 ]
 
 // 台灣諺語
@@ -185,27 +185,27 @@ export const proverbs = [
 
 // 慶典
 export const festivals = [
-  { emoji: '🐉', name: '端午龍舟賽', time: '農曆 5/5', place: '鹿港・彰化', desc: '芒種前後，全台各地划龍舟、包粽、立蛋，紀念屈原。' },
-  { emoji: '🏮', name: '鹽水蜂炮', time: '元宵 · 農曆 1/15', place: '台南・鹽水', desc: '武廟出巡遶境，萬炮齊發祈求平安，世界三大民俗慶典之一。' },
-  { emoji: '⛩️', name: '大甲媽祖遶境', time: '農曆 3 月', place: '台中・大甲', desc: '九天八夜徒步進香，數十萬信眾隨行，無形文化資產。' },
-  { emoji: '🕯️', name: '平溪天燈', time: '元宵前後', place: '新北・平溪', desc: '把心願寫上天燈放飛夜空，山城最浪漫的節氣風景。' },
-  { emoji: '🎆', name: '東港迎王平安祭', time: '三年一科 · 秋季', place: '屏東・東港', desc: '燒王船送瘟祈安，南台灣最盛大的王爺信仰祭典。' },
-  { emoji: '🏵️', name: '頭城搶孤', time: '農曆 7 月底', place: '宜蘭・頭城', desc: '中元普渡尾聲，攀孤棚搶旗，驚險刺激的民俗競技。' },
-  { emoji: '🌾', name: '賽夏族矮靈祭', time: '農曆 10 月', place: '苗栗・南庄', desc: '兩年一小祭、十年一大祭，賽夏族最神聖的傳統祭儀。' },
-  { emoji: '🏮', name: '野柳神明淨港', time: '元宵 · 農曆 1/15', place: '新北・野柳', desc: '神轎扛入海中淨港，祈求漁獲豐收、出海平安。' },
+  { emoji: '', name: '端午龍舟賽', time: '農曆 5/5', place: '鹿港・彰化', desc: '芒種前後，全台各地划龍舟、包粽、立蛋，紀念屈原。' },
+  { emoji: '', name: '鹽水蜂炮', time: '元宵 · 農曆 1/15', place: '台南・鹽水', desc: '武廟出巡遶境，萬炮齊發祈求平安，世界三大民俗慶典之一。' },
+  { emoji: '', name: '大甲媽祖遶境', time: '農曆 3 月', place: '台中・大甲', desc: '九天八夜徒步進香，數十萬信眾隨行，無形文化資產。' },
+  { emoji: '', name: '平溪天燈', time: '元宵前後', place: '新北・平溪', desc: '把心願寫上天燈放飛夜空，山城最浪漫的節氣風景。' },
+  { emoji: '', name: '東港迎王平安祭', time: '三年一科 · 秋季', place: '屏東・東港', desc: '燒王船送瘟祈安，南台灣最盛大的王爺信仰祭典。' },
+  { emoji: '', name: '頭城搶孤', time: '農曆 7 月底', place: '宜蘭・頭城', desc: '中元普渡尾聲，攀孤棚搶旗，驚險刺激的民俗競技。' },
+  { emoji: '', name: '賽夏族矮靈祭', time: '農曆 10 月', place: '苗栗・南庄', desc: '兩年一小祭、十年一大祭，賽夏族最神聖的傳統祭儀。' },
+  { emoji: '', name: '野柳神明淨港', time: '元宵 · 農曆 1/15', place: '新北・野柳', desc: '神轎扛入海中淨港，祈求漁獲豐收、出海平安。' },
 ]
 
 // 賞花
 export const flowers = [
-  { emoji: '🌸', name: '陽明山櫻花', period: '2–3 月', place: '台北・陽明山' },
-  { emoji: '🌷', name: '中社花海鬱金香', period: '1–2 月', place: '台中・后里' },
-  { emoji: '🪷', name: '台北植物園荷花', period: '6–8 月', place: '台北・南海路' },
-  { emoji: '🌻', name: '桃園向日葵', period: '6–7 月', place: '桃園・觀音' },
-  { emoji: '💜', name: '九月雪 · 韭菜花', period: '9–10 月', place: '桃園・大溪' },
-  { emoji: '🌼', name: '銅鑼杭菊', period: '11 月', place: '苗栗・銅鑼' },
-  { emoji: '🌺', name: '阿勃勒黃金雨', period: '5–6 月', place: '台南・多處' },
-  { emoji: '🏵️', name: '武陵農場櫻花', period: '2 月', place: '台中・和平' },
-  { emoji: '🌲', name: '落羽松秘境', period: '12–1 月', place: '南投・魚池' },
+  { emoji: '', name: '陽明山櫻花', period: '2–3 月', place: '台北・陽明山' },
+  { emoji: '', name: '中社花海鬱金香', period: '1–2 月', place: '台中・后里' },
+  { emoji: '', name: '台北植物園荷花', period: '6–8 月', place: '台北・南海路' },
+  { emoji: '', name: '桃園向日葵', period: '6–7 月', place: '桃園・觀音' },
+  { emoji: '', name: '九月雪 · 韭菜花', period: '9–10 月', place: '桃園・大溪' },
+  { emoji: '', name: '銅鑼杭菊', period: '11 月', place: '苗栗・銅鑼' },
+  { emoji: '', name: '阿勃勒黃金雨', period: '5–6 月', place: '台南・多處' },
+  { emoji: '', name: '武陵農場櫻花', period: '2 月', place: '台中・和平' },
+  { emoji: '', name: '落羽松秘境', period: '12–1 月', place: '南投・魚池' },
 ]
 
 // 當令食材已改由 termGuide 提供（24 節氣逐節 × 農產/漁獲 × 產地，見 src/data/termGuide.js）。
@@ -214,69 +214,69 @@ export const flowers = [
 
 // 24 節氣專欄（完整）
 export const solarTermArticles = [
-  { term: '立春', emoji: '🌱', sub: '第 1 個節氣 · 國曆 2/4 前後',
+  { term: '立春', emoji: '', sub: '第 1 個節氣 · 國曆 2/4 前後',
     body: '春之始。東風解凍、蟄蟲始振，萬物由此萌動。台灣此時仍有春寒，農諺「立春天氣晴，百物好收成」。\n\n養生宜順應生發之氣，早睡早起、舒展筋骨，飲食少酸多甘以養脾。' },
-  { term: '雨水', emoji: '🌧️', sub: '第 2 個節氣 · 國曆 2/19 前後',
+  { term: '雨水', emoji: '', sub: '第 2 個節氣 · 國曆 2/19 前後',
     body: '降水漸增，獺祭魚、鴻雁來。俗諺「雨水連綿是豐年」，是農田播種備耕的時節。\n\n乍暖還寒，宜「春捂」保暖、健脾祛濕，多食粥品與時蔬。' },
-  { term: '驚蟄', emoji: '🐛', sub: '第 3 個節氣 · 國曆 3/6 前後',
+  { term: '驚蟄', emoji: '', sub: '第 3 個節氣 · 國曆 3/6 前後',
     body: '春雷始鳴，蟄伏的昆蟲被驚醒。台灣有「驚蟄打小人」的民俗，也是春耕大忙的開始。\n\n肝氣旺盛，宜疏肝理氣、早睡早起，多食梨潤燥。' },
-  { term: '春分', emoji: '🌸', sub: '第 4 個節氣 · 國曆 3/21 前後',
+  { term: '春分', emoji: '', sub: '第 4 個節氣 · 國曆 3/21 前後',
     body: '晝夜均分、寒暑平。玄鳥至、雷乃發聲，正是繁花盛開、踏青賞櫻的好時節。\n\n養生講究「陰陽平衡」，作息規律、情緒平和，飲食寒溫得中。' },
-  { term: '清明', emoji: '🍃', sub: '第 5 個節氣 · 國曆 4/5 前後',
+  { term: '清明', emoji: '', sub: '第 5 個節氣 · 國曆 4/5 前後',
     body: '氣清景明，桐始華。既是節氣也是掃墓祭祖的節日，慎終追遠、踏青插柳。\n\n多雨潮濕，宜疏肝健脾、清淡飲食，潤餅、青草是應景之食。' },
-  { term: '穀雨', emoji: '🌾', sub: '第 6 個節氣 · 國曆 4/20 前後',
+  { term: '穀雨', emoji: '', sub: '第 6 個節氣 · 國曆 4/20 前後',
     body: '雨生百穀，浮萍始生。春季最後一個節氣，正是採春茶、插秧的關鍵時刻。\n\n濕氣漸重，宜健脾祛濕、少食生冷，喝穀雨茶清火明目。' },
-  { term: '立夏', emoji: '🌱', sub: '第 7 個節氣 · 國曆 5/6 前後',
+  { term: '立夏', emoji: '', sub: '第 7 個節氣 · 國曆 5/6 前後',
     body: '夏之始，萬物並秀。螻蟈鳴、蚯蚓出，作物進入旺盛生長期。台灣有立夏「補夏」食俗。\n\n宜養心安神、晚睡早起，飲食清淡多酸以固表。' },
-  { term: '小滿', emoji: '🌾', sub: '第 8 個節氣 · 國曆 5/21 前後',
+  { term: '小滿', emoji: '', sub: '第 8 個節氣 · 國曆 5/21 前後',
     body: '麥類等夏熟作物籽粒漸滿但未熟，故名小滿。苦菜秀、麥秋至，寓意「滿而不盈」的知足。\n\n濕熱漸增，宜清熱利濕、少食甜膩油炸，多食苦味菜。' },
-  { term: '芒種', emoji: '🌾', sub: '第 9 個節氣 · 國曆 6/6 前後',
+  { term: '芒種', emoji: '', sub: '第 9 個節氣 · 國曆 6/6 前後',
     body: '有芒作物可種、麥類成熟。台灣進入梅雨與初夏之交，農諺「芒種夏至，樣仔落蒂」，芒果盛產、稻作插秧的忙碌時刻。\n\n三候：螳螂生、鵙始鳴、反舌無聲。濕熱之際，宜清淡、勤補水、午後小憩。' },
-  { term: '夏至', emoji: '☀️', sub: '第 10 個節氣 · 國曆 6/21 前後',
+  { term: '夏至', emoji: '', sub: '第 10 個節氣 · 國曆 6/21 前後',
     body: '太陽直射北回歸線，北半球白晝最長。台灣嘉義有北回歸線地標。俗諺「夏至風颱就出世」，颱風季將至。\n\n陽氣最盛，養生講究「養心」，宜靜心少怒、清補為主。' },
-  { term: '小暑', emoji: '🌡️', sub: '第 11 個節氣 · 國曆 7/7 前後',
+  { term: '小暑', emoji: '', sub: '第 11 個節氣 · 國曆 7/7 前後',
     body: '暑氣漸盛尚未至極。溫風至、蟋蟀居壁，正是消暑納涼、曬伏的時節。\n\n宜心靜自然涼、少動多靜，多補水電解質，飲食清爽開胃。' },
-  { term: '大暑', emoji: '🔥', sub: '第 12 個節氣 · 國曆 7/23 前後',
+  { term: '大暑', emoji: '', sub: '第 12 個節氣 · 國曆 7/23 前後',
     body: '一年最熱之時，腐草為螢、大雨時行。台灣常有午後雷陣雨與颱風。\n\n宜防中暑、清熱解毒，多食瓜果，綠豆湯、仙草是消暑良品。' },
-  { term: '立秋', emoji: '🍂', sub: '第 13 個節氣 · 國曆 8/8 前後',
+  { term: '立秋', emoji: '', sub: '第 13 個節氣 · 國曆 8/8 前後',
     body: '秋之始，涼風至、白露生。雖仍有「秋老虎」餘暑，但暑去涼來已現端倪。\n\n宜收斂養肺、滋陰潤燥，民間有「貼秋膘」適度進補之俗。' },
-  { term: '處暑', emoji: '🌾', sub: '第 14 個節氣 · 國曆 8/23 前後',
+  { term: '處暑', emoji: '', sub: '第 14 個節氣 · 國曆 8/23 前後',
     body: '「處」為終止，暑氣至此而止。鷹乃祭鳥、禾乃登，稻穀開始成熟。\n\n早晚轉涼，宜潤肺防燥、早睡早起，多食百合、銀耳。' },
-  { term: '白露', emoji: '💧', sub: '第 15 個節氣 · 國曆 9/8 前後',
+  { term: '白露', emoji: '', sub: '第 15 個節氣 · 國曆 9/8 前後',
     body: '露凝而白，鴻雁來、玄鳥歸。晝夜溫差加大，秋意漸濃。俗諺「白露勿露身」。\n\n宜添衣防涼、養肺潤燥，避免貪食生冷瓜果。' },
-  { term: '秋分', emoji: '🌕', sub: '第 16 個節氣 · 國曆 9/23 前後',
+  { term: '秋分', emoji: '', sub: '第 16 個節氣 · 國曆 9/23 前後',
     body: '晝夜再度均分，雷始收聲、蟄蟲坏戶。豐收時節，也是中秋前後團圓賞月之時。\n\n宜陰陽調和、情緒平穩，飲食溫潤，慎防秋燥傷肺。' },
-  { term: '寒露', emoji: '🌾', sub: '第 17 個節氣 · 國曆 10/8 前後',
+  { term: '寒露', emoji: '', sub: '第 17 個節氣 · 國曆 10/8 前後',
     body: '露水寒冷將凝，鴻雁來賓、菊有黃華。天高氣爽，正是登高賞菊的好時節。\n\n宜足部保暖、滋陰潤肺，多食芝麻、核桃等溫潤之品。' },
-  { term: '霜降', emoji: '🍁', sub: '第 18 個節氣 · 國曆 10/24 前後',
+  { term: '霜降', emoji: '', sub: '第 18 個節氣 · 國曆 10/24 前後',
     body: '秋季最後一個節氣，霜始降、草木黃落。台灣楓紅漸起，柿子盛產，「霜降吃柿」之俗。\n\n宜平補潤燥、健脾養胃，注意保暖防燥邪。' },
-  { term: '立冬', emoji: '🍁', sub: '第 19 個節氣 · 國曆 11/8 前後',
+  { term: '立冬', emoji: '', sub: '第 19 個節氣 · 國曆 11/8 前後',
     body: '冬之始，水始冰、地始凍。台灣有立冬「補冬」進補之俗，薑母鴨、麻油雞暖身。\n\n宜早睡晚起、斂陽護陰，適度溫補以蓄養精氣。' },
-  { term: '小雪', emoji: '❄️', sub: '第 20 個節氣 · 國曆 11/22 前後',
+  { term: '小雪', emoji: '', sub: '第 20 個節氣 · 國曆 11/22 前後',
     body: '北方始飄小雪，虹藏不見、閉塞成冬。台灣雖不下雪，但冷氣團漸強、東北季風盛行。\n\n宜溫補防寒、養腎藏精，多食黑色食物與溫熱湯品。' },
-  { term: '大雪', emoji: '⛄', sub: '第 21 個節氣 · 國曆 12/7 前後',
+  { term: '大雪', emoji: '', sub: '第 21 個節氣 · 國曆 12/7 前後',
     body: '雪量增大，鶡鴠不鳴、荔挺出。是進補與醃曬臘味的時節，年味漸近。\n\n宜保暖護陽、早睡遲起，飲食溫熱、適度進補。' },
-  { term: '冬至', emoji: '⛄', sub: '第 22 個節氣 · 國曆 12/22 前後',
+  { term: '冬至', emoji: '', sub: '第 22 個節氣 · 國曆 12/22 前後',
     body: '陰極陽生，白晝最短。台灣「冬至圓」搓湯圓、圍爐，象徵團圓與添歲。\n\n一陽初生，宜養藏、安神，進補以固本培元。' },
-  { term: '小寒', emoji: '❄️', sub: '第 23 個節氣 · 國曆 1/6 前後',
+  { term: '小寒', emoji: '', sub: '第 23 個節氣 · 國曆 1/6 前後',
     body: '天氣寒冷但未至極，雁北鄉、鵲始巢。俗諺「小寒大寒，冷成冰團」，一年最冷時段將至。\n\n宜防風保暖、溫補腎陽，多食堅果與熱粥。' },
-  { term: '大寒', emoji: '🥶', sub: '第 24 個節氣 · 國曆 1/20 前後',
+  { term: '大寒', emoji: '', sub: '第 24 個節氣 · 國曆 1/20 前後',
     body: '一年最後一個節氣，天寒地凍至極而後回暖。雞始乳、征鳥厲疾，過此便是立春。\n\n宜蓄養防寒、調暢情志，迎接新春的生發之氣。' },
 ]
 
 // 通知
 export const notifications = [
-  { id: 'n1', emoji: '❤️', text: 'lin_ocean 等 128 人 說你的〈芒種稻浪〉讚', time: '2 小時前', to: 'postDetail', props: { id: 'p1' } },
-  { id: 'n2', emoji: '🖼️', text: '你的作品〈初荷〉被選入 3 本植物月曆', time: '5 小時前', to: 'workDetail', props: { id: 'w3' } },
-  { id: 'n3', emoji: '💰', text: '市集授權售出 ×2，入帳 NT$60', time: '昨天', to: 'wallet' },
-  { id: 'n4', emoji: '⛩️', text: '媽祖聖誕還有 5 天，已為你開啟提醒', time: '昨天', to: 'deities' },
-  { id: 'n5', emoji: '🎯', text: '「芒種攝影挑戰」剩 2 天，衝上排行榜！', time: '2 天前', to: 'challengesBoard' },
+  { id: 'n1', emoji: '', text: 'lin_ocean 等 128 人 說你的〈芒種稻浪〉讚', time: '2 小時前', to: 'postDetail', props: { id: 'p1' } },
+  { id: 'n2', emoji: '', text: '你的作品〈初荷〉被選入 3 本植物月曆', time: '5 小時前', to: 'workDetail', props: { id: 'w3' } },
+  { id: 'n3', emoji: '', text: '市集授權售出 ×2，入帳 NT$60', time: '昨天', to: 'wallet' },
+  { id: 'n4', emoji: '', text: '媽祖聖誕還有 5 天，已為你開啟提醒', time: '昨天', to: 'deities' },
+  { id: 'n5', emoji: '', text: '「芒種攝影挑戰」剩 2 天，衝上排行榜！', time: '2 天前', to: 'challengesBoard' },
 ]
 
 // 挑戰活動
 export const challenges = [
-  { id: 'c1', emoji: '🌾', title: '芒種攝影挑戰', prize: '前 3 名作品收錄官方月曆', join: 328, days: 2 },
-  { id: 'c2', emoji: '🪷', title: '植物曆・夏花', prize: 'Premium 季訂 ×5', join: 156, days: 9 },
+  { id: 'c1', emoji: '', title: '芒種攝影挑戰', prize: '前 3 名作品收錄官方月曆', join: 328, days: 2 },
+  { id: 'c2', emoji: '', title: '植物曆・夏花', prize: 'Premium 季訂 ×5', join: 156, days: 9 },
 ]
 
 // 節氣（新貼文標記用）
@@ -287,11 +287,11 @@ export const licenseTiers = [0, 30, 45, 60]
 
 // 挑戰排行榜（依讚數排序）
 export const leaderboard = [
-  { rank: 1, user: 'flora.tw', emoji: '🪷', bg: 'var(--tone-4)', title: '初荷', likes: 214, workId: 'w3' },
-  { rank: 2, user: 'wang_photo', emoji: '🌾', bg: 'var(--tone-2)', title: '芒種稻浪', likes: 128, workId: 'w1' },
-  { rank: 3, user: 'sky_diary', emoji: '🌅', bg: 'var(--tone-6)', title: '夏至日出', likes: 96, workId: 'w4' },
-  { rank: 4, user: 'farm_note', emoji: '🌾', bg: 'var(--tone-2)', title: '割稻', likes: 74, workId: 'w8' },
-  { rank: 5, user: 'green_life', emoji: '🍃', bg: 'var(--tone-3)', title: '蕨之呼吸', likes: 61, workId: 'w6' },
+  { rank: 1, user: 'flora.tw', emoji: '', bg: 'var(--tone-4)', title: '初荷', likes: 214, workId: 'w3' },
+  { rank: 2, user: 'wang_photo', emoji: '', bg: 'var(--tone-2)', title: '芒種稻浪', likes: 128, workId: 'w1' },
+  { rank: 3, user: 'sky_diary', emoji: '', bg: 'var(--tone-6)', title: '夏至日出', likes: 96, workId: 'w4' },
+  { rank: 4, user: 'farm_note', emoji: '', bg: 'var(--tone-2)', title: '割稻', likes: 74, workId: 'w8' },
+  { rank: 5, user: 'green_life', emoji: '', bg: 'var(--tone-3)', title: '蕨之呼吸', likes: 61, workId: 'w6' },
 ]
 
 // 私訊對話（示範腳本）
@@ -306,18 +306,18 @@ export const poemPool = [
 
 // 我的專案
 export const projects = [
-  { id: 'pr1', emoji: '🗓️', name: '2026 植物月曆', status: '草稿 · 已選 8/12', color: 'var(--tone-2)' },
-  { id: 'pr2', emoji: '📔', name: '芒種手帳內頁', status: '已完成 · 待下單', color: 'var(--tone-6)' },
-  { id: 'pr3', emoji: '🎁', name: '企業客製 · 大葉大學', status: '報價中', color: 'var(--tone-3)' },
+  { id: 'pr1', emoji: '', name: '2026 植物月曆', status: '草稿 · 已選 8/12', color: 'var(--tone-2)' },
+  { id: 'pr2', emoji: '', name: '芒種手帳內頁', status: '已完成 · 待下單', color: 'var(--tone-6)' },
+  { id: 'pr3', emoji: '', name: '企業客製 · 大葉大學', status: '報價中', color: 'var(--tone-3)' },
 ]
 
 // 商店品項 —— 灌入 ref_items('storeProducts')，可由管理後台 CMS 編輯。
 // （原本硬編在 Store.jsx 檔案裡，是最後一個寫死在畫面檔的內容清單。）
 export const storeProducts = [
-  { id: 's1', e: '📔', bg: 'var(--tone-1)', name: '植物萬年曆手帳（無時效）', desc: '鋼筆防透墨紙材 · 24 節氣植物插畫', price: 800 },
-  { id: 's2', e: '🖊️', bg: 'var(--tone-3)', name: '時光訊息典藏套組', desc: '手帳 ＋ 自立式鋼筆 ＋ 皮革收納', price: 1280 },
-  { id: 's3', e: '🎁', bg: 'var(--tone-3)', name: '企業客製版', desc: '封面壓印 LOGO · 專屬 AI 歡迎語', price: null },
-  { id: 's4', e: '✨', bg: 'var(--tone-4)', name: '數位手帳素材包', desc: '節慶貼紙 · 電子模板（邊際成本近零）', price: 120 },
+  { id: 's1', e: '', bg: 'var(--tone-1)', name: '植物萬年曆手帳（無時效）', desc: '鋼筆防透墨紙材 · 24 節氣植物插畫', price: 800 },
+  { id: 's2', e: '', bg: 'var(--tone-3)', name: '時光訊息典藏套組', desc: '手帳 ＋ 自立式鋼筆 ＋ 皮革收納', price: 1280 },
+  { id: 's3', e: '', bg: 'var(--tone-3)', name: '企業客製版', desc: '封面壓印 LOGO · 專屬 AI 歡迎語', price: null },
+  { id: 's4', e: '', bg: 'var(--tone-4)', name: '數位手帳素材包', desc: '節慶貼紙 · 電子模板（邊際成本近零）', price: 120 },
 ]
 
 // 結帳明細
@@ -355,8 +355,8 @@ export const creatorStats = {
 export const profile = {
   handle: 'lim_suzuhara',
   name: '蕭・節氣攝影',
-  bio: '記錄二十四節氣 🌿　台中',
-  avatar: '🌾', avatarBg: 'var(--tone-2)',
+  bio: '記錄二十四節氣 　台中',
+  avatar: '', avatarBg: 'var(--tone-2)',
   works: 24, followers: 310, chosen: 18,
   grid: works.slice(0, 6),
 }
@@ -370,18 +370,18 @@ const greet = () => {
   return h < 5 ? '夜深了' : h < 11 ? '早安' : h < 14 ? '午安' : h < 18 ? '午後好' : '晚安'
 }
 export const aiOpenFor = (d) =>
-  `${greet()}～今天是「${d.term.replace('（交節）', '')}」，${d.ganzhi.replace('日', '')}日 🌾
+  `${greet()}～今天是「${d.term.replace('（交節）', '')}」，${d.ganzhi.replace('日', '')}日 
 想問今日宜忌、吉時、沖煞，還是解個夢？我都在。`
 // ⚠️ 建議問句不可提到站上沒有的功能。原本這裡有「幫我抽一支今日運勢籤」，
 //    但站上根本沒有抽籤——使用者按下去只會被導到一個空頁面。
 export const aiQuickRepliesFor = (d) =>
   ['今天適合簽約嗎？', '今天沖什麼生肖？', `${d.term.replace('（交節）', '')}要注意什麼？`, '解夢：夢到掉牙']
 export const aiScript = [
-  { keys: ['簽約', '合約', '開市', '生意'], reply: '今日「宜開市、納財」，午後尤佳 ✨\n重要簽約建議排在 13–15 時（未時），並避開正沖屬鼠者。（提醒：這裡只給建議，行程請自己記到手帳或手機行事曆喔）' },
-  { keys: ['籤', '抽'], reply: '🎋 為你抽得「中吉・芒種第七籤」：\n『耕耘有時，靜待花開；心誠則靈，秋來滿載。』\n\n解：此籤宜守成積累，勿急於一時。近期的努力會在秋收時見效。' },
-  { keys: ['芒種', '節氣', '注意'], reply: '芒種濕熱、梅雨交替 🌦️\n養生三提醒：① 勤補水、飲食清淡；② 午後小憩養心；③ 收好除濕，衣物勿積潮。\n農諺說「芒種逢雷美亦然」，這幾天若打雷反是好兆頭喔。' },
-  { keys: ['夢', '解夢'], reply: '夢到「下雨」的話 🌧️\n《周公解夢》原典的斷語是「天雨滂沱，主有酒食」；白話的參考則是雨主潤澤、常與等待有關，若夢中淋雨狼狽，多是近期把事情攬太滿的投射。\n（原典與白話是兩回事，站上的解夢頁會分開標示。）你夢裡的雨是大是小呢？' },
-  { keys: ['運勢', '今天', '今日'], reply: '今日運勢 ⭐⭐⭐⭐☆（丙午日）\n總體：宜開市納財、出行祈福；忌動土安葬。\n貼心話：火氣偏旺的一天，說話放慢半拍，貴人自來。' },
+  { keys: ['簽約', '合約', '開市', '生意'], reply: '今日「宜開市、納財」，午後尤佳 \n重要簽約建議排在 13–15 時（未時），並避開正沖屬鼠者。（提醒：這裡只給建議，行程請自己記到手帳或手機行事曆喔）' },
+  { keys: ['籤', '抽'], reply: ' 為你抽得「中吉・芒種第七籤」：\n『耕耘有時，靜待花開；心誠則靈，秋來滿載。』\n\n解：此籤宜守成積累，勿急於一時。近期的努力會在秋收時見效。' },
+  { keys: ['芒種', '節氣', '注意'], reply: '芒種濕熱、梅雨交替 \n養生三提醒：① 勤補水、飲食清淡；② 午後小憩養心；③ 收好除濕，衣物勿積潮。\n農諺說「芒種逢雷美亦然」，這幾天若打雷反是好兆頭喔。' },
+  { keys: ['夢', '解夢'], reply: '夢到「下雨」的話 \n《周公解夢》原典的斷語是「天雨滂沱，主有酒食」；白話的參考則是雨主潤澤、常與等待有關，若夢中淋雨狼狽，多是近期把事情攬太滿的投射。\n（原典與白話是兩回事，站上的解夢頁會分開標示。）你夢裡的雨是大是小呢？' },
+  { keys: ['運勢', '今天', '今日'], reply: '今日運勢 ☆（丙午日）\n總體：宜開市納財、出行祈福；忌動土安葬。\n貼心話：火氣偏旺的一天，說話放慢半拍，貴人自來。' },
 ]
 // day 為選填：帶入時會把腳本裡寫死的節氣／干支換成真實的今日值，
 // 否則訪客會在大暑當天收到「芒種第七籤」「丙午日運勢」這種明顯過期的內容。
@@ -393,5 +393,5 @@ export function aiReply(text, day) {
     const gz = day.ganzhi.replace('日', '')
     return hit.reply.replaceAll('芒種', term).replaceAll('丙午', gz)
   }
-  return '我聽見了 🌿 這題我可以結合國民曆與你的近況幫你細看。\n（Demo 示範：實際版本會由 AI 時光顧問依你的問題與歷史紀錄，給出個人化的宜忌、運勢與生活建議。）'
+  return '我聽見了 這題我可以結合國民曆與你的近況幫你細看。\n（Demo 示範：實際版本會由 AI 時光顧問依你的問題與歷史紀錄，給出個人化的宜忌、運勢與生活建議。）'
 }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg } from '../components/ui.jsx'
+import { TopBar, PhotoImg, Avatar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 
@@ -129,7 +129,7 @@ export default function PostDetail({ id }) {
           </button>
         </div>
         <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {post.image ? <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} /> : post.emoji}
+          {post.image ? <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} /> : <Icon name="image" className="ph-ic" />}
         </div>
 
         <div className="acts">
@@ -175,7 +175,7 @@ export default function PostDetail({ id }) {
           const cliked = clikes[c.id]
           return (
             <div key={c.id} className="post-hd" style={{ paddingTop: 6, paddingBottom: 6, alignItems: 'flex-start' }}>
-              <div className="av" style={{ background: c.avatarBg || 'var(--tone-2)', width: 30, height: 30, fontSize: 'var(--text-sm)' }}>{c.avatar || '🌾'}</div>
+              <div className="av" style={{ background: c.avatarBg || 'var(--tone-2)', width: 30, height: 30, fontSize: 'var(--text-sm)' }}><Avatar emoji={c.avatar} name={c.user} /></div>
               <div className="cap2" style={{ padding: 0, flex: 1 }}>
                 <b>{c.user}</b> {c.body}
                 {c.time && <div className="muted" style={{ fontSize: 'var(--text-2xs)', marginTop: 2 }}>{c.time}</div>}

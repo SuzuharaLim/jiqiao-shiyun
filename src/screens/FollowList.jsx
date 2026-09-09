@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { useEffect, useState } from 'react'
 import { TopBar, Avatar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
@@ -27,7 +28,7 @@ export default function FollowList({ handle, rel = 'followers' }) {
         {users.map(u => (
           <button key={u.id} className="tool tap" onClick={() => push('creatorPage', { user: u.handle })}>
             <div className="ti" style={{ background: u.avatarBg || 'var(--chip)', borderRadius: '50%', width: 44, height: 44, fontSize: 'var(--text-lg)', overflow: 'hidden' }}>
-              <Avatar imageId={u.avatarImageId} emoji={u.avatar || '🌾'} />
+              <Avatar imageId={u.avatarImageId} emoji={u.avatar} name={u.name || u.handle || u.user} />
             </div>
             <div className="tn2">
               <b>{u.name || u.handle}</b>
@@ -40,7 +41,7 @@ export default function FollowList({ handle, rel = 'followers' }) {
 
         {!loading && users.length === 0 && (
           <div className="empty">
-            <div className="big">{isFollowers ? '👥' : '🔭'}</div>
+            <div className="big"><Icon name={isFollowers ? 'user' : 'search'} /></div>
             {isFollowers ? '還沒有粉絲' : '還沒有追蹤任何人'}<br />
             <span style={{ fontSize: 'var(--text-xs)' }}>
               {isFollowers ? '發布作品讓更多人看見你' : '到探索頁看看其他創作者'}

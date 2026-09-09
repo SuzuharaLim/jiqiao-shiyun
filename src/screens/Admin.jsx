@@ -50,7 +50,7 @@ export default function Admin() {
     setMailBusy(true)
     try {
       const r = await api.mailTest(mailTo.trim() || undefined)
-      setToast(r.ok ? `測試信已送出（${r.provider}）→ 請查收 📬` : `寄送失敗：${JSON.stringify(r.result).slice(0, 80)}`)
+      setToast(r.ok ? `測試信已送出（${r.provider}）→ 請查收 ` : `寄送失敗：${JSON.stringify(r.result).slice(0, 80)}`)
     } catch (e) { setToast(e?.message || '寄送失敗') } finally { setMailBusy(false) }
   }
   const closeReport = async (id, status) => {
@@ -170,7 +170,7 @@ export default function Admin() {
               </div>
               <button className="b dark tap" style={{ width: '100%' }} onClick={doMailTest}
                 disabled={mailBusy || (health && health.mail === 'log')}>
-                {mailBusy ? '寄送中…' : '📬 寄一封測試信'}
+                {mailBusy ? '寄送中…' : ' 寄一封測試信'}
               </button>
               <p className="muted" style={{ fontSize: 'var(--text-2xs)', lineHeight: 1.7, marginTop: 8 }}>
                 留空則寄給自己（{user?.email}）。若顯示「未接」，請先在部署環境設定寄信金鑰——設定教學見
@@ -220,7 +220,7 @@ export default function Admin() {
         {tab === 'reports' && (
           <>
             <SectionHead title="使用者檢舉" extra={`${reports.filter(r => r.status === 'open').length} 件待處理`} />
-            {reports.length === 0 && <div className="empty"><div className="big">🛡️</div>目前沒有檢舉</div>}
+            {reports.length === 0 && <div className="empty"><div className="big"><Icon name="shield" /></div>目前沒有檢舉</div>}
             {reports.map(r => (
               <div key={r.id} className="card" style={{ margin: '6px var(--space-4)' }}>
                 <div className="kv"><span>對象</span><b>{({ post: '貼文', comment: '留言', work: '作品', user: '使用者' })[r.type] || r.type} · {r.targetId.slice(0, 12)}</b></div>

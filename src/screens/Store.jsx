@@ -21,7 +21,7 @@ export default function Store() {
       <TopBar title="機巧時運選物｜節氣手帳、企業客製月曆與數位素材" onBack />
       <div className="body">
         <div className="aicard">
-          <div className="t">🛍️ 機巧時運選物</div>
+          <div className="t"> 機巧時運選物</div>
           <div className="d">虛實整合的「會說話文化手帳」。實體引流、軟體留存、數位加值。</div>
         </div>
         <SectionHead title="全部商品" extra={`${PRODUCTS.length} 件`} />
@@ -33,7 +33,7 @@ export default function Store() {
         )}
         {PRODUCTS.map(p => (
           <div key={p.slug} className="tool st-item" style={{ alignItems: 'flex-start' }}>
-            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 'var(--text-xl)' }}>{p.emoji}</div>
+            <div className="ti" style={{ background: p.bg, width: 56, height: 56, fontSize: 'var(--text-xl)' }}><Icon name="gift" /></div>
             <div className="tn2">
               <Link screen="productDetail" params={{ slug: p.slug }} className="st-name"><b>{p.name}</b></Link>
               <span>{p.tagline}</span>

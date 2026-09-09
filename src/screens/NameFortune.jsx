@@ -1,3 +1,4 @@
+import Icon from '../components/Icon.jsx'
 import { useState } from 'react'
 import { TopBar, Disclaimer, Meter } from '../components/ui.jsx'
 import { analyzeName, analyzeBrand } from '../data/nameFortune.js'
@@ -116,7 +117,7 @@ export default function NameFortune() {
           </div>
         )}
 
-        {!res && <div className="empty"><div className="big">✍️</div>輸入名字，看看筆畫吉凶</div>}
+        {!res && <div className="empty"><div className="big"><Icon name="book" /></div>輸入名字，看看筆畫吉凶</div>}
         <Disclaimer text="筆畫採康熙筆畫（由 Unicode Unihan 資料庫推導，部首依姓名學慣例還原為本字，如氵作水四畫、左阝作阜八畫）。五格剖象與 81 數理採熊崎式通行版本，各家判定略有出入。姓名學屬民俗文化範疇，僅供參考娛樂，不構成任何專業建議。" />
         <div style={{ height: 16 }} />
       </div>
