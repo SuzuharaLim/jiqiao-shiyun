@@ -45,7 +45,7 @@ export default function SpeakButton({ obj, className = '' }) {
       aria-label={state === 'speaking' ? '停止朗讀' : `朗讀${obj.name}的介紹`}>
       {/* ⚠️ 圖示名寫錯不會拋錯，Icon 會靜靜地退回 `dots`——站上的關閉是 `x` 不是 `close` */}
       <Icon name={state === 'speaking' ? 'x' : 'sound'}
-        style={{ width: 18, height: 18, stroke: 'currentColor', verticalAlign: '-3px', marginRight: 6 }} />
+        style={{ width: 18, height: 18, stroke: 'currentColor', display: 'inline-block', verticalAlign: '-3px', marginRight: 6 }} />
       {state === 'speaking' ? '停止朗讀' : '聽這一段'}
     </button>
   )

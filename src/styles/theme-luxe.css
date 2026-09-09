@@ -320,3 +320,22 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
   .stage.signed-in .tab-0 .feed-side .railcard .ph { height: 118px; }
   .stage.signed-in .tab-0 .feed-side .feedchal { max-width: none; }
 }
+
+/* ---------- 10. 44px 觸控盒裡的文字要置中（2026-09-09 使用者回報「頁尾不水平」）----------
+   ★ 根因：reset.css 的全域觸控規則 `a[href] { min-height:44px }` 把這些**純文字連結**
+     撐成 44px，但它們是 block／inline-block ⇒ 文字只佔頂端一個行框（26px），
+     下面空 18px ⇒ 視覺上比同一列的品牌字**高 9~11px**。盒子其實是對齊的
+     （量 rect 都置中於 44），錯位的是「盒子裡的文字」——所以只量盒子驗不出來，
+     一定要用 Range 量文字節點本身。
+   ⚠️ 這與麵包屑那次（min-height 對 inline 無效）是同一族：**全域觸控規則會撐高元素，
+     但不會幫你把內容擺到中間**。凡是靠 min-height 達標的純文字連結都要自己置中。
+   ⚠️ `.td-more` 另有一個獨立的靜默失效：它寫了 `min-height:24px` 想縮小，但
+     `a[href]`（0,1,1）的權重比 `.td-more`（0,1,0）高 ⇒ 那一行從來沒有生效過，
+     實測仍是 44px。這裡用 inline-flex 置中，不去跟權重打架。 */
+.wf-links a, .wf-links button, .td-more, .st-item .st-more, .ad-daylinks a {
+  display: inline-flex; align-items: center;
+}
+/* 同一族的第三種：`.st-name` 是 `<a>` 但沒設 display ⇒ **inline** ⇒ 全域 44px
+   完全無效，實測只有 21px 高（與麵包屑那次一模一樣）。標題型連結不套 44px
+   （會撐破卡片），補到 WCAG 2.5.8 AA 的 24 即可。 */
+.st-item .st-name { display: inline-flex; align-items: center; min-height: 24px; }

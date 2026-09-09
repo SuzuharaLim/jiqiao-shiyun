@@ -187,6 +187,13 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **效能**：紙紋顆粒是 `position:fixed; pointer-events:none` 的 `body::after`，**不可加 `mix-blend-mode`**（整頁混色每幀重算，實測截圖直接逾時）；`.reveal` **不可加 `filter:blur`**（多元素同時模糊是最貴的 paint）。`backdrop-filter` 只在 sticky／fixed 元素（`.wn-inner`、`.tabbar`、`.sheet-mask`）。
 - **實心底＋白字一律 `--primary`／`--pfg`**（深色模式反轉為奶油底＋咖啡字）。
 - ⚠️ **theme-luxe.css 只改外觀，絕不改版面尺寸邏輯**。要改版面仍去 `styles.css`。
+- **★★★★ 全域 44px 觸控規則會「撐高元素」但不會「把內容擺到中間」——這個坑已經現形三次（2026-09-09 第三次）**：`reset.css` 的 `button, a[href] { min-height:44px }` 是為了達到觸控目標，但它對純文字連結會製造兩種**視覺上完全不同、量盒子都驗不出來**的錯位：
+  1. **元素是 inline ⇒ `min-height` 直接無效**。麵包屑 `.crumb a`（26×17）、商店標題 `.st-name`（21px 高）都是這一種。⇒ 補觸控大小時**一定要同時改 `display`**。
+  2. **元素是 block／inline-block ⇒ 高度有了，但文字只佔頂端一個行框**，下面空一截 ⇒ 文字比同一列的其他東西**高 9~11px**。頁尾 `.wf-links a`（−8.8px，使用者回報「不水平」）、`.td-more`、`.st-more`、`.ad-daylinks a` 都是。⇒ 要 `display:inline-flex; align-items:center`。
+  - ⚠️★ **量盒子驗不出第 2 種**：實測頁尾品牌與每一顆連結的 rect **全部置中於 cy=44**，看起來完美對齊；錯位的是「盒子裡的文字」。**一定要用 `Range.selectNodeContents(textNode)` 量文字節點本身**，不是量元素的 `getBoundingClientRect()`。
+  - 重跑這個掃描的方法：對每個 `a[href]`／`button`，若 `display` 是 block/inline-block、且有直接的文字節點，就比對「文字節點中心」與「元素中心」，差 >4px 即為受害者。實測 12 頁一次抓出 4 個。
+  - ⚠️ `.td-more` 另有一個**獨立的靜默失效**：它寫了 `min-height:24px` 想縮小，但 `a[href]`（0,1,1）的權重比 `.td-more`（0,1,0）高 ⇒ 那一行從來沒生效過。**想覆寫全域觸控規則的話，選擇器權重要先算過。**
+- **★★ `.ic` 是 `display:block`，所以「文字旁邊的行內圖示」一定要自己補 `display:'inline-block'`**（2026-09-09）：`styles.css` 的 `.ic{display:block}` ＋ `reset.css` 的 `svg{display:block}` 會讓圖示**自己佔一行**，把旁邊的文字擠到下一行——首頁「問 AI 時光顧問」那顆按鈕因此高 67px（正常 52px），而畫面上只看得出「按鈕怪怪的很高」。站上有 7 處寫了 `verticalAlign` 表示想當行內用，先前只有 `LocationPicker` 補了 `display:'inline-block'` 才是對的，其餘 5 處都在換行。⚠️ **不可把 `.ic` 全域改成 inline-block**：多數圖示在 flex 容器裡（`.tool`／`.tabbar`／`.wn-icon`），改了會多出行內基線的空隙。
 - **★★★ 頁面過長／一直要捲（2026-09-09 使用者回報）——先量「頁高 ÷ 視窗高」再改，三個槓桿依序用**：
   1. **垂直節奏**：奢華感來自層次與陰影，不是把每一格撐高。`theme-luxe.css` §8 把上一版撐出來的收回：區塊標題 74→40、工具列卡片 108→~74、封面卡 211→~150、底部呼吸 48→20。
   2. **桌機橫向空間**（`theme-luxe.css` §9，`≥1200px`）：工具列改**三欄**（6 欄格、每顆 span 2；餘 1 佔 6、餘 2 各佔 3，不留洞——⚠️ 有／沒有 `.sech` 標題時 `nth-child` 的餘數判斷不同，且必須**先把 styles.css 的雙欄奇偶補滿規則原樣列出來歸零**，否則權重較高的舊規則會殘留「第 4 顆被撐滿」）；曆書頁的今日宜忌卡與 AI 占卜卡並排；**首頁改真雙欄**（曆頁 600px 在左、作品與三組入口在右）。

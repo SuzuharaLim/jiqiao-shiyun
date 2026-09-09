@@ -9,7 +9,7 @@ export default function Create() {
       <TopBar title="節氣工作室" />
       <div className="body">
         <button className="coverbig tap" onClick={() => push('camera')} style={{ textAlign: 'left' }}>
-          <div className="bt"><Icon name="sparkle" style={{ width: 18, height: 18, marginRight: 7, verticalAlign: -3 }} />開始創作</div>
+          <div className="bt"><Icon name="sparkle" style={{ width: 18, height: 18, display: 'inline-block', marginRight: 7, verticalAlign: -3 }} />開始創作</div>
           <div className="bd">開相機拍照/錄影・版面拼貼・純文字限動・滑動濾鏡・特效與動態文字。</div>
           <span className="cta">＋ 開啟相機</span>
         </button>

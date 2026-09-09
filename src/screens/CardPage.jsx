@@ -237,7 +237,7 @@ export default function CardPage({ slug }) {
                 )
                 : (
                   <button className="btn-primary tap" onClick={() => setWant3d(true)}>
-                    <Icon name="sparkle" style={{ width: 18, height: 18, stroke: 'var(--pfg)', verticalAlign: '-3px', marginRight: 6 }} />
+                    <Icon name="sparkle" style={{ width: 18, height: 18, stroke: 'var(--pfg)', display: 'inline-block', verticalAlign: '-3px', marginRight: 6 }} />
                     看 3D 的{obj.name}
                   </button>
                 )

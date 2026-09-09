@@ -181,7 +181,7 @@ export default function Feed() {
         </button>
 
         <div className="calacts">
-          <button className="b dark tap" onClick={() => push('aiChat')}><Icon name="sparkle" style={{ width: 15, height: 15, marginRight: 5, verticalAlign: -2 }} />問 AI 時光顧問</button>
+          <button className="b dark tap" onClick={() => push('aiChat')}><Icon name="sparkle" style={{ width: 15, height: 15, display: 'inline-block', marginRight: 5, verticalAlign: -2 }} />問 AI 時光顧問</button>
           <button className="b tap" onClick={() => push('makeCalendar')}>＋ 做月曆</button>
         </div>
 
@@ -215,7 +215,7 @@ export default function Feed() {
               <div className="ph" style={{ background: p.bg, fontSize: 56, position: 'relative', overflow: 'hidden' }}>
                 {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜${p.term || "節氣"}攝影，攝影者 @${p.user}`} /> : <Icon name="image" className="ph-ic" />}
                 <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>
-                  <Icon name="heart" fill style={{ width: 11, height: 11, verticalAlign: -1 }} /> {p.likes + (liked[p.id] ? 1 : 0)}
+                  <Icon name="heart" fill style={{ width: 11, height: 11, display: 'inline-block', verticalAlign: -1 }} /> {p.likes + (liked[p.id] ? 1 : 0)}
                 </span>
               </div>
               <div className="cap">{p.title}</div>
