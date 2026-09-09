@@ -1,46 +1,52 @@
 /* ==========================================================================
-   Design Tokens — 機巧時運「節氣・墨韻」
-   依 DESIGN_SPEC.md §2 建立。本檔是全站唯一的視覺真相來源。
+   Design Tokens — 機巧時運「編輯極簡」（2026-09-09 全站改版）
 
-   架構（重要）：
+   ★ 這一版推翻了先前的「宣紙／墨／朱紅印章」語言，改為 minimalist-ui：
+     暖色單色系畫布（骨白 #F7F6F3）、炭黑 #111 實心主按鈕、極淡 #EAEAEA 級邊線、
+     8–12px 圓角、洗淡的粉彩只用在標籤與語意色、緊字距的編輯型襯線標題。
+     顏色是稀缺資源：只用在語意（宜／忌／警示）與極少量點綴，不再有品牌三色。
+
+   架構不變（重要）：
      1) Primitives  原始色階，元件不得直接引用
      2) Semantic    元件只引用這層
-     3) Legacy 別名 既有 1,279 行 styles.css 用的舊變數，全部指向 Semantic
-                    → 改這裡的值，全站（含既有 48 畫面）自動套用，無需改 JSX
+     3) Legacy 別名 既有 styles.css 用的舊變數名，全部指向 Semantic
+                    → 改這裡的值，全站自動套用，無需改 JSX
+     ⚠️ 舊名字一個都不可刪（styles.css 有上百處引用），只能改值。
+        例如 --cinnabar 這個名字留著，但它現在是「炭黑強調色」。
 
-   對比實測（WCAG 2.2 AA，§8 要求）：
-     主文 12.97 ✓　次文 5.28 ✓　品牌 on 紙 5.36 ✓　白字 on 品牌底 5.94 ✓
-     深色：主文 14.37 ✓　次文 6.66 ✓　品牌 4.59 ✓
-     ⚠️ 柳綠 2.70 / 金 2.12 —— 僅可作「點綴」（規格 §1：面積 <10%），
-        絕不可用於文字，否則不符 AA。
+   對比實測（WCAG 2.2 AA）：
+     主文 #111 on 骨白 17.4 ✓　次文 #6B6B68 on 白 5.1 ✓ on 骨白 4.7 ✓
+     白字 on #111 18.4 ✓　宜 #346538 on 白 7.4 ✓　忌 #9F2F2D on 白 7.1 ✓
+     深色：主文 #ECEBE8 on #161616 15.3 ✓　次文 #A3A29E 6.4 ✓
+     ⚠️ 粉彩底（#EDF3EC 等）只能當「底」不能當「字」；當字一律用同名 -ink 版。
    ========================================================================== */
 
 :root {
-  /* ---- Primitives（原始值，元件不得直接引用）-------------------------
-     ⚠️ 2026-07-28 換色：品牌三色由使用者指定＝#39C5BB 青綠／#E07227 橙／
-     #123962 深藍。淺色底也一併從宣紙米改為純白。
-     每一色都標了 WCAG 對比，指派角色時不可違背：
-       teal    #39C5BB 白底文字 2.13 ✗ ／ 墨字在其上 6.76 ✓ → 只能當「底」
-       orange  #E07227 白底文字 3.18 ✗ ／ 墨字在其上 4.52 ✓ → 只能當「底」
-       navy    #123962 白底文字 11.75 ✓ ／ 白字在其上 11.75 ✓ → 唯一能兩用
-     所以：**深藍是主色（按鈕/連結/焦點），青綠與橙是填色點綴**，
-     需要青綠或橙「當文字」時一律改用下面加深的 -ink 版本。 */
-  --paper-50:  #FAFAFA;   /* 極淺灰，卡片次層 */
-  --paper-100: #FFFFFF;   /* 主背景＝白 */
-  --paper-200: #F1F3F5;   /* 欄位／chip 底 */
-  --ink-900:   #2B2A26;   /* 墨，主文 */
-  --ink-700:   #4A473F;
-  --ink-500:   #6B6459;   /* 次文 */
-  --ink-300:   #9A9284;
+  /* ---- Primitives（原始值，元件不得直接引用）------------------------- */
+  --paper-50:  #FBFBFA;   /* 極淺，卡片次層 */
+  --paper-100: #F7F6F3;   /* 主背景＝骨白（不是純白，純白留給卡片浮起） */
+  --paper-200: #F1EFEA;   /* 欄位／chip 底 */
+  --ink-900:   #111111;   /* 炭黑，主文 */
+  --ink-700:   #2F3437;
+  --ink-500:   #6B6B68;   /* 次文 */
+  --ink-300:   #9C9B97;
 
-  --teal-500:  #39C5BB;   /* 指定色①：青綠——填色／點綴 */
-  --teal-ink:  #17756F;   /* 同色系加深，供文字用（白底 5.51 ✓） */
-  --orange-500:#E07227;   /* 指定色②：橙——填色／強調 */
-  --orange-ink:#A85513;   /* 加深，供文字用（白底 5.28 ✓） */
-  --navy-500:  #123962;   /* 指定色③：深藍——主色，可當底也可當字 */
-  --navy-400:  #1B5088;   /* hover／深色模式實心底（白字 8.24 ✓） */
-  --navy-700:  #0C2846;   /* pressed／漸層深端 */
+  /* 粉彩（底）＋ 對應墨色（字）。四組語意：綠＝宜／可、紅＝忌／警示、藍＝資訊、黃＝提醒 */
+  --pale-green: #EDF3EC;  --green-ink: #346538;
+  --pale-red:   #FDEBEC;  --red-ink:   #9F2F2D;
+  --pale-blue:  #E1F3FE;  --blue-ink:  #1F6C9F;
+  --pale-yellow:#FBF3DB;  --yellow-ink:#956400;
+  --amber-fill: #B7862B;  /* 需要「填色」而非字的暖色（白底 3.3，非文字 3:1 ✓） */
   --white:     #FFFFFF;
+
+  /* 舊名保留（部分 styles.css 直接引用 primitives） */
+  --teal-500:  var(--pale-green);
+  --teal-ink:  var(--green-ink);
+  --orange-500:var(--amber-fill);
+  --orange-ink:var(--yellow-ink);
+  --navy-500:  var(--ink-900);
+  --navy-400:  var(--ink-700);
+  --navy-700:  #000000;
 
   /* ---- Semantic（元件只引用這層）------------------------------------ */
   --color-bg:          var(--paper-100);
@@ -48,60 +54,36 @@
   --color-surface-2:   var(--paper-50);
   --color-text:        var(--ink-900);
   --color-text-muted:  var(--ink-500);
-  --color-brand:       var(--navy-500);
-  --color-brand-hover: var(--navy-400);
-  --color-accent:      var(--teal-500);
-  --color-gold:        var(--orange-500);   /* 原「金」的位置改用指定的橙 */
-  --color-border:      rgba(18, 57, 98, 0.14);
-  --color-focus:       var(--navy-500);
+  --color-brand:       var(--ink-900);      /* 強調色＝炭黑：靠字重與底線區分，不靠色相 */
+  --color-brand-hover: var(--ink-700);
+  --color-accent:      var(--green-ink);
+  --color-gold:        var(--amber-fill);
+  --color-border:      #E8E6E1;             /* 極淡邊線（骨白上仍看得見） */
+  --color-focus:       var(--ink-900);
 
-  /* 「品牌色當底、白字在上」的實心按鈕用色。深藍白字對比 11.75 ✓，
-     淺色與深色模式可用同一組（深色改用 --navy-400，白字 8.24 ✓）。 */
-  --color-brand-solid: var(--navy-500);
+  --color-brand-solid: var(--ink-900);      /* 實心主按鈕 #111 ＋ 白字 */
   --color-on-brand:    var(--white);
 
-  /* ── 節氣主題色（第二點綴色，隨季節輪替）──
-     ⚠️ 先前朱紅一色打天下（實測首頁 11 個朱紅元素互相搶戲，占卜頁只有 1 個
-     整頁灰撲撲），而 token 裡的金與柳綠幾乎沒被使用。
-     朱紅的力量來自稀少——它是「印章色」，每屏至多 3 個焦點。
-     節氣本身就是現成的用色理由：春柳綠／夏朱／秋金／冬黛，
-     由 App.jsx 依當前節氣在 <html> 掛 data-season，全站自動換裝。 */
-  --season-hue: var(--seal-600);        /* 預設＝朱（夏） */
-  --season-tint: rgba(178, 58, 46, .10);
+  /* 節氣主題色：只換語意標記的色相，主色全年炭黑 */
+  --season-hue: var(--green-ink);
+  --season-tint: rgba(52, 101, 56, .08);
 
-  /* ---- Typography（§2）---------------------------------------------- */
-  /* §5 字體策略：內文全用系統字體，零下載（0 檔 / 0KB，遠低於規格的 4 檔 /
-     100KB 上限），不使用 Google Fonts CDN，因此完全沒有 FOUT/CLS 風險。
-     排序關鍵：CSS 是「逐字元」回退，故先列拉丁字體、再列各 OS 的中文系統字
-     —— 數字與英文（國民曆大量出現的日期、年份）會用漂亮的拉丁字型，
-     中文則落到該 OS 原生的字，不會被拉丁字型的醜陋 CJK 代用字接手。 */
-  --font-sans:  system-ui, -apple-system, "Segoe UI",
-                "PingFang TC",            /* macOS / iOS */
-                "Microsoft JhengHei",     /* Windows 微軟正黑體 */
-                "Noto Sans CJK TC", "Noto Sans TC",  /* Android / Linux */
+  /* ---- Typography ---------------------------------------------------- */
+  /* 零下載系統字（0 檔 / 0KB，無 FOUT／CLS）。拉丁字優先幾何無襯線，
+     中文落到各 OS 原生字；標題走編輯型襯線，緊字距、緊行高。 */
+  --font-sans:  "Helvetica Neue", "SF Pro Display", "SF Pro Text", system-ui, -apple-system,
+                "Segoe UI",
+                "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC",
                 sans-serif;
-  --font-serif: Georgia, "Times New Roman",
-                "Songti TC",              /* macOS / iOS 宋體 */
-                "PMingLiU", "MingLiU",    /* Windows 新細明體 */
+  --font-serif: "Newsreader", "Instrument Serif", "Playfair Display", Georgia, "Times New Roman",
+                "Songti TC", "PMingLiU", "MingLiU",
                 "Noto Serif CJK TC", "Noto Serif TC", "Source Han Serif TC",
                 serif;
-  --font-mono:  ui-monospace, "SF Mono", "Cascadia Mono", "Consolas",
+  --font-mono:  "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas",
                 "JetBrains Mono", Menlo, monospace;
 
-  /* type scale
-     ⚠️ 全站 273 處寫死的 px（34 種不同數值、同屏可達 20 種字號）已於 2026-07
-     收斂到這 9 階。差 0.5px 的字號肉眼分不出層級，只會讓畫面「說不出哪裡怪
-     但就是亂」。新增元件請一律用 token，不要再寫 px。
-
-     比例刻意不用純 1.25 等比：中文字面率高，正文與輔助文字的差距要比西文小，
-     否則 sm 會顯得過小；標題端則放大級差以建立層級。 */
-  /* 2026-07-28 整體放大一級（使用者回報「文字整體要大一點」）：
-     內文 16→18px、輔助 13→15px、最小 11.5→13px。
-     ⚠️ 小字端放最多（+13~15%），巨大裝飾字端不動——那些字已經很大，
-     再放會撐破固定高度的容器（月曆格 46px、底部分頁列 62px）。
-     ⚠️ 全站元件都吃這 9 階 token，改這裡就是改全站；改完務必回測
-     390px 手機的橫向溢出與月曆格排版。 */
-  --text-2xs:  0.8125rem; /* 13px   徽章／角標——僅限非必讀資訊 */
+  /* type scale（9 階不變；元件一律用 token，不寫 px） */
+  --text-2xs:  0.8125rem; /* 13px   徽章／角標 */
   --text-xs:   0.9375rem; /* 15px   次要說明 */
   --text-sm:   1rem;      /* 16px   輔助文字 */
   --text-base: 1.125rem;  /* 18px   內文 */
@@ -111,7 +93,7 @@
   --text-3xl:  2.875rem;  /* 46px   特大：干支／日期 */
   --text-4xl:  4.5rem;    /* 72px   裝飾字（不放大，避免撐破容器） */
 
-  --leading-tight:  1.35;   /* 標題 */
+  --leading-tight:  1.15;   /* 標題：編輯型緊行高 */
   --leading-normal: 1.6;    /* UI */
   --leading-body:   1.75;   /* 中文內文 */
 
@@ -120,41 +102,35 @@
   --space-4:  1rem;     --space-5:  1.5rem;  --space-6:  2rem;
   --space-8:  3rem;     --space-10: 4rem;    --space-12: 6rem;
 
-  /* ---- Radius（§1：不超過 12px）------------------------------------- */
-  --radius-sm:   4px;
-  --radius-md:   8px;
-  --radius-lg:   12px;
+  /* ---- Radius（極簡：容器 12、元件 8、小件 6；標籤才用膠囊）---------- */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
   --radius-full: 999px;
 
-  /* ---- Shadow（§1：不超過 2 層）------------------------------------- */
-  --shadow-sm: 0 1px 2px rgba(43, 42, 38, 0.06);
-  --shadow-md: 0 4px 16px rgba(43, 42, 38, 0.08);
+  /* ---- Shadow（幾乎不存在：超擴散、<5% 不透明）------------------------- */
+  --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-md: 0 2px 8px rgba(17, 17, 17, 0.04);
 
-  /* ---- Motion（§7：不用 linear）------------------------------------- */
+  /* ---- Motion -------------------------------------------------------- */
   --duration-fast:   0.15s;
   --duration-normal: 0.3s;
   --duration-slow:   0.4s;
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
-  /* ---- 動效三檔（動效銳評 §「一組共用的動效參數」）--------------------
-     規則：使用者「主動觸發」的回饋 ≤200ms（按壓、hover、開關切換）；
-     系統「呈現內容」260–450ms（進場、分頁、揭曉）；
-     >500ms 只留給撕曆與蓋印章這種儀式性動作。
-     ⚠️ 新增動畫請一律引用這三個變數，不要每支各寫各的秒數——
-     否則同一畫面會出現 .12s/.18s/.22s/.26s 四種速度，體感會「散」。 */
-  --m-fast: 0.13s;   /* 按壓、hover、開關 */
-  --m-base: 0.26s;   /* 進場、淡入、分頁 */
-  --m-slow: 0.44s;   /* 撕曆、印章、揭曉 */
-  --e-out:    cubic-bezier(0.2, 0.8, 0.3, 1);    /* 進場收斂 */
-  --e-spring: cubic-bezier(0.34, 1.4, 0.5, 1);   /* 回彈（指示條、開關） */
-  --e-in:     cubic-bezier(0.5, 0, 0.75, 0);     /* 離場加速 */
+  /* 動效三檔（規則不變：主動回饋 ≤200ms、呈現內容 260–450ms、儀式性 >500ms） */
+  --m-fast: 0.13s;
+  --m-base: 0.26s;
+  --m-slow: 0.44s;
+  --e-out:    cubic-bezier(0.2, 0.8, 0.3, 1);
+  --e-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --e-in:     cubic-bezier(0.5, 0, 0.75, 0);
 
-  --measure: 68ch;   /* 內文最大行寬 */
+  --measure: 68ch;
 
   /* ======================================================================
-     Legacy 別名 —— 既有 styles.css 的 40 個變數全部改指向上面的 Semantic 層。
-     這是「不改 48 個畫面的 JSX 就能換色票」的關鍵：改上面即全站生效。
+     Legacy 別名 —— 舊變數名全部指向 Semantic 層（一個都不可刪）
      ====================================================================== */
   --bg:        var(--color-bg);
   --stage:     var(--paper-200);
@@ -162,173 +138,152 @@
   --text:      var(--color-text);
   --muted:     var(--color-text-muted);
   --line:      var(--color-border);
-  --line2:     rgba(18, 57, 98, 0.22);
+  --line2:     #DEDBD5;
   --chip:      var(--paper-200);
   --field:     var(--paper-200);
   --primary:   var(--color-brand-solid);
   --pfg:       var(--color-on-brand);
   --accent:    var(--color-brand);
-  --heart:     var(--orange-500);        /* 讚＝橙（原朱紅） */
-  /* ⚠️ --cinnabar 這個名字留著（styles.css 有上百處引用），但值已是深藍。
-     它的角色沒變：全站的「主強調色」。要改主色只改這裡。 */
+  --heart:     var(--red-ink);
+  /* ⚠️ --cinnabar 名字留著（上百處引用），值＝炭黑強調色 */
   --cinnabar:  var(--color-brand);
-  --cinnabar-d:var(--navy-700);
-  --seal:      var(--navy-500);
-  /* ⚠️ --gold 大量被當「文字色」用（星等 ★、生肖分數、慶典標記、方案勾勾），
-     指定的橙 #E07227 在白底只有 3.18 不合格 → 這個別名一律指向加深版。
-     需要橙「當填色/邊框」的地方用 --gold-hi（非文字 3:1 標準下 3.18 ✓），
-     深色介面（相機／掃描）也用 --gold-hi（深底 5.57 ✓）。 */
-  --gold:      var(--orange-ink);
-  --gold-hi:   var(--orange-500);
-  --bronze:    var(--orange-ink);
+  --cinnabar-d:var(--ink-700);
+  --seal:      var(--ink-900);
+  /* --gold 當文字 → 黃墨；--gold-hi 當填色／邊框 → 琥珀填色 */
+  --gold:      var(--yellow-ink);
+  --gold-hi:   var(--amber-fill);
+  --bronze:    var(--yellow-ink);
   --go:        var(--color-gold);
   --season:    var(--color-accent);
   --serif:     var(--font-serif);
 
   --acard-bg:  var(--paper-50);
   --acard-bd:  var(--color-border);
-  --acard-t:   var(--ink-700);
+  --acard-t:   var(--ink-900);
   --acard-d:   var(--color-text-muted);
   --luck-bg:   var(--paper-50);
   --note-bg:   var(--paper-50);
 
-  /* 宜／忌：文字用途，需達 AA —— 用三色的加深版（青綠 5.51／橙 5.28） */
-  --yi:        var(--teal-ink);
-  --ji:        var(--orange-ink);
-  /* 宜/忌 當「底」時上面那層字的顏色。淺色模式的 --yi/--ji 是加深版（深底→白字），
-     深色模式是提亮版（亮底→墨字）——兩者相反，所以必須各自定義，
-     不能寫死 #fff（實測深色模式白字在青綠上只有 2.13）。 */
+  /* 宜／忌：文字用途 AA */
+  --yi:        var(--green-ink);
+  --ji:        var(--red-ink);
   --on-yi:     var(--white);
   --on-ji:     var(--white);
-  --ok-bg:     #E4F5F3;  --ok-fg: var(--teal-ink);
-  --no-bg:     #FBEDE1;  --no-fg: var(--orange-ink);
+  --ok-bg:     var(--pale-green);  --ok-fg: var(--green-ink);
+  --no-bg:     var(--pale-red);    --no-fg: var(--red-ink);
 
-  --oracle-bg: var(--navy-500);  --oracle-fg: #A9E4DF;  --oracle-ln: var(--navy-400);
-  --st-full:   var(--teal-ink);  --st-partial: var(--orange-ink); --st-demo: var(--ink-500);
+  /* 占卜卡：不再是靛青夜空，改為深炭底＋骨白字（單色系） */
+  --oracle-bg: var(--ink-900);  --oracle-fg: #ECEBE8;  --oracle-ln: #2A2A2A;
+  --st-full:   var(--green-ink);  --st-partial: var(--yellow-ink); --st-demo: var(--ink-500);
 
-  /* 上一階段 primitives 元件用的別名（Container/Stack/Text/Button…） */
+  /* primitives 元件別名 */
   --c-bg: var(--color-bg);            --c-surface: var(--color-surface);
-  --c-border: var(--color-border);    --c-border-2: rgba(43,42,38,.18);
+  --c-border: var(--color-border);    --c-border-2: var(--line2);
   --c-text: var(--color-text);        --c-text-2: var(--color-text-muted);
   --c-text-3: var(--ink-300);
   --c-accent: var(--color-brand);     --c-accent-hover: var(--color-brand-hover);
   --c-focus: var(--color-focus);      --c-danger: var(--ji);
   --f-sans: var(--font-sans);         --f-serif: var(--font-serif);
   --f-mono: var(--font-mono);
-  /* ⚠️ 這排 --t-* 是「字級」的舊別名，與動效的 --m-fast/--m-base/--m-slow 是
-     兩套不同的東西。動效 token 曾經也叫 --t-*，被這一行覆蓋掉——
-     結果 260ms 的動畫全部讀到 1.125rem（無效值）而完全沒有過場。
-     命名撞名不會有任何錯誤訊息，只會安靜地失效，新增 token 前務必先 grep。 */
+  /* ⚠️ --t-* 是字級的舊別名（與動效 --m-* 是兩套），新增 token 前先 grep 撞名 */
   --t-2xs: var(--text-2xs); --t-xs: var(--text-xs);   --t-sm: var(--text-sm);   --t-base: var(--text-base);
   --t-lg: var(--text-lg);   --t-xl: var(--text-xl);   --t-2xl: var(--text-2xl);
   --t-3xl: var(--text-4xl);
   --lh-tight: var(--leading-tight);   --lh-body: var(--leading-body);
-  --ls-tight: -0.01em;
+  --ls-tight: -0.02em;
   --s-1: var(--space-1);  --s-2: var(--space-2);  --s-3: var(--space-3);
   --s-4: var(--space-4);  --s-5: var(--space-5);  --s-6: var(--space-6);
   --s-7: var(--space-8);  --s-8: var(--space-10); --s-9: var(--space-12);
   --s-10: 8rem;
   --container: 1180px;
   --gutter: clamp(20px, 5vw, 64px);
-  --radius: var(--radius-sm);
+  --radius: var(--radius-md);
   --border: 1px solid var(--color-border);
   --ease: var(--ease-out);
   --dur-fast: var(--duration-fast);   --dur: var(--duration-normal);
 
-  /* ---- 相機／掃描介面（刻意恆為深色，像原生相機 App，不隨主題切換）------
-     這些原本寫死在 styles.css，收斂成 token 以符合 §2「單一真相來源」。 */
-  --cam-bg:      #0C0B0A;
-  --cam-bg-deep: #0C0A08;
-  --cam-bg-2:    #141210;
-  --cam-field:   #1A1712;
-  --cam-line:    #26221D;
-  --cam-line-2:  #3A352D;
-  --cam-fg:      #CFC7BA;
-  --cam-fg-2:    #B9B0A2;
-  --cam-muted:   #9A9186;
-  --cam-muted-2: #8A8175;
-  --cam-chip:    #F0EADF;
-  --cam-warn:    #FFCF8B;
-  --cinnabar-dd: #081C31;   /* 主色漸層深端 */
-  --oracle-bg-2: var(--navy-400);   /* 占卜卡漸層另一端 */
+  /* ---- 相機／掃描介面（恆為深色，像原生相機 App）---------------------- */
+  --cam-bg:      #0E0E0E;
+  --cam-bg-deep: #0A0A0A;
+  --cam-bg-2:    #161616;
+  --cam-field:   #1C1C1C;
+  --cam-line:    #262626;
+  --cam-line-2:  #3A3A3A;
+  --cam-fg:      #D8D7D3;
+  --cam-fg-2:    #C0BFBB;
+  --cam-muted:   #9A9995;
+  --cam-muted-2: #8A8985;
+  --cam-chip:    #ECEBE8;
+  --cam-warn:    #E5C46A;
+  --cinnabar-dd: #000000;
+  --oracle-bg-2: var(--ink-700);
 
-  /* 內容色票（縮圖/工具圖示底色，非文字）*/
-  /* 內容色票（縮圖／工具圖示底色，非文字）
-     ⚠️ 原本是 IG 時代的螢光粉彩（#DCFCE7 薄荷綠、#DBEAFE 嬰兒藍…），
-     與宣紙米調完全不搭——紙上不會出現螢光薄荷綠。
-     改為傳統顏色的「淡染」版本：宣紙／竹青／黛藍／藕紫／蜜柑／赭石。 */
-  /* 白底版：三色的淡染（青綠／橙／深藍各兩階），不再有米黃紙色 */
-  --tone-1: #F1F3F5;  /* 中性淺灰 */
-  --tone-2: #E2F6F4;  /* 青綠淡 */
-  --tone-3: #E4EAF2;  /* 深藍淡 */
-  --tone-4: #FBEEE3;  /* 橙淡 */
-  --tone-5: #CFEEEB;  /* 青綠中 */
-  --tone-6: #F6DFCA;  /* 橙中 */
+  /* 內容色票（縮圖／工具圖示底色，非文字）＝ 洗淡粉彩 */
+  --tone-1: #F1EFEA;  /* 中性 */
+  --tone-2: #EDF3EC;  /* 淡綠 */
+  --tone-3: #E1F3FE;  /* 淡藍 */
+  --tone-4: #FDEBEC;  /* 淡紅 */
+  --tone-5: #FBF3DB;  /* 淡黃 */
+  --tone-6: #EFE9F7;  /* 淡紫 */
 }
 
-/* ── 四季換裝：由 nav.jsx 依真實節氣掛 data-season 到 <html> ──
-   只換「第二點綴色」，主色（深藍）不動——品牌識別必須全年一致。
-   ⚠️ 四季只在指定的三色內輪替（春青綠／夏橙／秋橙深／冬深藍），
-   不可再引入第四種色相。這些值會被當文字色用（.sech 標記等），
-   故一律採用文字安全的加深版，不是填色用的原色。 */
-:root[data-season="spring"] { --season-hue: var(--teal-ink);   --season-tint: rgba(57, 197, 187, .14); }
-:root[data-season="summer"] { --season-hue: var(--orange-ink); --season-tint: rgba(224, 114, 39, .12); }
-:root[data-season="autumn"] { --season-hue: var(--orange-ink); --season-tint: rgba(224, 114, 39, .18); }
-:root[data-season="winter"] { --season-hue: var(--navy-500);   --season-tint: rgba(18, 57, 98, .12); }
-/* 深色模式的節氣色需提亮才有足夠對比（深底 5.5~8.3） */
-:root[data-theme="dark"][data-season="spring"] { --season-hue: #39C5BB; }
-:root[data-theme="dark"][data-season="summer"] { --season-hue: #F0913F; }
-:root[data-theme="dark"][data-season="autumn"] { --season-hue: #E07227; }
-:root[data-theme="dark"][data-season="winter"] { --season-hue: #6E9CD2; }
+/* ── 四季換裝：只換「語意標記」的色相，主色全年炭黑 ── */
+:root[data-season="spring"] { --season-hue: var(--green-ink);  --season-tint: rgba(52, 101, 56, .08); }
+:root[data-season="summer"] { --season-hue: var(--red-ink);    --season-tint: rgba(159, 47, 45, .07); }
+:root[data-season="autumn"] { --season-hue: var(--yellow-ink); --season-tint: rgba(149, 100, 0, .08); }
+:root[data-season="winter"] { --season-hue: var(--blue-ink);   --season-tint: rgba(31, 108, 159, .08); }
+/* 深色：色相提亮，底色 tint 要比淺色濃（.16），否則膠囊在深底上幾乎看不出是一顆標籤 */
+:root[data-theme="dark"][data-season="spring"] { --season-hue: #8FCB93; --season-tint: rgba(143, 203, 147, .16); }
+:root[data-theme="dark"][data-season="summer"] { --season-hue: #F29A97; --season-tint: rgba(242, 154, 151, .16); }
+:root[data-theme="dark"][data-season="autumn"] { --season-hue: #E5C46A; --season-tint: rgba(229, 196, 106, .16); }
+:root[data-theme="dark"][data-season="winter"] { --season-hue: #8CC5EA; --season-tint: rgba(140, 197, 234, .16); }
 
 /* ==========================================================================
-   Dark mode（§2）——只覆寫 Semantic 層，Legacy 別名自動跟著變
+   Dark mode —— 暖炭色系；實心主按鈕反轉為骨白底＋炭字
    ========================================================================== */
 :root[data-theme="dark"] {
-  --color-bg:          #1A1815;
-  --color-surface:     #242019;
-  --color-surface-2:   #2C271F;
-  --color-text:        #EDE7D9;
-  --color-text-muted:  #A69E8D;
-  /* 深色模式：深藍在深底上看不見（對比 2.15），故「文字/連結」用提亮的藍，
-     「實心按鈕底」用 --navy-400（白字 8.24 ✓）。 */
-  --color-brand:       #6E9CD2;   /* 深底文字 6.20 ✓ */
-  --color-brand-hover: #8FB4E0;
-  --color-accent:      #39C5BB;   /* 深底文字 8.33 ✓ */
-  --color-gold:        #F0913F;   /* 深底文字 7.45 ✓ */
-  --color-border:      rgba(237, 231, 217, 0.12);
-  --color-focus:       #6E9CD2;
+  --color-bg:          #161616;
+  --color-surface:     #1F1F1F;
+  --color-surface-2:   #262626;
+  --color-text:        #ECEBE8;
+  --color-text-muted:  #A3A29E;   /* 深底 6.4 ✓ */
+  --color-brand:       #ECEBE8;
+  --color-brand-hover: #FFFFFF;
+  --color-accent:      #8FCB93;
+  --color-gold:        #C9A24A;
+  --color-border:      rgba(255, 255, 255, 0.08);
+  --color-focus:       #ECEBE8;
 
-  --color-brand-solid: #1B5088;
+  --color-brand-solid: #ECEBE8;   /* 反轉：亮底 */
+  --color-on-brand:    #111111;   /* 炭字（15.3 ✓） */
 
-  /* Legacy 別名中，深色需要不同值的少數項目 */
-  --stage:     #12100E;
-  --line2:     rgba(237, 231, 217, .22);
-  --chip:      #2C271F;
-  --field:     #2C271F;
-  --cinnabar-d:#25659F;
-  --heart:     #F0913F;
-  --gold-hi:   #F0913F;
-  --bronze:    #E07227;
-  --seal:      #6E9CD2;
+  --stage:     #101010;
+  --line2:     rgba(255, 255, 255, .14);
+  --chip:      #262626;
+  --field:     #262626;
+  --cinnabar-d:#D6D5D1;
+  --heart:     #F29A97;
+  --gold-hi:   #C9A24A;
+  --bronze:    #E5C46A;
+  --seal:      #ECEBE8;
   --acard-bg:  var(--color-surface-2);
-  --acard-t:   var(--color-accent);
+  --acard-t:   var(--color-text);
   --acard-d:   var(--color-text-muted);
   --luck-bg:   var(--color-surface-2);
-  --note-bg:   #201C16;
-  --yi:        #39C5BB;  --ji: #F0913F;
-  --on-yi:     var(--ink-900);  --on-ji: var(--ink-900);   /* 亮底 → 墨字（6.76 / 5.30） */
-  --gold:      #F0913F;   /* 文字用的橙在深底需提亮（加深版只有 3.07） */
-  --ok-bg:     #14282A;  --ok-fg: #39C5BB;
-  --no-bg:     #2E2018;  --no-fg: #F0913F;
-  --oracle-bg: #0E2743;  --oracle-fg: #A9E4DF;  --oracle-ln: #24486F;
-  --st-full:   #39C5BB;  --st-partial: #F0913F; --st-demo: #A69E8D;
-  --c-text-3:  #8A8274;
-  --tone-1: #23201B;  --tone-2: #16302E;  --tone-3: #172433;
-  --tone-4: #2E2318;  --tone-5: #123B38;  --tone-6: #3A2A17;
+  --note-bg:   #1B1B1B;
+  --yi:        #8FCB93;  --ji: #F29A97;          /* 深底 9.1 / 8.2 ✓ */
+  --on-yi:     #111111;  --on-ji: #111111;        /* 亮底 → 炭字 */
+  --gold:      #E5C46A;
+  --ok-bg:     #1E2A1F;  --ok-fg: #8FCB93;
+  --no-bg:     #2E1C1C;  --no-fg: #F29A97;
+  --oracle-bg: #262626;  --oracle-fg: #ECEBE8;  --oracle-ln: #3A3A3A;
+  --st-full:   #8FCB93;  --st-partial: #E5C46A; --st-demo: #A3A29E;
+  --c-text-3:  #8A8985;
+  --tone-1: #262626;  --tone-2: #1E2A1F;  --tone-3: #172733;
+  --tone-4: #2E1C1C;  --tone-5: #2B2415;  --tone-6: #261F2E;
 }
 
-/* §7：尊重使用者的動效偏好——token 歸零，全站自動生效 */
+/* 尊重使用者的動效偏好——token 歸零，全站自動生效 */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast:   0.01ms;
@@ -346,5 +301,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
 }
