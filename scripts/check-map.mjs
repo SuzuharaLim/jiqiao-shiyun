@@ -31,6 +31,28 @@ let pass = 0
 const fails = []
 const ok = (cond, msg) => { if (cond) pass++; else fails.push(msg) }
 
+// ★★★★ 容器建置裡沒有 docs/，這支必須「大聲跳過」而不是崩掉。
+// ⚠️ 2026-09-09 事故：把這支加進 `npm run build` 時沒想到 `.dockerignore` 與
+//    `.gcloudignore` **兩層都排除了 docs**（文件不需要進映像檔）。於是
+//    `docs/檢修地圖.md` 讀不到 → ENOENT → 退出碼 1 → `npm run build` 失敗
+//    → `docker build` 失敗 → **Cloud Run 部署整個失敗**。本機一切正常，
+//    使用者連續數次部署都沒上去才發現。
+//    ⇒ **文件型的閘門絕不可以有能力擋掉正式部署。**
+// ⚠️ 但也不能無腦「檔案不在就跳過」——那樣地圖被改名／刪掉時本機也會靜默放行，
+//    正好是這支存在的意義所在。用「docs/ 這個目錄在不在」區分兩種情境：
+//      docs/ 不存在        ⇒ 容器建置（文件被刻意排除）⇒ 跳過並印出原因
+//      docs/ 在、地圖檔不在 ⇒ 真的被改名或刪掉         ⇒ 照常失敗
+const HAS_DOCS_DIR = fs.existsSync(path.join(ROOT, 'docs'))
+if (!HAS_DOCS_DIR) {
+  console.log('  · 檢修地圖：略過（此建置環境沒有 docs/，見 .dockerignore／.gcloudignore）')
+  process.exit(0)
+}
+if (!fs.existsSync(path.join(ROOT, MAP))) {
+  console.error(`\n✗ 找不到 ${MAP}，但 docs/ 是存在的——地圖被改名或刪掉了嗎？`)
+  console.error('  這支檢查的用途就是擋住「地圖與程式對不上」，所以不會靜默略過。\n')
+  process.exit(1)
+}
+
 const md = read(MAP)
 // 只看某一節的內容（從標題到下一個 ## 標題）
 const section = (h) => {

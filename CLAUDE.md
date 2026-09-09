@@ -187,6 +187,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **效能**：紙紋顆粒是 `position:fixed; pointer-events:none` 的 `body::after`，**不可加 `mix-blend-mode`**（整頁混色每幀重算，實測截圖直接逾時）；`.reveal` **不可加 `filter:blur`**（多元素同時模糊是最貴的 paint）。`backdrop-filter` 只在 sticky／fixed 元素（`.wn-inner`、`.tabbar`、`.sheet-mask`）。
 - **實心底＋白字一律 `--primary`／`--pfg`**（深色模式反轉為奶油底＋咖啡字）。
 - ⚠️ **theme-luxe.css 只改外觀，絕不改版面尺寸邏輯**。要改版面仍去 `styles.css`。
+- **★★★★ 加進 `npm run build` 的任何腳本，都必須能在「容器建置情境」下活下來——否則會擋掉正式部署（2026-09-09 實際事故）**：`check-map.mjs` 要讀 `docs/檢修地圖.md`，但 **`.dockerignore` 與 `.gcloudignore` 兩層都排除了 `docs`**（文件不需要進映像檔）。於是本機一切正常、`npm run build` 六道全過，而 Cloud Run 上：讀不到檔 → ENOENT → 退出碼 1 → `npm run build` 失敗 → `docker build` 失敗 → **部署整個失敗**。使用者連續數次部署都沒上去，而且**症狀只有「正式站沒更新」**，本機完全重現不出來。
+  - ⇒ **文件型／開發輔助型的閘門，絕不可以有能力擋掉正式部署。**
+  - ⇒ 但也**不能無腦「檔案不在就跳過」**——那樣地圖被改名或刪掉時本機也會靜默放行，正好毀掉這支檢查存在的意義。用「**目錄在不在**」區分兩種情境：`docs/` 整個不存在 ⇒ 容器建置（刻意排除）⇒ 印一行原因後跳過；`docs/` 在、地圖檔不在 ⇒ 真的被改名刪掉 ⇒ 照常失敗。三個分支都要實測過。
+  - **新增建置閘門時的自我檢查**：它讀的每一個路徑，是否都不在 `.dockerignore`／`.gcloudignore` 裡？（目前六道閘門讀的是 `src/`、`server/`、`public/`、`package*.json`、`node_modules`——`npm ci` 在 `COPY . .` 之前跑，所以容器裡有 node_modules。只有 `docs/` 是被排除的。）
+  - **驗法（不必真的 build docker）**：`tar` 一份套用 ignore 規則的複本到暫存目錄，在裡面跑 `npm run build`。這次就是這樣在三分鐘內定位並證明的。
 - **★★★★ 全域 44px 觸控規則會「撐高元素」但不會「把內容擺到中間」——這個坑已經現形三次（2026-09-09 第三次）**：`reset.css` 的 `button, a[href] { min-height:44px }` 是為了達到觸控目標，但它對純文字連結會製造兩種**視覺上完全不同、量盒子都驗不出來**的錯位：
   1. **元素是 inline ⇒ `min-height` 直接無效**。麵包屑 `.crumb a`（26×17）、商店標題 `.st-name`（21px 高）都是這一種。⇒ 補觸控大小時**一定要同時改 `display`**。
   2. **元素是 block／inline-block ⇒ 高度有了，但文字只佔頂端一個行框**，下面空一截 ⇒ 文字比同一列的其他東西**高 9~11px**。頁尾 `.wf-links a`（−8.8px，使用者回報「不水平」）、`.td-more`、`.st-more`、`.ad-daylinks a` 都是。⇒ 要 `display:inline-flex; align-items:center`。
