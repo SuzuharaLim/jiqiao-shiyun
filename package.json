@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:lan": "vite --host",
     "dev:server": "node --watch server/index.js",
-    "build": "node scripts/check-almanac.mjs && node scripts/check-nav.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && vite build",
+    "build": "node scripts/check-almanac.mjs && node scripts/check-nav.mjs && node scripts/check-ar.mjs && node scripts/check-char.mjs && node scripts/check-speak.mjs && node scripts/check-map.mjs && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js",
