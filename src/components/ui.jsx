@@ -189,7 +189,11 @@ export function ToolRow({ icon, iconName, bg, title, sub, onClick, right, screen
     <>
       {iconName
         ? <div className="ti ti-line"><Icon name={iconName} /></div>
-        : icon && <div className="ti" style={{ background: bg }}>{icon}</div>}
+        /* ⚠️ `icon` 是**資料庫欄位**（ref_items），正式站仍留著舊的 emoji 值。
+           全站禁用 emoji ⇒ 一律過 stripEmoji；清完是空的就退回線條圖示，
+           不可讓 DB 的舊資料把 emoji 漏到畫面上。 */
+        : (stripEmoji(icon) || '') ? <div className="ti" style={{ background: bg }}>{stripEmoji(icon)}</div>
+        : <div className="ti ti-line"><Icon name="chev" /></div>}
       <div className="tn2">
         <b>{stripEmoji(title)}</b>
         {sub && <span>{stripEmoji(sub)}</span>}

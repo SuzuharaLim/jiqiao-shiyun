@@ -98,7 +98,16 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
 .coverbig .bt { color: var(--text); }
 .coverbig .bd { color: var(--muted); opacity: 1; }
 .coverbig .cta { background: var(--primary); color: var(--pfg); border: 1px solid var(--primary); border-radius: var(--radius-full); padding: 10px 18px; }
+/* ⚠️★ 占卜變體的 `.cta` 必須**單獨覆寫**：`styles.css` 的 `.coverbig.oracle .cta`
+   權重是 (0,3,0)，比這裡的 `.coverbig .cta` (0,2,0) 高，就算後載入也蓋不掉它的
+   `color: var(--oracle-fg)`。而本層把 `.cta` 改成「實心 --primary 底」之後，
+   深色模式的 --oracle-fg 與 --primary **剛好是同一個奶油色** ⇒ 字與自己的底同色
+   ⇒ 對比 1.00、按鈕變成一片空白膠囊（實測）。
+   ⚠️ 淺色模式碰巧沒事（奶油字在深咖啡底上），所以**只驗淺色會完全看不出來**。
+   這與該規則上方註解記載的是同一個坑，只是這次是從相反方向踩到：
+   **改了深底變體上的元件配色，一定要把兩個主題都量過。** */
 .coverbig.oracle { background: var(--pale-blue); }
+.coverbig.oracle .cta { color: var(--pfg); border-color: var(--primary); }
 [data-theme="dark"] .coverbig.oracle { background: var(--tone-3); }
 .coverbig.oracle .bt { color: var(--text); }
 .coverbig.oracle .bd { color: var(--muted); }
@@ -128,6 +137,14 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
 .cs-bg, .qchip, .tp-t, .badge, .coverbig .cta, .empty-cta, .wn-logout {
   border-radius: var(--radius-full);
 }
+/* ★★ 宜忌 chip 的高度必須一致。`GlossTerm` 在「這個詞有詞條」時渲染 `<button>`、
+   沒有時渲染 `<span>` ⇒ 只有 button 吃到 reset.css 的全域 `min-height:44px`
+   ⇒ **同一列出現 44px 與 34px 兩種高度**（實測「安床(44) 療病(34) 除服(34) 求嗣(44)」
+   擠在同一行），看起來像排壞了；而「這個詞有沒有詞條」對使用者是完全隨機的。
+   ⚠️ 這類緊湊 chip 本來就在 reset.css 豁免名單的精神內（`.chip`／`.tm`／`.lp-chip`
+   都已豁免），只是 `.ty`／`.tn` 漏掉了。豁免後實測 49×34（桌機）／29（手機），
+   仍遠高於 WCAG 2.5.8 AA 的 24×24。 */
+.ty, .tn, .yjcols .it > *, .ad-yj .ty, .ad-yj .tn { min-height: 0; }
 .ty, .tn { padding: 3px 11px; font-size: var(--text-2xs); letter-spacing: .03em; }
 .chip { padding: 8px 16px; }
 .stage:not(.signed-in) .device { border-radius: 34px; box-shadow: var(--shadow-lg); }
