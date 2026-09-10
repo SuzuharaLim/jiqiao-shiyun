@@ -4083,6 +4083,10 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* 未取得：降低視覺重量，但**名稱與取得方式照樣看得見**
    （這一頁的用途就是告訴人「還有什麼可以拿」，藏起來等於自廢武功）。 */
 .bv-card:not(.got) { opacity: .62; cursor: default; }
+/* 卡片尚未發行：再降一階，並且**不用虛線框**——虛線在這一頁的語意是
+   「還沒拿到但拿得到」，發行狀態是另一回事，混用會讓兩種狀態讀起來一樣。 */
+.bv-card.locked { opacity: .44; border-style: solid; border-color: var(--line); }
+.bv-card.locked .bv-how { font-style: italic; }
 .bv-card.got { border-style: solid; border-color: var(--line); background: var(--card); }
 .bv-card.got:not(:disabled) { cursor: pointer; }
 .bv-card.uniq.got { border-color: var(--ji); }

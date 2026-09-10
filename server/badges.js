@@ -14,7 +14,7 @@
 //      那中間的空隙會讓**兩個人都成功**，而畫面上不會有任何錯誤。
 // ============================================================================
 import db from './db.js'
-import { BADGES } from '../src/data/badges.js'
+import { BADGES, termBadgesCompletedBy } from '../src/data/badges.js'
 // 分數上界住在純資料層（見那裡的說明：閘門要能 import 它而不牽到 db.js）
 import { maxScoreFor } from '../src/data/quiz.js'
 export { maxScoreFor }
@@ -47,6 +47,19 @@ export async function grantBadges(userId, ids) {
         [userId, id, nowIso()])
       fresh.push(id)
     } catch { /* 同時兩個請求都插 → PK 擋下，等於已經有了 */ }
+
+    // ★★★ 集滿一張卡的全部小挑戰 ⇒ 一併發那個節氣的卡片徽章。
+    //   ⚠️ 判定用的是 termBadgesCompletedBy 這支**純函式**，前後端共用同一份。
+    //     兩邊各寫一份的話遲早分岔，而症狀是「本機說集滿了、重整之後又沒有」。
+    const ownedNow = (await db.all('SELECT badge_id FROM user_badges WHERE user_id=?', [userId]))
+      .map(r => r.badge_id)
+    for (const termId of termBadgesCompletedBy(id, ownedNow)) {
+      try {
+        await db.run('INSERT INTO user_badges (user_id, badge_id, earned_at) VALUES (?,?,?)',
+          [userId, termId, nowIso()])
+        fresh.push(termId)
+      } catch { /* 已經有了 */ }
+    }
   }
   return fresh
 }
@@ -119,29 +132,38 @@ export async function quizStatsOf(userId) {
       games: Number(r.games), bestScore: Number(r.best_score), bestCombo: Number(r.best_combo),
       totalRight: Number(r.total_right), duelWins: Number(r.duel_wins),
       duelStreak: Number(r.duel_streak), bestStreak: Number(r.best_streak),
+      duelLosses: Number(r.duel_losses || 0), loseStreak: Number(r.lose_streak || 0),
+      koCount: Number(r.ko_count || 0),
     }
   }
-  return { games: 0, bestScore: 0, bestCombo: 0, totalRight: 0, duelWins: 0, duelStreak: 0, bestStreak: 0 }
+  return { games: 0, bestScore: 0, bestCombo: 0, totalRight: 0, duelWins: 0, duelStreak: 0, bestStreak: 0,
+    duelLosses: 0, loseStreak: 0, koCount: 0 }
 }
 
 async function saveStats(userId, s) {
   const t = nowIso()
   const r = await db.run(
     `UPDATE quiz_stats SET games=?, best_score=?, best_combo=?, total_right=?,
-       duel_wins=?, duel_streak=?, best_streak=?, updated_at=? WHERE user_id=?`,
-    [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak, t, userId])
+       duel_wins=?, duel_streak=?, best_streak=?, duel_losses=?, lose_streak=?, ko_count=?,
+       updated_at=? WHERE user_id=?`,
+    [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak,
+      s.duelLosses, s.loseStreak, s.koCount, t, userId])
   if (!r.changes) {
     try {
       await db.run(
-        `INSERT INTO quiz_stats (user_id,games,best_score,best_combo,total_right,duel_wins,duel_streak,best_streak,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [userId, s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak, t])
+        `INSERT INTO quiz_stats (user_id,games,best_score,best_combo,total_right,duel_wins,
+           duel_streak,best_streak,duel_losses,lose_streak,ko_count,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [userId, s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak,
+          s.bestStreak, s.duelLosses, s.loseStreak, s.koCount, t])
     } catch {
       // 競態：另一個請求剛插了同一列 → 用 UPDATE 再寫一次
       await db.run(
         `UPDATE quiz_stats SET games=?, best_score=?, best_combo=?, total_right=?,
-           duel_wins=?, duel_streak=?, best_streak=?, updated_at=? WHERE user_id=?`,
-        [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak, t, userId])
+           duel_wins=?, duel_streak=?, best_streak=?, duel_losses=?, lose_streak=?, ko_count=?,
+           updated_at=? WHERE user_id=?`,
+        [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak,
+          s.duelLosses, s.loseStreak, s.koCount, t, userId])
     }
   }
 }
@@ -167,6 +189,9 @@ export async function recordSoloGame(userId, raw) {
   s.totalRight += right
   s.bestScore = Math.max(s.bestScore, score)
   s.bestCombo = Math.max(s.bestCombo, combo)
+  // 逆境徽章：血歸零＝沒撐住。⚠️ 只算闖關生存——練習對手被打倒是另一回事，
+  //   混在一起算的話「血光之災」的名字會跟拿到它的方式對不上。
+  if (mode === 'solo' && !survived) s.koCount += 1
   await saveStats(userId, s)
 
   const earn = ['quiz-first-game']
@@ -177,6 +202,11 @@ export async function recordSoloGame(userId, raw) {
   if (combo >= 10) earn.push('quiz-combo-10')
   if (Number.isFinite(fastest) && fastest > 0 && fastest <= 2) earn.push('quiz-swift')
   if (s.totalRight >= 100) earn.push('quiz-scholar')
+  // ── 逆境徽章 ──
+  if (s.koCount >= 5) earn.push('quiz-ko-5')
+  // ⚠️「諸事不宜」要求**至少作答 3 題**：一開局就按「結束這局」的人
+  //    right 與 wrong 都是 0，那不是「全錯」而是「沒玩」，發了會很莫名。
+  if (wrong >= 3 && right === 0) earn.push('quiz-all-wrong')
 
   const badges = await grantBadges(userId, earn)
   const thrones = []
@@ -197,15 +227,27 @@ export async function recordSoloGame(userId, raw) {
 export async function recordDuel(userId, won) {
   if (!userId) return { badges: [], thrones: [] }
   const s = await quizStatsOf(userId)
+  // ★ 先把「贏之前的連敗」記下來——「否極泰來」要的是**這一場之前**連敗幾場，
+  //   而下面那行馬上就會把 loseStreak 歸零。順序顛倒的話那一枚永遠發不出去。
+  const streakBefore = s.loseStreak
+  const earn = []
   if (won) {
     s.duelWins += 1
     s.duelStreak += 1
     s.bestStreak = Math.max(s.bestStreak, s.duelStreak)
+    s.loseStreak = 0
+    earn.push('quiz-duel-first-win')
+    if (streakBefore >= 3) earn.push('quiz-comeback')
   } else {
     s.duelStreak = 0   // 連勝斷了
+    s.duelLosses += 1
+    s.loseStreak += 1
+    earn.push('quiz-first-loss')
+    if (s.duelLosses >= 10) earn.push('quiz-lose-10')
+    if (s.loseStreak >= 3) earn.push('quiz-lose-streak-3')
   }
   await saveStats(userId, s)
-  const badges = won ? await grantBadges(userId, ['quiz-duel-first-win']) : []
+  const badges = await grantBadges(userId, earn)
   const thrones = []
   if (won) {
     const t = await claimThrone(userId, 'quiz-throne-streak', s.bestStreak)

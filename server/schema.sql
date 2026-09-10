@@ -344,6 +344,12 @@ CREATE TABLE IF NOT EXISTS quiz_stats (
   duel_wins    INTEGER NOT NULL DEFAULT 0,
   duel_streak  INTEGER NOT NULL DEFAULT 0,
   best_streak  INTEGER NOT NULL DEFAULT 0,
+  -- 逆境徽章（2026-09-10）：輸的那一半也要記，否則「輸 10 次」判不出來。
+  -- ⚠️ lose_streak 是**目前**的連敗（贏一場歸零），「否極泰來」要靠它——
+  --    那一枚的條件是「連敗 3 場以上之後贏一場」，只記總敗場數判不出來。
+  duel_losses  INTEGER NOT NULL DEFAULT 0,
+  lose_streak  INTEGER NOT NULL DEFAULT 0,
+  ko_count     INTEGER NOT NULL DEFAULT 0,
   updated_at   TEXT NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );

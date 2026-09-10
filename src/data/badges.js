@@ -115,6 +115,50 @@ export const BADGES = {
     how: '累積答對 100 題',
   },
 
+
+  // ══════════════ 節氣知識王 · 逆境徽章（2026-09-10 使用者指定）══════════════
+  //
+  // ★★★ 語氣一律用**通書的字**（血光／諸事不宜／時運不濟／否極泰來），
+  //   不可以寫成嘲諷。徽章是給人收集的，不是拿來罵人的——一個讓人看了
+  //   不舒服的徽章，使用者會希望它不要出現在自己的名片上，那就等於白做。
+  //   通書那套語彙剛好天生帶著「這是天時不是你的錯」的味道，很適合這一組。
+  //
+  // ⚠️ 這一組刻意**沒有唯一徽章**：「全站輸最多場」被公告出來是難堪的，
+  //   而王座還會發通知說你被超越了——那個通知在這個語境下是在羞辱人。
+  'quiz-first-loss': {
+    id: 'quiz-first-loss', name: '初嘗敗績',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '敗',
+    how: '在兩人對戰輸掉第一場',
+  },
+  'quiz-lose-10': {
+    id: 'quiz-lose-10', name: '屢敗屢戰',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '屢',
+    how: '兩人對戰累計輸滿 10 場',
+  },
+  'quiz-lose-streak-3': {
+    id: 'quiz-lose-streak-3', name: '時運不濟',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '運',
+    how: '兩人對戰連敗 3 場',
+  },
+  'quiz-ko-5': {
+    id: 'quiz-ko-5', name: '血光之災',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '血',
+    how: '闖關生存血量歸零 5 次',
+  },
+  'quiz-all-wrong': {
+    id: 'quiz-all-wrong', name: '諸事不宜',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '凶',
+    how: '單場作答 3 題以上，一題都沒答對',
+  },
+  // ★ 這一枚是這組的出口：連敗之後贏一場。
+  //   只有負面徽章的話，收藏庫會變成一面「你有多爛」的牆——
+  //   而站上的語氣從來不是那樣。否極泰來要真的拿得到。
+  'quiz-comeback': {
+    id: 'quiz-comeback', name: '否極泰來',
+    group: 'quiz', tier: TIER_NORMAL, glyph: '泰',
+    how: '連敗 3 場以上之後，贏下一場對戰',
+  },
+
   // ── 唯一徽章（王座式，被超越就易主）──
   'quiz-throne-streak': {
     id: 'quiz-throne-streak', name: '連勝之王',
@@ -142,6 +186,168 @@ export const BADGES = {
     metric: 'bestCombo',
     floor: 5,
   },
+
+  // ══════════════ 24 節氣卡片（2026-09-10 使用者指定）══════════════
+  //
+  // 一個節氣一枚，集滿那張卡的**全部**小挑戰才拿得到——這讓卡面上那幾枚
+  // 熱區徽章有了去處，24 枚湊起來就是這個產品天然的收藏主軸。
+  //
+  // ★★★★ `requires` 空陣列 ＝ **那張卡還沒發行**。
+  //   目前官方卡只有一張（2027 小寒，見 arCards.js 的 OFFICIAL_CARDS），
+  //   所以 24 枚裡有 23 枚是**現在不可能拿到**的。收藏庫必須把這件事
+  //   明講成「卡片尚未發行」，不可以照著 `how` 寫「去掃卡答對」——
+  //   那是叫使用者去做一件做不到的事，而他會以為是自己找不到。
+  //
+  // ⚠️ 用 `requires` 是否為空來判斷發行狀態，是**刻意**的：發行一張新卡時
+  //   本來就得回來把那張卡的小挑戰徽章 id 填進去，發行狀態因此不可能忘記
+  //   同步。另設一個 `released` 旗標的話，遲早會出現「卡發行了、旗標沒改」。
+  'badge-term-lichun': {
+    id: 'badge-term-lichun', name: '立春 · 節氣卡', term: '立春',
+    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    how: '答對立春卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-yushui': {
+    id: 'badge-term-yushui', name: '雨水 · 節氣卡', term: '雨水',
+    group: 'term', tier: TIER_NORMAL, glyph: '雨',
+    how: '答對雨水卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-jingzhe': {
+    id: 'badge-term-jingzhe', name: '驚蟄 · 節氣卡', term: '驚蟄',
+    group: 'term', tier: TIER_NORMAL, glyph: '驚',
+    how: '答對驚蟄卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-chunfen': {
+    id: 'badge-term-chunfen', name: '春分 · 節氣卡', term: '春分',
+    group: 'term', tier: TIER_NORMAL, glyph: '春',
+    how: '答對春分卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-qingming': {
+    id: 'badge-term-qingming', name: '清明 · 節氣卡', term: '清明',
+    group: 'term', tier: TIER_NORMAL, glyph: '清',
+    how: '答對清明卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-guyu': {
+    id: 'badge-term-guyu', name: '穀雨 · 節氣卡', term: '穀雨',
+    group: 'term', tier: TIER_NORMAL, glyph: '穀',
+    how: '答對穀雨卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-lixia': {
+    id: 'badge-term-lixia', name: '立夏 · 節氣卡', term: '立夏',
+    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    how: '答對立夏卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-xiaoman': {
+    id: 'badge-term-xiaoman', name: '小滿 · 節氣卡', term: '小滿',
+    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    how: '答對小滿卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-mangzhong': {
+    id: 'badge-term-mangzhong', name: '芒種 · 節氣卡', term: '芒種',
+    group: 'term', tier: TIER_NORMAL, glyph: '芒',
+    how: '答對芒種卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-xiazhi': {
+    id: 'badge-term-xiazhi', name: '夏至 · 節氣卡', term: '夏至',
+    group: 'term', tier: TIER_NORMAL, glyph: '夏',
+    how: '答對夏至卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-xiaoshu': {
+    id: 'badge-term-xiaoshu', name: '小暑 · 節氣卡', term: '小暑',
+    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    how: '答對小暑卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-dashu': {
+    id: 'badge-term-dashu', name: '大暑 · 節氣卡', term: '大暑',
+    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    how: '答對大暑卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-liqiu': {
+    id: 'badge-term-liqiu', name: '立秋 · 節氣卡', term: '立秋',
+    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    how: '答對立秋卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-chushu': {
+    id: 'badge-term-chushu', name: '處暑 · 節氣卡', term: '處暑',
+    group: 'term', tier: TIER_NORMAL, glyph: '處',
+    how: '答對處暑卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-bailu': {
+    id: 'badge-term-bailu', name: '白露 · 節氣卡', term: '白露',
+    group: 'term', tier: TIER_NORMAL, glyph: '白',
+    how: '答對白露卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-qiufen': {
+    id: 'badge-term-qiufen', name: '秋分 · 節氣卡', term: '秋分',
+    group: 'term', tier: TIER_NORMAL, glyph: '秋',
+    how: '答對秋分卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-hanlu': {
+    id: 'badge-term-hanlu', name: '寒露 · 節氣卡', term: '寒露',
+    group: 'term', tier: TIER_NORMAL, glyph: '寒',
+    how: '答對寒露卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-shuangjiang': {
+    id: 'badge-term-shuangjiang', name: '霜降 · 節氣卡', term: '霜降',
+    group: 'term', tier: TIER_NORMAL, glyph: '霜',
+    how: '答對霜降卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-lidong': {
+    id: 'badge-term-lidong', name: '立冬 · 節氣卡', term: '立冬',
+    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    how: '答對立冬卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-xiaoxue': {
+    id: 'badge-term-xiaoxue', name: '小雪 · 節氣卡', term: '小雪',
+    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    how: '答對小雪卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-daxue': {
+    id: 'badge-term-daxue', name: '大雪 · 節氣卡', term: '大雪',
+    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    how: '答對大雪卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-dongzhi': {
+    id: 'badge-term-dongzhi', name: '冬至 · 節氣卡', term: '冬至',
+    group: 'term', tier: TIER_NORMAL, glyph: '冬',
+    how: '答對冬至卡片上的全部小挑戰',
+    requires: [],
+  },
+  'badge-term-xiaohan': {
+    id: 'badge-term-xiaohan', name: '小寒 · 節氣卡', term: '小寒',
+    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    how: '答對小寒卡片上的全部小挑戰',
+    requires: [
+      'badge-xiaohan-napa', 'badge-xiaohan-health', 'badge-xiaohan-produce',
+      'badge-xiaohan-almanac', 'badge-xiaohan-laba',
+    ],
+  },
+  'badge-term-dahan': {
+    id: 'badge-term-dahan', name: '大寒 · 節氣卡', term: '大寒',
+    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    how: '答對大寒卡片上的全部小挑戰',
+    requires: [],
+  },
 }
 
 /** 名片與個人資訊上最多能「裝上」幾枚。 */
@@ -151,10 +357,38 @@ export const badgeMeta = id => BADGES[id] ?? null
 export const isUnique = id => BADGES[id]?.tier === TIER_UNIQUE
 
 /** 目錄的顯示順序：唯一在前（那是稀有的），同階內依 group 再依定義順序。 */
-const GROUP_ORDER = { quiz: 0, ar: 1 }
+const GROUP_ORDER = { quiz: 0, term: 1, ar: 2 }
 export const ALL_BADGES = Object.values(BADGES).sort((a, b) => {
   if ((a.tier === TIER_UNIQUE) !== (b.tier === TIER_UNIQUE)) return a.tier === TIER_UNIQUE ? -1 : 1
   return (GROUP_ORDER[a.group] ?? 9) - (GROUP_ORDER[b.group] ?? 9)
 })
 
-export const GROUP_LABEL = { quiz: '節氣知識王', ar: '節氣卡片' }
+export const GROUP_LABEL = { quiz: '節氣知識王', term: '二十四節氣卡', ar: '節氣卡片 · 熱區' }
+
+/**
+ * 這枚節氣卡徽章對應的卡片**發行了沒**。
+ * ⚠️ 判準是 `requires` 有沒有內容——不另設 released 旗標，見上方說明。
+ */
+export const isReleased = (b) => !!(b.requires && b.requires.length)
+
+/**
+ * 在剛拿到 `justEarned` 之後，檢查有沒有哪一枚節氣卡徽章因此集滿了。
+ * @param owned 目前已擁有的 id（Set 或陣列）
+ * @returns {string[]} 這次應該一併授予的節氣卡徽章
+ *
+ * ⚠️ 前後端都要呼叫它：訪客沒有 session（後端那條路走不到），
+ *    登入者則不能只靠前端（那是可偽造的）。同一份純函式兩邊共用，
+ *    才不會出現「本機說集滿了、後端說沒有」這種對不起來的狀態。
+ */
+export function termBadgesCompletedBy(justEarned, owned) {
+  const have = new Set(owned)
+  have.add(justEarned)
+  const out = []
+  for (const b of Object.values(BADGES)) {
+    if (b.group !== 'term' || !isReleased(b)) continue
+    if (have.has(b.id)) continue
+    if (!b.requires.includes(justEarned)) continue   // 與這次無關就別算
+    if (b.requires.every(r => have.has(r))) out.push(b.id)
+  }
+  return out
+}

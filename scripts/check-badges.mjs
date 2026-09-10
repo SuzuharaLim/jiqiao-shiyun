@@ -23,7 +23,8 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
 let fail = 0
 const ok = (cond, msg) => { if (!cond) { fail++; console.error('  ✗ ' + msg) } }
 
-const { BADGES, SLOT_MAX, TIER_UNIQUE } = await import('../src/data/badges.js')
+const { BADGES, SLOT_MAX, TIER_UNIQUE, isReleased: isReleasedFn, termBadgesCompletedBy } =
+  await import('../src/data/badges.js')
 // ⚠️ **絕不可** import server/badges.js —— 它會牽到 server/db.js，而那支在
 //    NODE_ENV=production 且沒設 DB 時會 throw ⇒ 這道閘門就有能力擋掉正式部署。
 //    站規記過一次真實事故（check-map.mjs 讀 docs/，連續數次部署都沒上去）。
@@ -48,7 +49,35 @@ for (const [k, v] of Object.entries(BADGES)) ok(k === v.id, `A 目錄 key「${k}
 
 const quiz = list.filter(b => b.group === 'quiz')
 const uniq = list.filter(b => b.tier === TIER_UNIQUE)
-ok(quiz.length === 10, `A 節氣知識王應有 10 枚（使用者指定），現在 ${quiz.length}`)
+ok(quiz.length === 16, `A 節氣知識王應有 16 枚（10 枚 ＋ 2026-09-10 追加的 6 枚逆境徽章），現在 ${quiz.length}`)
+// ★ 逆境徽章刻意沒有唯一徽章：「全站輸最多場」被公告出來是難堪的，
+//   而王座還會發通知說你被超越了——那個通知在這個語境下是在羞辱人。
+const NEGATIVE = ['quiz-first-loss', 'quiz-lose-10', 'quiz-lose-streak-3', 'quiz-ko-5', 'quiz-all-wrong']
+for (const id of NEGATIVE) {
+  ok(!!BADGES[id], `A 逆境徽章 ${id} 不在目錄裡`)
+  ok(BADGES[id]?.tier !== TIER_UNIQUE, `A 逆境徽章 ${id} 不可以是唯一徽章（那是在公告誰輸最多）`)
+}
+ok(!!BADGES['quiz-comeback'],
+  'A 少了「否極泰來」：只有負面徽章的話，收藏庫會變成一面「你有多爛」的牆，這一組要有出口')
+
+// ── A2) 24 節氣卡 ──────────────────────────────────────────────
+const terms = list.filter(b => b.group === 'term')
+ok(terms.length === 24, `A2 節氣卡徽章應為 24 枚（二十四節氣，使用者指定），現在 ${terms.length}`)
+const TERM_SLUGS = (await import('../src/data/termArticle.js')).TERM_ARTICLES.map(t => t.slug)
+ok(TERM_SLUGS.length === 24, 'A2 termArticle 的節氣不是 24 個')
+for (const slug of TERM_SLUGS) {
+  ok(!!BADGES[`badge-term-${slug}`], `A2 少了節氣「${slug}」的卡片徽章`)
+}
+for (const b of terms) {
+  ok(Array.isArray(b.requires), `A2 節氣卡 ${b.id} 缺 requires（空陣列＝卡片尚未發行）`)
+  // requires 裡的每一枚都必須真的存在，否則那枚節氣卡**永遠集不滿**而且完全沒有跡象
+  for (const r of b.requires) ok(!!BADGES[r], `A2 ${b.id} 的 requires 指向不存在的徽章「${r}」`)
+}
+// ⚠️ 已發行的卡片其 requires 不可為空——空的話 termBadgesCompletedBy 會
+//    在「集滿零枚」時立刻發出去（every 對空陣列恆為 true），變成一登入就送。
+for (const b of terms.filter(isReleasedFn)) {
+  ok(b.requires.length > 0, `A2 ${b.id} 標為已發行卻沒有 requires`)
+}
 ok(uniq.length >= 1, 'A 至少要有一枚唯一徽章')
 // 唯一徽章必須有 metric —— 沒有 metric 就代表它是「前端說了算」，
 // 而那正是唯一徽章絕對不能有的性質。
@@ -129,6 +158,27 @@ for (const leak of ['email', 'password', 'role', 'csrf']) {
     'E maxScoreFor 沒有夾住上限：答對題數是使用者送上來的，不夾會被拿去做大數運算')
   ok(/Math\.min\(maxScoreFor\(right\)/.test(srvBadges),
     'E recordSoloGame 沒有用 maxScoreFor 夾分數 ⇒ 送 999999 就直接登上「節氣之王」')
+}
+
+// ── E2) 節氣卡集滿的判定（純函式，直接算）──────────────────────
+{
+  const xh = BADGES['badge-term-xiaohan']
+  ok(xh && xh.requires.length === 5, 'E2 小寒卡應該要求 5 枚熱區徽章')
+  const four = xh.requires.slice(0, 4)
+  ok(termBadgesCompletedBy(xh.requires[4], four).includes('badge-term-xiaohan'),
+    'E2 集滿五枚時沒有發出小寒節氣卡')
+  ok(termBadgesCompletedBy(xh.requires[4], four.slice(0, 2)).length === 0,
+    'E2 只集了三枚就發出節氣卡')
+  // ★ 已經有了就不可以再發一次（否則每答一次題都會再通知一次）
+  ok(termBadgesCompletedBy(xh.requires[4], [...four, 'badge-term-xiaohan']).length === 0,
+    'E2 已經擁有的節氣卡又被發了一次')
+  // ★ 未發行的卡（requires 為空）永遠不可被發出：every 對空陣列恆為 true，
+  //   這是最容易寫錯的一格——寫錯的話一登入就白送 23 枚。
+  ok(!termBadgesCompletedBy('badge-xiaohan-napa', []).includes('badge-term-lichun'),
+    'E2 未發行的節氣卡被發出去了（every 對空陣列恆為 true 的經典坑）')
+  ok(Object.values(BADGES).filter(b => b.group === 'term' && !isReleasedFn(b))
+    .every(b => termBadgesCompletedBy('badge-xiaohan-napa', Object.keys(BADGES)).indexOf(b.id) < 0),
+    'E2 即使擁有全部徽章，未發行的節氣卡仍不可被發出')
 }
 
 // ── F) 前端不可自己判定徽章 ────────────────────────────────────

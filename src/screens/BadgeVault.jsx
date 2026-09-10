@@ -4,7 +4,7 @@ import { TopBar, SectionHead, Disclaimer, Link } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { api } from '../api.js'
 import { loadBadges, BADGES_EVENT } from '../lib/arBadges.js'
-import { ALL_BADGES, BADGES, GROUP_LABEL, SLOT_MAX, TIER_UNIQUE } from '../data/badges.js'
+import { ALL_BADGES, BADGES, GROUP_LABEL, SLOT_MAX, TIER_UNIQUE, isReleased } from '../data/badges.js'
 
 // ============================================================================
 // 徽章收藏庫 `/badges`
@@ -73,7 +73,7 @@ export default function BadgeVault() {
     } finally { setSaving(false) }
   }
 
-  const groups = ['quiz', 'ar']
+  const groups = ['quiz', 'term', 'ar']
   const ownedCount = ALL_BADGES.filter(b => owned.has(b.id)).length
 
   return (
@@ -105,9 +105,15 @@ export default function BadgeVault() {
           const list = ALL_BADGES.filter(b => b.group === g)
           if (!list.length) return null
           const got = list.filter(b => owned.has(b.id)).length
+          // ⚠️ 節氣卡那一組多數還沒發行，只寫「1 / 24」會看起來像做壞了。
+          //    把「幾張已發行」講出來，那個數字才讀得懂。
+          const live = g === 'term' ? list.filter(isReleased).length : list.length
+          const extra = g === 'term' && live < list.length
+            ? `${got} / ${live} 已發行 · 共 ${list.length}`
+            : `${got} / ${list.length}`
           return (
             <section className="bv-group" key={g}>
-              <SectionHead title={GROUP_LABEL[g] || g} extra={`${got} / ${list.length}`} />
+              <SectionHead title={GROUP_LABEL[g] || g} extra={extra} />
               <div className="bv-grid">
                 {list.map(b => (
                   <BadgeCard
@@ -115,6 +121,7 @@ export default function BadgeVault() {
                     owned={owned.has(b.id)}
                     equipped={slots.includes(b.id)}
                     holder={board[b.id]}
+                    locked={b.group === 'term' && !isReleased(b)}
                     disabled={saving}
                     onToggle={() => toggleSlot(b.id)}
                   />
@@ -130,7 +137,7 @@ export default function BadgeVault() {
   )
 }
 
-function BadgeCard({ b, owned, equipped, holder, disabled, onToggle }) {
+function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = false }) {
   const uniq = b.tier === TIER_UNIQUE
   // ⚠️ 未擁有的徽章**不可以整個藏起來或打馬賽克**：這一頁的用途就是告訴人
   //    「還有什麼可以拿、怎麼拿」。藏起來只會讓人以為自己漏掉了什麼。
@@ -138,19 +145,23 @@ function BadgeCard({ b, owned, equipped, holder, disabled, onToggle }) {
   return (
     <button
       type="button"
-      className={`bv-card${owned ? ' got' : ''}${uniq ? ' uniq' : ''}${equipped ? ' on' : ''}`}
+      className={`bv-card${owned ? ' got' : ''}${uniq ? ' uniq' : ''}${equipped ? ' on' : ''}${locked ? ' locked' : ''}`}
       onClick={owned ? onToggle : undefined}
       disabled={disabled || !owned}
       aria-pressed={owned ? equipped : undefined}
       // 未擁有時它不是按鈕而是說明卡，講清楚為什麼按不動
       aria-label={owned
         ? `${b.name}，${equipped ? '已裝上名片，點一下拿下來' : '點一下裝上名片'}`
+        : locked ? `${b.name}，這張卡片尚未發行`
         : `${b.name}，尚未取得：${b.how}`}
     >
       <span className="bv-glyph">{b.glyph}</span>
       <span className="bv-name">{b.name}</span>
       {uniq && <span className="bv-tag">唯一</span>}
-      <span className="bv-how">{b.how}</span>
+      {/* ★★★ 卡片還沒發行時**不可以**照著 how 寫「去掃卡答對」——
+          那是叫使用者去做一件現在做不到的事，而他會以為是自己找不到卡。
+          目前官方卡只有一張（小寒），所以 24 枚裡有 23 枚是這一格。 */}
+      <span className="bv-how">{locked ? '這張卡片尚未發行，敬請期待' : b.how}</span>
       {uniq && (
         <span className="bv-holder">
           {holder

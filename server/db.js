@@ -113,6 +113,10 @@ for (const sql of [
   "ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
   // 名片：使用者選來「裝上」個人資訊的徽章（JSON 字串陣列，最多 3 枚）
   "ALTER TABLE users ADD COLUMN badge_slots TEXT",
+  // 逆境徽章：輸的那一半
+  "ALTER TABLE quiz_stats ADD COLUMN duel_losses INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE quiz_stats ADD COLUMN lose_streak INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE quiz_stats ADD COLUMN ko_count INTEGER NOT NULL DEFAULT 0",
 ]) {
   try { await db.exec(sql) } catch { /* 欄位已存在 */ }
 }

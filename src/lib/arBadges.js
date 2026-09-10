@@ -59,10 +59,17 @@ export function earnBadge(id, { loggedIn = false } = {}) {
   if (!id) return false
   const list = loadBadges()
   const isNew = !list.includes(id)
-  if (isNew) save([...list, id])
+  // ★★★ 集滿一張卡的全部小挑戰 ⇒ 一併拿到那個節氣的卡片徽章。
+  //   ⚠️ 前端這一份不是多餘的：**訪客沒有 session**，後端那條路他完全走不到，
+  //     少了這裡他集滿五枚也拿不到節氣卡徽章——而訪客正是掃到卡片的主要客群。
+  //   ⚠️ 判定走 termBadgesCompletedBy 這支純函式，與後端共用同一份；
+  //     兩邊各寫一份遲早分岔，症狀是「本機說集滿了、重整之後又沒有」。
+  const alsoEarned = termBadgesCompletedBy(id, list)
+  if (isNew || alsoEarned.length) save([...list, id, ...alsoEarned])
   if (loggedIn) {
-    // fire-and-forget：失敗就交給下次登入的合併
-    api.earnBadges([id]).catch(() => { /* 本機那份還在 */ })
+    // fire-and-forget：失敗就交給下次登入的合併。
+    // 節氣卡徽章也送上去——後端會自己再算一次，重複沒有副作用。
+    api.earnBadges([id, ...alsoEarned]).catch(() => { /* 本機那份還在 */ })
   }
   return isNew
 }
@@ -107,5 +114,5 @@ export async function syncBadges(userId) {
 //    與 almanac.js 的關係）。這裡 re-export 是為了讓既有的 import 一行都不用改
 //    ——Profile.jsx／ArQuiz.jsx／check-ar.mjs 都是從這裡拿 BADGES 的。
 export { BADGES } from '../data/badges.js'
-import { BADGES as BADGE_CATALOG } from '../data/badges.js'
+import { BADGES as BADGE_CATALOG, termBadgesCompletedBy } from '../data/badges.js'
 const BADGES_TIER = Object.fromEntries(Object.entries(BADGE_CATALOG).map(([k, v]) => [k, v.tier]))
