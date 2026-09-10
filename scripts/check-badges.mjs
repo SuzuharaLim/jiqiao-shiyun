@@ -123,12 +123,38 @@ ok(/CREATE TABLE IF NOT EXISTS badge_thrones\s*\([^)]*badge_id\s+TEXT\s+PRIMARY 
 ok(/badge_thrones[\s\S]{0,400}ON DELETE CASCADE/i.test(schema),
   'C badge_thrones 少了 ON DELETE CASCADE：帳號刪掉後王座會指向一個不存在的人')
 
-// 易主必須是條件式 UPDATE（原子），不可「SELECT 出來比大小再寫回去」
-ok(/UPDATE badge_thrones SET user_id=\?, value=\?, won_at=\? WHERE badge_id=\? AND value<\?/.test(srvBadges),
-  'C claimThrone 的易主不是條件式 UPDATE：SELECT 再 UPDATE 中間有空隙，'
+// 易主必須是條件式 UPDATE（原子），不可「SELECT 出來比大小再寫回去」。
+// ⚠️ 檢查的是**性質**不是逐字：換行、參數順序都可能變，但這三個條件不能少。
+const THRONE_UPDATE = srvBadges.match(/UPDATE badge_thrones SET user_id=\?[\s\S]{0,200}?`/)?.[0] || ''
+ok(/AND value<\?/.test(THRONE_UPDATE),
+  'C claimThrone 的易主 UPDATE 少了 `AND value<?`：SELECT 再無條件 UPDATE 中間有空隙，'
   + '兩個人同時破紀錄會兩個人都成功，而畫面上不會有任何錯誤')
-ok(/if\s*\(!r\.changes\)\s*return null/.test(srvBadges),
-  'C claimThrone 沒有檢查 changes：那條 UPDATE 沒改到任何列時仍會宣告「搶到了」')
+// ★ 這一條鎖的是「被擠下來的是誰」的精確性：WHERE 帶 user_id ⇒ changes=1 就
+//   證明寫入那一刻持有者確實是我們讀到的那個人。少了它，高度競爭時會**通知錯人**
+//   ——跟一個徽章好好的人說「你被搶走了」。
+ok(/AND user_id=\?/.test(THRONE_UPDATE),
+  'C claimThrone 的易主 UPDATE 少了 `AND user_id=?`：previousUserId 會是過期的，通知會發給錯的人')
+ok(/if \(r\.changes\) return \{ badgeId/.test(srvBadges),
+  'C claimThrone 沒有用 changes 當「真的搶到」的判準：那條 UPDATE 沒改到任何列時仍會宣告搶到')
+
+// ── C2) 統計一律原子遞增，不可 read-modify-write ────────────────
+//
+// ★★★★ 「讀出來 → 在 JS 加一 → 整份寫回去」是典型的 lost update：
+//   兩個請求同時進來，後寫的那份會用**過期的快照**蓋掉前一份 ⇒ 少算一場。
+//   而少算的那一場如果剛好是第 10 敗，「屢敗屢戰」就再也不會發出來，
+//   使用者只會覺得「我明明輸夠了卻沒拿到」——完全查不出原因。
+ok(!/UPDATE quiz_stats SET games=\?/.test(srvBadges),
+  'C2 quiz_stats 被整份寫回（`SET games=?`）——那是 read-modify-write，並發時會掉更新。'
+  + '一律用 `SET games=games+1` 這種原子遞增')
+ok(/SET games=games\+1/.test(srvBadges), 'C2 recordSoloGame 的場次沒有用原子遞增')
+ok(/duel_losses=duel_losses\+1/.test(srvBadges) && /lose_streak=lose_streak\+1/.test(srvBadges),
+  'C2 recordDuel 的敗場／連敗沒有用原子遞增')
+// ★「否極泰來」的判斷必須與歸零是同一條 SQL：先讀進變數再歸零的話，
+//   判斷依據與寫入之間有空隙。
+ok(/lose_streak=0[\s\S]{0,120}WHERE user_id=\? AND lose_streak>=3/.test(srvBadges),
+  'C2 「否極泰來」不是用條件式 UPDATE 判定：判斷與歸零之間有空隙，並發時會用到過期的數字')
+ok(/best_streak=duel_streak WHERE user_id=\? AND best_streak<duel_streak/.test(srvBadges),
+  'C2 best_streak 不是欄位對欄位的原子比較')
 
 // ── D) 展示（名片）不可說謊 ────────────────────────────────────
 ok(/app\.get\('\/api\/card\/:handle'[\s\S]{0,1600}thronesOf\(u\.id\)/.test(srvIndex),

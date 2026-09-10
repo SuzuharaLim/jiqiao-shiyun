@@ -80,29 +80,46 @@ export async function claimThrone(userId, badgeId, value) {
   // 門檻：空王座也不是「打一場就登基」。
   if (!Number.isFinite(v) || v < (meta.floor ?? 1)) return null
 
-  const cur = await db.get('SELECT user_id, value FROM badge_thrones WHERE badge_id=?', [badgeId])
-  if (!cur) {
-    // 空王座：直接插。⚠️ 這裡有競態（兩個人同時看到空王座），但 PK 會擋下
-    //   其中一個 ⇒ 落到 catch ⇒ 改走下面的條件式 UPDATE 再試一次搶。
-    try {
-      await db.run('INSERT INTO badge_thrones (badge_id, user_id, value, won_at) VALUES (?,?,?,?)',
-        [badgeId, userId, v, nowIso()])
-      return { badgeId, value: v, previousUserId: null }
-    } catch { /* 有人先插了 → 往下用條件式 UPDATE 搶 */ }
+  // ★★★ 最多重試三次。每一輪都是「讀現況 → 用**那個現況**當條件寫入」，
+  //   條件沒中就代表中途被人動過 ⇒ 重讀再來。這樣做的是兩件事：
+  //   ① 易主本身是原子的（條件式 UPDATE）；
+  //   ② `previousUserId` 是**精確**的——WHERE 帶了 user_id，changes=1 就證明
+  //      寫入的那一刻持有者確實是我們讀到的那個人。
+  //   ⚠️ 少了 ② 的話，高度競爭時會**通知錯人**：跟一個從來沒被擠下來的人說
+  //      「你的徽章被搶走了」，而他的徽章其實好好的。
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const cur = await db.get('SELECT user_id, value FROM badge_thrones WHERE badge_id=?', [badgeId])
+
+    if (!cur) {
+      // 空王座：直接插。⚠️ 這裡有競態（兩個人同時看到空王座），但 PK 會擋下
+      //   其中一個 ⇒ 落到 catch ⇒ 下一輪改走條件式 UPDATE 去搶。
+      try {
+        await db.run('INSERT INTO badge_thrones (badge_id, user_id, value, won_at) VALUES (?,?,?,?)',
+          [badgeId, userId, v, nowIso()])
+        return { badgeId, value: v, previousUserId: null }
+      } catch { continue }
+    }
+
+    // 自己已經是持有者：只把數字往上推，不算「易主」（不必再通知一次）
+    if (cur.user_id === userId) {
+      await db.run(
+        'UPDATE badge_thrones SET value=?, won_at=? WHERE badge_id=? AND user_id=? AND value<?',
+        [v, nowIso(), badgeId, userId, v])
+      return null
+    }
+
+    // 別人坐著：值不夠就不用搶了（嚴格大於才易主——相同分數的後到者
+    // 並沒有比較強，而換來換去會讓兩個人一直互收通知）
+    if (Number(cur.value) >= v) return null
+
+    const r = await db.run(
+      `UPDATE badge_thrones SET user_id=?, value=?, won_at=?
+         WHERE badge_id=? AND user_id=? AND value<?`,
+      [userId, v, nowIso(), badgeId, cur.user_id, v])
+    if (r.changes) return { badgeId, value: v, previousUserId: cur.user_id }
+    // 沒搶到＝中途被動過（別人先易主、或值被推高）→ 重讀再判一次
   }
-  // 自己已經是持有者：只更新數字，不算「易主」（不必再通知一次）
-  const holder = cur?.user_id ?? (await db.get('SELECT user_id, value FROM badge_thrones WHERE badge_id=?', [badgeId]))?.user_id
-  if (holder === userId) {
-    await db.run('UPDATE badge_thrones SET value=?, won_at=? WHERE badge_id=? AND user_id=? AND value<?',
-      [v, nowIso(), badgeId, userId, v])
-    return null
-  }
-  // ★ 條件式 UPDATE：這一句本身是原子的，changes=1 才代表真的搶到。
-  const before = await db.get('SELECT user_id FROM badge_thrones WHERE badge_id=?', [badgeId])
-  const r = await db.run('UPDATE badge_thrones SET user_id=?, value=?, won_at=? WHERE badge_id=? AND value<?',
-    [userId, v, nowIso(), badgeId, v])
-  if (!r.changes) return null
-  return { badgeId, value: v, previousUserId: before?.user_id ?? null }
+  return null
 }
 
 /** 讀某人目前坐著的王座。 */
@@ -140,32 +157,35 @@ export async function quizStatsOf(userId) {
     duelLosses: 0, loseStreak: 0, koCount: 0 }
 }
 
-async function saveStats(userId, s) {
-  const t = nowIso()
-  const r = await db.run(
-    `UPDATE quiz_stats SET games=?, best_score=?, best_combo=?, total_right=?,
-       duel_wins=?, duel_streak=?, best_streak=?, duel_losses=?, lose_streak=?, ko_count=?,
-       updated_at=? WHERE user_id=?`,
-    [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak,
-      s.duelLosses, s.loseStreak, s.koCount, t, userId])
-  if (!r.changes) {
-    try {
-      await db.run(
-        `INSERT INTO quiz_stats (user_id,games,best_score,best_combo,total_right,duel_wins,
-           duel_streak,best_streak,duel_losses,lose_streak,ko_count,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [userId, s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak,
-          s.bestStreak, s.duelLosses, s.loseStreak, s.koCount, t])
-    } catch {
-      // 競態：另一個請求剛插了同一列 → 用 UPDATE 再寫一次
-      await db.run(
-        `UPDATE quiz_stats SET games=?, best_score=?, best_combo=?, total_right=?,
-           duel_wins=?, duel_streak=?, best_streak=?, duel_losses=?, lose_streak=?, ko_count=?,
-           updated_at=? WHERE user_id=?`,
-        [s.games, s.bestScore, s.bestCombo, s.totalRight, s.duelWins, s.duelStreak, s.bestStreak,
-          s.duelLosses, s.loseStreak, s.koCount, t, userId])
-    }
-  }
+/**
+ * 確保這個人有一列成績。
+ *
+ * ★★★★ 統計**一律用原子 SQL 遞增**（`SET games = games + 1`），
+ *   絕不可「讀出來 → 在 JS 加一 → 整份寫回去」。那是典型的 lost update：
+ *   兩個請求同時進來（對戰收局撞上單人成績、或使用者連點兩次），
+ *   後寫的那份會用一個**過期的快照**蓋掉前一份 ⇒ 少算一場。
+ *   而少算的那一場如果剛好是第 10 敗，「屢敗屢戰」就再也不會發出來，
+ *   使用者只會覺得「我明明輸夠了卻沒拿到」——完全查不出原因。
+ *
+ * ⚠️ 這裡刻意不用 upsert：pg 與 sqlite 語法不同，而 db.js 的可移植性原則是
+ *   只寫兩邊一樣的 SQL。競態下重複 INSERT 會被 PK 擋掉，catch 即可。
+ */
+async function ensureStats(userId) {
+  const has = await db.get('SELECT 1 AS x FROM quiz_stats WHERE user_id=?', [userId])
+  if (has) return
+  try {
+    await db.run(
+      `INSERT INTO quiz_stats (user_id,games,best_score,best_combo,total_right,duel_wins,
+         duel_streak,best_streak,duel_losses,lose_streak,ko_count,updated_at)
+       VALUES (?,0,0,0,0,0,0,0,0,0,0,?)`, [userId, nowIso()])
+  } catch { /* 另一個請求剛插了同一列 */ }
+}
+
+/** 原子地把某個「越大越好」的欄位往上推。 */
+async function raiseStat(userId, col, value) {
+  const v = Math.floor(Number(value) || 0)
+  if (v <= 0) return
+  await db.run(`UPDATE quiz_stats SET ${col}=? WHERE user_id=? AND ${col}<?`, [v, userId, v])
 }
 
 /**
@@ -184,15 +204,20 @@ export async function recordSoloGame(userId, raw) {
   const survived = !!raw?.survived
   const fastest = Number(raw?.fastest)
 
-  const s = await quizStatsOf(userId)
-  s.games += 1
-  s.totalRight += right
-  s.bestScore = Math.max(s.bestScore, score)
-  s.bestCombo = Math.max(s.bestCombo, combo)
-  // 逆境徽章：血歸零＝沒撐住。⚠️ 只算闖關生存——練習對手被打倒是另一回事，
+  await ensureStats(userId)
+  // ★ 全部走原子遞增（見 ensureStats 的說明）。
+  //   逆境徽章：血歸零＝沒撐住。⚠️ 只算闖關生存——練習對手被打倒是另一回事，
   //   混在一起算的話「血光之災」的名字會跟拿到它的方式對不上。
-  if (mode === 'solo' && !survived) s.koCount += 1
-  await saveStats(userId, s)
+  const ko = (mode === 'solo' && !survived) ? 1 : 0
+  await db.run(
+    `UPDATE quiz_stats SET games=games+1, total_right=total_right+?, ko_count=ko_count+?,
+       updated_at=? WHERE user_id=?`, [right, ko, nowIso(), userId])
+  await raiseStat(userId, 'best_score', score)
+  await raiseStat(userId, 'best_combo', combo)
+  // ★ 門檻一律用**寫入之後重讀**的值。並發時可能讀到別人那一次也加過的數字，
+  //   但門檻都是 `>=` 而授予是冪等的 ⇒ 最壞情況只是早一點拿到，絕不會漏發。
+  //   反過來（先讀後寫）才會真的漏。
+  const s = await quizStatsOf(userId)
 
   const earn = ['quiz-first-game']
   // ⚠️「撐住了」只給闖關生存：練習對手那一局的結束條件不同（打倒對手也會結束），
@@ -226,32 +251,49 @@ export async function recordSoloGame(userId, raw) {
  */
 export async function recordDuel(userId, won) {
   if (!userId) return { badges: [], thrones: [] }
-  const s = await quizStatsOf(userId)
-  // ★ 先把「贏之前的連敗」記下來——「否極泰來」要的是**這一場之前**連敗幾場，
-  //   而下面那行馬上就會把 loseStreak 歸零。順序顛倒的話那一枚永遠發不出去。
-  const streakBefore = s.loseStreak
+  await ensureStats(userId)
+  const t = nowIso()
   const earn = []
+
   if (won) {
-    s.duelWins += 1
-    s.duelStreak += 1
-    s.bestStreak = Math.max(s.bestStreak, s.duelStreak)
-    s.loseStreak = 0
+    // ★★★★ 「否極泰來」＝這一場**之前**連敗 ≥3。
+    //   用條件式 UPDATE 讓「判斷」與「歸零」變成同一個原子動作：
+    //   changes=1 就證明寫入的那一刻 lose_streak 真的 ≥3。
+    //   先前是「先把 loseStreak 讀進變數、再歸零」——單執行緒下答案對，
+    //   但那是 read-modify-write：判斷依據與寫入之間有空隙，並發時會用到
+    //   過期的數字。條件式 UPDATE 沒有那個空隙（同一條 SQL）。
+    const comeback = await db.run(
+      `UPDATE quiz_stats SET duel_wins=duel_wins+1, duel_streak=duel_streak+1,
+         lose_streak=0, updated_at=? WHERE user_id=? AND lose_streak>=3`, [t, userId])
+    if (comeback.changes) earn.push('quiz-comeback')
+    else {
+      await db.run(
+        `UPDATE quiz_stats SET duel_wins=duel_wins+1, duel_streak=duel_streak+1,
+           lose_streak=0, updated_at=? WHERE user_id=?`, [t, userId])
+    }
+    // best_streak 追上 duel_streak：欄位對欄位比較，一樣是原子的
+    await db.run(
+      'UPDATE quiz_stats SET best_streak=duel_streak WHERE user_id=? AND best_streak<duel_streak',
+      [userId])
     earn.push('quiz-duel-first-win')
-    if (streakBefore >= 3) earn.push('quiz-comeback')
   } else {
-    s.duelStreak = 0   // 連勝斷了
-    s.duelLosses += 1
-    s.loseStreak += 1
+    await db.run(
+      `UPDATE quiz_stats SET duel_streak=0, duel_losses=duel_losses+1,
+         lose_streak=lose_streak+1, updated_at=? WHERE user_id=?`, [t, userId])
     earn.push('quiz-first-loss')
+  }
+
+  // 門檻用寫入之後重讀的值（理由同 recordSoloGame）
+  const s = await quizStatsOf(userId)
+  if (!won) {
     if (s.duelLosses >= 10) earn.push('quiz-lose-10')
     if (s.loseStreak >= 3) earn.push('quiz-lose-streak-3')
   }
-  await saveStats(userId, s)
   const badges = await grantBadges(userId, earn)
   const thrones = []
   if (won) {
-    const t = await claimThrone(userId, 'quiz-throne-streak', s.bestStreak)
-    if (t) thrones.push(t)
+    const th = await claimThrone(userId, 'quiz-throne-streak', s.bestStreak)
+    if (th) thrones.push(th)
   }
   return { badges, thrones }
 }

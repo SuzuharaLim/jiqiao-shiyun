@@ -25,15 +25,25 @@ export default function BadgeVault() {
   const { user, setToast } = useNav()
   const isGuest = !user || user.guest
 
-  // 初值讀本機那份：徽章存 localStorage，同步可得，沒有「載入中」這一格。
-  // 後端那份（含王座）回來之後再合併——這樣有網路慢的人也不會先看到空畫面。
-  const [owned, setOwned] = useState(() => new Set(loadBadges()))
+  // ★★★★ 兩個來源**必須分開存**，最後才合併——絕不可用其中一份去覆蓋另一份。
+  //   local  ＝ localStorage（訪客也有，但**刻意不含王座**，見 arBadges.save）
+  //   remote ＝ /api/badges（含王座，那是後端獨有的）
+  //
+  //   先前寫成同一個 `owned`：API 回來時合併，但 BADGES_EVENT 一觸發就
+  //   `setOwned(new Set(本機那份))` 把合併結果整個換掉 ⇒ **王座從畫面上消失**。
+  //   而 syncBadges 正好會在登入還原時發那個事件，時機就在 API 回應前後，
+  //   所以這不是理論上的競態，是實測必現的（API 回 13 枚、畫面只有 11 枚）。
+  //   ⚠️ 兩個非同步來源寫同一格 state，就一定要問「誰後到誰贏」——
+  //     只要答案不是「兩個都留著」，那就是 bug。
+  const [local, setLocal] = useState(() => loadBadges())
+  const [remote, setRemote] = useState([])
   const [board, setBoard] = useState({})
   const [slots, setSlots] = useState([])
   const [saving, setSaving] = useState(false)
+  const owned = new Set([...local, ...remote])
 
   useEffect(() => {
-    const h = (e) => setOwned(new Set(Array.isArray(e.detail) ? e.detail : loadBadges()))
+    const h = (e) => setLocal(Array.isArray(e.detail) ? e.detail : loadBadges())
     window.addEventListener(BADGES_EVENT, h)
     return () => window.removeEventListener(BADGES_EVENT, h)
   }, [])
@@ -44,7 +54,7 @@ export default function BadgeVault() {
     //    所以整段靜靜略過，畫面仍用本機那份 —— 不可跳錯誤提示。
     api.badges().then(r => {
       if (!alive) return
-      setOwned(prev => new Set([...prev, ...r.badges.map(b => b.id)]))
+      setRemote(r.badges.map(b => b.id))
       setBoard(r.board || {})
       setSlots(r.slots || [])
     }).catch(() => { /* 訪客／離線：用本機那份 */ })
