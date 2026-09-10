@@ -27,6 +27,10 @@ import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
 import { cardTimeContext } from '../src/data/cardTime.js'
 import { seededDeck, RULES as QZ } from '../src/data/quiz.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
+import { BADGES, SLOT_MAX } from '../src/data/badges.js'
+import {
+  grantBadges, thronesOf, throneBoard, quizStatsOf, recordSoloGame, recordDuel,
+} from './badges.js'
 // 客服訊息的收件信箱：與 seed.js 的管理者帳號同源，可用 ADMIN_EMAIL 覆寫
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@jiqiao.local'
 
@@ -1063,7 +1067,81 @@ app.post('/api/follow', requireAuth, requireCsrf, ah(async (req, res) => {
 app.get('/api/badges', requireAuth, ah(async (req, res) => {
   const rows = await db.all(
     'SELECT badge_id, earned_at FROM user_badges WHERE user_id=? ORDER BY earned_at DESC', [req.user.id])
-  res.json({ badges: rows.map(r => ({ id: r.badge_id, earnedAt: r.earned_at })) })
+  // ★★★ 唯一徽章**不在** user_badges 裡，它是 badge_thrones 的一列（見 badges.js）。
+  //   兩份要在這裡合起來給前端——只讀 user_badges 的話，王座持有者會發現
+  //   自己明明是「連勝之王」，收藏庫卻一片空白。
+  const thrones = await thronesOf(req.user.id)
+  res.json({
+    badges: [...rows.map(r => ({ id: r.badge_id, earnedAt: r.earned_at })), ...thrones],
+    // 收藏庫要顯示「這枚唯一徽章現在在誰手上」——空著的王座才有人想去挑戰，
+    // 而「已經被誰拿走」也是資訊（知道要贏過誰）。
+    board: await throneBoard(),
+    stats: await quizStatsOf(req.user.id),
+    slots: parseSlots(req.user.badge_slots),
+  })
+}))
+
+/**
+ * 「裝上」名片與個人資訊要展示的徽章（最多 SLOT_MAX 枚）。
+ * ⚠️ 一定要驗「這枚是不是他真的有」——slots 直接顯示在公開名片上，
+ *    不驗的話任何人都能在自己的名片掛上「連勝之王」，而那枚徽章
+ *    全站應該只有一個人有。這不是顯示問題，是這整套設計的信用。
+ */
+app.patch('/api/me/badges', requireAuth, requireCsrf, ah(async (req, res) => {
+  const raw = Array.isArray(req.body?.slots) ? req.body.slots : []
+  const want = [...new Set(raw.filter(x => typeof x === 'string' && BADGES[x]))].slice(0, SLOT_MAX)
+  const ownedRows = await db.all('SELECT badge_id FROM user_badges WHERE user_id=?', [req.user.id])
+  const owned = new Set([
+    ...ownedRows.map(r => r.badge_id),
+    ...(await thronesOf(req.user.id)).map(t => t.id),
+  ])
+  const bad = want.filter(id => !owned.has(id))
+  if (bad.length) return res.status(400).json({ error: '不能裝上還沒拿到的徽章' })
+  await db.run('UPDATE users SET badge_slots=?, updated_at=? WHERE id=?',
+    [JSON.stringify(want), now(), req.user.id])
+  res.json({ slots: want })
+}))
+
+/** users.badge_slots 是 JSON 字串；壞資料一律當成沒裝（不可讓名片整頁崩掉）。 */
+function parseSlots(raw) {
+  try {
+    const v = JSON.parse(raw || '[]')
+    return Array.isArray(v) ? v.filter(x => typeof x === 'string' && BADGES[x]).slice(0, SLOT_MAX) : []
+  } catch { return [] }
+}
+
+/**
+ * 公開名片。**刻意與 /api/users/:handle 分開**：那一支回 60 篇貼文 ＋ 60 件作品，
+ * 而名片只要頭像、一句自介與三枚徽章——讓一張分享出去的卡片去拉 120 筆內容
+ * 是白費的，而且名片會被貼到社群、流量特性與個人頁完全不同。
+ *
+ * ⚠️ 不需登入：名片的用途就是給別人看。所以這裡**一個私密欄位都不能有**。
+ */
+app.get('/api/card/:handle', ah(async (req, res) => {
+  const handle = String(req.params.handle).toLowerCase()
+  const u = await db.get(
+    'SELECT id,name,handle,avatar,avatar_bg,avatar_image_id,bio,badge_slots,is_private,created_at FROM users WHERE lower(handle)=?',
+    [handle])
+  if (!u) return res.status(404).json({ error: '找不到這張名片' })
+  const slots = parseSlots(u.badge_slots)
+  // ⚠️ 裝上的徽章要**當場再驗一次持有**：使用者可能刪過帳號資料，
+  //    而王座是會被搶走的——名片上掛著一枚已經易主的「連勝之王」
+  //    就是在對看名片的人陳述一件不實的事。
+  const ownedRows = await db.all('SELECT badge_id FROM user_badges WHERE user_id=?', [u.id])
+  const owned = new Set([...ownedRows.map(r => r.badge_id), ...(await thronesOf(u.id)).map(t => t.id)])
+  const followers = Number((await db.get('SELECT COUNT(*) AS c FROM follows WHERE followee_id=?', [u.id])).c)
+  const workCount = Number((await db.get('SELECT COUNT(*) AS c FROM works WHERE user_id=?', [u.id])).c)
+  const postCount = Number((await db.get('SELECT COUNT(*) AS c FROM posts WHERE user_id=?', [u.id])).c)
+  res.json({
+    user: {
+      name: u.name, handle: u.handle, avatar: u.avatar, avatarBg: u.avatar_bg,
+      avatarImageId: u.avatar_image_id || null, bio: u.bio, joinedAt: u.created_at,
+    },
+    badges: slots.filter(id => owned.has(id)),
+    badgeCount: owned.size,
+    stats: { posts: postCount, works: workCount, followers },
+    isPrivate: !!u.is_private,
+  })
 }))
 
 app.post('/api/badges', requireAuth, ah(async (req, res) => {
@@ -1074,7 +1152,14 @@ app.post('/api/badges', requireAuth, ah(async (req, res) => {
   const ids = [...new Set(raw
     .filter(x => typeof x === 'string')
     .map(x => x.trim())
-    .filter(x => /^[a-z0-9-]{3,48}$/.test(x)))].slice(0, 60)
+    .filter(x => /^[a-z0-9-]{3,48}$/.test(x))
+    // ★★★★ 唯一徽章**絕不可**走這一支。這支端點是「合併瀏覽器裡的本機紀錄」，
+    //   而本機紀錄是使用者完全控制得了的東西 ⇒ 不擋的話任何人只要
+    //   `POST /api/badges {ids:['quiz-throne-streak']}` 就能永久擁有一枚
+    //   「全站只有一個人有」的徽章，而且**兩個人可以同時有**——唯一性整個破功。
+    //   實測踩過（2026-09-10）：admin 沒贏過任何一場就拿到了「連勝之王」。
+    //   唯一徽章的唯一取得途徑是 badges.js 的 claimThrone()。
+    .filter(x => BADGES[x]?.tier !== 'unique'))].slice(0, 60)
   if (!ids.length) return res.status(400).json({ error: '沒有有效的徽章 id' })
   const now = new Date().toISOString()
   let added = 0
@@ -1983,10 +2068,69 @@ async function quizLoad(id, key) {
  *   實測踩過：贏的那一方看到「戰報：你倒下了」。句子由前端依自己的勝負轉。
  */
 async function quizFinish(id, winner, reason) {
-  await db.run(
+  const r = await db.run(
     'UPDATE quiz_matches SET status=?, winner=?, over_reason=?, updated_at=? WHERE id=? AND status<>?',
     ['done', winner, reason, quizNow(), id, 'done'])
+  // ★★★ changes=0 代表這一局**已經**收過了（四個呼叫點都可能重入：對手離線的
+  //   判定、雙方各自送出的最後一題、離開時的 beacon）。不擋的話同一場會被
+  //   重複計進連勝，而「連勝之王」是全站唯一的王座——灌出來的連勝會把它
+  //   從一個真的連贏的人手上拿走。這是這支函式必須是單一入口的原因。
+  if (!r.changes) return
+  const m = await db.get('SELECT p1_uid, p2_uid FROM quiz_matches WHERE id=?', [id])
+  if (!m) return
+  // ⚠️ 訪客沒有帳號（uid 是 null）——他打得了對戰，但拿不到徽章也上不了王座。
+  //    這是「唯一徽章必須有持有者」的必然結果，UI 要講清楚，不可以靜默。
+  const seats = [['p1', m.p1_uid], ['p2', m.p2_uid]]
+  for (const [slot, uid] of seats) {
+    if (!uid) continue
+    try {
+      const { badges, thrones } = await recordDuel(uid, winner === slot)
+      await announceBadges(uid, badges, thrones)
+    } catch (e) { console.warn('[badges] 對戰結算失敗:', e.message) }
+  }
 }
+
+/**
+ * 徽章與王座的通知。**唯一**會發這類通知的地方。
+ * ⚠️ 王座易主一定要通知**被擠下來的人**：他的名片上那枚徽章會就這樣消失，
+ *    沒有通知的話他只會覺得「我的徽章不見了」——那是最糟的一種靜默。
+ */
+async function announceBadges(userId, badges = [], thrones = []) {
+  for (const id of badges) {
+    const b = BADGES[id]
+    if (b) await notify(userId, '', `你拿到徽章「${b.name}」`, 'badges')
+  }
+  for (const t of thrones) {
+    const b = BADGES[t.badgeId]
+    if (!b) continue
+    await notify(userId, '', `你登上「${b.name}」——目前全站只有你持有這枚徽章`, 'badges')
+    if (t.previousUserId && t.previousUserId !== userId) {
+      await notify(t.previousUserId, '',
+        `「${b.name}」被超越了，這枚徽章換人持有。再挑戰一次就能拿回來`, 'quiz')
+    }
+  }
+}
+
+/**
+ * 登錄一場單人賽的結果（闖關生存／練習對手）。
+ * 真人對戰**不走這裡**——那邊的勝負由 quizFinish 判定，前端連自稱贏了都做不到。
+ *
+ * ★★★ 這一支必須放在 `quizLimiter` 的宣告**之後**。放前面會踩 TDZ
+ *   （`Cannot access 'quizLimiter' before initialization`）而**整個服務起不來**，
+ *   而 `npm run build` 一個字都不會報——站規已經記過兩次同一種坑。
+ *
+ * ⚠️ 訪客沒有 session ⇒ 401 ⇒ 前端必須把這個當**常態**處理（靜靜略過），
+ *    不可以跳錯誤——訪客本來就拿不到徽章，那不是故障。
+ */
+app.post('/api/quiz/result', requireAuth, requireCsrf, quizLimiter, ah(async (req, res) => {
+  const out = await recordSoloGame(req.user.id, req.body || {})
+  await announceBadges(req.user.id, out.badges, out.thrones)
+  res.json({
+    earned: out.badges.map(id => ({ id, name: BADGES[id]?.name || id })),
+    thrones: out.thrones.map(t => ({ id: t.badgeId, name: BADGES[t.badgeId]?.name || t.badgeId, value: t.value })),
+    stats: out.stats,
+  })
+}))
 
 // ── 配對：加入等待中的一場，沒有就自己開一場 ──
 app.post('/api/quiz/queue', quizLimiter, ah(async (req, res) => {

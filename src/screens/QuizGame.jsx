@@ -147,7 +147,7 @@ export default function QuizGame() {
       mode, name: mode === 'pvp' ? (pvpState.me?.name || who) : who,
       deck, i: mode === 'pvp' ? (pvpState.me?.done || 0) : 0,
       score: mode === 'pvp' ? (pvpState.me?.score || 0) : 0,
-      combo: 0, right: 0, wrong: 0,
+      combo: 0, right: 0, wrong: 0, maxCombo: 0, fastest: Infinity,
       hp: mode === 'pvp' ? pvpState.me.hp : RULES.HP_MAX,
       timeLeft: RULES.TOTAL_TIME,
       foe: mode === 'bot' ? makeFoe() : (mode === 'pvp' ? { name: pvpState.foe.name, hp: pvpState.foe.hp } : null),
@@ -356,6 +356,10 @@ export default function QuizGame() {
 
     if (correct) {
       g.right++; g.combo++
+      // 徽章用的兩個峰值。⚠️ 要在這裡累積——finish() 拿到的 g.combo 是
+      // **當下**的連擊，中途斷過就歸零了，用它去判「十連星」永遠判不到。
+      g.maxCombo = Math.max(g.maxCombo || 0, g.combo)
+      g.fastest = Math.min(g.fastest ?? Infinity, used)
       const mult = 1 + Math.floor(g.combo / 3)
       const gain = Math.round((100 + speed * 120) * mult)
       g.score += gain
@@ -426,6 +430,22 @@ export default function QuizGame() {
 
     const entry = pushScore(g.name, score, g.mode)
     setLastEntry(entry)
+    // ★★★ 登錄成績到伺服器 —— 徽章與王座的唯一依據。
+    //   ⚠️ 真人對戰**不送**：那邊的勝負由伺服器自己判定（quizFinish），
+    //      這裡送等於讓前端自稱贏了，而「連勝之王」是全站唯一的王座。
+    //   ⚠️ 訪客會拿到 401，那是**常態不是故障**（訪客沒有帳號就沒有徽章），
+    //      所以整段 fire-and-forget 並吞掉錯誤，絕不可跳提示。
+    if (g.mode !== 'pvp') {
+      api.quizResult({
+        mode: g.mode, score, right: g.right, wrong: g.wrong,
+        bestCombo: g.maxCombo || 0,
+        fastest: Number.isFinite(g.fastest) ? g.fastest : null,
+        survived: g.mode === 'solo' ? g.hp > 0 : false,
+      }).then(r => {
+        const got = [...r.earned.map(b => b.name), ...r.thrones.map(t => `${t.name}（全站唯一）`)]
+        if (got.length) setToast(`拿到徽章：${got.join('、')}`)
+      }).catch(() => { /* 訪客／離線：沒有徽章，但遊戲本身完全不受影響 */ })
+    }
     setBoardTab(g.mode)
     const survived = g.mode !== 'solo' ? title === '勝' : g.hp > 0
     setResult({ mode: g.mode, title, note, score, right: g.right, wrong: g.wrong, acc, ok: survived })

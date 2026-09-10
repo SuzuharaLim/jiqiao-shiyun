@@ -300,6 +300,54 @@ CREATE TABLE IF NOT EXISTS user_badges (
 );
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, earned_at);
 
+-- ══════════════════════════════════════════════════════════════════
+-- 唯一徽章（王座式）—— 全站同時只有一個人持有，被超越就易主
+--
+-- ★★★★ PRIMARY KEY 一定要是 badge_id（不是 user_id+badge_id）。
+--   那條 PK 就是「全站只有一個人」這件事在資料層的唯一保證；靠應用層
+--   「先查再寫」會在兩個人同時破紀錄時**同時成功**，而症狀是兩個人的
+--   名片上都掛著同一枚「全站唯一」——沒有任何錯誤訊息。
+--
+-- ★★★ 易主一律用**條件式 UPDATE**（... WHERE badge_id=? AND value < ?），
+--   pg 與 sqlite 的單句 UPDATE 都是原子的，回傳 changes=0 就代表沒搶到。
+--   絕不可寫成「SELECT 出來比大小，再 UPDATE」——那中間有空隙。
+--
+-- ⚠️ ON DELETE CASCADE：帳號刪掉時王座**空出來**（不是留一個指向死帳號的
+--    紀錄）。空王座下一個達標的人就能拿，這是對的行為。
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS badge_thrones (
+  badge_id  TEXT PRIMARY KEY,
+  user_id   TEXT NOT NULL,
+  value     INTEGER NOT NULL,
+  won_at    TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_badge_thrones_user ON badge_thrones(user_id);
+
+-- ══════════════════════════════════════════════════════════════════
+-- 知識王的累積成績 —— 徽章判定的唯一依據
+--
+-- ★★★ 為什麼要有這張表：闖關生存的分數原本只存 localStorage
+--   （quiz.js 的 pushScore），伺服器完全不知道誰考幾分 ⇒ 「全站最高分」
+--   這種徽章改一下瀏覽器就能偽造，而它偷走的是**別人真的拿到過**的東西。
+--
+-- ⚠️ 誠實話：題庫在前端 bundle 裡，看得到答案的人仍然可以每題都答對。
+--    伺服器能做的是**重算分數上界**（擋掉直接送 999999），不是完整防作弊。
+--    這與 PvP 那層「擋的是偽造勝利，不是防作弊」是同一個限度。
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS quiz_stats (
+  user_id      TEXT PRIMARY KEY,
+  games        INTEGER NOT NULL DEFAULT 0,
+  best_score   INTEGER NOT NULL DEFAULT 0,
+  best_combo   INTEGER NOT NULL DEFAULT 0,
+  total_right  INTEGER NOT NULL DEFAULT 0,
+  duel_wins    INTEGER NOT NULL DEFAULT 0,
+  duel_streak  INTEGER NOT NULL DEFAULT 0,
+  best_streak  INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- ════════════════ 節氣知識王：真人對戰 ════════════════
 --
 -- ★★★★ 為什麼對戰狀態放 DB 而不是記憶體：

@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg, Avatar} from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { stripEmoji } from '../lib/text.js'   // DB 的舊 bio 仍帶 emoji（全站禁用）
 
 // 創作者頁 —— 來自資料庫（GET /api/users/:handle）：真實貼文/作品/粉絲數，追蹤走後端。
 export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--tone-2)' }) {
@@ -69,7 +70,7 @@ export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--
           {['creator', 'moderator', 'admin'].includes(u.role) &&
             <span title="認證創作者" style={{ color: 'var(--gold)', marginLeft: 4, fontSize: 'var(--text-xs)' }}>✦ 創作者</span>}
         </div>
-        <div className="pf-bio">{u.bio || '節氣風景攝影 '}</div>
+        <div className="pf-bio">{stripEmoji(u.bio || '') || '節氣風景攝影'}</div>
         <div className="pf-btns">
           <button className={`b tap ${following ? '' : 'dark'}`} onClick={onFollow}>{following ? '追蹤中' : '追蹤'}</button>
           <button className="b tap" onClick={() => push('dms')}>訊息</button>

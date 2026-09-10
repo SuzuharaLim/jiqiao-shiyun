@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp } from '../components/ui.jsx'
+import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { loadBadges, BADGES, BADGES_EVENT } from '../lib/arBadges.js'
+import { TIER_UNIQUE } from '../data/badges.js'
+import { stripEmoji } from '../lib/text.js'   // DB 的舊 bio 仍帶 emoji（全站禁用）
 
 export default function Profile() {
   const { push, subscribed, user, logout, orders } = useNav()
@@ -52,7 +54,7 @@ export default function Profile() {
               <div className="h">@{me.handle}</div>
             </div>
           </div>
-          <div className="bio">{me.bio}　<button className="acc tap" style={{ fontSize: 'var(--text-xs)', fontWeight: 400 }}
+          <div className="bio">{stripEmoji(me.bio)}　<button className="acc tap" style={{ fontSize: 'var(--text-xs)', fontWeight: 400 }}
             onClick={() => push('followList', { handle: me.handle, rel: 'following' })}>· 追蹤中 {stats.following ?? 0} 位</button></div>
           {/* 三個統計都可點：作品／市集上架切換下方清單，粉絲開真實名單 */}
           <div className="nums">
@@ -136,6 +138,11 @@ export default function Profile() {
 function BadgeWall() {
   // 初值就讀本機那份：徽章存 localStorage，同步可得，沒有「載入中」這個狀態
   const [ids, setIds] = useState(loadBadges)
+  // 「裝上」名片的那三枚。⚠️ 它只在後端（users.badge_slots），本機沒有，
+  //    所以這一份**一定會**有「還沒回來」的一格——但不必顯示載入中：
+  //    沒裝的人本來就什麼都不該看到，晚 200ms 出現不影響任何事。
+  const [slots, setSlots] = useState([])
+  const [thrones, setThrones] = useState([])
   useEffect(() => {
     // ⚠️ 要訂閱變動，不能只讀一次：syncBadges 在登入後才把後端那份拉回來，
     //    只讀一次的症狀是「換裝置登入第一次進 /me 看不到徽章」，
@@ -144,30 +151,59 @@ function BadgeWall() {
     window.addEventListener(BADGES_EVENT, h)
     return () => window.removeEventListener(BADGES_EVENT, h)
   }, [])
-  if (!ids.length) return null
+  useEffect(() => {
+    let alive = true
+    // 訪客 401＝常態，靜靜略過（他沒有名片也沒有王座）
+    api.badges().then(r => {
+      if (!alive) return
+      setSlots(r.slots || [])
+      // ★ 唯一徽章不在 localStorage 裡（它是 badge_thrones 的一列），
+      //   不併進來的話，王座持有者的個人頁會看不到自己那枚全站唯一的徽章。
+      setThrones(r.badges.filter(b => b.unique).map(b => b.id))
+    }).catch(() => { /* 訪客／離線 */ })
+    return () => { alive = false }
+  }, [])
+
+  const all = [...new Set([...thrones, ...ids])]
+  // 一枚都沒有時整塊不顯示（見上方說明）——但**入口要留**，
+  // 否則收藏庫這一頁除了名片以外沒有任何地方進得去。
+  if (!all.length) {
+    return (
+      <ToolRow iconName="trophy" title="徽章收藏庫"
+        sub="玩節氣知識王或掃節氣卡片，收集徽章裝上名片" screen="badges" />
+    )
+  }
+  // 裝上的排最前面：那是使用者自己選出來要秀的三枚。
+  const ordered = [...all].sort((a, b) => (slots.includes(b) ? 1 : 0) - (slots.includes(a) ? 1 : 0))
   return (
     <>
-      <SectionHead title={`節氣徽章 · ${ids.length}`} />
+      <SectionHead title={`節氣徽章 · ${all.length}`} extra="收藏庫" />
       <div className="badgewall">
-        {ids.map(id => (
-          <BadgeChip key={id} id={id} />
+        {ordered.map(id => (
+          <BadgeChip key={id} id={id} equipped={slots.includes(id)} />
         ))}
+      </div>
+      <div className="badgewall-acts">
+        <Link screen="badges" className="bw-act">收藏庫 · 裝上徽章</Link>
       </div>
     </>
   )
 }
 
-function BadgeChip({ id }) {
+function BadgeChip({ id, equipped = false }) {
   // 同步查表，沒有狀態也沒有 effect。原本是動態 import ＋ useState，
   // 於是第一幀顯示 id、載入後才換成名稱——那是**看得見的閃動**，
   // 而且 BADGES 只是一個常數物件，本來就不需要非同步。
   const meta = BADGES[id] ?? null
   // ⚠️ 查不到 meta 時顯示 id 而不是整個藏起來——那代表前端的 BADGES 表漏了一筆，
   //    藏起來會讓「使用者明明拿過卻看不到」，而那比顯示一個 slug 更難查。
+  const uniq = meta?.tier === TIER_UNIQUE
   return (
-    <span className="badgechip">
+    <span className={`badgechip${equipped ? ' on' : ''}${uniq ? ' uniq' : ''}`}
+      title={equipped ? '已裝上名片' : undefined}>
+      {meta?.glyph && <em className="bc-glyph">{meta.glyph}</em>}
       <b>{meta?.name ?? id}</b>
-      {meta?.term && <i>{meta.term}</i>}
+      {uniq ? <i>全站唯一</i> : meta?.term && <i>{meta.term}</i>}
     </span>
   )
 }

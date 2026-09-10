@@ -111,6 +111,8 @@ for (const sql of [
   // 訂單取消：記錄取消時間與原因
   "ALTER TABLE orders ADD COLUMN cancelled_at TEXT",
   "ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
+  // 名片：使用者選來「裝上」個人資訊的徽章（JSON 字串陣列，最多 3 枚）
+  "ALTER TABLE users ADD COLUMN badge_slots TEXT",
 ]) {
   try { await db.exec(sql) } catch { /* 欄位已存在 */ }
 }

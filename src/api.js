@@ -82,6 +82,13 @@ export const api = {
   quizAnswer: (b) => req('/quiz/answer', { method: 'POST', body: b }),
   quizLeave: (b) => req('/quiz/leave', { method: 'POST', body: b }),
   earnBadges: (ids) => req('/badges', { method: 'POST', body: { ids } }),
+  // 「裝上」名片要展示的徽章（最多 3 枚，伺服器會驗是不是真的持有）
+  setBadgeSlots: (slots) => req('/me/badges', { method: 'PATCH', body: { slots } }),
+  // 公開名片（不需登入——名片就是給別人看的）
+  card: (handle) => req('/card/' + encodeURIComponent(handle)),
+  // ⚠️ 登錄單人賽成績。訪客會拿到 401，那是**常態不是故障**——
+  //    呼叫端一律靜靜略過，不可跳錯誤提示。
+  quizResult: (b) => req('/quiz/result', { method: 'POST', body: b }),
   notifications: () => req('/notifications'),
   notificationsRead: () => req('/notifications/read', { method: 'POST' }),
   deletePost: (id) => req('/posts/' + encodeURIComponent(id), { method: 'DELETE' }),

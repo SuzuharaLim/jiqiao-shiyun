@@ -58,11 +58,16 @@ import QuizGame from './QuizGame.jsx'
 
 export const ROOTS = [Feed, Explore, Create, Almanac, Profile]
 
+import BadgeVault from './BadgeVault.jsx'
+import NameCard from './NameCard.jsx'
+
 export const SCREENS = {
   termDetail: TermDetail, deityDetail: DeityDetail, dreamDetail: DreamDetail,
   arCard: CardPage,
   arModel: ArModel,
   quiz: QuizGame,
+  badges: BadgeVault,
+  nameCard: NameCard,
   auspiciousIndex: AuspiciousIndex, auspicious: Auspicious,
   glossary: GlossaryIndex, glossaryDetail: GlossaryDetail,
   editorial: Editorial, myths: Myths,

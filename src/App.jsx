@@ -23,6 +23,8 @@ const SCREEN_TITLES = {
   creatorPage: '創作者', followList: '粉絲／追蹤中', prePlan: '明年預拍', almanacDay: '完整國民曆', yearAlmanac: '年度總覽',
   foodTaboo: '食物相剋', units: '度量衡換算', ganzhiTable: '干支對照',
   quiz: '節氣知識王',
+  badges: '徽章收藏庫',
+  nameCard: '名片',
   editProfile: '編輯個人檔案', about: '品牌故事', accountSecurity: '帳號安全', admin: '管理後台',
   privacy: '隱私權政策', terms: '服務條款', contact: '聯絡我們',
   termDetail: '節氣專頁', deityDetail: '神明誕辰', dreamDetail: '解夢',

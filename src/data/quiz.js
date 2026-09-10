@@ -191,3 +191,24 @@ export function seededDeck(seed, n = 60) {
   }
   return out
 }
+
+// ── 分數上界：伺服器用來夾住送上來的分數 ──────────────────────
+//
+// ★★★ 放在這裡而不是 server/badges.js，是為了讓建置閘門
+//   （scripts/check-badges.mjs）能直接 import 它**而不會牽到 server/db.js**。
+//   閘門一旦 import 到資料層，就有能力在容器建置情境下擋掉正式部署
+//   ——站規記過一次真實事故（check-map.mjs 讀 docs/ 把部署整個卡住）。
+//   純函式放純資料層，那個風險就從根本上不存在。
+//
+// ⚠️ 誠實話：題庫在前端 bundle 裡，看得到答案的人仍然可以每題都答對，
+//    所以這**不是**防作弊，只是讓分數必須與「答對幾題」自洽（擋掉直接送 999999）。
+//
+// 計分公式（QuizGame.jsx）：gain = round((100 + speed*120) * (1 + floor(combo/3)))
+//   speed ≤ 1（瞬間作答），combo 是「這一題是第幾個連對」。
+//   n 題全對的理論上界 = Σ_{c=1..n} 220 * (1 + floor(c/3))。
+export function maxScoreFor(right) {
+  const n = Math.max(0, Math.min(200, Math.floor(right) || 0))
+  let sum = 0
+  for (let c = 1; c <= n; c++) sum += 220 * (1 + Math.floor(c / 3))
+  return sum
+}

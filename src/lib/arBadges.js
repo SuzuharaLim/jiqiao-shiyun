@@ -30,7 +30,14 @@ export function loadBadges() {
 export const BADGES_EVENT = 'jq-badges-changed'
 
 function save(list) {
-  const next = [...new Set(list)]
+  // ★★★★ 唯一徽章（王座）**絕不可**寫進 localStorage。
+  //   它是會被別人搶走的，而本機這份沒有人會回來把它刪掉 ⇒ 症狀是
+  //   「王座早就易主了，收藏庫與個人頁卻還顯示你有」——名片端點會再驗一次
+  //   所以名片不會說謊，但站內其他地方會，而使用者無從分辨哪一個才對。
+  //   ⚠️ 更嚴重的是 syncBadges 會把本機這份 POST 上去合併：唯一徽章一旦
+  //     混進去，就會被寫成 user_badges 的永久所有權。後端已擋（兩道），
+  //     這裡是第三道——三道都必要，因為它們各自防的是不同的路徑。
+  const next = [...new Set(list)].filter(id => BADGES_TIER[id] !== 'unique')
   try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { return false }
   // ⚠️ 一定要發事件。徽章牆是掛載時讀一次 localStorage，而 syncBadges 是在
   //    登入之後才把後端那份拉回來——先前少了這一步的症狀是
@@ -96,14 +103,9 @@ export async function syncBadges(userId) {
   }
 }
 
-export const BADGES = {
-  'badge-xiaohan-napa': { id: 'badge-xiaohan-napa', name: '小寒 · 結球白菜', term: '小寒' },
-  // 2026-08-11：五個熱區各給一枚（櫻花那一區沒有小挑戰，見 arCards.js 的說明）。
-  // ⚠️ 新增小挑戰時**一定要一起補這裡**：`ArQuiz` 查不到 id 時會退而顯示原始 slug
-  //    （arBadges.js 刻意「查不到就顯示 slug 而不是藏起來」——藏起來會變成
-  //    「使用者明明拿過卻看不到」），但那是保底不是設計。check-ar.mjs 已上閘門。
-  'badge-xiaohan-health': { id: 'badge-xiaohan-health', name: '小寒 · 身體保健', term: '小寒' },
-  'badge-xiaohan-produce': { id: 'badge-xiaohan-produce', name: '小寒 · 當令農產', term: '小寒' },
-  'badge-xiaohan-almanac': { id: 'badge-xiaohan-almanac', name: '小寒 · 曆頁', term: '小寒' },
-  'badge-xiaohan-laba': { id: 'badge-xiaohan-laba', name: '小寒 · 臘八粥', term: '小寒' },
-}
+// ⚠️ 徽章「目錄」已搬到 src/data/badges.js（內容與邏輯分層，同 termArticle.js
+//    與 almanac.js 的關係）。這裡 re-export 是為了讓既有的 import 一行都不用改
+//    ——Profile.jsx／ArQuiz.jsx／check-ar.mjs 都是從這裡拿 BADGES 的。
+export { BADGES } from '../data/badges.js'
+import { BADGES as BADGE_CATALOG } from '../data/badges.js'
+const BADGES_TIER = Object.fromEntries(Object.entries(BADGE_CATALOG).map(([k, v]) => [k, v.tier]))
