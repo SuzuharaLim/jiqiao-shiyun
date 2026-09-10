@@ -84,6 +84,9 @@ export const api = {
   earnBadges: (ids) => req('/badges', { method: 'POST', body: { ids } }),
   // 「裝上」名片要展示的徽章（最多 3 枚，伺服器會驗是不是真的持有）
   setBadgeSlots: (slots) => req('/me/badges', { method: 'PATCH', body: { slots } }),
+  // 蓋今天的節氣印。⚠️ **不送任何參數**：今天是哪個節氣由伺服器算，
+  //    前端唯一能決定的是「要不要呼叫」。
+  stampTerm: () => req('/badges/checkin', { method: 'POST' }),
   // 公開名片（不需登入——名片就是給別人看的）
   card: (handle) => req('/card/' + encodeURIComponent(handle)),
   // ⚠️ 登錄單人賽成績。訪客會拿到 401，那是**常態不是故障**——

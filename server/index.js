@@ -20,14 +20,15 @@ import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, b
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
 //    沖煞/財神/胎神/星等/農曆日期根本沒進 prompt → 模型只能編）。
 //    Dockerfile 已把 src/data 複製進容器（seed.js 也用），可安全 import。
-import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS } from '../src/data/almanac.js'
+import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS, taipeiToday } from '../src/data/almanac.js'
+import { termFromDate } from '../src/data/lunisolar.js'
 import { StringDecoder } from 'node:string_decoder'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
 import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
 import { cardTimeContext } from '../src/data/cardTime.js'
 import { seededDeck, RULES as QZ } from '../src/data/quiz.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
-import { BADGES, SLOT_MAX } from '../src/data/badges.js'
+import { BADGES, SLOT_MAX, jieqiBadgeId } from '../src/data/badges.js'
 import {
   grantBadges, thronesOf, throneBoard, quizStatsOf, recordSoloGame, recordDuel,
 } from './badges.js'
@@ -1100,6 +1101,36 @@ app.patch('/api/me/badges', requireAuth, requireCsrf, ah(async (req, res) => {
   await db.run('UPDATE users SET badge_slots=?, updated_at=? WHERE id=?',
     [JSON.stringify(want), now(), req.user.id])
   res.json({ slots: want })
+}))
+
+// 節氣名 → slug。⚠️ 用 termArticle 那份當唯一真相，不要另外抄一張表——
+// 兩份節氣表遲早會有一個字不一樣（站規記過「驚蟄」寫成「驚蜇」那次），
+// 而症狀是那一枚印**永遠蓋不下去**，且畫面上完全看不出原因。
+const TERM_SLUG = Object.fromEntries(TERM_ARTICLES.map(t => [t.term, t.slug]))
+
+/**
+ * 蓋今天的節氣印。
+ *
+ * ★★★★ 「今天是哪個節氣」**只能在這裡算**：`taipeiToday()` ＋ `termFromDate()`。
+ *   交給前端送上來的話，把系統時鐘調一調就能一次集滿 24 枚，
+ *   而這一組徽章的全部價值就在「你真的在那段時間來過」。
+ *   ⚠️ 一定要用 taipeiToday() 不可用 new Date()：Cloud Run 的時區是 UTC，
+ *     台灣時間 00:00–08:00 這八個小時會算成前一天，交節那天就會蓋錯印。
+ *
+ * ⚠️ 這支不接受任何輸入。前端唯一能決定的是「要不要呼叫」。
+ */
+app.post('/api/badges/checkin', requireAuth, requireCsrf, ah(async (req, res) => {
+  const d = taipeiToday()
+  const { term } = termFromDate(d.getFullYear(), d.getMonth() + 1, d.getDate())
+  const slug = TERM_SLUG[term]
+  if (!slug) return res.status(500).json({ error: '算不出今天的節氣' })
+  const id = jieqiBadgeId(slug)
+  const earned = await grantBadges(req.user.id, [id])
+  await announceBadges(req.user.id, earned, [])
+  res.json({
+    term, slug, badgeId: id,
+    earned: earned.map(x => ({ id: x, name: BADGES[x]?.name || x })),
+  })
 }))
 
 /** users.badge_slots 是 JSON 字串；壞資料一律當成沒裝（不可讓名片整頁崩掉）。 */

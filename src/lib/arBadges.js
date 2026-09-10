@@ -114,5 +114,42 @@ export async function syncBadges(userId) {
 //    與 almanac.js 的關係）。這裡 re-export 是為了讓既有的 import 一行都不用改
 //    ——Profile.jsx／ArQuiz.jsx／check-ar.mjs 都是從這裡拿 BADGES 的。
 export { BADGES } from '../data/badges.js'
-import { BADGES as BADGE_CATALOG, termBadgesCompletedBy } from '../data/badges.js'
+import { BADGES as BADGE_CATALOG, termBadgesCompletedBy, jieqiBadgeId } from '../data/badges.js'
 const BADGES_TIER = Object.fromEntries(Object.entries(BADGE_CATALOG).map(([k, v]) => [k, v.tier]))
+
+// ── 節氣印：在那個節氣期間打開站台就蓋一個 ─────────────────────
+//
+// ★★★ 登入者一律走**伺服器**那條路（`POST /api/badges/checkin`）：
+//   「今天是哪個節氣」只能由伺服器算，交給前端的話調一下系統時鐘
+//   就能一次集滿 24 枚，而這一組的全部價值就在「你真的在那段時間來過」。
+//
+// ⚠️ 訪客沒有 session ⇒ 401，那是**常態不是故障**。他仍然要收集得到
+//   （站上訪客一直都能拿一般徽章），所以退回本機那條路，用瀏覽器算的節氣。
+//   訪客的印本來就只存在這台瀏覽器裡，門檻不必比照登入者。
+//
+// ⚠️ 一天只打一次：這支會寫 DB 也會發通知，每次切畫面都打一次是白費的。
+//   用「台北的日曆日」當 key——不可用 new Date().toDateString()，
+//   跨時區的使用者會在半夜多蓋一次（站規：今天一律取台北的日曆日）。
+const STAMP_KEY = 'jq-jieqi-stamped'
+
+export async function stampTodayTerm({ loggedIn = false, taipeiDateStr, termSlug } = {}) {
+  if (!taipeiDateStr) return null
+  try {
+    if (localStorage.getItem(STAMP_KEY) === taipeiDateStr) return null
+    localStorage.setItem(STAMP_KEY, taipeiDateStr)
+  } catch { /* 無痕模式：每次都打一次，無害 */ }
+
+  if (loggedIn) {
+    try {
+      const r = await api.stampTerm()
+      // 伺服器說有新的印 → 同步到本機那份，收藏庫才會馬上亮起來
+      if (r?.earned?.length) save([...loadBadges(), ...r.earned.map(b => b.id)])
+      return r
+    } catch {
+      // 401（訪客身分還沒還原完）／離線 → 退回本機那條路，下次再說
+    }
+  }
+  if (!termSlug) return null
+  const id = jieqiBadgeId(termSlug)
+  return earnBadge(id, { loggedIn }) ? { earned: [{ id }] } : null
+}

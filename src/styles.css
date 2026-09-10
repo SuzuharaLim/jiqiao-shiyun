@@ -4100,6 +4100,12 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 }
 .bv-card.uniq .bv-glyph { color: var(--ji); }
 .bv-card:not(.got) .bv-glyph { color: var(--muted); }
+.bv-tag.now { color: var(--yi); border-color: var(--yi); }
+/* 現在正是這個節氣：加一圈宜綠，讓 24 格裡今天能蓋的那一枚一眼看得到 */
+.bv-card.now { border-color: var(--yi); border-style: solid; }
+/* 字形磚改用完整節氣名（兩個字）——只取第一個字的話立春／立夏／立秋／立冬
+   會是四個一樣的「立」（實測 11 個節氣重複）。兩個字要縮一級才不會撐破格子。 */
+.bv-card .bv-glyph { font-size: var(--text-xl); letter-spacing: -.02em; }
 .bv-name { font-size: var(--text-sm); font-weight: 700; }
 .bv-tag {
   font-size: var(--text-2xs); color: var(--ji); padding: 1px 7px;

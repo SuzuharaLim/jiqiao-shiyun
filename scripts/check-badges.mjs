@@ -31,6 +31,13 @@ const { BADGES, SLOT_MAX, TIER_UNIQUE, isReleased: isReleasedFn, termBadgesCompl
 //    純函式一律從 src/data/ 拿。
 const { maxScoreFor } = await import('../src/data/quiz.js')
 
+// ⚠️ 所有檔案在最前面一次讀完。原本散在各段中間，於是新增的檢查放在
+//    宣告之前就踩 TDZ（`Cannot access 'srvIndex' before initialization`）。
+//    這支是 build 閘門，它自己掛掉就等於整個建置掛掉。
+const srvIndex = read('server/index.js')
+const srvBadges = read('server/badges.js')
+const libBadges = read('src/lib/arBadges.js')
+
 // ── A) 目錄本身 ────────────────────────────────────────────────
 // 後端的白名單是 /^[a-z0-9-]{3,48}$/。目錄裡有 id 不合這個格式的話，
 // 那枚徽章**永遠發不出去**，而且不會有任何錯誤訊息。
@@ -89,15 +96,51 @@ for (const b of uniq) {
 }
 ok(SLOT_MAX === 3, `A 展示欄位數應為 3（使用者指定），現在 ${SLOT_MAX}`)
 
+// ── A3) 二十四節氣印 ──────────────────────────────────────────
+const jieqi = list.filter(b => b.group === 'jieqi')
+ok(jieqi.length === 24, `A3 節氣印應為 24 枚（使用者指定），現在 ${jieqi.length}`)
+for (const slug of TERM_SLUGS) {
+  ok(!!BADGES[`badge-jieqi-${slug}`], `A3 少了節氣「${slug}」的節氣印`)
+}
+// ★ 字形磚不可重複：只取第一個字的話立春／立夏／立秋／立冬 是四個一樣的「立」，
+//   而字形磚是格子裡的主要辨識物（實測 24 枚裡有 11 枚重複）。
+for (const g of ['term', 'jieqi']) {
+  const seen = new Map()
+  for (const b of list.filter(x => x.group === g)) {
+    ok(!seen.has(b.glyph), `A3 ${g} 的字形磚「${b.glyph}」重複：${seen.get(b.glyph)} 與 ${b.term}`)
+    seen.set(b.glyph, b.term)
+  }
+}
+
+// ── A4) 「今天是哪個節氣」只能由伺服器算 ──────────────────────
+//
+// ★★★★ 交給前端的話，把系統時鐘調一調就能一次集滿 24 枚，
+//   而這一組徽章的全部價值就在「你真的在那段時間來過」。
+ok(/app\.post\('\/api\/badges\/checkin'[\s\S]{0,700}termFromDate\(/.test(srvIndex),
+  'A4 /api/badges/checkin 沒有自己算節氣 ⇒ 這一組的判定不在伺服器手上')
+ok(/app\.post\('\/api\/badges\/checkin'[\s\S]{0,700}taipeiToday\(\)/.test(srvIndex),
+  'A4 checkin 沒有用 taipeiToday()：Cloud Run 是 UTC，台灣時間 00:00–08:00 會算成前一天，'
+  + '交節那天就會蓋錯印')
+// ★ 這支**不可接受任何輸入**：前端唯一能決定的是「要不要呼叫」。
+{
+  const blk = srvIndex.slice(srvIndex.indexOf("app.post('/api/badges/checkin'"))
+    .slice(0, 900)
+  ok(!/req\.body/.test(blk),
+    'A4 checkin 讀了 req.body ⇒ 節氣可以由前端指定，這一組就形同虛設')
+}
+// 前端那支只負責「要不要呼叫」，不可自己決定 id 送給後端
+{
+  const cli = read('src/lib/arBadges.js')
+  ok(/api\.stampTerm\(\)/.test(cli), 'A4 前端沒有走伺服器的 stampTerm')
+  ok(!/api\.stampTerm\([^)]/.test(cli), 'A4 stampTerm 不可帶參數：節氣由伺服器算')
+}
+
 // ── B) 三道「唯一徽章不可寫進 user_badges」的過濾 ──────────────
 //
 // 這三道防的是**不同的路徑**，缺一不可：
 //   ① server/index.js 的 POST /api/badges —— 使用者可直接呼叫的端點
 //   ② server/badges.js 的 grantBadges —— 未來每個新玩法都會走的內部入口
 //   ③ src/lib/arBadges.js 的 save() —— localStorage，會被 syncBadges 推上去
-const srvIndex = read('server/index.js')
-const srvBadges = read('server/badges.js')
-const libBadges = read('src/lib/arBadges.js')
 
 const GUARD_1 = /\.filter\(x\s*=>\s*BADGES\[x\]\?\.tier\s*!==\s*'unique'\)/
 const GUARD_2 = /if\s*\(!BADGES\[id\]\s*\|\|\s*BADGES\[id\]\.tier\s*===\s*'unique'\)\s*continue/

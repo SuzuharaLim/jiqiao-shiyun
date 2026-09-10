@@ -1,7 +1,13 @@
 ﻿import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import { dayFor, todayOffset, parseDateParam } from '../data/almanac.js'
+import { dayFor, todayOffset, parseDateParam, taipeiToday } from '../data/almanac.js'
+import { termFromDate } from '../data/lunisolar.js'
+import { TERM_ARTICLES } from '../data/termArticle.js'
+// 節氣名 → slug。⚠️ 用 termArticle 那份當唯一真相，不要另抄一張表——
+// 兩份節氣表遲早會有一個字不一樣（站規記過「驚蟄」寫成「驚蜇」），
+// 而症狀是那一枚印永遠蓋不下去，畫面上完全看不出原因。
+const TERM_SLUGS = Object.fromEntries(TERM_ARTICLES.map(t => [t.term, t.slug]))
 import { api, setCsrf } from '../api.js'
-import { syncBadges } from '../lib/arBadges.js'
+import { syncBadges, stampTodayTerm } from '../lib/arBadges.js'
 
 // ─────────────────────────────────────────────────────────────
 // 網址路由：每個畫面對應一個路徑，與 History API 同步（無 react-router）。
@@ -180,6 +186,22 @@ export function NavProvider({ children }) {
     //    rollup 因此無法把它移出主 chunk（build 會警告），動態載入完全沒有分塊效果，
     //    只換來非同步狀態與競態。而它壓縮後不到 1 KB，本來也不值得分塊。
     syncBadges(user.id).catch(() => { /* 離線或 401：本機那份仍在，下次再合併 */ })
+  }, [user?.id, user?.guest])
+
+  // ── 節氣印：在那個節氣期間打開站台就蓋一個（2026-09-10）──
+  //
+  // ⚠️ 相依包含 user?.guest：訪客也要蓋得到（他走本機那條路）。
+  //    但**不可**在 user 還是 null 時就跑——那是「session 還原中」，
+  //    登入者會被誤判成訪客而走到本機那條路，蓋出一個伺服器不認得的印。
+  useEffect(() => {
+    if (!user) return
+    const d = taipeiToday()
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const { term } = termFromDate(d.getFullYear(), d.getMonth() + 1, d.getDate())
+    const slug = TERM_SLUGS[term]
+    // fire-and-forget：蓋印失敗不該影響任何畫面（它是獎勵不是功能）
+    stampTodayTerm({ loggedIn: !user.guest, taipeiDateStr: iso, termSlug: slug })
+      .catch(() => { /* 離線／401：下次進站再蓋 */ })
   }, [user?.id, user?.guest])
   // ⚠️ 訪客身分要寫進 localStorage。原本純記憶體的作法有三個沒人預期得到的死路：
   //    按 F5 回登入牆、把網址貼給朋友對方看到登入牆、從書籤打開也是登入牆。

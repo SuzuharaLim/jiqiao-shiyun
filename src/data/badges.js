@@ -203,139 +203,139 @@ export const BADGES = {
   //   同步。另設一個 `released` 旗標的話，遲早會出現「卡發行了、旗標沒改」。
   'badge-term-lichun': {
     id: 'badge-term-lichun', name: '立春 · 節氣卡', term: '立春',
-    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    group: 'term', tier: TIER_NORMAL, glyph: '立春',
     how: '答對立春卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-yushui': {
     id: 'badge-term-yushui', name: '雨水 · 節氣卡', term: '雨水',
-    group: 'term', tier: TIER_NORMAL, glyph: '雨',
+    group: 'term', tier: TIER_NORMAL, glyph: '雨水',
     how: '答對雨水卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-jingzhe': {
     id: 'badge-term-jingzhe', name: '驚蟄 · 節氣卡', term: '驚蟄',
-    group: 'term', tier: TIER_NORMAL, glyph: '驚',
+    group: 'term', tier: TIER_NORMAL, glyph: '驚蟄',
     how: '答對驚蟄卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-chunfen': {
     id: 'badge-term-chunfen', name: '春分 · 節氣卡', term: '春分',
-    group: 'term', tier: TIER_NORMAL, glyph: '春',
+    group: 'term', tier: TIER_NORMAL, glyph: '春分',
     how: '答對春分卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-qingming': {
     id: 'badge-term-qingming', name: '清明 · 節氣卡', term: '清明',
-    group: 'term', tier: TIER_NORMAL, glyph: '清',
+    group: 'term', tier: TIER_NORMAL, glyph: '清明',
     how: '答對清明卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-guyu': {
     id: 'badge-term-guyu', name: '穀雨 · 節氣卡', term: '穀雨',
-    group: 'term', tier: TIER_NORMAL, glyph: '穀',
+    group: 'term', tier: TIER_NORMAL, glyph: '穀雨',
     how: '答對穀雨卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-lixia': {
     id: 'badge-term-lixia', name: '立夏 · 節氣卡', term: '立夏',
-    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    group: 'term', tier: TIER_NORMAL, glyph: '立夏',
     how: '答對立夏卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-xiaoman': {
     id: 'badge-term-xiaoman', name: '小滿 · 節氣卡', term: '小滿',
-    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    group: 'term', tier: TIER_NORMAL, glyph: '小滿',
     how: '答對小滿卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-mangzhong': {
     id: 'badge-term-mangzhong', name: '芒種 · 節氣卡', term: '芒種',
-    group: 'term', tier: TIER_NORMAL, glyph: '芒',
+    group: 'term', tier: TIER_NORMAL, glyph: '芒種',
     how: '答對芒種卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-xiazhi': {
     id: 'badge-term-xiazhi', name: '夏至 · 節氣卡', term: '夏至',
-    group: 'term', tier: TIER_NORMAL, glyph: '夏',
+    group: 'term', tier: TIER_NORMAL, glyph: '夏至',
     how: '答對夏至卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-xiaoshu': {
     id: 'badge-term-xiaoshu', name: '小暑 · 節氣卡', term: '小暑',
-    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    group: 'term', tier: TIER_NORMAL, glyph: '小暑',
     how: '答對小暑卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-dashu': {
     id: 'badge-term-dashu', name: '大暑 · 節氣卡', term: '大暑',
-    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    group: 'term', tier: TIER_NORMAL, glyph: '大暑',
     how: '答對大暑卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-liqiu': {
     id: 'badge-term-liqiu', name: '立秋 · 節氣卡', term: '立秋',
-    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    group: 'term', tier: TIER_NORMAL, glyph: '立秋',
     how: '答對立秋卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-chushu': {
     id: 'badge-term-chushu', name: '處暑 · 節氣卡', term: '處暑',
-    group: 'term', tier: TIER_NORMAL, glyph: '處',
+    group: 'term', tier: TIER_NORMAL, glyph: '處暑',
     how: '答對處暑卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-bailu': {
     id: 'badge-term-bailu', name: '白露 · 節氣卡', term: '白露',
-    group: 'term', tier: TIER_NORMAL, glyph: '白',
+    group: 'term', tier: TIER_NORMAL, glyph: '白露',
     how: '答對白露卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-qiufen': {
     id: 'badge-term-qiufen', name: '秋分 · 節氣卡', term: '秋分',
-    group: 'term', tier: TIER_NORMAL, glyph: '秋',
+    group: 'term', tier: TIER_NORMAL, glyph: '秋分',
     how: '答對秋分卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-hanlu': {
     id: 'badge-term-hanlu', name: '寒露 · 節氣卡', term: '寒露',
-    group: 'term', tier: TIER_NORMAL, glyph: '寒',
+    group: 'term', tier: TIER_NORMAL, glyph: '寒露',
     how: '答對寒露卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-shuangjiang': {
     id: 'badge-term-shuangjiang', name: '霜降 · 節氣卡', term: '霜降',
-    group: 'term', tier: TIER_NORMAL, glyph: '霜',
+    group: 'term', tier: TIER_NORMAL, glyph: '霜降',
     how: '答對霜降卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-lidong': {
     id: 'badge-term-lidong', name: '立冬 · 節氣卡', term: '立冬',
-    group: 'term', tier: TIER_NORMAL, glyph: '立',
+    group: 'term', tier: TIER_NORMAL, glyph: '立冬',
     how: '答對立冬卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-xiaoxue': {
     id: 'badge-term-xiaoxue', name: '小雪 · 節氣卡', term: '小雪',
-    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    group: 'term', tier: TIER_NORMAL, glyph: '小雪',
     how: '答對小雪卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-daxue': {
     id: 'badge-term-daxue', name: '大雪 · 節氣卡', term: '大雪',
-    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    group: 'term', tier: TIER_NORMAL, glyph: '大雪',
     how: '答對大雪卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-dongzhi': {
     id: 'badge-term-dongzhi', name: '冬至 · 節氣卡', term: '冬至',
-    group: 'term', tier: TIER_NORMAL, glyph: '冬',
+    group: 'term', tier: TIER_NORMAL, glyph: '冬至',
     how: '答對冬至卡片上的全部小挑戰',
     requires: [],
   },
   'badge-term-xiaohan': {
     id: 'badge-term-xiaohan', name: '小寒 · 節氣卡', term: '小寒',
-    group: 'term', tier: TIER_NORMAL, glyph: '小',
+    group: 'term', tier: TIER_NORMAL, glyph: '小寒',
     how: '答對小寒卡片上的全部小挑戰',
     requires: [
       'badge-xiaohan-napa', 'badge-xiaohan-health', 'badge-xiaohan-produce',
@@ -344,9 +344,173 @@ export const BADGES = {
   },
   'badge-term-dahan': {
     id: 'badge-term-dahan', name: '大寒 · 節氣卡', term: '大寒',
-    group: 'term', tier: TIER_NORMAL, glyph: '大',
+    group: 'term', tier: TIER_NORMAL, glyph: '大寒',
     how: '答對大寒卡片上的全部小挑戰',
     requires: [],
+  },
+
+  // ══════════════ 二十四節氣印（2026-09-10 使用者指定）══════════════
+  //
+  // 一個節氣一枚，**在那個節氣期間打開站台**就蓋一個印。集滿 24 枚
+  // ＝跟著這個站走完一整年。這是國民曆產品最自然的年度收藏主軸，
+  // 也是唯一一組「不必買卡、不必贏、只要人在」就拿得到的徽章。
+  //
+  // ★★★★ 「今天是哪個節氣」**只能由伺服器算**（`POST /api/badges/checkin`
+  //   用 `taipeiToday()` ＋ `termFromDate()`）。交給前端的話，把系統時鐘
+  //   調一調就能一次集滿 24 枚，而這一組的全部價值就在「你真的在那段時間來過」。
+  //
+  // ⚠️ 誠實話：`POST /api/badges` 仍然收得下這些 id（它是「合併瀏覽器裡的
+  //   本機紀錄」用的，而本機紀錄使用者控制得了）⇒ 存心的人仍可自己灌。
+  //   **刻意不擋**，因為擋了會讓訪客集到的印在註冊後消失——那是所有人都會
+  //   遇到的損失，而灌印只傷到自己（不像王座是從別人手上搶）。
+  //   這個取捨與「題庫在前端 bundle 裡」是同一個限度，不可講成防作弊。
+  //
+  // ⚠️ 與上面那組「節氣卡」不同：那組綁實體卡（23 張還沒發行），
+  //   這組現在就拿得到。兩組都用**完整節氣名**當字形磚——只取第一個字的話
+  //   立春／立夏／立秋／立冬 會是四個一樣的「立」（實測 11 個節氣重複）。
+  'badge-jieqi-lichun': {
+    id: 'badge-jieqi-lichun', name: '立春 · 節氣印', term: '立春',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '立春',
+    how: '在立春那半個月裡打開站台',
+    termSlug: 'lichun',
+  },
+  'badge-jieqi-yushui': {
+    id: 'badge-jieqi-yushui', name: '雨水 · 節氣印', term: '雨水',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '雨水',
+    how: '在雨水那半個月裡打開站台',
+    termSlug: 'yushui',
+  },
+  'badge-jieqi-jingzhe': {
+    id: 'badge-jieqi-jingzhe', name: '驚蟄 · 節氣印', term: '驚蟄',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '驚蟄',
+    how: '在驚蟄那半個月裡打開站台',
+    termSlug: 'jingzhe',
+  },
+  'badge-jieqi-chunfen': {
+    id: 'badge-jieqi-chunfen', name: '春分 · 節氣印', term: '春分',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '春分',
+    how: '在春分那半個月裡打開站台',
+    termSlug: 'chunfen',
+  },
+  'badge-jieqi-qingming': {
+    id: 'badge-jieqi-qingming', name: '清明 · 節氣印', term: '清明',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '清明',
+    how: '在清明那半個月裡打開站台',
+    termSlug: 'qingming',
+  },
+  'badge-jieqi-guyu': {
+    id: 'badge-jieqi-guyu', name: '穀雨 · 節氣印', term: '穀雨',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '穀雨',
+    how: '在穀雨那半個月裡打開站台',
+    termSlug: 'guyu',
+  },
+  'badge-jieqi-lixia': {
+    id: 'badge-jieqi-lixia', name: '立夏 · 節氣印', term: '立夏',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '立夏',
+    how: '在立夏那半個月裡打開站台',
+    termSlug: 'lixia',
+  },
+  'badge-jieqi-xiaoman': {
+    id: 'badge-jieqi-xiaoman', name: '小滿 · 節氣印', term: '小滿',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '小滿',
+    how: '在小滿那半個月裡打開站台',
+    termSlug: 'xiaoman',
+  },
+  'badge-jieqi-mangzhong': {
+    id: 'badge-jieqi-mangzhong', name: '芒種 · 節氣印', term: '芒種',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '芒種',
+    how: '在芒種那半個月裡打開站台',
+    termSlug: 'mangzhong',
+  },
+  'badge-jieqi-xiazhi': {
+    id: 'badge-jieqi-xiazhi', name: '夏至 · 節氣印', term: '夏至',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '夏至',
+    how: '在夏至那半個月裡打開站台',
+    termSlug: 'xiazhi',
+  },
+  'badge-jieqi-xiaoshu': {
+    id: 'badge-jieqi-xiaoshu', name: '小暑 · 節氣印', term: '小暑',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '小暑',
+    how: '在小暑那半個月裡打開站台',
+    termSlug: 'xiaoshu',
+  },
+  'badge-jieqi-dashu': {
+    id: 'badge-jieqi-dashu', name: '大暑 · 節氣印', term: '大暑',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '大暑',
+    how: '在大暑那半個月裡打開站台',
+    termSlug: 'dashu',
+  },
+  'badge-jieqi-liqiu': {
+    id: 'badge-jieqi-liqiu', name: '立秋 · 節氣印', term: '立秋',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '立秋',
+    how: '在立秋那半個月裡打開站台',
+    termSlug: 'liqiu',
+  },
+  'badge-jieqi-chushu': {
+    id: 'badge-jieqi-chushu', name: '處暑 · 節氣印', term: '處暑',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '處暑',
+    how: '在處暑那半個月裡打開站台',
+    termSlug: 'chushu',
+  },
+  'badge-jieqi-bailu': {
+    id: 'badge-jieqi-bailu', name: '白露 · 節氣印', term: '白露',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '白露',
+    how: '在白露那半個月裡打開站台',
+    termSlug: 'bailu',
+  },
+  'badge-jieqi-qiufen': {
+    id: 'badge-jieqi-qiufen', name: '秋分 · 節氣印', term: '秋分',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '秋分',
+    how: '在秋分那半個月裡打開站台',
+    termSlug: 'qiufen',
+  },
+  'badge-jieqi-hanlu': {
+    id: 'badge-jieqi-hanlu', name: '寒露 · 節氣印', term: '寒露',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '寒露',
+    how: '在寒露那半個月裡打開站台',
+    termSlug: 'hanlu',
+  },
+  'badge-jieqi-shuangjiang': {
+    id: 'badge-jieqi-shuangjiang', name: '霜降 · 節氣印', term: '霜降',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '霜降',
+    how: '在霜降那半個月裡打開站台',
+    termSlug: 'shuangjiang',
+  },
+  'badge-jieqi-lidong': {
+    id: 'badge-jieqi-lidong', name: '立冬 · 節氣印', term: '立冬',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '立冬',
+    how: '在立冬那半個月裡打開站台',
+    termSlug: 'lidong',
+  },
+  'badge-jieqi-xiaoxue': {
+    id: 'badge-jieqi-xiaoxue', name: '小雪 · 節氣印', term: '小雪',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '小雪',
+    how: '在小雪那半個月裡打開站台',
+    termSlug: 'xiaoxue',
+  },
+  'badge-jieqi-daxue': {
+    id: 'badge-jieqi-daxue', name: '大雪 · 節氣印', term: '大雪',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '大雪',
+    how: '在大雪那半個月裡打開站台',
+    termSlug: 'daxue',
+  },
+  'badge-jieqi-dongzhi': {
+    id: 'badge-jieqi-dongzhi', name: '冬至 · 節氣印', term: '冬至',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '冬至',
+    how: '在冬至那半個月裡打開站台',
+    termSlug: 'dongzhi',
+  },
+  'badge-jieqi-xiaohan': {
+    id: 'badge-jieqi-xiaohan', name: '小寒 · 節氣印', term: '小寒',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '小寒',
+    how: '在小寒那半個月裡打開站台',
+    termSlug: 'xiaohan',
+  },
+  'badge-jieqi-dahan': {
+    id: 'badge-jieqi-dahan', name: '大寒 · 節氣印', term: '大寒',
+    group: 'jieqi', tier: TIER_NORMAL, glyph: '大寒',
+    how: '在大寒那半個月裡打開站台',
+    termSlug: 'dahan',
   },
 }
 
@@ -357,13 +521,16 @@ export const badgeMeta = id => BADGES[id] ?? null
 export const isUnique = id => BADGES[id]?.tier === TIER_UNIQUE
 
 /** 目錄的顯示順序：唯一在前（那是稀有的），同階內依 group 再依定義順序。 */
-const GROUP_ORDER = { quiz: 0, term: 1, ar: 2 }
+const GROUP_ORDER = { jieqi: 0, quiz: 1, term: 2, ar: 3 }
 export const ALL_BADGES = Object.values(BADGES).sort((a, b) => {
   if ((a.tier === TIER_UNIQUE) !== (b.tier === TIER_UNIQUE)) return a.tier === TIER_UNIQUE ? -1 : 1
   return (GROUP_ORDER[a.group] ?? 9) - (GROUP_ORDER[b.group] ?? 9)
 })
 
-export const GROUP_LABEL = { quiz: '節氣知識王', term: '二十四節氣卡', ar: '節氣卡片 · 熱區' }
+export const GROUP_LABEL = { jieqi: '二十四節氣印', quiz: '節氣知識王', term: '二十四節氣卡', ar: '節氣卡片 · 熱區' }
+
+/** 某個節氣的「節氣印」徽章 id。伺服器與前端共用同一份組法。 */
+export const jieqiBadgeId = (slug) => `badge-jieqi-${slug}`
 
 /**
  * 這枚節氣卡徽章對應的卡片**發行了沒**。

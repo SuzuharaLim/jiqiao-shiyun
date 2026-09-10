@@ -5,6 +5,18 @@ import Icon from '../components/Icon.jsx'
 import { api } from '../api.js'
 import { loadBadges, BADGES_EVENT } from '../lib/arBadges.js'
 import { ALL_BADGES, BADGES, GROUP_LABEL, SLOT_MAX, TIER_UNIQUE, isReleased } from '../data/badges.js'
+import { taipeiToday } from '../data/almanac.js'
+import { termFromDate } from '../data/lunisolar.js'
+
+// 今天是哪個節氣——**只拿來顯示「現在正是」這個提示**。
+// ⚠️ 真正的蓋印判定在伺服器（POST /api/badges/checkin）：這裡算的東西
+//    使用者調系統時鐘就能改，不可拿來決定給不給徽章。
+function currentTermName() {
+  try {
+    const d = taipeiToday()
+    return termFromDate(d.getFullYear(), d.getMonth() + 1, d.getDate()).term
+  } catch { return null }
+}
 
 // ============================================================================
 // 徽章收藏庫 `/badges`
@@ -41,6 +53,7 @@ export default function BadgeVault() {
   const [slots, setSlots] = useState([])
   const [saving, setSaving] = useState(false)
   const owned = new Set([...local, ...remote])
+  const nowTerm = currentTermName()
 
   useEffect(() => {
     const h = (e) => setLocal(Array.isArray(e.detail) ? e.detail : loadBadges())
@@ -83,7 +96,7 @@ export default function BadgeVault() {
     } finally { setSaving(false) }
   }
 
-  const groups = ['quiz', 'term', 'ar']
+  const groups = ['jieqi', 'quiz', 'term', 'ar']
   const ownedCount = ALL_BADGES.filter(b => owned.has(b.id)).length
 
   return (
@@ -132,6 +145,7 @@ export default function BadgeVault() {
                     equipped={slots.includes(b.id)}
                     holder={board[b.id]}
                     locked={b.group === 'term' && !isReleased(b)}
+                    now={b.group === 'jieqi' && b.term === nowTerm}
                     disabled={saving}
                     onToggle={() => toggleSlot(b.id)}
                   />
@@ -147,7 +161,7 @@ export default function BadgeVault() {
   )
 }
 
-function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = false }) {
+function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = false, now = false }) {
   const uniq = b.tier === TIER_UNIQUE
   // ⚠️ 未擁有的徽章**不可以整個藏起來或打馬賽克**：這一頁的用途就是告訴人
   //    「還有什麼可以拿、怎麼拿」。藏起來只會讓人以為自己漏掉了什麼。
@@ -155,7 +169,7 @@ function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = fa
   return (
     <button
       type="button"
-      className={`bv-card${owned ? ' got' : ''}${uniq ? ' uniq' : ''}${equipped ? ' on' : ''}${locked ? ' locked' : ''}`}
+      className={`bv-card${owned ? ' got' : ''}${uniq ? ' uniq' : ''}${equipped ? ' on' : ''}${locked ? ' locked' : ''}${now ? ' now' : ''}`}
       onClick={owned ? onToggle : undefined}
       disabled={disabled || !owned}
       aria-pressed={owned ? equipped : undefined}
@@ -168,6 +182,9 @@ function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = fa
       <span className="bv-glyph">{b.glyph}</span>
       <span className="bv-name">{b.name}</span>
       {uniq && <span className="bv-tag">唯一</span>}
+      {/* ⚠️ 沒有這個標示，使用者不會知道 24 枚裡今天能蓋的是哪一枚——
+          而「現在正是」正是這一組唯一的行動線索。 */}
+      {now && <span className="bv-tag now">現在正是</span>}
       {/* ★★★ 卡片還沒發行時**不可以**照著 how 寫「去掃卡答對」——
           那是叫使用者去做一件現在做不到的事，而他會以為是自己找不到卡。
           目前官方卡只有一張（小寒），所以 24 枚裡有 23 枚是這一格。 */}
