@@ -1990,7 +1990,9 @@ async function quizFinish(id, winner, reason) {
 
 // ── 配對：加入等待中的一場，沒有就自己開一場 ──
 app.post('/api/quiz/queue', quizLimiter, ah(async (req, res) => {
-  const name = String(req.body?.name || '').trim().slice(0, 8) || '訪客'
+  // 稱號＝玩家的帳號名稱。⚠️ 16 這個上限與 QuizGame.jsx 的 who 必須一致：
+  //   兩邊不同時，自己看到全名、對手看到被截斷的版本。
+  const name = String(req.body?.name || '').trim().slice(0, 16) || '訪客'
   const uid = req.user?.id || null
   const key = quizId(18)
   const t = quizNow()

@@ -126,7 +126,7 @@ h1, h2, h3, h4 { letter-spacing: var(--ls-tight); line-height: var(--leading-tig
 .msg.me { border-bottom-right-radius: 6px; }
 .toast { background: var(--ink-900); color: #FFFDF8; border-radius: var(--radius-full); padding: 12px 20px; box-shadow: var(--shadow-lg); }
 [data-theme="dark"] .toast { background: #F1EAE0; color: #1E1814; }
-.field input, .qz-input, .cinput .f, .search, .ui-field__input, .wn-icon, .wn-user, .wn-logout, .wn-link,
+.field input, .cinput .f, .search, .ui-field__input, .wn-icon, .wn-user, .wn-logout, .wn-link,
 .daystrip .side, .daystrip .mid, .calcell, .calcap button, .qz-opt, .qz-ticker, .seg, .ct-opt, .fsel,
 .lp-item, .ad-more, .au-item, .term-item, .dream-item, .stamp-seal, .empty-cta, .btn-ghost {
   border-radius: var(--radius-md);
@@ -199,11 +199,11 @@ button.ty.glossable, button.tn.glossable {
 /* 輸入：白內核、髮絲線、聚焦咖啡細環 */
 .search { background: var(--card); border: 1px solid var(--line); height: 44px; box-shadow: var(--inset-hi); }
 .search:focus-within { border-color: var(--text); background: var(--card); outline: none; box-shadow: 0 0 0 4px rgba(43, 33, 24, .07); }
-.field input, .qz-input, .cinput .f { background: var(--card); border: 1px solid var(--line2); }
-.field input:focus, .qz-input:focus, .cinput .f:focus-within {
+.field input, .cinput .f { background: var(--card); border: 1px solid var(--line2); }
+.field input:focus, .cinput .f:focus-within {
   border-color: var(--text); outline: none; box-shadow: 0 0 0 4px rgba(43, 33, 24, .08);
 }
-[data-theme="dark"] .field input:focus, [data-theme="dark"] .qz-input:focus,
+[data-theme="dark"] .field input:focus,
 [data-theme="dark"] .search:focus-within { box-shadow: 0 0 0 4px rgba(241, 234, 224, .12); }
 .sw { background: var(--line2); }
 .sw.on { background: var(--yi); }

@@ -65,7 +65,11 @@ function Board({ mode, highlight }) {
 export default function QuizGame() {
   const { user, setToast, setStamp } = useNav()
   const [phase, setPhase] = useState('start')       // start | play | end
-  const [name, setName] = useState(user?.name || '')
+  // ★ 稱號＝帳號名稱（2026-09-10 使用者指定），不再讓人另外打一個。
+  //   排行榜與對戰記的是同一個名字，別人看到的也就是這個帳號。
+  //   ⚠️ 上限 16 與 server/index.js 的 /api/quiz/queue 必須一致——
+  //   兩邊不同的話，自己看到全名、對手看到被截斷的版本。
+  const who = (user?.name || '').trim().slice(0, 16) || '訪客'
   const [boardTab, setBoardTab] = useState('solo')
   const [, force] = useState(0)
   const rerender = useCallback(() => force(n => n + 1), [])
@@ -134,7 +138,6 @@ export default function QuizGame() {
   //   bot  —— 練習對手（模擬）。⚠️ 它必須**明確標示成模擬**，
   //           絕不可以在配不到真人時偷偷拿它冒充人類。
   const start = (mode, pvpState) => {
-    const who = (name || '').trim().slice(0, 8) || user?.name || '訪客'
     // ★ 對戰用**種子牌**：兩邊必須拿到同一副牌、同樣的選項順序，
     //   各洗各的就不是同一場比賽了。
     const deck = mode === 'pvp' ? seededDeck(pvpState.seed) : shuffle(QUESTIONS)
@@ -212,7 +215,6 @@ export default function QuizGame() {
 
   /** 排隊配對。⚠️ 配不到人時**不可以**偷偷換成模擬對手——那是騙人。 */
   const queueUp = async () => {
-    const who = (name || '').trim().slice(0, 8) || user?.name || '訪客'
     setQueueErr(null)
     setPhase('queue')
     setQueuedAt(Date.now())
@@ -469,13 +471,6 @@ export default function QuizGame() {
                 答得快、答得準，積分才高。答錯要扣血，血歸零就收攤。<br />
                 題目取自<b>二十四節氣</b>、干支曆法、擇日宜忌與歲時民俗。
               </div>
-            </div>
-
-            <div className="pad">
-              <label htmlFor="qz-nick" className="qz-label">你的稱號</label>
-              <input id="qz-nick" className="qz-input" type="text" maxLength={8} autoComplete="off"
-                value={name} onChange={e => setName(e.target.value)}
-                placeholder={user?.name || '訪客'} aria-label="你的稱號" />
             </div>
 
             <SectionHead title="選一個玩法" extra="兩種" />
