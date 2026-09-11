@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
+import BadgeArt from '../components/BadgeArt.jsx'
 import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
@@ -201,7 +202,7 @@ function BadgeChip({ id, equipped = false }) {
   return (
     <span className={`badgechip${equipped ? ' on' : ''}${uniq ? ' uniq' : ''}`}
       title={equipped ? '已裝上名片' : undefined}>
-      {meta?.glyph && <em className="bc-glyph">{meta.glyph}</em>}
+      <BadgeArt id={id} className="bc-glyph" size={22} />
       <b>{meta?.name ?? id}</b>
       {uniq ? <i>全站唯一</i> : meta?.term && <i>{meta.term}</i>}
     </span>

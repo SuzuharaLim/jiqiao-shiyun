@@ -23,6 +23,7 @@
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
     "card:mind": "node scripts/compile-mind.mjs",
+    "badge:icons": "node scripts/build-badge-icons.mjs",
     "check:ar": "node scripts/check-ar.mjs"
   },
   "dependencies": {

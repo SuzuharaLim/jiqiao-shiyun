@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNav } from '../store/nav.jsx'
 import { TopBar, Avatar, Seal, Link, Empty, Disclaimer } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
+import BadgeArt from '../components/BadgeArt.jsx'
 import { api } from '../api.js'
 import { BADGES, TIER_UNIQUE } from '../data/badges.js'
 import { stripEmoji } from '../lib/text.js'
@@ -121,7 +122,7 @@ export default function NameCard({ handle }) {
                     const b = BADGES[id]
                     return (
                       <span className={`nc-badge${b?.tier === TIER_UNIQUE ? ' uniq' : ''}`} key={id}>
-                        <i>{b?.glyph ?? '章'}</i>
+                        <BadgeArt id={id} className="nc-badge-art" size={34} />
                         <b>{b?.name ?? id}</b>
                         {b?.tier === TIER_UNIQUE && <em>全站唯一</em>}
                       </span>

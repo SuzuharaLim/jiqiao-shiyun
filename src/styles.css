@@ -4033,18 +4033,18 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   font-style: normal; font-size: var(--text-2xs); color: var(--muted);
   padding-left: 6px; border-left: 1px solid var(--line);
 }
-.badgechip .bc-glyph {
-  font-family: var(--serif); font-style: normal; font-weight: 800;
-  font-size: var(--text-xs); line-height: 1; color: var(--gold);
+.badgechip .bc-glyph { width: 22px; height: 22px; flex: 0 0 auto; }
+.badgechip .bc-glyph.is-glyph {
+  font-size: var(--text-xs); color: var(--gold); display: grid; place-items: center;
 }
 /* 已裝上名片：實心底。⚠️ 實心底＋淺字一律用 --primary／--pfg，
    深色模式的 --gold 當底配白字只有 2.x（站規那個踩過 14 處的坑）。 */
 .badgechip.on { background: var(--primary); border-color: var(--primary); }
-.badgechip.on b, .badgechip.on i, .badgechip.on .bc-glyph { color: var(--pfg); }
+.badgechip.on b, .badgechip.on i, .badgechip.on .bc-glyph.is-glyph { color: var(--pfg); }
 .badgechip.on i { border-left-color: color-mix(in srgb, var(--pfg) 40%, transparent); }
 /* 唯一徽章：朱紅描邊，與一般的金色分開 */
 .badgechip.uniq { border-color: var(--ji); background: color-mix(in srgb, var(--ji) 10%, transparent); }
-.badgechip.uniq .bc-glyph { color: var(--ji); }
+.badgechip.uniq .bc-glyph.is-glyph { color: var(--ji); }
 .badgechip.uniq.on { background: var(--primary); border-color: var(--primary); }
 
 .badgewall-acts { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
@@ -4083,6 +4083,9 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 /* 未取得：降低視覺重量，但**名稱與取得方式照樣看得見**
    （這一頁的用途就是告訴人「還有什麼可以拿」，藏起來等於自廢武功）。 */
 .bv-card:not(.got) { opacity: .62; cursor: default; }
+/* ★ 未取得：圖轉灰階。只降 opacity 的話彩色圖仍然很搶眼，
+   整頁看起來像「大部分都拿到了」——那是不實的暗示。 */
+.bv-card:not(.got) .badge-art { filter: grayscale(1); opacity: .75; }
 /* 卡片尚未發行：再降一階，並且**不用虛線框**——虛線在這一頁的語意是
    「還沒拿到但拿得到」，發行狀態是另一回事，混用會讓兩種狀態讀起來一樣。 */
 .bv-card.locked { opacity: .44; border-style: solid; border-color: var(--line); }
@@ -4094,18 +4097,30 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 @media (hover: hover) and (pointer: fine) {
   .bv-card.got:not(:disabled):hover { border-color: var(--cinnabar); }
 }
-.bv-glyph {
-  font-family: var(--serif); font-weight: 800; font-size: var(--text-2xl);
-  line-height: 1.1; color: var(--gold);
+/* 收藏庫的徽章圖：64px 見方。退回字形磚時同樣是 64 高，格子不會縮。 */
+.bv-glyph { width: 64px; height: 64px; }
+.bv-glyph.is-glyph {
+  font-size: var(--text-2xl); color: var(--gold);
+  display: grid; place-items: center;
 }
-.bv-card.uniq .bv-glyph { color: var(--ji); }
-.bv-card:not(.got) .bv-glyph { color: var(--muted); }
+.bv-card.uniq .bv-glyph.is-glyph { color: var(--ji); }
+.bv-card:not(.got) .bv-glyph.is-glyph { color: var(--muted); }
+/* ── 徽章圖（BadgeArt）────────────────────────────────────────
+   ★ 圖與「退回的字形磚」共用同一組尺寸規則，載不出來時版面不會跳。
+   ⚠️ `.ic` 那條全域 `display:block` 碰不到 img，但 reset.css 的
+      `img { max-width:100% }` 會，所以尺寸一律由這裡明寫。 */
+.badge-art { display: block; object-fit: contain; }
+.badge-art.is-glyph {
+  font-family: var(--serif); font-style: normal; font-weight: 800;
+  line-height: 1; text-align: center; letter-spacing: -.02em;
+}
+
 .bv-tag.now { color: var(--yi); border-color: var(--yi); }
 /* 現在正是這個節氣：加一圈宜綠，讓 24 格裡今天能蓋的那一枚一眼看得到 */
 .bv-card.now { border-color: var(--yi); border-style: solid; }
 /* 字形磚改用完整節氣名（兩個字）——只取第一個字的話立春／立夏／立秋／立冬
    會是四個一樣的「立」（實測 11 個節氣重複）。兩個字要縮一級才不會撐破格子。 */
-.bv-card .bv-glyph { font-size: var(--text-xl); letter-spacing: -.02em; }
+.bv-card .bv-glyph.is-glyph { font-size: var(--text-xl); letter-spacing: -.02em; }
 .bv-name { font-size: var(--text-sm); font-weight: 700; }
 .bv-tag {
   font-size: var(--text-2xs); color: var(--ji); padding: 1px 7px;
@@ -4172,11 +4187,11 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   background: color-mix(in srgb, var(--gold) 10%, transparent);
 }
 .nc-badge.uniq { border-color: var(--ji); background: color-mix(in srgb, var(--ji) 10%, transparent); }
-.nc-badge i {
-  font-style: normal; font-family: var(--serif); font-weight: 800;
-  font-size: var(--text-lg); line-height: 1; color: var(--gold); flex: 0 0 auto;
+.nc-badge .nc-badge-art { width: 34px; height: 34px; flex: 0 0 auto; }
+.nc-badge .nc-badge-art.is-glyph {
+  font-size: var(--text-lg); color: var(--gold); display: grid; place-items: center;
 }
-.nc-badge.uniq i { color: var(--ji); }
+.nc-badge.uniq .nc-badge-art.is-glyph { color: var(--ji); }
 .nc-badge b { font-size: var(--text-xs); flex: 1 1 auto; min-width: 0; }
 .nc-badge em {
   font-style: normal; font-size: var(--text-2xs); color: var(--ji);

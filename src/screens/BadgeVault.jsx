@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNav } from '../store/nav.jsx'
 import { TopBar, SectionHead, Disclaimer, Link } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
+import BadgeArt from '../components/BadgeArt.jsx'
 import { api } from '../api.js'
 import { loadBadges, BADGES_EVENT } from '../lib/arBadges.js'
 import { ALL_BADGES, BADGES, GROUP_LABEL, SLOT_MAX, TIER_UNIQUE, isReleased } from '../data/badges.js'
@@ -179,7 +180,7 @@ function BadgeCard({ b, owned, equipped, holder, disabled, onToggle, locked = fa
         : locked ? `${b.name}，這張卡片尚未發行`
         : `${b.name}，尚未取得：${b.how}`}
     >
-      <span className="bv-glyph">{b.glyph}</span>
+      <BadgeArt id={b.id} className="bv-glyph" size={64} />
       <span className="bv-name">{b.name}</span>
       {uniq && <span className="bv-tag">唯一</span>}
       {/* ⚠️ 沒有這個標示，使用者不會知道 24 枚裡今天能蓋的是哪一枚——
