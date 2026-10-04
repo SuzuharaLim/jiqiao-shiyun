@@ -123,6 +123,9 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
   const t = d.texts[0]
   ok(d.texts.length === TL.GLOBAL && d.pages[0].texts.length === TL.PER_PAGE, 'B3 文字框數量要有上限（每一頁都放／單頁）')
   ok(t.x === 1 && t.y === 0 && t.size === TL.SIZE_MAX, 'B3 位置與大小要夾在範圍內')
+  // ★ 迴歸（2026-10-04 使用者回報）：把字刪光準備重打時，框不可以消失——清空的框要留著，離開時才由設計器清掉
+  const emptied = normalizeDesign({ pages: { 0: { texts: [{ id: 'keep1234', text: '', x: 0.3, y: 0.4 }] } } })
+  ok(emptied.pages[0]?.texts?.[0]?.id === 'keep1234', 'B3 文字被刪光時框不可以消失（normalizeDesign 不可丟掉空文字框）')
   ok(t.font === 'serif' && t.color === '#2B2118' && t.bg === 'none' && t.align === 'center', 'B3 字體／顏色／底色／對齊走白名單')
   ok(JSON.stringify(d.style.colors) === '{"ink":"#FFFFFF"}', 'B3 未知的顏色欄位與不合法的色碼要丟掉')
   ok(resolveColors(d).ink === '#FFFFFF' && resolveColors(d).grid === PALETTES.find(p => p.id === 'sea').colors.grid, 'B3 覆寫只蓋那一格，其他沿用組合')

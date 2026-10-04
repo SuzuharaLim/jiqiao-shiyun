@@ -177,6 +177,7 @@ export function measureTextLayer(ctx, t, u) {
   return { lines, fontSize, lineH, w, h: lines.length * lineH, padX: pad ? fontSize * 0.55 : 0, padY: pad ? fontSize * 0.32 : 0 }
 }
 function drawTextLayer(ctx, t, W, H, u, C) {
+  if (!String(t.text || '').trim()) return            // 空的文字框（正在重打）：不畫，連底色也不畫
   const m = measureTextLayer(ctx, t, u)
   const cx = t.x * W, cy = t.y * H
   const left = cx - m.w / 2, top = cy - m.h / 2

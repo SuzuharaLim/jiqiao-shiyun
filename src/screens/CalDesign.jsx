@@ -159,6 +159,23 @@ export default function CalDesign({ id = 'local' }) {
     designRef.current = d; setDesign(d); persist(d); setHistTick(x => x + 1)
   }, [persist])
   void histTick
+
+  // 離開一個文字框時（選了別的、按完成、換頁），如果它還是空的就清掉。
+  // ⚠️ 不可以在「打字的當下」清（那正是使用者把字刪光準備重打的時候），只在離開時清。
+  const prevSel = useRef(null)
+  useEffect(() => {
+    const p = prevSel.current
+    prevSel.current = sel ? { ...sel, page: cur } : null
+    if (!p || (sel && sel.id === p.id && sel.scope === p.scope)) return
+    const d = designRef.current
+    if (!d) return
+    const arr = p.scope === 'global' ? d.texts || [] : d.pages?.[p.page]?.texts || []
+    const t = arr.find(x => x.id === p.id)
+    if (!t || String(t.text).trim()) return
+    update(dd => (p.scope === 'global'
+      ? { ...dd, texts: (dd.texts || []).filter(x => x.id !== p.id) }
+      : { ...dd, pages: { ...dd.pages, [p.page]: { ...(dd.pages[p.page] || {}), texts: (dd.pages[p.page]?.texts || []).filter(x => x.id !== p.id) } } }), 'drop-empty')
+  }, [sel, cur, update])
   // 離開頁面前把還沒送出的改動送出去
   useEffect(() => () => { clearTimeout(saveTimer.current); flush() }, [flush])
 
@@ -331,7 +348,8 @@ export default function CalDesign({ id = 'local' }) {
   const boxOf = (t) => {
     if (!pw) return null
     if (!measureCtx.current) measureCtx.current = document.createElement('canvas').getContext('2d')
-    const m = measureTextLayer(measureCtx.current, t, pw / 100)
+    // 空的框用提示字「輸入文字」量大小：否則框縮成一條細線，抓不到也看不到
+    const m = measureTextLayer(measureCtx.current, String(t.text).trim() ? t : { ...t, text: '輸入文字' }, pw / 100)
     const w = m.w + m.padX * 2, h = m.h + m.padY * 2
     return { left: t.x * pw - w / 2, top: t.y * ph - h / 2, width: w, height: h }
   }
@@ -528,6 +546,7 @@ export default function CalDesign({ id = 'local' }) {
                         onPointerDown={(e) => onTextDown(e, scope, t)} onPointerMove={onTextMove} onPointerUp={onTextUp} onPointerCancel={onTextUp}
                         onClick={(e) => e.stopPropagation()}>
                         {scope === 'global' && <span className="cal-tl-tag">每一頁</span>}
+                        {!String(t.text).trim() && <span className="cal-tl-ph" style={{ fontFamily: FONT[t.font], fontSize: t.size * pw / 100 }}>輸入文字</span>}
                         {on && (
                           <span className="cal-tl-resize" aria-label="拖曳縮放文字"
                             onPointerDown={(e) => onTextDown(e, scope, t, 'resize')} onPointerMove={onTextMove} onPointerUp={onTextUp} onPointerCancel={onTextUp} />

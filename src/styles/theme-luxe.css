@@ -945,3 +945,6 @@ button.ty.glossable, button.tn.glossable {
 .cal-layer em { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); }
 .cal-layer.on { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
 @media (max-width: 380px) { .cal-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 空的文字框：畫布上不畫任何東西，這裡給一個淡淡的提示字，看得到也抓得到 */
+.cal-tl-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: color-mix(in srgb, var(--text) 40%, transparent); font-weight: 700; line-height: 1; pointer-events: none; white-space: nowrap; }
+.cal-tl:has(.cal-tl-ph) { border-color: color-mix(in srgb, var(--text) 45%, transparent); border-style: dashed; }

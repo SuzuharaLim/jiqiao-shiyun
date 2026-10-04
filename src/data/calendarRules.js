@@ -110,7 +110,9 @@ const TEXT_BG = ['none', 'paper', 'ink', 'accent']
 function normText(t) {
   if (!t || typeof t !== 'object') return null
   const text = strML(t.text, TEXT_LIMITS.MAX_CHARS).split('\n').slice(0, 4).join('\n')   // 最多 4 行
-  if (!text.trim()) return null
+  // ⚠️ 空字串**不可**在這裡丟掉：每一次編輯都會經過這支，使用者把字刪光準備重打的那一瞬間，
+  //    整個文字框就跟著消失了（2026-10-04 使用者回報）。空的框照常保留、印出來什麼都沒有；
+  //    設計器在「離開這個框」時才清掉還是空的那些。
   const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
   return {
     id: /^[a-z0-9]{4,16}$/i.test(String(t.id || '')) ? String(t.id) : Math.random().toString(36).slice(2, 10),
