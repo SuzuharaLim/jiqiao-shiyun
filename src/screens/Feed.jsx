@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg, useGlossary, GlossTerm, GlossPanel, SheetMask, SectionHead, Link } from '../components/ui.jsx'
+import { TopBar, PhotoImg, PostCover, useGlossary, GlossTerm, GlossPanel, SheetMask, SectionHead, Link } from '../components/ui.jsx'
 import { TERM_ARTICLES } from '../data/termArticle.js'
 import { useNav } from '../store/nav.jsx'
 import { BRAND } from '../data/mock.js'
@@ -38,7 +38,10 @@ export default function Feed() {
   // ⚠️ 要拿 loading：載入中不可顯示空狀態——第一幀 items=[] 會被判成「沒有作品」，
   //    在資料還在路上時就跟使用者說這裡是空的。
   const { items: allPosts, loading: shotsLoading } = usePostsPaged(null)
-  const shots = allPosts.filter(p => p.term === d.term).concat(allPosts).slice(0, 6)
+  // 當令節氣的排前面、其餘補在後面。⚠️ 兩份清單有重疊，一定要依 id 去重——
+  //    原本直接 concat，當令的那幾則會出現兩次（貼文少的時候整列就是同一則重複）。
+  const shots = [...new Map(allPosts.filter(p => p.term === d.term).concat(allPosts)
+    .map(p => [p.id, p])).values()].slice(0, 6)
 
   const RANGE = BROWSE_RANGE_DAYS   // 與網址參數驗證共用同一個常數（見 almanac.js）
   const clampOff = (o) => Math.max(-RANGE, Math.min(RANGE, o))
@@ -213,7 +216,7 @@ export default function Feed() {
           {shots.map((p, i) => (
             <button key={`${p.id}-${i}`} className="railcard tap" onClick={() => push('postDetail', { id: p.id })}>
               <div className="ph" style={{ background: p.bg, fontSize: 56, position: 'relative', overflow: 'hidden' }}>
-                {p.image ? <PhotoImg src={p.image} alt={`${p.title}｜${p.term || "節氣"}攝影，攝影者 @${p.user}`} /> : <Icon name="image" className="ph-ic" />}
+                <PostCover image={p.image} alt={`${p.title}｜${p.term || "節氣"}攝影，攝影者 @${p.user}`} title={p.title} caption={p.caption} />
                 <span className="ph-like" style={{ position: 'absolute', bottom: 6, left: 6 }}>
                   <Icon name="heart" fill style={{ width: 11, height: 11, display: 'inline-block', verticalAlign: -1 }} /> {p.likes + (liked[p.id] ? 1 : 0)}
                 </span>

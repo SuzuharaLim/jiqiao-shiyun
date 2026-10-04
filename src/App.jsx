@@ -12,7 +12,7 @@ import Auth from './screens/Auth.jsx'
 // 每頁獨立 <title>（SEO/分頁辨識：SPA 單一 URL，至少讓瀏覽器分頁與歷史紀錄有意義）
 const TAB_TITLES = ['今日曆頁', '探索', '建立', '曆書工具箱', '我的']
 const SCREEN_TITLES = {
-  aiChat: 'AI 時光顧問', checkout: '結帳', workDetail: '作品', postDetail: '貼文', newPost: '新貼文',
+  aiChat: 'AI 時光顧問', checkout: '結帳', workDetail: '作品', postDetail: '貼文', newPost: '發布貼文',
   makeCalendar: '做月曆', calendarPreview: '月曆預覽', myProjects: '我的專案', deities: '臺灣神佛的生日',
   zodiac: '生肖運勢', dream: '解夢', nameFortune: '命名吉凶', matchmaking: '生肖星座婚配',
   bone: '秤骨神術', proverbs: '台灣諺語', festivals: '臺灣特色慶典', flowers: '賞花景點',

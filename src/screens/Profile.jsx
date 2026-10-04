@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import BadgeArt from '../components/BadgeArt.jsx'
-import { TopBar, ToolRow, SectionHead, PhotoImg, Avatar, CountUp, Link } from '../components/ui.jsx'
+import { TopBar, ToolRow, SectionHead, PhotoImg, PostCover, Avatar, CountUp, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { loadBadges, BADGES, BADGES_EVENT } from '../lib/arBadges.js'
@@ -112,7 +112,7 @@ export default function Profile() {
             {shown.map(w => (
               <button key={w.id} className="it tap" onClick={() => openItem(w)}>
                 <div className="ph" style={{ background: w.bg, position: 'relative', overflow: 'hidden' }}>
-                  {w.image ? <PhotoImg src={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品`} /> : <Icon name="image" className="ph-ic" />}
+                  <PostCover image={w.image} alt={`${w.title}｜${w.term || "節氣"}攝影作品`} title={w.title} caption={w.caption} />
                   {w.price ? <div className="gbadge">NT${w.price}</div> : null}
                 </div>
                 <div className="cap">{w.title}<small>{w.term}{w.price ? ' · 市集上架' : ''}</small></div>

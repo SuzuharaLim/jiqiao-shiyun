@@ -20,8 +20,10 @@ export default function Create() {
             合併成單一入口，想用既有照片的人從相機裡選相簿即可。 */}
         <section className="toolgrid">
           <SectionHead title="建立內容" />
-        <ToolRow iconName="camera" title="拍照發布"
-          sub="拍攝／選圖 · 濾鏡特效 · 標節氣地點 · 上架市集" onClick={() => push('camera')} />
+        {/* 2026-10-04：貼文不再限定照片，也可以是純文字的文章（使用者指定）。
+            入口改進撰寫頁，照片在那裡「附加」（拍照會再進相機工作室）。 */}
+        <ToolRow iconName="pen" title="發布貼文"
+          sub="照片 · 文章 · 標節氣地點 · 上架市集" screen="newPost" />
         <ToolRow iconName="scroll" title="做月曆工作室" sub="選圖 → AI 排版 → 詩詞 → 預覽" onClick={() => push('makeCalendar')} />
         <ToolRow iconName="fortune" title="明年預拍" sub="節氣提醒 → 一鍵成曆" onClick={() => push('prePlan')} />
         </section>

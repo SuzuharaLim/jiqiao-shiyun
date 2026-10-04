@@ -3,6 +3,8 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg, Avatar } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { stripEmoji } from '../lib/text.js'
+import { CAPTION_MAX } from '../data/postRules.js'
 
 // 貼文詳情 —— 內容、留言、按讚、追蹤皆嚴格來自資料庫（真實、可持久化）。
 // 加入月曆素材（saved）屬前端個人化概念，仍走 nav 本地狀態。
@@ -48,6 +50,14 @@ export default function PostDetail({ id }) {
   }
 
   const isSaved = saved[post.id]
+  // 文章內文：標題通常就是內文第一行（發文頁沒填標題時的推導規則），不要重複印兩次；
+  // #標籤 另列在下方，從內文裡拿掉。全站禁用 emoji → 過 stripEmoji（DB 舊資料仍可能帶）。
+  const articleBody = (() => {
+    if (post.image) return ''
+    const lines = stripEmoji(String(post.caption || '')).replace(/#[^\s#]+/g, '').split('\n')
+    if (lines[0]?.trim() === stripEmoji(post.title).trim()) lines.shift()
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  })()
 
   const onLike = async () => {
     if (!requireAccount('幫這則貼文按讚')) return
@@ -128,9 +138,19 @@ export default function PostDetail({ id }) {
             {following ? '追蹤中' : '＋ 追蹤'}
           </button>
         </div>
-        <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
-          {post.image ? <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} /> : <Icon name="image" className="ph-ic" />}
-        </div>
+        {/* 文章型貼文（沒有照片）不畫封面色塊——那一塊空的 300px 看起來像圖片壞掉。
+            改成標題＋內文直接排成文章，內文放在動作列上方（文章是主體，不是說明）。 */}
+        {post.image ? (
+          <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
+            <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} />
+          </div>
+        ) : !editing && (
+          <article className="post-article">
+            <span className="post-article-k">{post.term ? `${post.term} · 文章` : '文章'}</span>
+            <h2>{stripEmoji(post.title)}</h2>
+            {articleBody && <div className="post-article-body">{articleBody}</div>}
+          </article>
+        )}
 
         <div className="acts">
           <div style={{ display: 'flex', gap: 15 }}>
@@ -142,9 +162,12 @@ export default function PostDetail({ id }) {
               else { try { navigator.clipboard.writeText(url) } catch { /* ignore */ } setToast('已複製連結') }
             }}><Icon name="share" /></button>
           </div>
+          {/* 「加入月曆」是收集做月曆用的照片素材——文章沒有照片，放了也排不進月曆 */}
+          {post.image && (
           <button className={`pill tap ${isSaved ? 'on' : 'dark'}`} onClick={() => { toggleSave(post.id); setToast(isSaved ? '已移除' : '已加入月曆素材 ✓') }}>
             {isSaved ? '已加入月曆' : '加入月曆'}
           </button>
+          )}
         </div>
 
         <div className="cap2"><b>{likeCount}</b> 個讚</div>
@@ -155,10 +178,10 @@ export default function PostDetail({ id }) {
             <input id="pd-title" className="ct-input" value={eTitle} maxLength={60}
               onChange={e => setETitle(e.target.value)} />
             <label className="ct-label" htmlFor="pd-cap" style={{ marginTop: 12 }}>說明</label>
-            <textarea id="pd-cap" className="ct-input ct-area" rows={4} maxLength={400}
+            <textarea id="pd-cap" className="ct-input ct-area" rows={post.image ? 4 : 10} maxLength={CAPTION_MAX}
               value={eCap} onChange={e => setECap(e.target.value)}
               placeholder="撰寫說明…　#節氣 #題材" />
-            <div className="ct-count">{eCap.length} / 400</div>
+            <div className="ct-count">{eCap.length} / {CAPTION_MAX}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button className="b tap" onClick={() => setEditing(false)}>取消編輯</button>
               <button className="b danger-solid tap" onClick={onDelete}>刪除貼文</button>
@@ -166,7 +189,10 @@ export default function PostDetail({ id }) {
             <div className="ct-hint">說明裡的 #標籤 會重新解析，供搜尋使用</div>
           </div>
         ) : (
-          <div className="cap2" style={{ whiteSpace: 'pre-wrap' }}><b>{post.user}</b> {post.caption} {(post.tags || []).map(t => <span key={t} className="tag">#{t} </span>)}</div>
+          post.image
+            ? <div className="cap2" style={{ whiteSpace: 'pre-wrap' }}><b>{post.user}</b> {post.caption} {(post.tags || []).map(t => <span key={t} className="tag">#{t} </span>)}</div>
+            // 文章已經排在上面了，這裡只留標籤
+            : (post.tags?.length > 0 && <div className="cap2">{post.tags.map(t => <span key={t} className="tag">#{t} </span>)}</div>)
         )}
         <div className="cap2 muted">{post.time}</div>
 

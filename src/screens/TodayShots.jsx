@@ -1,5 +1,5 @@
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg } from '../components/ui.jsx'
+import { TopBar, PhotoImg, PostCover } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { usePosts, useWorks } from '../hooks/useApi.js'
 
@@ -9,7 +9,7 @@ export default function TodayShots({ term }) {
   const posts = usePosts(null)
   const works = useWorks(null)
   const items = [
-    ...posts.map(p => ({ id: p.id, kind: 'post', emoji: p.emoji, bg: p.bg, image: p.image, title: p.title, by: p.user, term: p.term })),
+    ...posts.map(p => ({ id: p.id, kind: 'post', emoji: p.emoji, bg: p.bg, image: p.image, title: p.title, caption: p.caption, by: p.user, term: p.term })),
     ...works.map(w => ({ id: w.id, kind: 'work', emoji: w.emoji, bg: w.bg, image: w.image, title: w.title, by: w.author, term: w.term, price: w.price })),
   ]
   const sorted = [...items].sort((a, b) => (b.term === term) - (a.term === term))
@@ -24,7 +24,7 @@ export default function TodayShots({ term }) {
           {sorted.map((it, i) => (
             <button key={`${it.kind}-${it.id}-${i}`} className="it tap" onClick={() => open(it)}>
               <div className="ph" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}>
-                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} /> : <Icon name="image" className="ph-ic" />}
+                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} title={it.title} caption={it.caption} />
                 {it.price && <div className="gbadge">NT${it.price}</div>}
               </div>
               <div className="cap">{it.title}<small>@{it.by} · {it.term}</small></div>

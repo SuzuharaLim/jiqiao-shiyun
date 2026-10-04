@@ -595,7 +595,7 @@ function CreateStory({ onExit, onLeave, onUse, setToast }) {
         <button className="b tap" onClick={onExit}>返回</button>
         <p className="cam-hint" style={{ textAlign: 'center', marginTop: 6 }}>
           限時動態功能尚未開放（需要 24 小時過期機制）<br />
-          想分享的話，可以改用「拍照發布」發成貼文
+          想分享的話，可以改用「發布貼文」發成貼文
         </p>
       </div>
     </div>

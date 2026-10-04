@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg, Avatar} from '../components/ui.jsx'
+import { TopBar, PhotoImg, PostCover, Avatar} from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { stripEmoji } from '../lib/text.js'   // DB 的舊 bio 仍帶 emoji（全站禁用）
@@ -31,7 +31,7 @@ export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--
     const m = new Map()
     ;(data?.posts || []).forEach(p =>
       m.set(p.image || `post:${p.id}`,
-        { id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post' }))
+        { id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post', title: p.title, caption: p.caption }))
     ;(data?.works || []).forEach(w => {
       const k = w.image || `work:${w.id}`
       const hit = m.get(k)
@@ -86,7 +86,7 @@ export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--
             {gallery.map(it => (
               <button key={`${it.kind}-${it.id}`} className="gimg tap" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}
                 onClick={() => push(it.kind === 'work' ? 'workDetail' : 'postDetail', { id: it.id })}>
-                {it.image ? <PhotoImg src={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} /> : <Icon name="image" className="ph-ic" />}
+                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} title={it.title} caption={it.caption} />
                 {it.price ? <div className="gbadge">${it.price}</div> : null}
               </button>
             ))}

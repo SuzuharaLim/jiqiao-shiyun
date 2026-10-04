@@ -17,6 +17,8 @@ import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
 import { corporateHtml } from './corporate.js'
 import { toLogical } from '../src/data/appBase.js'
+// 貼文內文上限：前後端同一個常數（2026-10-04 開放文章型貼文，400 → 3000）
+import { CAPTION_MAX } from '../src/data/postRules.js'
 import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
@@ -698,7 +700,7 @@ app.post('/api/posts', requireAuth, requireCsrf, ah(async (req, res) => {
   await db.run(`INSERT INTO posts (id,user_id,emoji,bg,term,title,caption,tags_json,place,image_id,like_count,comment_count,created_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,0,0,?)`,
     [id, req.user.id, String(b.emoji || '').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
-     String(b.term || '').slice(0, 8), title, String(b.caption || '').slice(0, 400), JSON.stringify(tags),
+     String(b.term || '').slice(0, 8), title, String(b.caption || '').slice(0, CAPTION_MAX), JSON.stringify(tags),
      String(b.place || '').slice(0, 40), imageId, now()])
   await audit('post_create', req, req.user.id, id)
   const r = await db.get(`${POST_SELECT} WHERE p.id=?`, [id])
@@ -1248,7 +1250,7 @@ app.patch('/api/posts/:id', requireAuth, requireCsrf, ah(async (req, res) => {
     if (!t) return res.status(400).json({ error: '標題不可空白' })
     sets.push('title=?'); vals.push(t)
   }
-  if (b.caption !== undefined) { sets.push('caption=?'); vals.push(String(b.caption).slice(0, 400)) }
+  if (b.caption !== undefined) { sets.push('caption=?'); vals.push(String(b.caption).slice(0, CAPTION_MAX)) }
   if (b.term !== undefined) { sets.push('term=?'); vals.push(String(b.term).slice(0, 8)) }
   if (b.tags !== undefined) {
     const tags = Array.isArray(b.tags)

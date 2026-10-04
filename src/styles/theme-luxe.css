@@ -507,3 +507,84 @@ button.ty.glossable, button.tn.glossable {
   .screen-aiChat .ai-starters-g { grid-template-columns: 1fr; }
   .screen-aiChat .ai-today-yi { margin-left: 0; }
 }
+
+/* ============================================================================
+   文章型貼文（2026-10-04）：貼文不再限定照片
+   ============================================================================ */
+
+/* 卡片封面：沒有照片時顯示標題＋摘要（取代「圖片」佔位圖示，那看起來像載入失敗）。
+   鋪滿 .ph／.gimg 這類已經 position:relative; overflow:hidden 的封面容器。 */
+.txtcover {
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px;
+  padding: 14px; text-align: left; color: var(--text); overflow: hidden;
+  font-size: var(--text-xs); line-height: 1.55;
+}
+.txtcover-ic { width: 16px; height: 16px; stroke: var(--muted); flex: 0 0 auto; }
+.txtcover b {
+  font-family: var(--serif); font-weight: 700; font-size: var(--text-sm); line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.txtcover span {
+  color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* 個人頁／創作者頁的方格縮圖很小：只留標題 */
+.grid .gimg .txtcover span, .album .it .txtcover span { -webkit-line-clamp: 3; }
+.grid .gimg .txtcover { padding: 10px; }
+.grid .gimg .txtcover b { font-size: var(--text-xs); -webkit-line-clamp: 4; }
+
+/* 貼文詳情：文章排成文章，不畫空的封面色塊 */
+.post-article {
+  margin: 4px var(--space-4) 8px; padding: 24px 22px;
+  background: var(--card); border: 6px solid var(--color-shell); background-clip: padding-box;
+  border-radius: 26px; box-shadow: 0 0 0 1px var(--line), var(--shadow-md);
+}
+.post-article-k { display: inline-block; font-size: var(--text-2xs); color: var(--muted); letter-spacing: .14em; margin-bottom: 8px; }
+.post-article h2 { font-family: var(--serif); font-size: var(--text-xl); line-height: 1.35; margin: 0 0 14px; }
+.post-article-body {
+  white-space: pre-wrap; word-break: break-word;
+  font-size: 16px; line-height: var(--leading-body, 1.75); color: var(--text);
+  max-width: var(--measure, 38em); text-wrap: pretty;
+}
+
+/* ── 撰寫頁 ─────────────────────────────────────────────── */
+.np-body { gap: 0; }
+.np-compose {
+  margin: 12px var(--space-4) 4px; padding: 6px 18px 8px;
+  background: var(--card); border: 1px solid var(--line2); border-radius: 20px; box-shadow: var(--shadow-sm);
+}
+.np-compose:focus-within { border-color: var(--text); }
+.np-title, .np-text {
+  display: block; width: 100%; border: none; outline: none; background: none; color: var(--text);
+  font-family: inherit; resize: vertical;
+}
+.np-title {
+  font-family: var(--serif); font-weight: 700; font-size: max(16px, var(--text-lg));
+  padding: 12px 0 10px; border-bottom: 1px solid var(--line);
+}
+.np-text { font-size: max(16px, var(--text-sm)); line-height: 1.75; padding: 12px 0 4px; min-height: 120px; }
+.np-count { text-align: right; font-size: var(--text-2xs); color: var(--muted); padding-bottom: 2px; }
+
+.np-attach { display: flex; flex-direction: column; gap: 8px; padding: 12px var(--space-4) 8px; }
+.np-attach-h { font-size: var(--text-2xs); color: var(--muted); letter-spacing: .1em; }
+.np-attach-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.np-attach-b {
+  display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 14px; text-align: left;
+  font: inherit; color: var(--text); background: var(--card); border: 1px dashed var(--line2); border-radius: 16px; cursor: pointer;
+  transition: border-color var(--m-fast), box-shadow var(--m-base) var(--e-out);
+}
+.np-attach-b .ic { width: 22px; height: 22px; flex: 0 0 auto; }
+.np-attach-b span { display: flex; flex-direction: column; font-weight: 700; font-size: var(--text-xs); }
+.np-attach-b small { font-weight: 400; color: var(--muted); font-size: var(--text-2xs); }
+.np-attach-b:active { transform: scale(.985); }
+@media (hover: hover) and (pointer: fine) {
+  .np-attach-b:hover { border-style: solid; border-color: var(--text); box-shadow: var(--shadow-sm); }
+}
+.np-body .thumbs { padding: 0; }
+
+.np-photo { margin: 8px var(--space-4) 4px; }
+.np-photo-img { position: relative; overflow: hidden; height: 260px; border-radius: 20px; background: #000; box-shadow: var(--shadow-sm); }
+.np-photo-acts { display: flex; gap: 8px; margin-top: 8px; }
+.np-photo-acts .b { flex: 1; }
+
+@media (max-width: 360px) { .np-attach-g { grid-template-columns: 1fr; } }

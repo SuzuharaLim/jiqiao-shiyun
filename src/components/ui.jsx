@@ -436,6 +436,26 @@ export function PhotoImg({ src, alt = '', style }) {
   )
 }
 
+// 貼文封面：有照片顯示照片，沒有照片（文章型貼文）顯示**標題＋內文摘要**。
+// ⚠️ 原本沒照片時一律畫一個「圖片」線條圖示——對文章型貼文來說，那看起來就是
+//    「圖片載入失敗」。2026-10-04 貼文開放純文字之後，這種卡片會越來越多。
+// ⚠️ 只用在**貼文**的卡片。市集作品（works）一定是照片，維持原本的佔位圖示。
+// 必須放在已經 `position:relative; overflow:hidden` 的封面容器裡（.ph／.gimg／.img 都是）。
+export function PostCover({ image, alt = '', title = '', caption = '' }) {
+  if (image) return <PhotoImg src={image} alt={alt} />
+  const body = stripEmoji(String(caption || '')).replace(/#[^\s#]+/g, '').replace(/\s+/g, ' ').trim()
+  // 標題通常就是內文第一行（發文頁沒填標題時的推導規則），摘要要跳過重複的那段
+  const t = stripEmoji(String(title || '')).trim()
+  const excerpt = body.startsWith(t) ? body.slice(t.length).trim() : body
+  return (
+    <span className="txtcover">
+      <Icon name="pen" className="txtcover-ic" />
+      <b>{t || '文章'}</b>
+      {excerpt && <span>{excerpt.slice(0, 90)}</span>}
+    </span>
+  )
+}
+
 // 浮動提示（Toast）
 // ⚠️ 「有進場沒離場」是最常見的半套動畫：使用者的大腦記住了它是滑上來的，
 // 於是預期它滑下去；1.8 秒後「啪」地消失會產生一種說不上來的粗糙感。

@@ -903,6 +903,11 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **種子作者是 `is_seed=1` 的 user**（`seed-<handle>`，無法登入）；貼文/作品 FK 到這些 user。前端顯示 `user`＝該作者 `handle`。
 - **`getUserMedia` 必須明確要求解析度**：只給 `facingMode` 的話，行動瀏覽器預設回 **640×480**——手機原生相機是 1200 萬畫素起跳，這就是「網頁拍的比 App 爛很多」的根因（畫質鏈的其他環節：拍照 canvas 取 videoWidth、`bakeImage` 上限 1600px/0.85，都只能保留源頭給的像素，救不回來）。要用 `ideal` 不可用 `exact`——`exact` 在裝置不支援時直接丟 OverconstrainedError（黑畫面）；`ideal` 由瀏覽器夾到該裝置最大值。另註：原生 App 還有多幀合成/HDR 這類計算攝影，Web 拿不到，所以拉滿解析度後仍會有些微差距，屬平台限制。
 - **相機生命週期只能由單一 effect 管理**（`Camera.jsx`，deps `facing/mode/shot/videoUrl/camKey`）：**串流必須放 state 不能放 ref**（ref 變動不觸發重繪 → 掛載 effect 不重跑 → video 仍連著已停止的舊串流＝切鏡頭失效／放棄編輯後黑畫面）；**不要在 onClick 另外呼叫開相機**（會與 effect 互搶產生競態），放棄編輯只需 `setShot(null)`。快速連按切鏡頭靠 effect 內 `cancelled` 旗標丟棄過期的 getUserMedia 結果。無實體鏡頭時可覆寫 `getUserMedia` 回傳 `canvas.captureStream()` 假串流做自動化測試。
+- **★★★ 貼文不再限定照片，也可以是純文字文章（2026-10-04 使用者指定）**：「建立」的入口改為「發布貼文」→ 撰寫頁（`/app/new`），照片改成「附加」（拍照進相機工作室，或從相簿選）。
+  - 內文上限 400 → **3000**，前後端共用 `src/data/postRules.js` 的 `CAPTION_MAX`（兩邊各寫一個數字遲早變成「前端讓你打 3000、後端默默切到 400」）。
+  - **「上架市集」只在附了照片時出現**：市集賣攝影授權，文字沒東西可授權。改版前沒照片也預設勾選，會建出沒有圖的市集作品。「加入月曆」同理只對有照片的貼文顯示。
+  - **沒照片的貼文卡片一律用 `PostCover`**（ui.jsx）：顯示標題＋摘要，不可再畫「圖片」佔位圖示——那對文章型貼文看起來就是載入失敗。詳情頁改排成文章（`.post-article`），不畫空的封面色塊。⚠️ 市集作品（works）仍一定是照片，維持原佔位。
+  - **草稿存 sessionStorage（`jq-post-draft`）**：寫到一半點「拍照」→ 相機的「下一步」會 push 一個**新的**發文頁，沒有草稿的話剛寫的字就在那一跳消失。照片不存（dataURL 會撐爆 sessionStorage）。
 - **相機採 IG 式兩段流程（2026-07）**：檢視畫面的「下一步 →」**不發佈**，只 `push('newPost', { photo })` 把照片交給發文頁；使用者在發文頁寫說明/標節氣地點/決定是否上架後按「發佈」才真的送出（拍完不會立刻公開）。`NewPost` 收到 `photo` prop 會隱藏選圖選項並顯示「返回重拍」。**發佈必須真的上傳圖片**：`publish()` 先 `api.uploadImage()` 拿 imageId 再 `createPost`，否則貼文只顯示 📷 emoji 佔位圖；且**畫面濾鏡只是 CSS 預覽**，需經 `bakeImage()` 把濾鏡/強度/疊加特效/文字畫進 canvas（`ctx.filter` 語法同 CSS filter）才會存進圖檔。發佈時自動標記當前節氣。
 - **限動貼紙（票選/問答/倒數）內容可由使用者自訂**（`CreateStory` 的 `poll`/`qa`/`cd` state），倒數每秒更新且僅在選中時啟動計時器。
 - **相機需 CSP `img-src`/`media-src` 含 `blob:`**（拍照/錄影預覽）；`camera` 在 `App.jsx` fullScreens（隱藏 tabbar）。臉部貼合是 **CSS 疊加/濾鏡近似**（無第三方 face-tracking）；搖晃顯影用 DeviceMotion（iOS 需 `requestPermission`，桌機給「點我模擬」fallback）。濾鏡/特效/漸層/字體＝DB `ref_items`（feedFilters/storyFilters/effects/gradients/textFx），改資料走 CMS 不動碼。
