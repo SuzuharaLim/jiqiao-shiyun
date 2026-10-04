@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildPages, dayInfo } from '../src/data/calendarLayout.js'
-import { normalizeDesign, defaultDesign, CADENCES, CAL_LIMITS, designFlags } from '../src/data/calendarRules.js'
+import { normalizeDesign, defaultDesign, CADENCES, CAL_LIMITS, designFlags, designSurfaces, designImageIds, isSlot, slotLabel, SLOT } from '../src/data/calendarRules.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
@@ -160,6 +160,24 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
     ok(!bigBody({ method: 'POST', path: '/api/login' }) && !bigBody({ method: 'POST', path: '/api/caldesigns/abc/inquiry' }), 'D 其他路由不可被放寬')
   }
   ok(/jsonPrint = express\.json\(\{ limit: '9mb' \}\)/.test(SERVER), 'D 原圖路由自己要有較大的 parser')
+}
+
+// ── E. 封面與雙面（2026-10-04）──
+{
+  const id = 'abcdef1234'
+  const d = normalizeDesign({ cover: { title: '家', img: { id, w: 4000, h: 3000 }, back: { img: { id: 'abcdef5678', w: 900, h: 900 } } },
+    pages: { 2: { back: { img: { id: 'abcdef9999', w: 4000, h: 3000 } } } } })
+  ok(d.cover?.title === '家' && d.cover?.back?.img, 'E 封面與封面背面要保留')
+  ok(d.pages[2]?.back?.img?.id === 'abcdef9999', 'E 日曆頁背面要保留')
+  ok(designSurfaces(d).map(x => x.slot).join() === '200,201,102', 'E 每一面的編號：封面 200、封面背面 201、第 3 頁背面 102')
+  ok(designImageIds(d).length === 3, 'E 封面與背面的照片也要算進「這份設計用到的圖」（否則清理時會被當成孤兒刪掉）')
+  ok(designFlags(d).lowres.join() === '201', 'E 低解析標記要涵蓋背面')
+  // ⚠️ 正面沿用 0–51：舊洽詢的 print_json／flags 都是這個編號
+  ok(isSlot(0) && isSlot(51) && isSlot(100) && isSlot(151) && isSlot(200) && isSlot(201), 'E 合法編號')
+  ok(!isSlot(52) && !isSlot(99) && !isSlot(152) && !isSlot(202) && !isSlot(-1) && !isSlot(1.5), 'E 不合法編號要擋')
+  ok(slotLabel(3) === '第 4 頁' && slotLabel(SLOT.COVER) === '封面' && slotLabel(SLOT.BACK + 3) === '第 4 頁背面', 'E 編號的中文名稱')
+  const old = normalizeDesign({ pages: { 0: { title: 'a' } } })
+  ok(!('cover' in old) && !old.pages[0].back, 'E 舊設計沒有封面／背面時不可憑空長出來（否則後台會顯示一堆空白面）')
 }
 
 if (fail) {

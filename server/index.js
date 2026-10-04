@@ -19,7 +19,7 @@ import { corporateHtml } from './corporate.js'
 import { toLogical } from '../src/data/appBase.js'
 // 貼文內文上限：前後端同一個常數（2026-10-04 開放文章型貼文，400 → 3000）
 import { CAPTION_MAX } from '../src/data/postRules.js'
-import { CAL_LIMITS, normalizeDesign, designImageIds, designFlags } from '../src/data/calendarRules.js'
+import { CAL_LIMITS, normalizeDesign, designImageIds, designFlags, isSlot } from '../src/data/calendarRules.js'
 import { putPrint, getPrint, deletePrefix, printUsage, printStoreKind, printStoreReady } from './printStore.js'
 import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
@@ -2504,7 +2504,7 @@ async function myInquiry(req, res, status = 'uploading') {
 app.post('/api/calinquiries/:id/print/:page', jsonPrint, requireAuth, requireCsrf, ah(async (req, res) => {
   const q = await myInquiry(req, res); if (!q) return
   const page = Number(req.params.page)
-  if (!Number.isInteger(page) || page < 0 || page >= 52) return res.status(400).json({ error: '頁碼不正確' })
+  if (!isSlot(page)) return res.status(400).json({ error: "頁碼不正確" })
   const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.data || ''))
   if (!m) return res.status(400).json({ error: '只接受 JPEG 圖檔' })
   const buf = Buffer.from(m[1], 'base64')
@@ -2526,7 +2526,7 @@ app.post('/api/calinquiries/:id/finalize', jsonSmall, requireAuth, requireCsrf, 
   const q = await myInquiry(req, res); if (!q) return
   const flags = JSON.parse(q.flags_json || '{}')
   // 客人那台裝置上找不到原圖的頁（換了裝置、清了瀏覽器）：後台只有預覽可用，要標出來
-  flags.missing = (Array.isArray(req.body?.missing) ? req.body.missing : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < 52)
+  flags.missing = (Array.isArray(req.body?.missing) ? req.body.missing : []).map(Number).filter(isSlot)
   await db.run("UPDATE cal_inquiries SET status='new', flags_json=?, updated_at=? WHERE id=?", [JSON.stringify(flags), now(), q.id])
   if (q.design_id) await db.run("UPDATE cal_designs SET status='submitted', updated_at=? WHERE id=?", [now(), q.design_id])
   await audit('cal_inquiry', req, req.user.id, q.id)

@@ -3,7 +3,7 @@ import Icon from './Icon.jsx'
 import { SectionHead } from './ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
-import { CADENCES, CAL_LIMITS } from '../data/calendarRules.js'
+import { CADENCES, CAL_LIMITS, designSurfaces, slotLabel } from '../data/calendarRules.js'
 import { buildPages } from '../data/calendarLayout.js'
 
 const CalView = lazy(() => import('../screens/CalView.jsx'))
@@ -82,7 +82,10 @@ export default function AdminCalInquiries({ isAdmin }) {
         const waited = workdaysSince(q.createdAt)
         const late = q.status === 'new' && waited > CAL_LIMITS.REPLY_WORKDAYS
         const printed = Object.keys(q.print || {}).map(Number).sort((a, b) => a - b)
-        const imgPages = Object.entries(q.design.pages || {}).filter(([i, p]) => p.img && Number(i) < n).map(([i]) => Number(i))
+        // 每一「面」（封面、各頁正背面）——編號見 calendarRules.js 的 SLOT
+        const surfaces = designSurfaces(q.design, n)
+        const imgPages = surfaces.filter(x => x.side.img)
+        const backs = surfaces.filter(x => x.slot >= 100 && x.slot < 152).length
         return (
           <div key={q.id} className={`card inq-card${late ? ' late' : ''}`}>
             <div className="inq-hd">
@@ -93,20 +96,19 @@ export default function AdminCalInquiries({ isAdmin }) {
             </div>
             <div className="kv"><span>聯絡</span><span><a className="acc" href={`mailto:${q.email}?subject=${encodeURIComponent('機巧時運｜你的桌曆客製洽詢')}`}>{q.email}</a>{q.phone && <> · <a className="acc" href={`tel:${q.phone}`}>{q.phone}</a></>}</span></div>
             <div className="kv"><span>數量</span><b>{q.qty} 本</b></div>
-            <div className="kv"><span>設計</span><span>{CADENCES[q.design.cadence]?.label} · {pages[0]?.label}（{pages[0]?.sub}）起 · {n} 頁 · 照片 {imgPages.length} 頁</span></div>
+            <div className="kv"><span>設計</span><span>{CADENCES[q.design.cadence]?.label} · {pages[0]?.label}（{pages[0]?.sub}）起 · {n} 頁{q.design.cover ? '＋封面' : ''}{backs ? `（${backs} 頁有背面）` : ''} · 照片 {imgPages.length} 張</span></div>
             {q.note && <div className="ad-note" style={{ whiteSpace: 'pre-wrap' }}>{q.note}</div>}
             <div className="inq-flags">
-              {q.flags?.lowres?.length > 0 && <span className="inq-flag warn">低解析：第 {q.flags.lowres.map(i => i + 1).join('、')} 頁</span>}
-              {q.flags?.missing?.length > 0 && <span className="inq-flag warn">缺原圖（只有預覽）：第 {q.flags.missing.map(i => i + 1).join('、')} 頁</span>}
+              {q.flags?.lowres?.length > 0 && <span className="inq-flag warn">低解析：{q.flags.lowres.map(slotLabel).join('、')}</span>}
+              {q.flags?.missing?.length > 0 && <span className="inq-flag warn">缺原圖（只有預覽）：{q.flags.missing.map(slotLabel).join('、')}</span>}
               {(() => {
                 // 客人調過照片的縮放／位置：印刷時要照 3D 預覽的取景，不是預設置中
-                const adj = Object.entries(q.design.pages || {}).filter(([i, p]) => p.img?.crop && Number(i) < n).map(([i]) => Number(i) + 1)
-                return adj.length > 0 && <span className="inq-flag">照片已調整位置／縮放：第 {adj.join('、')} 頁（以預覽取景為準）</span>
+                const adj = surfaces.filter(x => x.side.img?.crop).map(x => slotLabel(x.slot))
+                return adj.length > 0 && <span className="inq-flag">照片已調整位置／縮放：{adj.join('、')}（以預覽取景為準）</span>
               })()}
               {(() => {
                 // 自由文字用的是客人裝置上的系統字，我們這邊打開可能略有不同（尤其楷體）
-                const n2 = (q.design.texts || []).length + Object.entries(q.design.pages || {}).filter(([i]) => Number(i) < n)
-                  .reduce((a, [, p]) => a + (p.texts?.length || 0), 0)
+                const n2 = (q.design.texts || []).length + surfaces.reduce((a, x) => a + (x.side.texts?.length || 0), 0)
                 return n2 > 0 && <span className="inq-flag">含 {n2} 個自由文字框（系統字，打樣前請核對字形）</span>
               })()}
               {q.flags?.folk && <span className="inq-flag">含每日宜（民俗內容）</span>}
@@ -120,7 +122,7 @@ export default function AdminCalInquiries({ isAdmin }) {
                 ? <span className="cal-note">原圖已依保留期限清除</span>
                 : printed.map(i => (
                   <a key={i} className="b tap" href={`/api/admin/calinquiries/${q.id}/print/${i}`} target="_blank" rel="noopener">
-                    第 {i + 1} 頁原圖
+                    {slotLabel(i)}原圖
                   </a>
                 ))}
             </div>

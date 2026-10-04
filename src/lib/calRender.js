@@ -62,6 +62,12 @@ function drawCover(ctx, img, x, y, w, h, crop) {
  */
 export function pageRegions(kind) {
   const H = 100 * PAGE_RATIO                          // 以 u（頁寬 1%）為單位的頁高
+  // 封面：大照片＋下方書名；背面：整面照片（留 4u 白邊，跟正面的邊距一致）
+  if (kind === 'cover') return {
+    photo: { x: 0.04, y: 4 / H, w: 0.92, h: 52 / H },
+    header: { x: 0.04, y: 58 / H, w: 0.92, h: 13 / H },
+  }
+  if (kind === 'back') return { photo: { x: 0.04, y: 4 / H, w: 0.92, h: (H - 8) / H } }
   const bandH = (kind === 'week' ? 0.34 : 0.36) * H
   return {
     photo: { x: 0.04, y: 4 / H, w: 0.92, h: bandH / H },
@@ -159,6 +165,57 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   // ── 自由文字框：「每一頁都放」的先畫，這一頁自己的疊在上面 ──
   for (const t of [...(design.texts || []), ...(over.texts || [])]) drawTextLayer(ctx, t, W, H, u, C)
 
+  if (opts.watermark !== false) watermark(ctx, W, H, u)
+  return canvas
+}
+
+/**
+ * 畫封面或背面（2026-10-04）。版面由 pageRegions(kind) 決定——設計器的點擊熱區用同一份。
+ * @param kind   'cover' | 'back'
+ * @param title  封面書名（沒填就用桌曆名稱）
+ * @param sub    封面副標（年份與頁數範圍）
+ * @param glyph  封面沒照片時的主視覺大字（年份）
+ */
+export function drawSide(canvas, { kind, over = {}, design, image = null, title = '', sub = '', glyph = '', opts = {} }) {
+  const W = canvas.width
+  const H = Math.round(W * PAGE_RATIO)
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  const u = W / 100
+  const font = FONT[design.style.font] || FONT.serif
+  const C = resolveColors(design)
+  ctx.fillStyle = C.paper
+  ctx.fillRect(0, 0, W, H)
+  const R = pageRegions(kind)
+  const px = R.photo.x * W, py = R.photo.y * H, pw = R.photo.w * W, ph = R.photo.h * H
+  if (image || kind === 'cover') {
+    ctx.save()
+    roundRect(ctx, px, py, pw, ph, 1.4 * u)
+    ctx.clip()
+    if (image) drawCover(ctx, image, px, py, pw, ph, over.img?.crop)
+    else {
+      ctx.fillStyle = tint(C.base, 0.16)
+      ctx.fillRect(px, py, pw, ph)
+      ctx.fillStyle = tint(C.base, 0.85)
+      ctx.globalAlpha = 0.22
+      ctx.font = `800 ${ph * 0.5}px ${FONT.serif}`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(glyph, px + pw / 2, py + ph * 0.54)
+      ctx.globalAlpha = 1
+    }
+    ctx.restore()
+  }
+  if (kind === 'cover') {
+    const hy = R.header.y * H
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = C.accent
+    ctx.font = `800 ${6.4 * u}px ${font}`
+    ctx.fillText(fit(ctx, title, W - 8 * u), 4 * u, hy + 7 * u)
+    ctx.fillStyle = tint(C.ink, 0.55)
+    ctx.font = `600 ${2 * u}px ${FONT.sans}`
+    ctx.fillText(fit(ctx, sub, W - 8 * u), 4 * u, hy + 11.2 * u)
+  }
+  for (const t of over.texts || []) drawTextLayer(ctx, t, W, H, u, C)
   if (opts.watermark !== false) watermark(ctx, W, H, u)
   return canvas
 }

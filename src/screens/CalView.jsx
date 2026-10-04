@@ -5,7 +5,7 @@ import { api } from '../api.js'
 import { buildPages } from '../data/calendarLayout.js'
 import { normalizeDesign } from '../data/calendarRules.js'
 import { baseHex, paperHex } from '../lib/calRender.js'
-import { renderPageCanvas } from '../lib/calPages.js'
+import { renderSurfaceCanvas } from '../lib/calPages.js'
 import { stripEmoji } from '../lib/text.js'
 
 const CalModel3D = lazy(() => import('../components/CalModel3D.jsx'))
@@ -29,7 +29,9 @@ export default function CalView({ token, design: given = null, title: givenTitle
   }, [token, given])
 
   const pages = useMemo(() => (data ? buildPages(data.design) : []), [data])
-  const getCanvas = useCallback((i) => renderPageCanvas(data.design, pages, i, 1024), [data, pages])
+  // 第 0 張是封面、之後第 i 張＝第 i-1 頁；每張紙的背面另外給
+  const getCanvas = useCallback((i) => renderSurfaceCanvas(data.design, pages, i - 1, 'front', 1024), [data, pages])
+  const getBack = useCallback((i) => renderSurfaceCanvas(data.design, pages, i - 1, 'back', 1024, { blankNull: true }), [data, pages])
 
   if (err) {
     return (<><TopBar title="桌曆" onBack /><div className="body"><div className="empty">
@@ -39,7 +41,9 @@ export default function CalView({ token, design: given = null, title: givenTitle
   }
   if (!data) return (<><TopBar title="桌曆" onBack /><div className="body"><div className="cal-skel ui-skeleton" aria-busy="true" /></div></>)
 
-  const page = pages[cur]
+  const page = pages[cur - 1]
+  const name = cur === 0 ? '封面' : page?.label || ''
+  const total = pages.length + 1
   // 後台用（直接給 design）時是疊在管理後台上的浮層：不可有「返回」——
   // 那顆會 pop 掉整個管理後台，而使用者只是想關掉預覽。
   return (
@@ -48,17 +52,17 @@ export default function CalView({ token, design: given = null, title: givenTitle
       <div className="body cal-viewbody">
         <div className="cal-stage">
           <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-            <CalModel3D count={pages.length} current={cur} getCanvas={getCanvas} version={token || 'given'}
+            <CalModel3D count={total} current={cur} getCanvas={getCanvas} getBack={getBack} version={token || 'given'}
               baseColor={baseHex(data.design)} paperColor={paperHex(data.design)}
-              label={`${data.title}，第 ${cur + 1} 頁 ${page?.label || ''}`}
-              onFlip={(d) => setCur(c => Math.min(pages.length - 1, Math.max(0, c + d)))} />
+              label={`${data.title}，${name}`}
+              onFlip={(d) => setCur(c => Math.min(total - 1, Math.max(0, c + d)))} />
           </Suspense>
           <div className="cal-nav">
             <button className="cal-navb tap" onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0} aria-label="上一頁">‹</button>
-            <span className="cal-navl" aria-live="polite"><b>{page?.label}</b><small>第 {cur + 1} / {pages.length} 頁</small></span>
-            <button className="cal-navb tap" onClick={() => setCur(c => Math.min(pages.length - 1, c + 1))} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
+            <span className="cal-navl" aria-live="polite"><b>{name}</b><small>{cur === 0 ? '封面' : `第 ${cur} / ${pages.length} 頁`}</small></span>
+            <button className="cal-navb tap" onClick={() => setCur(c => Math.min(total - 1, c + 1))} disabled={cur >= total - 1} aria-label="下一頁">›</button>
           </div>
-          <p className="cal-hint">拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻</p>
+          <p className="cal-hint">拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻・轉到後面看得到每一頁的背面</p>
         </div>
         {data.author && (
           <div className="cal-callout">

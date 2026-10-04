@@ -152,6 +152,35 @@ export function defaultDesign(now = new Date()) {
 }
 
 /** 把任意輸入整理成合法的設計。未知欄位一律丟掉。 */
+// 照片欄位（任何一面共用）
+function normImg(img) {
+  if (!img || typeof img !== 'object' || !/^[a-f0-9-]{8,60}$/i.test(String(img.id || ''))) return null
+  const out = {
+    id: String(img.id),
+    w: clampInt(img.w, 0, 20000, 0), h: clampInt(img.h, 0, 20000, 0),
+    src: img.src === 'site' ? 'site' : 'upload',     // site＝從自己的作品選（只有站上的壓縮版）
+  }
+  // 使用者調整過的縮放與位置（見 calRender.js 的 cropRect）。沒調過就不存，維持置中填滿。
+  const c = img.crop
+  if (c && typeof c === 'object') {
+    const z = Math.min(4, Math.max(1, Number(c.z) || 1))
+    const cx = Math.min(1, Math.max(-1, Number(c.x) || 0))
+    const cy = Math.min(1, Math.max(-1, Number(c.y) || 0))
+    if (z !== 1 || cx !== 0 || cy !== 0) out.crop = { z: +z.toFixed(3), x: +cx.toFixed(3), y: +cy.toFixed(3) }
+  }
+  return out
+}
+// 封面與背面（2026-10-04 使用者指定：要有封面、每一頁都可以雙面、背面放圖）。
+// 結構跟日曆頁一樣是 { title?, img?, texts? }；封面另外可以有自己的背面。沒內容就是 null（＝空白紙）。
+function normSide(p, withTitle) {
+  if (!p || typeof p !== 'object') return null
+  const out = {}
+  if (withTitle) { const t = str(p.title, 30); if (t) out.title = t }
+  const im = normImg(p.img); if (im) out.img = im
+  const texts = normTexts(p.texts, TEXT_LIMITS.PER_PAGE); if (texts.length) out.texts = texts
+  return Object.keys(out).length ? out : null
+}
+
 export function normalizeDesign(raw) {
   const d = defaultDesign()
   const r = raw && typeof raw === 'object' ? raw : {}
@@ -178,22 +207,8 @@ export function normalizeDesign(raw) {
       if (t) texts.push(t)
     }
     if (texts.length) out.texts = texts
-    const img = p.img
-    if (img && typeof img === 'object' && /^[a-f0-9-]{8,60}$/i.test(String(img.id || ''))) {
-      out.img = {
-        id: String(img.id),
-        w: clampInt(img.w, 0, 20000, 0), h: clampInt(img.h, 0, 20000, 0),
-        src: img.src === 'site' ? 'site' : 'upload',     // site＝從自己的作品選（只有站上的壓縮版）
-      }
-      // 使用者調整過的縮放與位置（見 calRender.js 的 cropRect）。沒調過就不存，維持置中填滿。
-      const c = img.crop
-      if (c && typeof c === 'object') {
-        const z = Math.min(4, Math.max(1, Number(c.z) || 1))
-        const cx = Math.min(1, Math.max(-1, Number(c.x) || 0))
-        const cy = Math.min(1, Math.max(-1, Number(c.y) || 0))
-        if (z !== 1 || cx !== 0 || cy !== 0) out.img.crop = { z: +z.toFixed(3), x: +cx.toFixed(3), y: +cy.toFixed(3) }
-      }
-    }
+    const im = normImg(p.img); if (im) out.img = im
+    const back = normSide(p.back, false); if (back) out.back = back
     if (Object.keys(out).length) pages[i] = out
   }
   return {
@@ -220,20 +235,46 @@ export function normalizeDesign(raw) {
     },
     pages,
     texts: normTexts(r.texts, TEXT_LIMITS.GLOBAL),
+    ...(() => {
+      const c = normSide(r.cover, true)
+      const cb = normSide(r.cover?.back, false)
+      return c || cb ? { cover: { ...(c || {}), ...(cb ? { back: cb } : {}) } } : {}
+    })(),
   }
 }
 
 /** 這份設計用到的預覽圖 id（清理孤兒圖、後台列出原圖時用）。 */
-export const designImageIds = (d) =>
-  Object.values(d?.pages || {}).map(p => p?.img?.id).filter(Boolean)
+export const designImageIds = (d) => designSurfaces(d, 52).map(x => x.side.img?.id).filter(Boolean)
+
+// ── 每一「面」的編號（原圖上傳、後台、缺圖標記共用）──
+// 日曆頁正面 0–51、背面 100–151、封面 200、封面背面 201。
+// ⚠️ 正面沿用原本的 0–51：舊洽詢的 print_json／flags 都是這個編號，不可改。
+export const SLOT = { BACK: 100, COVER: 200, COVER_BACK: 201 }
+export const isSlot = (n) => Number.isInteger(n) && ((n >= 0 && n < 52) || (n >= 100 && n < 152) || n === 200 || n === 201)
+export function slotLabel(n) {
+  if (n === SLOT.COVER) return '封面'
+  if (n === SLOT.COVER_BACK) return '封面背面'
+  if (n >= SLOT.BACK && n < SLOT.BACK + 52) return `第 ${n - SLOT.BACK + 1} 頁背面`
+  return `第 ${n + 1} 頁`
+}
+/** 列出所有有內容的面：[{ slot, side }]。n＝目前週期的頁數（超出的頁不算）。 */
+export function designSurfaces(d, n = CADENCES[d?.cadence]?.pages || 12) {
+  const out = []
+  if (d?.cover) {
+    if (d.cover.img || d.cover.texts || d.cover.title) out.push({ slot: SLOT.COVER, side: d.cover })
+    if (d.cover.back) out.push({ slot: SLOT.COVER_BACK, side: d.cover.back })
+  }
+  for (let i = 0; i < n; i++) {
+    const p = d?.pages?.[i]
+    if (!p) continue
+    if (p.img || p.texts || p.title) out.push({ slot: i, side: p })
+    if (p.back) out.push({ slot: SLOT.BACK + i, side: p.back })
+  }
+  return out
+}
 
 /** 送出前的檢查：低解析頁、是否含民俗內容。 */
 export function designFlags(d) {
-  const n = CADENCES[d.cadence]?.pages || 12
-  const lowres = []
-  for (let i = 0; i < n; i++) {
-    const img = d.pages?.[i]?.img
-    if (img && Math.max(img.w || 0, img.h || 0) < CAL_LIMITS.LOWRES_LONG_EDGE) lowres.push(i)
-  }
+  const lowres = designSurfaces(d).filter(({ side }) => side.img && Math.max(side.img.w || 0, side.img.h || 0) < CAL_LIMITS.LOWRES_LONG_EDGE).map(x => x.slot)
   return { lowres, folk: !!d.style?.marks?.yiji }
 }

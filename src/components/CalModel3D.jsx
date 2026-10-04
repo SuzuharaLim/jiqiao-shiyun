@@ -23,11 +23,14 @@ const TILT = THREE.MathUtils.degToRad(15)     // 正面往後傾的角度
 const FRONT = -TILT, BACK = -(Math.PI * 2 - TILT)
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export default function CalModel3D({ count, current, onFlip, getCanvas, baseColor, paperColor, version, label }) {
+// ★ 第 0 張是封面（2026-10-04）。每一張紙都有背面：getBack(i) 回傳 canvas 或 null（空白紙）。
+//   翻過去的紙掛在底座後面，背面朝外——轉到後面看，就是那一頁的背面（真的桌曆也是這樣）。
+// face='back'：使用者正在編輯背面 ⇒ 相機轉到後面，讓他直接看到自己在改的那一面。
+export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', baseColor, paperColor, version, label }) {
   const hostRef = useRef(null)
   const api = useRef(null)
-  const cb = useRef({ onFlip, getCanvas })
-  cb.current = { onFlip, getCanvas }
+  const cb = useRef({ onFlip, getCanvas, getBack })
+  cb.current = { onFlip, getCanvas, getBack }
 
   // ── 建場景（只在頁數改變時重建）──
   useEffect(() => {
@@ -124,7 +127,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       back.rotation.y = Math.PI
       pivot.add(front, back)
       root.add(pivot)
-      pages.push({ pivot, front, back, angle: FRONT, tex: null })
+      pages.push({ pivot, front, back, angle: FRONT, tex: null, btex: null, plainBack: back.material, texBack: null })
     }
 
     let cur = 0
@@ -215,6 +218,32 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
         }
         p.front.material.needsUpdate = true
       },
+      // 背面：有內容時換成不受光的材質（理由同正面：顏色要跟 2D 預覽一致），沒內容退回紙色
+      setBack(i, canvas) {
+        const p = pages[i]; if (!p) return
+        if (p.btex) { p.btex.dispose(); p.btex = null }
+        if (canvas) {
+          const t = new THREE.CanvasTexture(canvas)
+          t.colorSpace = THREE.SRGBColorSpace
+          t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy())
+          p.btex = t
+          if (!p.texBack) p.texBack = track(new THREE.MeshBasicMaterial({ color: 0xffffff }))
+          p.texBack.map = t
+          p.texBack.needsUpdate = true
+          p.back.material = p.texBack
+        } else {
+          p.back.material = p.plainBack
+        }
+      },
+      viewFrom(side) {
+        // 只把相機搬到前方或後方，保留使用者目前的距離與高度
+        const off = camera.position.clone().sub(controls.target)
+        const wantBack = side === 'back'
+        if ((off.z < 0) === wantBack) return
+        off.z = -off.z; off.x = -off.x
+        camera.position.copy(controls.target).add(off)
+      },
+      loadedBack: new Set(),
       setColors(base, paper) {
         standMat.color.set(base)
         pages.forEach(p => { p.back.material.color.set(paper); if (!p.tex) p.front.material.color.set(paper) })
@@ -232,7 +261,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       cvs.removeEventListener('keydown', onKey)
       cvs.removeEventListener('contextmenu', noMenu)
       controls.dispose()
-      pages.forEach(p => p.tex?.dispose())
+      pages.forEach(p => { p.tex?.dispose(); p.btex?.dispose() })
       disposables.forEach(d => d.dispose?.())
       renderer.dispose()
       renderer.forceContextLoss()
@@ -263,8 +292,23 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
         api.current.loaded.add(i)
       }
     })()
+    // 背面：看得到的是「剛翻過去的那一張」（current − 1），前後各多載一張
+    const wantB = new Set([current - 2, current - 1, current].filter(i => i >= 0 && i < count))
+    for (const i of [...a.loadedBack]) if (!wantB.has(i)) { a.setBack(i, null); a.loadedBack.delete(i) }
+    ;(async () => {
+      if (!cb.current.getBack) return
+      for (const i of [current - 1, current - 2, current]) {
+        if (!wantB.has(i)) continue
+        const c = await cb.current.getBack(i)
+        if (!alive || !api.current) return
+        api.current.setBack(i, c)
+        api.current.loadedBack.add(i)
+      }
+    })()
     return () => { alive = false }
   }, [current, version, count])
+
+  useEffect(() => { api.current?.viewFrom(face) }, [face, count])
 
   // 畫面上的前後翻頁鈕：觸控時「點左半邊往前翻」不容易被發現，箭頭是看得到的提示
   return (

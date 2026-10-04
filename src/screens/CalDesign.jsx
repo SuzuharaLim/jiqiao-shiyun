@@ -4,9 +4,9 @@ import { TopBar, SheetMask, Link, Disclaimer } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { buildPages, TERM_START_OPTIONS } from '../data/calendarLayout.js'
-import { CADENCES, FONTS, CAL_LIMITS, PALETTES, COLOR_SLOTS, TEXT_LIMITS, defaultDesign, normalizeDesign, designFlags, resolveColors, contrast } from '../data/calendarRules.js'
+import { CADENCES, FONTS, CAL_LIMITS, PALETTES, COLOR_SLOTS, TEXT_LIMITS, defaultDesign, normalizeDesign, designFlags, designSurfaces, slotLabel, resolveColors, contrast } from '../data/calendarRules.js'
 import { baseHex, paperHex, pageRegions, cropRect, measureTextLayer, PAGE_RATIO, FONT } from '../lib/calRender.js'
-import { renderPageCanvas } from '../lib/calPages.js'
+import { renderSurfaceCanvas } from '../lib/calPages.js'
 import { processPick, putPrintBlob, getPrintBlob, blobToDataURL } from '../lib/calImages.js'
 import { stripEmoji } from '../lib/text.js'
 
@@ -41,6 +41,15 @@ const sameColors = (a = {}, b = {}) => COLOR_SLOTS.every(({ key }) => String(a[k
 const SW = ['base', 'paper', 'accent', 'weekend']
 
 const TABS = [['page', '這一頁'], ['layout', '版型'], ['style', '樣式'], ['send', '分享・洽詢']]
+// ── 「面」：c＝-1 是封面、0 起是日曆頁；f＝'front'|'back' ──
+// 所有「這一頁」的編輯（照片、文字、標題）都經過這兩支，封面與背面才不必各寫一套。
+const sideOf = (d, c, f) => { const b = (c < 0 ? d.cover : d.pages?.[c]) || {}; return f === 'back' ? b.back || {} : b }
+function withSide(d, c, f, fn) {
+  const b = (c < 0 ? d.cover : d.pages?.[c]) || {}
+  const nb = f === 'back' ? { ...b, back: fn(b.back || {}) } : fn(b)
+  return c < 0 ? { ...d, cover: nb } : { ...d, pages: { ...d.pages, [c]: nb } }
+}
+
 const dist = (pts) => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1 }
 const thisYear = new Date().getFullYear()
 const YEARS = [thisYear, thisYear + 1, thisYear + 2]
@@ -57,7 +66,8 @@ export default function CalDesign({ id = 'local' }) {
   const [meta, setMeta] = useState(null)              // 伺服器上的 { status, shareToken }
   const [err, setErr] = useState(null)
   const [saveState, setSaveState] = useState('saved') // saved | dirty | saving | error
-  const [cur, setCur] = useState(0)
+  const [cur, setCur] = useState(0)                   // -1＝封面
+  const [face, setFace] = useState('front')           // 正面／背面
   // ★ 預設看 3D 實物、預設停在「這一頁」：使用者要的是「直接感受到這個畫面」，
   //   一進來先看到的應該是成品，而不是一張版型設定表（2026-10-04 使用者回饋「不直觀」）。
   const [tab, setTab] = useState('page')
@@ -175,17 +185,17 @@ export default function CalDesign({ id = 'local' }) {
   const prevSel = useRef(null)
   useEffect(() => {
     const p = prevSel.current
-    prevSel.current = sel ? { ...sel, page: cur } : null
+    prevSel.current = sel ? { ...sel, page: cur, face } : null
     if (!p || (sel && sel.id === p.id && sel.scope === p.scope)) return
     const d = designRef.current
     if (!d) return
-    const arr = p.scope === 'global' ? d.texts || [] : d.pages?.[p.page]?.texts || []
+    const arr = p.scope === 'global' ? d.texts || [] : sideOf(d, p.page, p.face).texts || []
     const t = arr.find(x => x.id === p.id)
     if (!t || String(t.text).trim()) return
     update(dd => (p.scope === 'global'
       ? { ...dd, texts: (dd.texts || []).filter(x => x.id !== p.id) }
-      : { ...dd, pages: { ...dd.pages, [p.page]: { ...(dd.pages[p.page] || {}), texts: (dd.pages[p.page]?.texts || []).filter(x => x.id !== p.id) } } }), 'drop-empty')
-  }, [sel, cur, update])
+      : withSide(dd, p.page, p.face, sd => ({ ...sd, texts: (sd.texts || []).filter(x => x.id !== p.id) }))), 'drop-empty')
+  }, [sel, cur, face, update])
   // 離開頁面前把還沒送出的改動送出去
   useEffect(() => () => { clearTimeout(saveTimer.current); flush() }, [flush])
 
@@ -196,9 +206,9 @@ export default function CalDesign({ id = 'local' }) {
   useEffect(() => { if (cur >= pages.length && pages.length) setCur(pages.length - 1) }, [pages.length, cur])
   // 換頁、切回 3D 時結束調整模式。⚠️ 不可寫成「view 一變就關」：「調整大小與位置」是
   //    先切到平面再打開調整模式，effect 在 render 之後才跑，會把剛打開的又關掉。
-  useEffect(() => { setAdjust(false) }, [cur])
+  useEffect(() => { setAdjust(false) }, [cur, face])
   useEffect(() => { if (view === '3d') setAdjust(false) }, [view])
-  useEffect(() => { setSel(s => (s?.scope === 'global' ? s : null)) }, [cur])
+  useEffect(() => { setSel(s => (s?.scope === 'global' && face === 'front' && cur >= 0 ? s : null)) }, [cur, face])
   useEffect(() => { if (adjust) setSel(null) }, [adjust])
 
   // 平面預覽的實際寬度：文字框覆蓋層要用它把「頁寬比例」換成螢幕像素
@@ -222,24 +232,26 @@ export default function CalDesign({ id = 'local' }) {
   }, [])
 
   // 內容版本：任何會改變畫面的東西都算進來（2D 重畫、3D 重新載貼圖）
-  const version = useMemo(() => JSON.stringify([design?.style, design?.pages, design?.cadence, design?.start]), [design])
+  const version = useMemo(() => JSON.stringify([design?.style, design?.pages, design?.cover, design?.title, design?.texts, design?.cadence, design?.start]), [design])
 
   // ── 2D 預覽 ──
   useEffect(() => {
-    if (!design || view !== '2d' || !pages[cur]) return
+    if (!design || view !== '2d' || !pages.length || (cur >= 0 && !pages[cur])) return
     let alive = true
-    renderPageCanvas(design, pages, cur, 900).then(c => {
+    renderSurfaceCanvas(design, pages, cur, face, 900).then(c => {
       if (!alive || !c || !previewRef.current) return
       c.className = 'cal-page-canvas'
       c.setAttribute('role', 'img')
-      c.setAttribute('aria-label', `${pages[cur].label}的版面預覽`)
+      c.setAttribute('aria-label', `${cur < 0 ? '封面' : pages[cur].label}${face === 'back' ? '背面' : ''}的版面預覽`)
       c.oncontextmenu = (e) => e.preventDefault()     // 不給「另存圖片」
       previewRef.current.replaceChildren(c)
     })
     return () => { alive = false }
-  }, [design, pages, cur, view, version])
+  }, [design, pages, cur, face, view, version])
 
-  const getCanvas = useCallback((i) => renderPageCanvas(design, pages, i, 1024), [design, pages])
+  // 3D 的第 i 張紙＝第 i-1 頁（第 0 張是封面）
+  const getCanvas = useCallback((i) => renderSurfaceCanvas(design, pages, i - 1, 'front', 1024), [design, pages])
+  const getBack = useCallback((i) => renderSurfaceCanvas(design, pages, i - 1, 'back', 1024, { blankNull: true }), [design, pages])
 
   if (err) {
     return (
@@ -259,11 +271,17 @@ export default function CalDesign({ id = 'local' }) {
   }
 
   const page = pages[cur]
-  const over = design.pages[cur] || {}
-  const setPage = (patch, key) => update(d => ({ ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), ...patch } } }), key)
+  const isCover = cur < 0, isBack = face === 'back'
+  const calFront = !isCover && !isBack                 // 只有日曆頁正面才有日期格、標題列、「每一頁都放」的文字
+  const over = sideOf(design, cur, face)
+  const setPage = (patch, key) => update(d => withSide(d, cur, face, sd => ({ ...sd, ...patch })), key)
   const flags = designFlags(design)
   const base = baseHex(design), paper = paperHex(design)
-  const regions = pageRegions(page?.kind)
+  const regions = pageRegions(isBack ? 'back' : isCover ? 'cover' : page?.kind)
+  const sideName = `${isCover ? '封面' : page?.label || ''}${isBack ? '・背面' : ''}`
+  const goTo = (c, f = 'front') => { setCur(Math.max(-1, Math.min(pages.length - 1, c))); setFace(f) }
+  // 3D：編輯背面時那張紙要翻過去（背面才朝外）
+  const sheet3d = cur + 1 + (isBack ? 1 : 0)
   const crop = over.img?.crop || { z: 1, x: 0, y: 0 }
   const setCrop = (c) => setPage({ img: { ...over.img, crop: { ...crop, ...c } } }, 'crop')
 
@@ -317,10 +335,11 @@ export default function CalDesign({ id = 'local' }) {
 
   // ── 自由文字框 ───────────────────────────────────────────────
   const colors = resolveColors(design)
-  const layersOf = (d, scope) => (scope === 'global' ? d.texts || [] : d.pages?.[cur]?.texts || [])
+  const layersOf = (d, scope) => (scope === 'global' ? d.texts || [] : sideOf(d, cur, face).texts || [])
   const setLayers = (scope, fn, key) => update(d => (scope === 'global'
     ? { ...d, texts: fn(d.texts || []) }
-    : { ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), texts: fn(d.pages[cur]?.texts || []) } } }), key)
+    : withSide(d, cur, face, sd => ({ ...sd, texts: fn(sd.texts || []) }))), key)
+  const shownLayers = [...(calFront ? (design.texts || []).map(t => ['global', t]) : []), ...(over.texts || []).map(t => ['page', t])]
   const selLayer = sel ? layersOf(design, sel.scope).find(t => t.id === sel.id) : null
   const patchLayer = (patch, key) => sel && setLayers(sel.scope, arr => arr.map(t => (t.id === sel.id ? { ...t, ...patch } : t)), key)
   const rid = () => Math.random().toString(36).slice(2, 10)
@@ -345,10 +364,8 @@ export default function CalDesign({ id = 'local' }) {
     if (to === 'global' && (design.texts || []).length >= TEXT_LIMITS.GLOBAL) { setToast(`「每一頁都放」最多 ${TEXT_LIMITS.GLOBAL} 個`); return }
     update(d => {
       const t = layersOf(d, sel.scope).find(x => x.id === sel.id)
-      const page = { ...(d.pages[cur] || {}) }
-      if (to === 'global') { page.texts = (page.texts || []).filter(x => x.id !== sel.id); return { ...d, texts: [...(d.texts || []), t], pages: { ...d.pages, [cur]: page } } }
-      page.texts = [...(page.texts || []), t]
-      return { ...d, texts: (d.texts || []).filter(x => x.id !== sel.id), pages: { ...d.pages, [cur]: page } }
+      if (to === 'global') return { ...withSide(d, cur, face, sd => ({ ...sd, texts: (sd.texts || []).filter(x => x.id !== sel.id) })), texts: [...(d.texts || []), t] }
+      return { ...withSide(d, cur, face, sd => ({ ...sd, texts: [...(sd.texts || []), t] })), texts: (d.texts || []).filter(x => x.id !== sel.id) }
     })
     setSel({ scope: to, id: sel.id })
   }
@@ -475,22 +492,21 @@ export default function CalDesign({ id = 'local' }) {
     if (!form.name.trim()) return setToast('請填寫聯絡人姓名')
     if (!form.rights) return setToast('請確認你擁有照片的使用權')
     await flush()
-    const n = CADENCES[design.cadence].pages
-    const withImg = []
-    for (let i = 0; i < n; i++) if (design.pages[i]?.img?.src === 'upload') withImg.push(i)
+    // 每一面（封面、各頁正背面）各自的原圖，編號見 calendarRules.js 的 SLOT
+    const withImg = designSurfaces(design).filter(x => x.side.img?.src === 'upload')
     try {
       setBusy('建立洽詢…')
       const { inquiryId } = await api.calInquire(id, { ...form, qty: Number(form.qty) || 1 })
       const missing = []
       for (let k = 0; k < withImg.length; k++) {
-        const i = withImg[k]
+        const { slot: i, side } = withImg[k]
         setBusy(`上傳印刷用原圖 ${k + 1} / ${withImg.length}…`)
-        const blob = await getPrintBlob(design.pages[i].img.id)
+        const blob = await getPrintBlob(side.img.id)
         if (!blob) { missing.push(i); continue }
         const data = await blobToDataURL(blob)
         // 網路抖一下就重試一次；兩次都失敗才算缺頁（後台會看到，用預覽圖接洽）
-        try { await api.calPrint(inquiryId, i, { data, w: design.pages[i].img.w, h: design.pages[i].img.h }) }
-        catch { try { await api.calPrint(inquiryId, i, { data, w: design.pages[i].img.w, h: design.pages[i].img.h }) } catch { missing.push(i) } }
+        try { await api.calPrint(inquiryId, i, { data, w: side.img.w, h: side.img.h }) }
+        catch { try { await api.calPrint(inquiryId, i, { data, w: side.img.w, h: side.img.h }) } catch { missing.push(i) } }
       }
       setBusy('完成送出…')
       const r = await api.calFinalize(inquiryId, missing)
@@ -541,11 +557,13 @@ export default function CalDesign({ id = 'local' }) {
                     aria-label={over.img ? '調整這張照片的大小與位置' : '在這一頁放照片'}>
                     <span className="cal-hit-tag">{over.img ? '點一下調整照片' : '＋ 點這裡放照片'}</span>
                   </button>
-                  <button type="button" className="cal-hit header tap" style={pct(regions.header)} onClick={tapHeader} aria-label="編輯這一頁的標題與文字">
-                    <span className="cal-hit-tag">{over.title ? '點一下改文字' : '＋ 點這裡寫標題'}</span>
-                  </button>
+                  {regions.header && (
+                    <button type="button" className="cal-hit header tap" style={pct(regions.header)} onClick={tapHeader} aria-label={isCover ? '編輯封面書名' : '編輯這一頁的標題與文字'}>
+                      <span className="cal-hit-tag">{isCover ? '點一下改書名' : over.title ? '點一下改文字' : '＋ 點這裡寫標題'}</span>
+                    </button>
+                  )}
                   {/* 自由文字框：疊在最上層，可以拖曳、拉右下角縮放 */}
-                  {[...(design.texts || []).map(t => ['global', t]), ...(over.texts || []).map(t => ['page', t])].map(([scope, t]) => {
+                  {shownLayers.map(([scope, t]) => {
                     const b = boxOf(t)
                     if (!b) return null
                     const on = sel?.id === t.id
@@ -571,9 +589,9 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           ) : (
             <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-              <CalModel3D count={pages.length} current={cur} getCanvas={getCanvas} version={version}
-                baseColor={base} paperColor={paper} label={`${design.title}，第 ${cur + 1} 頁 ${page?.label || ''}，拖曳可轉動，點左右兩側翻頁`}
-                onFlip={(d) => setCur(c => Math.min(pages.length - 1, Math.max(0, c + d)))} />
+              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} version={version}
+                baseColor={base} paperColor={paper} label={`${design.title}，${sideName}，拖曳可轉動，點左右兩側翻頁`}
+                onFlip={(d) => goTo(Math.min(pages.length, Math.max(0, sheet3d + d)) - 1)} />
             </Suspense>
           )}
           {selLayer && view === '2d' && !adjust && (
@@ -621,9 +639,11 @@ export default function CalDesign({ id = 'local' }) {
               </div>
               <div className="cal-row">
                 <button className="b tap" onClick={() => patchLayer({ x: 0.5 })}>水平置中</button>
-                <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
-                  {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
-                </button>
+                {calFront && (
+                  <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
+                    {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
+                  </button>
+                )}
                 <button className="b tap" onClick={duplicateLayer}>複製</button>
                 <button className="b tap" onClick={removeLayer}>刪除</button>
                 <button className="b dark tap" onClick={() => setSel(null)}>完成</button>
@@ -647,17 +667,27 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           )}
           <div className="cal-nav">
-            <button className="cal-navb tap" onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0} aria-label="上一頁">‹</button>
-            <span className="cal-navl" aria-live="polite"><b>{page?.label}</b><small>第 {cur + 1} / {pages.length} 頁</small></span>
-            <button className="cal-navb tap" onClick={() => setCur(c => Math.min(pages.length - 1, c + 1))} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
+            <button className="cal-navb tap" onClick={() => goTo(cur - 1, face)} disabled={cur <= -1} aria-label="上一頁">‹</button>
+            <span className="cal-navl" aria-live="polite"><b>{sideName}</b><small>{isCover ? '封面' : `第 ${cur + 1} / ${pages.length} 頁`}</small></span>
+            <button className="cal-navb tap" onClick={() => goTo(cur + 1, face)} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
+          </div>
+          {/* 每一張紙都是雙面的：正面／背面切換。背面沒放東西就是空白紙。 */}
+          <div className="cal-faces" role="radiogroup" aria-label="正面或背面">
+            {[['front', isCover ? '封面' : '正面（日曆）'], ['back', '背面']].map(([f, l]) => (
+              <button key={f} role="radio" aria-checked={face === f} className={`cal-face tap${face === f ? ' on' : ''}`} onClick={() => setFace(f)}>
+                {l}{f === 'back' && (isCover ? design.cover?.back : design.pages[cur]?.back) ? <i className="cal-face-dot" aria-label="已有內容" /> : null}
+              </button>
+            ))}
           </div>
           <p className="cal-hint">{view === '3d'
             ? '拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻'
             : '直接點頁面上的照片或標題就能編輯'}</p>
           <div className="cal-strip" role="listbox" aria-label="選擇頁面">
+            <button role="option" aria-selected={cur === -1} className={`cal-chip tap cover${cur === -1 ? ' on' : ''}${design.cover?.img ? ' has-img' : ''}`}
+              onClick={() => goTo(-1, face)}>封面</button>
             {pages.map((p, i) => (
-              <button key={i} role="option" aria-selected={i === cur} className={`cal-chip tap${i === cur ? ' on' : ''}${design.pages[i]?.img ? ' has-img' : ''}`}
-                onClick={() => setCur(i)}>{p.label}</button>
+              <button key={i} role="option" aria-selected={i === cur} className={`cal-chip tap${i === cur ? ' on' : ''}${design.pages[i]?.img ? ' has-img' : ''}${design.pages[i]?.back ? ' has-back' : ''}`}
+                onClick={() => goTo(i, face)}>{p.label}</button>
             ))}
           </div>
         </div>
@@ -680,7 +710,7 @@ export default function CalDesign({ id = 'local' }) {
               <div className="cal-cards">
                 {Object.entries(CADENCES).map(([k, c]) => (
                   <button key={k} className={`cal-card tap${design.cadence === k ? ' on' : ''}`} aria-pressed={design.cadence === k}
-                    onClick={() => { update(d => ({ ...d, cadence: k })); setCur(0) }}>
+                    onClick={() => { update(d => ({ ...d, cadence: k })); goTo(0) }}>
                     <b>{c.label}</b><small>{c.pages} 頁 · {c.hint}</small>
                   </button>
                 ))}
@@ -716,7 +746,7 @@ export default function CalDesign({ id = 'local' }) {
 
           {tab === 'page' && (
             <div className="cal-sec">
-              <span className="cal-label">這一頁的照片</span>
+              <span className="cal-label">{isCover ? '封面照片' : isBack ? `${sideName}的照片` : '這一頁的照片'}</span>
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} aria-label="選擇照片" />
               {over.img ? (
                 <div className="cal-photo">
@@ -738,15 +768,20 @@ export default function CalDesign({ id = 'local' }) {
                   <button className="b tap" onClick={() => { if (requireAccount('使用你的作品')) { if (isLocal) { setToast('先把設計存到你的帳號'); setTab('send') } else setPicker(true) } }}>從我的作品選</button>
                 </div>
               )}
-              <p className="cal-note">沒有照片的頁會用頁名（「{page?.term || page?.label}」）的大字當主視覺。照片原檔上限 {CAL_LIMITS.SOURCE_MAX_BYTES / 1048576} MB。</p>
+              <p className="cal-note">{isBack
+                ? '背面是整面照片，翻過去之後從桌曆後面看得到。不放東西就是空白紙。'
+                : isCover ? '封面沒放照片時，用年份大字當主視覺。'
+                : `沒有照片的頁會用頁名（「${page?.term || page?.label}」）的大字當主視覺。`}照片原檔上限 {CAL_LIMITS.SOURCE_MAX_BYTES / 1048576} MB。</p>
 
-              <label className="cal-label" htmlFor="cal-ptitle">頁面標題（選填）</label>
-              <input id="cal-ptitle" className="cal-input" maxLength={30} placeholder="例如：全家第一次露營" value={over.title || ''}
-                onChange={e => setPage({ title: e.target.value })} />
+              {!isBack && (<>
+                <label className="cal-label" htmlFor="cal-ptitle">{isCover ? '封面書名' : '頁面標題（選填）'}</label>
+                <input id="cal-ptitle" className="cal-input" maxLength={30} placeholder={isCover ? design.title : '例如：全家第一次露營'} value={over.title || ''}
+                  onChange={e => setPage({ title: e.target.value })} />
+              </>)}
               <span className="cal-label">文字</span>
               <p className="cal-note">在頁面上任何位置加文字：拖曳移動、拉右下角縮放，可以換字體、顏色、底色。</p>
               <div className="cal-layers">
-                {[...(design.texts || []).map(t => ['global', t]), ...(over.texts || []).map(t => ['page', t])].map(([scope, t]) => (
+                {shownLayers.map(([scope, t]) => (
                   <button key={t.id} className={`cal-layer tap${sel?.id === t.id ? ' on' : ''}`}
                     onClick={() => { setView('2d'); setAdjust(false); setSel({ scope, id: t.id }) }}>
                     <span style={{ fontFamily: FONT[t.font], color: t.color }}>{t.text.split('\n')[0] || '（空白）'}</span>
@@ -886,7 +921,7 @@ export default function CalDesign({ id = 'local' }) {
                     <p className="cal-note">你已經送出過 {inq.length} 次洽詢（最近一次：{new Date(inq[0].createdAt).toLocaleDateString('zh-TW')}）。之後的修改不會影響已送出的那一份，有大改動可以再送一次。</p>
                   )}
                   <div className="cal-checks">
-                    {flags.lowres.length > 0 && <p className="cal-warn">第 {flags.lowres.map(i => i + 1).join('、')} 頁的照片解析度偏低，印出來可能會模糊。</p>}
+                    {flags.lowres.length > 0 && <p className="cal-warn">{flags.lowres.map(slotLabel).join('、')}的照片解析度偏低，印出來可能會模糊。</p>}
                     {flags.folk && <p className="cal-note">這份設計含「每日宜」民俗內容，我們報價前會再跟你確認。</p>}
                     <p className="cal-note">螢幕與印刷的顏色會有差異，實際以打樣為準；國定假日以政府公告為準。</p>
                   </div>
