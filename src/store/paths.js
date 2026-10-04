@@ -17,7 +17,9 @@ export const TAB_PATHS = ['/', '/explore', '/create', '/almanac', '/me']
 
 export const SCREEN_PATH = {
   aiChat: '/ai', checkout: '/checkout', workDetail: '/work/:id', postDetail: '/post/:id',
-  newPost: '/new', makeCalendar: '/calendar/make', calendarPreview: '/calendar/preview',
+  newPost: '/new', makeCalendar: '/calendar/make',
+  // 桌曆設計器（2026-10-04）：makeCalendar 沿用舊網址，改成「我的桌曆」清單＋新設計入口
+  calDesign: '/calendar/design/:id', calView: '/calendar/view/:token',
   myProjects: '/projects', deities: '/deities', zodiac: '/zodiac', dream: '/dream',
   nameFortune: '/name', matchmaking: '/match', bone: '/bone', proverbs: '/proverbs',
   festivals: '/festivals', flowers: '/flowers', ingredients: '/ingredients', solarterms: '/solarterms',

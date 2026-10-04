@@ -19,6 +19,8 @@ import { corporateHtml } from './corporate.js'
 import { toLogical } from '../src/data/appBase.js'
 // 貼文內文上限：前後端同一個常數（2026-10-04 開放文章型貼文，400 → 3000）
 import { CAPTION_MAX } from '../src/data/postRules.js'
+import { CAL_LIMITS, normalizeDesign, designImageIds, designFlags } from '../src/data/calendarRules.js'
+import { putPrint, getPrint, deletePrefix, printUsage, printStoreKind, printStoreReady } from './printStore.js'
 import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
@@ -181,7 +183,12 @@ app.use(compression())
 // 圖片上傳（base64 JSON）需要較大 body；其餘 API 維持 32kb 上限
 const jsonSmall = express.json({ limit: '32kb' })
 const jsonImage = express.json({ limit: '4mb' })
-app.use((req, res, next) => (req.path === '/api/images' && req.method === 'POST') ? next() : jsonSmall(req, res, next))
+// ⚠️ 需要較大 body 的路由要在這裡**排除**，自己在路由上掛較大的 parser——
+//    否則這條全域的 32kb 先解析、先擋掉，路由上寫多大都沒用（桌曆原圖約 3 MB）。
+const bigBody = (req) => (req.method === 'POST' && req.path === '/api/images')
+  || (req.method === 'POST' && /^\/api\/calinquiries\/[^/]+\/print\/\d+$/.test(req.path))
+  || ((req.method === 'POST' || req.method === 'PATCH') && /^\/api\/caldesigns(\/[^/]+)?$/.test(req.path))
+app.use((req, res, next) => bigBody(req) ? next() : jsonSmall(req, res, next))
 app.use(cookieParser())
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false,
@@ -370,6 +377,10 @@ app.delete('/api/account', requireAuth, requireCsrf, ah(async (req, res) => {
   const { password } = req.body || {}
   if (!(await bcrypt.compare(password || '', req.user.password_hash))) return res.status(400).json({ error: '密碼錯誤' })
   await audit('account_delete', req, req.user.id)
+  // 桌曆洽詢的印刷原圖在 Cloud Storage，不會跟著資料庫的 CASCADE 一起刪——要自己清
+  for (const q of await db.all('SELECT id FROM cal_inquiries WHERE user_id=?', [req.user.id])) {
+    await deletePrefix('inq/' + q.id + '/').catch(() => {})
+  }
   await db.run('DELETE FROM users WHERE id=?', [req.user.id])
   res.clearCookie('sid', { ...cookieOpts, maxAge: undefined })
   res.json({ ok: true })
@@ -2303,6 +2314,8 @@ app.get('/api/health', ah(async (req, res) => {
   res.json({
     ok: true, db: db.kind, pay: PAY_PROVIDER, ai: OPENAI_KEY ? 'on' : 'off',
     mail: mailStatus().provider, push: pushEnabled() ? 'on' : 'off',
+    // 桌曆印刷原圖：gcs＝Cloud Storage、local＝本機磁碟（只限開發）、unset＝正式站還沒設 PRINT_BUCKET
+    printStore: printStoreReady ? printStoreKind : 'unset',
     // 只回「有沒有設」不回 ID 本身——健康檢查是公開端點
     analytics: { ga4: !!GA4_ID, clarity: !!CLARITY_ID, gscVerify: !!GSC_VERIFY },
   })
@@ -2354,6 +2367,259 @@ app.post('/api/admin/ai-test', requireAuth, requireRole('admin'), requireCsrf, a
       hint: '連不上上游（逾時或網路問題）。若 OPENAI_BASE_URL 有自訂，先確認它是對的。' })
   }
 }))
+
+// ============================================================================
+// 桌曆設計器 ＋ 客製洽詢（2026-10-04）
+//
+// 流程：設計（存 JSON，照片是低解析預覽）→ 送出洽詢（此時才上傳印刷用原圖）→ 後台接洽。
+//
+// ★★★ 「使用者不能把設計存回自己的電腦」：前台任何一支端點都**拿不到印刷用原圖**。
+//   原圖只能從 /api/admin/calinquiries/:id/print/:page（moderator 以上）讀。
+// ★★★ 原圖只在送出洽詢時上傳（不是設計時）：大部分人只是逛逛不會送出，
+//   這些人一張原圖都不會佔到儲存空間。
+// ⚠️ 設計 JSON 是使用者可控的輸入：一律過 normalizeDesign 再存，分享頁才不會吐出髒資料。
+// ============================================================================
+const jsonDesign = express.json({ limit: '160kb' })
+const jsonPrint = express.json({ limit: '9mb' })
+const calPublic = (r) => ({
+  id: r.id, title: r.title, status: r.status, design: JSON.parse(r.design_json),
+  shareToken: r.share_token || null, createdAt: r.created_at, updatedAt: r.updated_at,
+})
+async function myDesign(req, res) {
+  const r = await db.get('SELECT * FROM cal_designs WHERE id=?', [String(req.params.id).slice(0, 60)])
+  if (!r || r.user_id !== req.user.id) { res.status(404).json({ error: '找不到這份設計' }); return null }
+  return r
+}
+// 草稿刪除時，把「只有它在用」的預覽圖一起刪掉（同一張圖可能也是貼文、頭像或另一份設計的圖）
+async function dropOrphanImages(userId, design, exceptDesignId) {
+  for (const id of designImageIds(design)) {
+    const own = await db.get('SELECT 1 AS x FROM images WHERE id=? AND user_id=?', [id, userId])
+    if (!own) continue
+    const like = `%${id}%`
+    const used = (await db.get('SELECT 1 AS x FROM posts WHERE image_id=?', [id]))
+      || (await db.get('SELECT 1 AS x FROM works WHERE image_id=?', [id]))
+      || (await db.get('SELECT 1 AS x FROM users WHERE avatar_image_id=?', [id]))
+      || (await db.get('SELECT 1 AS x FROM cal_designs WHERE id<>? AND design_json LIKE ?', [exceptDesignId, like]))
+      || (await db.get('SELECT 1 AS x FROM cal_inquiries WHERE design_json LIKE ?', [like]))
+    if (!used) await db.run('DELETE FROM images WHERE id=?', [id])
+  }
+}
+
+app.get('/api/caldesigns', requireAuth, ah(async (req, res) => {
+  const rows = await db.all('SELECT * FROM cal_designs WHERE user_id=? ORDER BY updated_at DESC LIMIT 20', [req.user.id])
+  res.json({ designs: rows.map(calPublic), limits: CAL_LIMITS })
+}))
+
+app.post('/api/caldesigns', jsonDesign, requireAuth, requireCsrf, ah(async (req, res) => {
+  const n = Number((await db.get("SELECT COUNT(*) AS c FROM cal_designs WHERE user_id=? AND status='draft'", [req.user.id])).c)
+  if (n >= CAL_LIMITS.DRAFTS_PER_USER) {
+    return res.status(409).json({ error: `最多同時保留 ${CAL_LIMITS.DRAFTS_PER_USER} 份草稿，先刪掉一份再建立新的` })
+  }
+  const design = normalizeDesign(req.body?.design)
+  const id = uuid(), t = now()
+  await db.run('INSERT INTO cal_designs (id,user_id,title,design_json,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+    [id, req.user.id, design.title, JSON.stringify(design), 'draft', t, t])
+  res.json({ design: calPublic(await db.get('SELECT * FROM cal_designs WHERE id=?', [id])) })
+}))
+
+app.get('/api/caldesigns/:id', requireAuth, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  res.json({ design: calPublic(r) })
+}))
+
+app.patch('/api/caldesigns/:id', jsonDesign, requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  const design = normalizeDesign(req.body?.design)
+  // 動過就重新計時（含清掉「快到期」的提醒紀錄）
+  await db.run('UPDATE cal_designs SET title=?, design_json=?, updated_at=?, reminded_at=NULL WHERE id=?',
+    [design.title, JSON.stringify(design), now(), r.id])
+  res.json({ design: calPublic(await db.get('SELECT * FROM cal_designs WHERE id=?', [r.id])) })
+}))
+
+app.delete('/api/caldesigns/:id', requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  await db.run('DELETE FROM cal_designs WHERE id=?', [r.id])
+  await dropOrphanImages(req.user.id, JSON.parse(r.design_json), r.id)
+  res.json({ ok: true })
+}))
+
+// 分享：只給一個不可猜的 token，別人只能在站上用 3D 看
+app.post('/api/caldesigns/:id/share', requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  let token = r.share_token
+  if (!token) {
+    token = randToken().slice(0, 24)
+    await db.run('UPDATE cal_designs SET share_token=? WHERE id=?', [token, r.id])
+  }
+  res.json({ token })
+}))
+app.delete('/api/caldesigns/:id/share', requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  await db.run('UPDATE cal_designs SET share_token=NULL WHERE id=?', [r.id])
+  res.json({ ok: true })
+}))
+app.get('/api/calshare/:token', ah(async (req, res) => {
+  const t = String(req.params.token || '')
+  if (!/^[a-f0-9]{24}$/.test(t)) return res.status(404).json({ error: '這個分享連結不存在或已關閉' })
+  const r = await db.get('SELECT d.*, u.handle FROM cal_designs d JOIN users u ON u.id=d.user_id WHERE d.share_token=?', [t])
+  if (!r) return res.status(404).json({ error: '這個分享連結不存在或已關閉' })
+  res.set('Cache-Control', 'no-store')
+  res.json({ title: r.title, design: JSON.parse(r.design_json), author: r.handle })
+}))
+
+// ── 送出洽詢：①建立（uploading）→ ②逐頁上傳原圖 → ③完成 ──
+// 分三步是為了手機網路：一次送 24 張原圖很容易中斷，逐張送、失敗可以重試那一張。
+app.post('/api/caldesigns/:id/inquiry', jsonSmall, requireAuth, requireCsrf, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  const b = req.body || {}
+  const name = String(b.name || '').trim().slice(0, 40)
+  const email = String(b.email || '').trim().slice(0, 120)
+  const phone = String(b.phone || '').trim().slice(0, 30)
+  const qty = Math.min(100000, Math.max(1, Math.round(Number(b.qty) || 1)))
+  const note = String(b.note || '').trim().slice(0, 1000)
+  if (!name) return res.status(400).json({ error: '請填寫聯絡人姓名' })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Email 格式不正確' })
+  if (b.rights !== true) return res.status(400).json({ error: '請確認你擁有設計中照片的使用權' })
+  const since = new Date(Date.now() - 86400000).toISOString()
+  const today = Number((await db.get('SELECT COUNT(*) AS c FROM cal_inquiries WHERE user_id=? AND created_at>?', [req.user.id, since])).c)
+  if (today >= CAL_LIMITS.INQUIRIES_PER_DAY) {
+    return res.status(429).json({ error: `一天最多送出 ${CAL_LIMITS.INQUIRIES_PER_DAY} 筆洽詢，明天再試，或直接來信 chengqi1943@gmail.com` })
+  }
+  const design = JSON.parse(r.design_json)
+  const flags = { ...designFlags(design), unverified: !req.user.email_verified_at, missing: [] }
+  const id = uuid(), t = now()
+  await db.run(`INSERT INTO cal_inquiries (id,design_id,user_id,name,email,phone,qty,note,design_json,print_json,flags_json,status,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, r.id, req.user.id, name, email, phone, qty, note, r.design_json, '{}', JSON.stringify(flags), 'uploading', t, t])
+  res.json({ inquiryId: id })
+}))
+
+async function myInquiry(req, res, status = 'uploading') {
+  const q = await db.get('SELECT * FROM cal_inquiries WHERE id=?', [String(req.params.id).slice(0, 60)])
+  if (!q || q.user_id !== req.user.id) { res.status(404).json({ error: '找不到這筆洽詢' }); return null }
+  if (status && q.status !== status) { res.status(409).json({ error: '這筆洽詢已經送出了' }); return null }
+  return q
+}
+
+app.post('/api/calinquiries/:id/print/:page', jsonPrint, requireAuth, requireCsrf, ah(async (req, res) => {
+  const q = await myInquiry(req, res); if (!q) return
+  const page = Number(req.params.page)
+  if (!Number.isInteger(page) || page < 0 || page >= 52) return res.status(400).json({ error: '頁碼不正確' })
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.data || ''))
+  if (!m) return res.status(400).json({ error: '只接受 JPEG 圖檔' })
+  const buf = Buffer.from(m[1], 'base64')
+  if (buf.length > CAL_LIMITS.PRINT_MAX_BYTES) return res.status(413).json({ error: '這張照片太大了' })
+  if (!(buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF)) return res.status(400).json({ error: '檔案不是有效的 JPEG' })
+  try { await putPrint(`inq/${q.id}/p${page}.jpg`, buf) } catch (e) {
+    console.error('[cal] 原圖寫入失敗', e.message)
+    return res.status(e.status || 502).json({ error: '原圖暫時存不進去，我們會改用預覽圖跟你確認' })
+  }
+  // ⚠️ 重讀再寫：逐頁上傳可能並行，用舊快照寫回會蓋掉別頁的紀錄（站規：lost update）
+  const fresh = await db.get('SELECT print_json FROM cal_inquiries WHERE id=?', [q.id])
+  const pj = JSON.parse(fresh?.print_json || '{}')
+  pj[page] = { w: Math.round(Number(req.body?.w) || 0), h: Math.round(Number(req.body?.h) || 0), bytes: buf.length }
+  await db.run('UPDATE cal_inquiries SET print_json=?, updated_at=? WHERE id=?', [JSON.stringify(pj), now(), q.id])
+  res.json({ ok: true })
+}))
+
+app.post('/api/calinquiries/:id/finalize', jsonSmall, requireAuth, requireCsrf, ah(async (req, res) => {
+  const q = await myInquiry(req, res); if (!q) return
+  const flags = JSON.parse(q.flags_json || '{}')
+  // 客人那台裝置上找不到原圖的頁（換了裝置、清了瀏覽器）：後台只有預覽可用，要標出來
+  flags.missing = (Array.isArray(req.body?.missing) ? req.body.missing : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < 52)
+  await db.run("UPDATE cal_inquiries SET status='new', flags_json=?, updated_at=? WHERE id=?", [JSON.stringify(flags), now(), q.id])
+  if (q.design_id) await db.run("UPDATE cal_designs SET status='submitted', updated_at=? WHERE id=?", [now(), q.design_id])
+  await audit('cal_inquiry', req, req.user.id, q.id)
+  sendMail({ to: q.email, subject: '我們收到你的桌曆客製洽詢了', link: `${APP_URL}/app/calendar/design/${q.design_id}`, kind: 'calInquiry' })
+  sendMail({ to: process.env.CAL_NOTIFY_TO || 'chengqi1943@gmail.com', subject: `新的桌曆客製洽詢：${q.name}（${q.qty} 本）`,
+    link: `${APP_URL}/app/admin`, kind: 'calStaff' })
+  res.json({ ok: true, replyDays: CAL_LIMITS.REPLY_WORKDAYS })
+}))
+
+// 我自己送出過的洽詢（設計頁顯示「已送出，等待聯絡」）
+app.get('/api/caldesigns/:id/inquiries', requireAuth, ah(async (req, res) => {
+  const r = await myDesign(req, res); if (!r) return
+  const rows = await db.all("SELECT id,status,created_at FROM cal_inquiries WHERE design_id=? AND status<>'uploading' ORDER BY created_at DESC", [r.id])
+  res.json({ inquiries: rows.map(x => ({ id: x.id, status: x.status, createdAt: x.created_at })) })
+}))
+
+// ── 管理後台 ──
+const INQ_STATUS = ['new', 'talking', 'won', 'lost']
+app.get('/api/admin/calinquiries', requireAuth, requireRole('moderator'), ah(async (req, res) => {
+  const rows = await db.all(`SELECT q.*, u.handle FROM cal_inquiries q JOIN users u ON u.id=q.user_id
+    WHERE q.status<>'uploading' ORDER BY CASE q.status WHEN 'new' THEN 0 WHEN 'talking' THEN 1 ELSE 2 END, q.created_at ASC LIMIT 300`)
+  res.json({ inquiries: rows.map(q => ({
+    id: q.id, handle: q.handle, name: q.name, email: q.email, phone: q.phone, qty: q.qty, note: q.note,
+    design: JSON.parse(q.design_json), print: JSON.parse(q.print_json || '{}'), flags: JSON.parse(q.flags_json || '{}'),
+    status: q.status, staffNote: q.staff_note || '', createdAt: q.created_at, closedAt: q.closed_at, purged: !!q.purged_at,
+  })), replyDays: CAL_LIMITS.REPLY_WORKDAYS })
+}))
+app.patch('/api/admin/calinquiries/:id', jsonSmall, requireAuth, requireRole('moderator'), requireCsrf, ah(async (req, res) => {
+  const q = await db.get('SELECT * FROM cal_inquiries WHERE id=?', [String(req.params.id).slice(0, 60)])
+  if (!q || q.status === 'uploading') return res.status(404).json({ error: '找不到這筆洽詢' })
+  const status = INQ_STATUS.includes(req.body?.status) ? req.body.status : q.status
+  const staffNote = req.body?.staffNote !== undefined ? String(req.body.staffNote).slice(0, 2000) : q.staff_note
+  // 結案時間決定原圖何時清掉：未成交 60 天、成交保留到隔年年底（給續曆包用）
+  const closedAt = (status === 'won' || status === 'lost') ? (q.closed_at && q.status === status ? q.closed_at : now()) : null
+  await db.run('UPDATE cal_inquiries SET status=?, staff_note=?, closed_at=?, updated_at=? WHERE id=?', [status, staffNote, closedAt, now(), q.id])
+  await audit('cal_inquiry_update', req, req.user.id, `${q.id}:${status}`)
+  res.json({ ok: true, status, closedAt })
+}))
+app.get('/api/admin/calinquiries/:id/print/:page', requireAuth, requireRole('moderator'), ah(async (req, res) => {
+  const page = Number(req.params.page)
+  const q = await db.get('SELECT id FROM cal_inquiries WHERE id=?', [String(req.params.id).slice(0, 60)])
+  if (!q || !Number.isInteger(page)) return res.status(404).end()
+  const buf = await getPrint(`inq/${q.id}/p${page}.jpg`)
+  if (!buf) return res.status(404).json({ error: '這一頁沒有原圖（可能已清除，或客人沒有上傳）' })
+  res.set('Cache-Control', 'private, no-store').type('image/jpeg').send(buf)
+}))
+app.get('/api/admin/calstorage', requireAuth, requireRole('admin'), ah(async (req, res) => {
+  const usage = await printUsage().catch(e => ({ error: String(e.message || e) }))
+  const designs = Number((await db.get('SELECT COUNT(*) AS c FROM cal_designs')).c)
+  const open = Number((await db.get("SELECT COUNT(*) AS c FROM cal_inquiries WHERE status IN ('new','talking')")).c)
+  res.json({ usage, designs, openInquiries: open, ready: printStoreReady })
+}))
+
+// ── 定期清理（伺服器啟動後 1 分鐘一次，之後每 6 小時）──
+// ⚠️ 不用 Cloud Storage 的生命週期規則：那只能看「檔案多舊」，看不到洽詢的狀態
+//   （成交的要留到隔年、未成交的 60 天）。Cloud Run 會縮到 0，所以這裡同時是
+//   「有流量才會跑」——清理晚幾天沒關係，不能做的是清錯。
+async function calSweep() {
+  const DAY = 86400000
+  const ago = (ms) => new Date(Date.now() - ms).toISOString()
+  // 1) 草稿快到期：寄提醒
+  const remind = await db.all(`SELECT d.id, u.email FROM cal_designs d JOIN users u ON u.id=d.user_id
+    WHERE d.status='draft' AND d.reminded_at IS NULL AND d.updated_at < ?`, [ago(CAL_LIMITS.DRAFT_REMIND_DAYS * DAY)])
+  for (const r of remind) {
+    sendMail({ to: r.email, subject: '你的桌曆設計即將被清除', link: `${APP_URL}/app/calendar/design/${r.id}`, kind: 'calReminder' })
+    await db.run('UPDATE cal_designs SET reminded_at=? WHERE id=?', [now(), r.id])
+  }
+  // 2) 草稿到期（而且提醒已經寄出至少 6 天）：刪除
+  const stale = await db.all("SELECT * FROM cal_designs WHERE status='draft' AND updated_at < ? AND reminded_at IS NOT NULL AND reminded_at < ?",
+    [ago(CAL_LIMITS.DRAFT_KEEP_DAYS * DAY), ago(6 * DAY)])
+  for (const r of stale) {
+    await db.run('DELETE FROM cal_designs WHERE id=?', [r.id])
+    await dropOrphanImages(r.user_id, JSON.parse(r.design_json), r.id)
+  }
+  // 3) 上傳到一半就放棄的洽詢（超過一天）：檔案與紀錄一起清掉
+  for (const q of await db.all("SELECT id FROM cal_inquiries WHERE status='uploading' AND created_at < ?", [ago(DAY)])) {
+    await deletePrefix(`inq/${q.id}/`).catch(() => {})
+    await db.run('DELETE FROM cal_inquiries WHERE id=?', [q.id])
+  }
+  // 4) 未成交 60 天、成交到隔年年底：只清原圖，紀錄與設計快照留著
+  const lost = await db.all("SELECT id FROM cal_inquiries WHERE status='lost' AND purged_at IS NULL AND closed_at < ?", [ago(CAL_LIMITS.LOST_KEEP_DAYS * DAY)])
+  const won = (await db.all("SELECT id, closed_at FROM cal_inquiries WHERE status='won' AND purged_at IS NULL"))
+    .filter(q => q.closed_at && new Date().getFullYear() > new Date(q.closed_at).getFullYear() + 1)
+  for (const q of [...lost, ...won]) {
+    await deletePrefix(`inq/${q.id}/`).catch(() => {})
+    await db.run('UPDATE cal_inquiries SET purged_at=? WHERE id=?', [now(), q.id])
+  }
+  if (remind.length + stale.length + lost.length + won.length) {
+    console.log(`[cal] 清理：提醒 ${remind.length}、刪草稿 ${stale.length}、清原圖 ${lost.length + won.length}`)
+  }
+}
+setTimeout(() => { calSweep().catch(e => console.error('[cal] sweep', e.message)) }, 60_000).unref?.()
+setInterval(() => { calSweep().catch(e => console.error('[cal] sweep', e.message)) }, 6 * 3600_000).unref?.()
 
 // ---------- 靜態前端 ----------
 const distDir = join(__dirname, '..', 'dist')

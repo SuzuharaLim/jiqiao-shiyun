@@ -13,7 +13,7 @@ import Auth from './screens/Auth.jsx'
 const TAB_TITLES = ['今日曆頁', '探索', '建立', '曆書工具箱', '我的']
 const SCREEN_TITLES = {
   aiChat: 'AI 時光顧問', checkout: '結帳', workDetail: '作品', postDetail: '貼文', newPost: '發布貼文',
-  makeCalendar: '做月曆', calendarPreview: '月曆預覽', myProjects: '我的專案', deities: '臺灣神佛的生日',
+  makeCalendar: '我的桌曆', calDesign: '桌曆設計', calView: '桌曆 3D 預覽', myProjects: '我的專案', deities: '臺灣神佛的生日',
   zodiac: '生肖運勢', dream: '解夢', nameFortune: '命名吉凶', matchmaking: '生肖星座婚配',
   bone: '秤骨神術', proverbs: '台灣諺語', festivals: '臺灣特色慶典', flowers: '賞花景點',
   ingredients: '當季食材', solarterms: '24 節氣專欄', subscription: '訂閱與帳號', wallet: '錢包收益',
@@ -41,7 +41,7 @@ export default function App() {
   const top = stack[stack.length - 1]
   const TopScreen = top ? SCREENS[top.screen] : null
   // 某些堆疊畫面自帶頂列且需隱藏底部分頁列（全螢幕）
-  const fullScreens = new Set(['aiChat', 'newPost', 'makeCalendar', 'checkout', 'calendarPreview', 'scan', 'camera'])
+  const fullScreens = new Set(['aiChat', 'newPost', 'calDesign', 'checkout', 'scan', 'camera'])
   const hideTabBar = top && fullScreens.has(top.screen)
 
   // 依目前畫面更新 <title>，並把焦點移到新畫面的標題

@@ -164,8 +164,11 @@ const ROUTES = [
   { path: '/new', title: '發布貼文｜機巧時運', noindex: true },
   { path: '/camera', title: '相機工作室｜機巧時運', noindex: true },
   { path: '/AR', title: '掃描明信片｜機巧時運', noindex: true },
-  { path: '/calendar/make', title: '做月曆｜機巧時運', noindex: true },
-  { path: '/calendar/preview', title: '月曆預覽｜機巧時運', noindex: true },
+  // 桌曆設計器（2026-10-04）：清單頁是公開的工具頁 → 可索引；個人設計與分享頁 noindex
+  { path: '/calendar/make', title: '客製桌曆設計｜自己的照片做成節氣桌曆，3D 預覽翻頁｜機巧時運',
+    desc: '線上設計專屬桌曆：一頁一個月、一個節氣、一週或一季任選，放上自己的照片與一句話，標上農曆與二十四節氣，用 3D 立體預覽翻頁。滿意後送出洽詢，由專人聯絡印製，企業與學校客製也適用。' },
+  { path: '/calendar/design/:id', title: '桌曆設計｜機巧時運', noindex: true },
+  { path: '/calendar/view/:token', title: '桌曆 3D 預覽｜機巧時運', noindex: true },
   { path: '/projects', title: '我的專案｜機巧時運', noindex: true },
   { path: '/records', title: '占卜紀錄｜機巧時運', noindex: true },
   { path: '/notifications', title: '通知｜機巧時運', noindex: true },

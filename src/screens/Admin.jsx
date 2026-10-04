@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import AdminCalInquiries from '../components/AdminCalInquiries.jsx'
 
 // 管理後台 —— 使用者角色（admin）＋ 內容 CMS（moderator 以上）。
 // 內容存 ref_items（JSON），可直接編輯 → 「資料方便修改」。
@@ -117,6 +118,8 @@ export default function Admin() {
       <div className="body">
         <div className="chips" style={{ paddingTop: 12 }}>
           {isAdmin && <button className={`chip tap ${tab === 'users' ? 'on' : ''}`} onClick={() => setTab('users')}>使用者・角色</button>}
+          {/* 客製洽詢是營收入口，版主也要處理 → 不限 admin */}
+          <button className={`chip tap ${tab === 'inquiries' ? 'on' : ''}`} onClick={() => setTab('inquiries')}>客製洽詢</button>
           <button className={`chip tap ${tab === 'content' ? 'on' : ''}`} onClick={() => setTab('content')}>內容 CMS</button>
           <button className={`chip tap ${tab === 'reports' ? 'on' : ''}`} onClick={() => setTab('reports')}>檢舉佇列</button>
           <button className={`chip tap ${tab === 'support' ? 'on' : ''}`} onClick={() => setTab('support')}>客服訊息</button>
@@ -180,6 +183,8 @@ export default function Admin() {
             <div style={{ height: 12 }} />
           </>
         )}
+
+        {tab === 'inquiries' && <AdminCalInquiries isAdmin={isAdmin} />}
 
         {tab === 'support' && (
           <>

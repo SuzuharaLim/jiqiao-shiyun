@@ -390,3 +390,46 @@ CREATE TABLE IF NOT EXISTS quiz_matches (
   updated_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_quiz_wait ON quiz_matches(status, created_at);
+
+-- ── 桌曆設計器（2026-10-04）────────────────────────────────────
+-- 設計本體只存 JSON（週期、起始、樣式、每頁的照片 id 與文字），照片是 images 表的
+-- **低解析預覽**。印刷用原圖只在「送出洽詢」時才上傳，存 Cloud Storage（printStore.js），
+-- 不存資料庫——大部分人只是逛逛不會送出，這些人一張原圖都不會佔到空間。
+CREATE TABLE IF NOT EXISTS cal_designs (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  design_json TEXT NOT NULL,
+  share_token TEXT,                              -- 分享連結（只能在站上用 3D 看，不能下載）
+  status      TEXT NOT NULL DEFAULT 'draft',     -- draft | submitted
+  reminded_at TEXT,                              -- 草稿到期前的提醒信寄出時間
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_cal_user ON cal_designs(user_id, updated_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cal_share ON cal_designs(share_token);
+
+-- 客製洽詢：送出當下的設計「快照」——客人之後再改設計，不影響我們手上這一份。
+CREATE TABLE IF NOT EXISTS cal_inquiries (
+  id          TEXT PRIMARY KEY,
+  design_id   TEXT,
+  user_id     TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL,
+  phone       TEXT,
+  qty         INTEGER NOT NULL DEFAULT 1,
+  note        TEXT,
+  design_json TEXT NOT NULL,
+  print_json  TEXT,                              -- {頁序: {w,h,bytes}}；檔案在 printStore 的 inq/<id>/
+  flags_json  TEXT,                              -- {lowres:[頁], folk, unverified, missing:[頁]}
+  status      TEXT NOT NULL DEFAULT 'uploading', -- uploading | new | talking | won | lost
+  staff_note  TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  closed_at   TEXT,                              -- 變成 won/lost 的時間（決定原圖何時清掉）
+  purged_at   TEXT,                              -- 原圖已清除
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_inq_status ON cal_inquiries(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_inq_user ON cal_inquiries(user_id, created_at);

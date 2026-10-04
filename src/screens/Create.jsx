@@ -24,7 +24,7 @@ export default function Create() {
             入口改進撰寫頁，照片在那裡「附加」（拍照會再進相機工作室）。 */}
         <ToolRow iconName="pen" title="發布貼文"
           sub="照片 · 文章 · 標節氣地點 · 上架市集" screen="newPost" />
-        <ToolRow iconName="scroll" title="做月曆工作室" sub="選圖 → AI 排版 → 詩詞 → 預覽" onClick={() => push('makeCalendar')} />
+        <ToolRow iconName="scroll" title="設計自己的桌曆" sub="月曆／節氣曆／週曆 · 放自己的照片 · 3D 翻頁預覽" screen="makeCalendar" />
         <ToolRow iconName="fortune" title="明年預拍" sub="節氣提醒 → 一鍵成曆" onClick={() => push('prePlan')} />
         </section>
 

@@ -164,6 +164,34 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ---
 
+## ★★★★ 桌曆設計器＋客製洽詢（2026-10-04，`/app/calendar/make`）
+
+使用者指定：在站上設計自己的桌曆（一頁一個月／一個節氣／一週／一季）、放自己的照片與文字、3D 預覽翻頁與任意角度；
+**不能把設計存回自己的電腦**，要印就送出洽詢，設計自動進後台由我們接洽。舊的「做月曆工作室」（MakeCalendar／CalendarPreview）已刪除，`makeCalendar` 代號與網址沿用。
+
+| 層 | 檔案 |
+| --- | --- |
+| 規則／資料清洗（前後端共用） | `src/data/calendarRules.js`（`CAL_LIMITS`、`normalizeDesign()`） |
+| 頁面日期 | `src/data/calendarLayout.js`（`buildPages()`） |
+| 單頁繪製（2D、3D 貼圖、後台**同一支**） | `src/lib/calRender.js` ＋ `src/lib/calPages.js` |
+| 照片處理（預覽版／印刷版分流） | `src/lib/calImages.js` |
+| 3D | `src/components/CalModel3D.jsx`（lazy） |
+| 畫面 | `CalStudio.jsx`（清單）／`CalDesign.jsx`（設計器）／`CalView.jsx`（分享）／`components/AdminCalInquiries.jsx`（後台） |
+| 後端 | `server/index.js`「桌曆設計器 ＋ 客製洽詢」區塊、`server/printStore.js`、`cal_designs`／`cal_inquiries` 表 |
+| 閘門 | `scripts/check-cal.mjs`（39 項，四項變異測試都抓得到） |
+
+- **★★★★ 原圖只在「送出洽詢」時上傳**，不是設計時：設計只用 1400px 預覽（存 `images`），印刷版（3200px）存在**瀏覽器 IndexedDB**。大部分人不會送出，這些人一張原圖都不佔空間。換裝置送出時找不到 IndexedDB 那份 ⇒ 該頁標「缺原圖」，後台用預覽接洽。
+- **★★★★ 原圖只有 `GET /api/admin/calinquiries/:id/print/:page`（moderator 以上）讀得到**。前台任何端點都拿不到——「不能下載」靠的就是這條。閘門 C 段鎖住「讀原圖的路由只能有一支且必須 requireRole」。預覽一律低解析＋浮水印、canvas 擋右鍵。⚠️ 截圖防不住，文案不可講成防得住。
+- **★★★★ 全域 32kb body parser 一定要排除大檔路由**（`bigBody`）：原圖約 3 MB，漏了就**永遠送不出洽詢**，而本機用小圖測完全正常。閘門 D 段實際執行那個判斷式。
+- **★★★ 正式站沒設 `PRINT_BUCKET` 時拒絕存原圖**（`printStoreReady`），不可退回容器磁碟（重啟就清空 ⇒「看起來存好了」）。設定步驟在 `docs/部署-CloudRun-PostgreSQL.md`「桌曆原圖儲存」。
+- **★★★ 2D 預覽、3D 貼圖、後台必須用同一支 `drawPage`**：各自排一份，客人看到的跟我們收到的遲早不一樣。3D 的紙頁正面用 `MeshBasicMaterial`（不受光影）——受光材質會讓頁面背光發灰，客人是看這一面判斷顏色的。
+- **★★★ 3D 相機距離由長寬比推導**（`need = 1.2 / (tan(fov/2)·aspect)`），寫死的話直立手機會切掉右邊（實測踩到）。鉸鏈高度要用**面板**長度算，用紙頁算的話面板底部插進底板。
+- **★★★ 小寒／大寒的立春年要退一年**：lunisolar 是立春起算，`termTable(2027)` 的小寒在 2028/1；使用者選「2027、從小寒開始」指的是 2027/1/5。閘門 A 段鎖住。
+- **★★ 國定假日只標名稱、不標紅字放假**：補班與彈性放假年年由人事行政總處公告，印錯整批作廢。宜忌是選配（民俗，預設關），而且只算正在畫的那一頁（`dayFor` 很重）。
+- **★★ 草稿 90 天／未成交原圖 60 天／成交留到隔年年底／上傳到一半放棄 1 天**：由 `calSweep()` 依狀態清（Cloud Storage 生命週期規則看不到狀態，所以不用它）。草稿刪除時連帶刪掉「只有它在用」的預覽圖。刪帳號要自己清 printStore（不會跟著 DB 的 CASCADE）。
+- **★★ 限制**：每人 3 份草稿（已送出的不算）、每天 3 筆洽詢、原檔 15 MB、承諾 3 個工作天回覆——全部在 `CAL_LIMITS`，寄信模板的「3 個工作天」要跟著改。
+- ⚠️ 訪客能玩版型與樣式（存 localStorage `jq-cal-local`），放照片／分享／洽詢要登入；登入後在設計器按「存到我的帳號」整份搬進去（用 `replace` 換網址，上一頁才不會回到已清空的 local）。
+
 ## ★★★★ 2026-10-04 根目錄改為承氣有限公司官網，App 整個搬到 `/app/`（`/AR` 不動）
 
 使用者指定：chengqi.tw 變成**承氣有限公司**官網，機巧時運是公司的產品；`/AR` 必須保持原樣。

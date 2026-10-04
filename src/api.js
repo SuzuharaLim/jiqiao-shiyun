@@ -58,6 +58,23 @@ export const api = {
   addComment: (id, body) => req(`/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
   termCounts: () => req('/works/term-counts'),
   postTermCounts: () => req('/posts/term-counts'),
+  // 桌曆設計器（2026-10-04）
+  calDesigns: () => req('/caldesigns'),
+  calCreate: (design) => req('/caldesigns', { method: 'POST', body: { design } }),
+  calGet: (id) => req('/caldesigns/' + encodeURIComponent(id)),
+  calSave: (id, design) => req('/caldesigns/' + encodeURIComponent(id), { method: 'PATCH', body: { design } }),
+  calDelete: (id) => req('/caldesigns/' + encodeURIComponent(id), { method: 'DELETE' }),
+  calShare: (id) => req('/caldesigns/' + encodeURIComponent(id) + '/share', { method: 'POST' }),
+  calUnshare: (id) => req('/caldesigns/' + encodeURIComponent(id) + '/share', { method: 'DELETE' }),
+  calShared: (token) => req('/calshare/' + encodeURIComponent(token)),
+  calInquiries: (id) => req('/caldesigns/' + encodeURIComponent(id) + '/inquiries'),
+  calInquire: (id, b) => req('/caldesigns/' + encodeURIComponent(id) + '/inquiry', { method: 'POST', body: b }),
+  // 原圖約 3 MB，手機網路上傳要比全站預設的 12 秒久
+  calPrint: (inqId, page, b) => req(`/calinquiries/${encodeURIComponent(inqId)}/print/${page}`, { method: 'POST', body: b, timeout: 90000 }),
+  calFinalize: (inqId, missing) => req(`/calinquiries/${encodeURIComponent(inqId)}/finalize`, { method: 'POST', body: { missing } }),
+  adminCalInquiries: () => req('/admin/calinquiries'),
+  adminCalUpdate: (id, b) => req('/admin/calinquiries/' + encodeURIComponent(id), { method: 'PATCH', body: b }),
+  adminCalStorage: () => req('/admin/calstorage'),
   works: (term, before) => {
     const q = new URLSearchParams()
     if (term && term !== '全部') q.set('term', term)

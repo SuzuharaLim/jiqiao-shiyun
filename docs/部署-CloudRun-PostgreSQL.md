@@ -243,6 +243,35 @@ gcloud run deploy "$SERVICE" --source . --region="$REGION"   # 沿用先前的�
 
 ---
 
+## 桌曆原圖儲存（Cloud Storage，桌曆設計器需要）
+
+客人送出桌曆客製洽詢時，會上傳**印刷用原圖**（每張約 1–3 MB）。這些檔案存在 Cloud Storage，
+**不公開**，只有管理後台「客製洽詢」分頁讀得到。
+
+⚠️ **沒設定的話**：正式站會拒絕存原圖（不會偷偷存到容器磁碟——那裡重啟就清空），
+洽詢照樣送得出去，但後台只會有預覽圖，那幾頁會標「缺原圖」。管理後台也會顯示紅字提醒。
+`GET /api/health` 的 `printStore` 欄位：`gcs`＝已設定、`unset`＝還沒設。
+
+在 Cloud Shell 依序執行（一次即可）：
+
+```bash
+export PROJECT_ID="$(gcloud config get-value project)"
+export BUCKET="${PROJECT_ID}-cal-print"
+# 建 bucket：與 Cloud Run 同區、統一權限、禁止公開存取
+gcloud storage buckets create "gs://${BUCKET}" --location=asia-east1   --uniform-bucket-level-access --public-access-prevention
+# 讓 Cloud Run 的服務帳號可以讀寫這個 bucket
+export PROJNUM="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+export RUNTIME_SA="${PROJNUM}-compute@developer.gserviceaccount.com"
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}"   --member="serviceAccount:${RUNTIME_SA}" --role="roles/storage.objectAdmin"
+# 告訴服務要用哪個 bucket（新洽詢通知信要寄到別的信箱，也一併設 CAL_NOTIFY_TO）
+gcloud run services update jiqiao --region=asia-east1   --update-env-vars="PRINT_BUCKET=${BUCKET}"
+```
+
+- **不需要** Cloud Storage 的自動刪除（生命週期）規則：清理由程式依洽詢狀態做
+  （未成交 60 天、成交保留到隔年年底、上傳到一半放棄的 1 天）。
+- 費用：每 GB 每月約 0.02 美元；只有**送出洽詢**的人才會上傳原圖，用量很小。
+- 新洽詢的通知信預設寄到 `chengqi1943@gmail.com`，要改就設 `CAL_NOTIFY_TO`。
+
 ## 常見問題
 
 - **`/api/health` 回 `db":"sqlite"`**：代表沒吃到 `INSTANCE_CONNECTION_NAME`。檢查 `--set-env-vars` 與 `--add-cloudsql-instances` 是否都帶了同一個連線名稱。

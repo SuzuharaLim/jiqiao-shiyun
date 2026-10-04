@@ -11,8 +11,9 @@ import Checkout from './Checkout.jsx'
 import WorkDetail from './WorkDetail.jsx'
 import PostDetail from './PostDetail.jsx'
 import NewPost from './NewPost.jsx'
-import MakeCalendar from './MakeCalendar.jsx'
-import CalendarPreview from './CalendarPreview.jsx'
+import CalStudio from './CalStudio.jsx'
+import CalDesign from './CalDesign.jsx'
+import CalView from './CalView.jsx'
 import MyProjects from './MyProjects.jsx'
 import Deities from './Deities.jsx'
 import Zodiac from './Zodiac.jsx'
@@ -77,8 +78,10 @@ export const SCREENS = {
   workDetail: WorkDetail,
   postDetail: PostDetail,
   newPost: NewPost,
-  makeCalendar: MakeCalendar,
-  calendarPreview: CalendarPreview,
+  // 舊的示範流程（MakeCalendar／CalendarPreview）已由桌曆設計器取代（2026-10-04）
+  makeCalendar: CalStudio,
+  calDesign: CalDesign,
+  calView: CalView,
   myProjects: MyProjects,
   deities: Deities,
   zodiac: Zodiac,
