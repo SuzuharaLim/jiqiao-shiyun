@@ -76,7 +76,7 @@ Google 會直接把寄件者改寫掉。所以程式已做保護：**自動把�
 
 ```powershell
 $env:MAIL_FROM="機巧時運 <任意值會被自動換成 GMAIL_USER>"   # 顯示名稱「機巧時運」會保留
-$env:MAIL_REPLY_TO="hello@chengqi.tw"                        # 使用者按「回覆」時寄到這（建議設）
+$env:MAIL_REPLY_TO="chengqi1943@gmail.com"                        # 使用者按「回覆」時寄到這（建議設）
 ```
 
 ---
