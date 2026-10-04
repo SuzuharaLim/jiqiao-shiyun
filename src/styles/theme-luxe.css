@@ -1181,3 +1181,47 @@ button.ty.glossable, button.tn.glossable {
 .cal-vbtn.on { background: #2f4f86; color: #fff; }
 /* 鍵盤焦點要在深色上看得到 */
 .cal-ws button:focus-visible { outline: 2px solid #8db8ff; outline-offset: 2px; }
+
+/* ── 桌曆工作區：密度（2026-10-04 使用者回報「瀏覽器要縮到 75% 才能正常用」）──
+   Windows 顯示比例 125% 的 1080p 螢幕，瀏覽器實際只有約 1536×730 CSS px。
+   建模軟體的介面本來就是高密度：小字、矮按鈕、窄側欄，把空間留給視窗。
+   1) 桌機把頁面標題列併進工作區工具列（標題列整列隱藏，省 ~50px）
+   2) 工作區裡的按鈕／輸入框／chip 統一壓到 32–36px 高、字級降一階
+   3) 側欄 168／面板 320 */
+.cal-tb-back, .cal-tb-title, .cal-tb-save { display: none; }
+@media (min-width: 900px) and (min-height: 600px) {
+  .stage.signed-in .screen.screen-calDesign > .topbar { display: none; }
+  .cal-tb-back {
+    display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-height: 32px;
+    border: none; border-radius: 8px; background: #30343b; color: var(--text); font-size: 20px; line-height: 1; cursor: pointer;
+  }
+  .cal-tb-title { display: block; font-size: 14px; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .cal-tb-save { display: inline; font-size: 12px; color: var(--muted); }
+  .stage.signed-in .screen-calDesign .cal-body.cal-ws {
+    height: calc(100vh - 104px); min-height: 460px; margin: 8px 0 10px;
+    grid-template-columns: 168px minmax(0, 1fr) 320px;
+  }
+
+  .cal-ws { font-size: 14px; }
+  .cal-ws .cal-topbar { padding: 6px 10px; gap: 8px; }
+  .cal-ws .cal-vt, .cal-ws .cal-vbtn, .cal-ws .cal-tab, .cal-ws .cal-face { min-height: 30px; font-size: 13px; padding-top: 0; padding-bottom: 0; }
+  .cal-ws .cal-hb { width: 32px; height: 32px; min-height: 32px; font-size: 16px; }
+  .cal-ws .cal-addt { min-height: 32px; padding: 0 14px; font-size: 13px; }
+  .cal-ws .cal-chip { min-height: 32px; padding: 0 10px; font-size: 14px; }
+  .cal-outliner { padding: 8px; gap: 6px; }
+
+  .cal-ws .cal-panel { padding: 8px 12px 12px; }
+  .cal-ws .cal-sec { gap: 8px; }
+  .cal-ws .cal-label { font-size: 12px; margin: 4px 0 0; }
+  .cal-ws .cal-note, .cal-ws .cal-warn, .cal-ws .cal-ok { font-size: 12px; line-height: 1.5; }
+  .cal-ws .b, .cal-ws .chip, .cal-ws .btn-primary { min-height: 34px; padding: 0 12px; font-size: 13px; }
+  .cal-ws .cal-input { min-height: 36px; padding: 6px 10px; font-size: 14px; }
+  .cal-ws textarea.cal-input { min-height: 56px; }
+  .cal-ws .cal-card { padding: 8px 10px; }
+  .cal-ws .cal-card small { font-size: 11px; }
+  .cal-ws .cal-pchip { width: 76px; padding: 6px; }
+  .cal-ws .cal-color { min-height: 0; }
+  .cal-ws .cal-adjust { padding: 8px 12px; gap: 6px; }
+  .cal-status { min-height: 34px; padding: 4px 10px; }
+  .cal-status .cal-navb { width: 26px; height: 26px; min-height: 26px; }
+}

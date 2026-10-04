@@ -57,7 +57,7 @@ const thisYear = new Date().getFullYear()
 const YEARS = [thisYear, thisYear + 1, thisYear + 2]
 
 export default function CalDesign({ id = 'local' }) {
-  const { user, push, replace, setToast, setStamp, requireAccount } = useNav()
+  const { user, push, replace, pop, setToast, setStamp, requireAccount } = useNav()
   const isLocal = id === 'local'
   const signedIn = !!user && !user.guest
 
@@ -532,6 +532,9 @@ export default function CalDesign({ id = 'local' }) {
       <div className="body cal-body cal-ws">
         {/* ── 工具列（像建模軟體：檢視模式｜視角｜編輯動作）── */}
         <div className="cal-topbar" role="toolbar" aria-label="設計工具">
+          {/* 桌機把頁面標題列併進工具列（省下一整列高度；那一列在桌機會隱藏） */}
+          <button className="cal-tb-back tap" onClick={() => pop()} aria-label="返回">‹</button>
+          <b className="cal-tb-title">{stripEmoji(design.title)}</b>
           <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
             {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
               <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
@@ -547,6 +550,7 @@ export default function CalDesign({ id = 'local' }) {
           )}
           <span className="cal-tb-sp" />
           {/* 復原／重做：自由編輯工具最重要的安全網——敢試，是因為隨時退得回去 */}
+          <span className={`cal-save cal-tb-save s-${isLocal ? 'local' : saveState}`}>{saveLabel}</span>
           <div className="cal-hist">
             <button className="cal-hb tap" onClick={undo} disabled={!hist.current.past.length} aria-label="復原" title="復原（Ctrl+Z）">↶</button>
             <button className="cal-hb tap" onClick={redo} disabled={!hist.current.future.length} aria-label="重做" title="重做（Ctrl+Shift+Z）">↷</button>
