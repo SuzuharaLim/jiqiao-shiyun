@@ -1166,3 +1166,18 @@ button.ty.glossable, button.tn.glossable {
 
 /* 頁面標題列在設計器也不黏頂：它跟導覽列一樣會蓋住工作區的工具列（2026-10-04 使用者第二次回報） */
 .stage.signed-in .screen.screen-calDesign .topbar { position: relative; top: auto; }
+
+/* ── 桌曆工作區：按鈕回饋（2026-10-04 使用者回報「很多按鈕點擊都沒有反饋」）──
+   深色工作區把元件底色都改成同一個灰，原本靠「換底色」的 hover／按下效果在深色上幾乎看不出來；
+   停用狀態也只有淡一點。三件事要看得到：滑過會亮、按下會縮、不能按的一眼看得出來。 */
+.cal-ws button { transition: background-color var(--m-fast) var(--e-out), filter var(--m-fast) var(--e-out), transform var(--m-fast) var(--e-out), box-shadow var(--m-fast) var(--e-out); }
+@media (hover: hover) and (pointer: fine) {
+  .cal-ws button:not(:disabled):hover { filter: brightness(1.22); }
+  .cal-ws .cal-tab:not(.on):hover, .cal-ws .cal-face:not(.on):hover, .cal-ws .cal-vt:not(.on):hover { background: #2a2e34; color: var(--text); }
+}
+.cal-ws button:not(:disabled):active { transform: scale(.96); filter: brightness(1.4); }
+.cal-ws button:disabled { opacity: .28; cursor: not-allowed; filter: none; }
+/* 目前的視角：跟其他選中狀態同一個藍 */
+.cal-vbtn.on { background: #2f4f86; color: #fff; }
+/* 鍵盤焦點要在深色上看得到 */
+.cal-ws button:focus-visible { outline: 2px solid #8db8ff; outline-offset: 2px; }

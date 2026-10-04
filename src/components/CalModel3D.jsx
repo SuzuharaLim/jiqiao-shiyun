@@ -26,11 +26,11 @@ const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(pref
 // ★ 第 0 張是封面（2026-10-04）。每一張紙都有背面：getBack(i) 回傳 canvas 或 null（空白紙）。
 //   翻過去的紙掛在底座後面，背面朝外——轉到後面看，就是那一頁的背面（真的桌曆也是這樣）。
 // face='back'：使用者正在編輯背面 ⇒ 相機轉到後面，讓他直接看到自己在改的那一面。
-export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', viewCmd = null, baseColor, paperColor, version, label }) {
+export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', viewCmd = null, onOrbit, baseColor, paperColor, version, label }) {
   const hostRef = useRef(null)
   const api = useRef(null)
-  const cb = useRef({ onFlip, getCanvas, getBack })
-  cb.current = { onFlip, getCanvas, getBack }
+  const cb = useRef({ onFlip, getCanvas, getBack, onOrbit })
+  cb.current = { onFlip, getCanvas, getBack, onOrbit }
 
   // ── 建場景（只在頁數改變時重建）──
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
 
     let raf = 0
     let goal = null
-    controls.addEventListener('start', () => { goal = null })   // 使用者自己拖了就停止自動移動
+    controls.addEventListener('start', () => { goal = null; cb.current.onOrbit?.() })   // 使用者自己拖了就停止自動移動
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const instant = reduceMotion()

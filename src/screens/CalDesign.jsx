@@ -172,7 +172,8 @@ export default function CalDesign({ id = 'local' }) {
     const d = h.past.pop()
     h.key = ''
     designRef.current = d; setDesign(d); persist(d); setHistTick(x => x + 1)
-  }, [persist])
+    setToast('已復原上一步')
+  }, [persist, setToast])
   const redo = useCallback(() => {
     const h = hist.current
     if (!h.future.length || !designRef.current) return
@@ -180,7 +181,8 @@ export default function CalDesign({ id = 'local' }) {
     const d = h.future.pop()
     h.key = ''
     designRef.current = d; setDesign(d); persist(d); setHistTick(x => x + 1)
-  }, [persist])
+    setToast('已重做')
+  }, [persist, setToast])
   void histTick
 
   // 離開一個文字框時（選了別的、按完成、換頁），如果它還是空的就清掉。
@@ -538,7 +540,8 @@ export default function CalDesign({ id = 'local' }) {
           {view === '3d' && (
             <div className="cal-views" role="group" aria-label="視角">
               {VIEWS.map(([k, l]) => (
-                <button key={k} className="cal-vbtn tap" onClick={() => setViewCmd(v => ({ name: k, n: (v?.n || 0) + 1 }))}>{l}</button>
+                <button key={k} className={`cal-vbtn tap${viewCmd?.name === k ? ' on' : ''}`} aria-pressed={viewCmd?.name === k}
+                  onClick={() => setViewCmd(v => ({ name: k, n: (v?.n || 0) + 1 }))}>{l}</button>
               ))}
             </div>
           )}
@@ -625,7 +628,7 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           ) : (
             <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} viewCmd={viewCmd} version={version}
+              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} viewCmd={viewCmd} onOrbit={() => setViewCmd(v => (v ? { ...v, name: null } : v))} version={version}
                 baseColor={base} paperColor={paper} label={`${design.title}，${sideName}，拖曳可轉動，點左右兩側翻頁`}
                 onFlip={(d) => goTo(Math.min(pages.length, Math.max(0, sheet3d + d)) - 1)} />
             </Suspense>
