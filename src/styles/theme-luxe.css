@@ -1088,7 +1088,6 @@ button.ty.glossable, button.tn.glossable {
   background: radial-gradient(120% 90% at 50% 38%, #3a3f47 0%, #24272c 55%, #1b1d21 100%);
 }
 .cal-ws .cal3d-arrow { background: rgba(48,52,59,.85); color: var(--text); border: 1px solid rgba(255,255,255,.1); }
-.cal-ws .cal-page-wrap { background: radial-gradient(120% 90% at 50% 40%, #3a3f47 0%, #24272c 60%, #1b1d21 100%); padding: 28px; }
 .cal-ws .cal-adjust { margin: 0; border-radius: 0; background: #24272c; border-top: 1px solid rgba(0,0,0,.4); box-shadow: none; }
 
 .cal-ws .cal-panel { background: #24272c; border-left: 1px solid rgba(0,0,0,.4); padding: 10px 14px 16px; }
@@ -1149,8 +1148,6 @@ button.ty.glossable, button.tn.glossable {
   .cal-ws > .cal-status { grid-area: stat; }
   .cal-ws .cal-strip { flex-direction: column; flex-wrap: nowrap; overflow: visible; }
   .stage.signed-in .screen-calDesign .cal-ws .cal3d { height: auto; flex: 1 1 auto; min-height: 360px; aspect-ratio: auto; max-height: none; }
-  .cal-ws .cal-page-wrap { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
-  .stage.signed-in .screen-calDesign .cal-ws .cal-page-wrap > .cal-page { width: min(100%, 860px); }
 }
 
 /* 桌曆設計器：網站導覽列在這一頁不黏頂（2026-10-04 使用者回報「擋畫面」）。
@@ -1225,3 +1222,24 @@ button.ty.glossable, button.tn.glossable {
   .cal-status { min-height: 34px; padding: 4px 10px; }
   .cal-status .cal-navb { width: 26px; height: 26px; min-height: 26px; }
 }
+
+/* ── 平面編輯：文字框對不齊（2026-10-04 使用者回報）──
+   ⚠️ 照片／標題熱區與文字框都是「相對 .cal-page-wrap 左上角」定位的，數值則是用頁面寬度算的
+   ⇒ .cal-page-wrap 必須跟頁面**一樣大**，不可以有 padding、也不可以讓頁面在它裡面置中。
+   先前為了深色底光給了 28px padding ⇒ 每個框都往左上偏 28px。底光改畫在外層 .cal-vp。 */
+.cal-ws .cal-vp:has(.cal-page-wrap) {
+  background: radial-gradient(120% 90% at 50% 40%, #3a3f47 0%, #24272c 60%, #1b1d21 100%);
+  padding: 24px; overflow: auto; align-items: center;
+}
+.cal-ws .cal-page-wrap { padding: 0; margin: auto; flex: none; width: 100%; }
+@media (min-width: 900px) and (min-height: 600px) {
+  /* 頁面寬度同時受「欄寬」與「視窗高」限制（4:3），整頁都看得到、不必捲 */
+  .cal-ws .cal-page-wrap { width: min(100%, 900px, calc((100vh - 230px) * 4 / 3)); }
+  .stage.signed-in .screen-calDesign .cal-ws > .cal-stage { overflow: hidden; }
+  /* 編輯列（文字／照片）停在右側面板最上面 */
+  .cal-editdock { margin: 0 -12px 10px; border-bottom: 1px solid rgba(0,0,0,.45); }
+  .cal-editdock .cal-adjust { border-top: none; max-height: none; }
+}
+
+/* 選了文字框時，照片／標題區的提示標籤不可蓋在字上（使用者截圖：「點這裡放照片」壓在文字框中間） */
+.cal-page-wrap:has(.cal-tl.on) .cal-hit-tag { opacity: 0; }

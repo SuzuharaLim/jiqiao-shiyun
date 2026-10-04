@@ -42,6 +42,7 @@ const SW = ['base', 'paper', 'accent', 'weekend']
 
 // 視角預設（建模軟體的「正視圖／側視圖／俯視圖」）
 const VIEWS = [['persp', '透視'], ['front', '正面'], ['side', '側面'], ['back', '背面'], ['top', '俯視']]
+const WIDE_MQ = '(min-width: 900px) and (min-height: 600px)'   // 與 theme-luxe.css 工作區四區版面同一個斷點
 const TABS = [['page', '這一頁'], ['layout', '版型'], ['style', '樣式'], ['send', '分享・洽詢']]
 // ── 「面」：c＝-1 是封面、0 起是日曆頁；f＝'front'|'back' ──
 // 所有「這一頁」的編輯（照片、文字、標題）都經過這兩支，封面與背面才不必各寫一套。
@@ -84,6 +85,14 @@ export default function CalDesign({ id = 'local' }) {
   const [pw, setPw] = useState(0)                      // 平面預覽在畫面上的寬度（文字框覆蓋層要用）
   const measureCtx = useRef(null)
   const drag = useRef(null)
+  const [wide, setWide] = useState(() => typeof matchMedia === 'function' && matchMedia(WIDE_MQ).matches)
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return
+    const m = matchMedia(WIDE_MQ), h = () => setWide(m.matches)
+    m.addEventListener?.('change', h)
+    return () => m.removeEventListener?.('change', h)
+  }, [])
+  const wasSel = useRef(null)                         // 按下文字框時它是否已經選中（再點一下＝開始打字）
   // ⚠️ React 的 onWheel 是 passive，preventDefault 無效 ⇒ 在照片上滾輪縮放會連整頁一起捲走。
   //    自己掛一個 passive:false 的監聽器，處理函式用 ref 拿最新的那一份。
   const adjRef = useRef(null)
@@ -387,8 +396,12 @@ export default function CalDesign({ id = 'local' }) {
   }
   // 拖曳移動／拉角縮放。靠近頁面中線時吸附並顯示參考線——對齊不用靠眼力。
   const SNAP = 0.012
+  // 點一下已選中的文字框（沒有拖動）＝開始打字：直接把焦點交給編輯列的輸入框。
+  // 使用者回報「不能輸入文字」：框框長得像可以打字，點了卻沒反應。
+  const focusText = () => setTimeout(() => { const el = document.getElementById('cal-tl-text'); if (el) { el.scrollIntoView?.({ block: 'nearest' }); el.focus(); el.select?.() } }, 30)
   const onTextDown = (e, scope, t, mode = 'move') => {
     e.stopPropagation()
+    wasSel.current = sel?.id === t.id ? { id: t.id, x: e.clientX, y: e.clientY } : null
     setSel({ scope, id: t.id })
     try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* 見照片拖曳的註解 */ }
     const cx = t.x * pw, cy = t.y * ph
@@ -524,6 +537,86 @@ export default function CalDesign({ id = 'local' }) {
     } finally { setBusy('') }
   }
 
+  // 選中文字框／調整照片時的編輯列。桌機放在右側屬性面板最上面（放在視窗下面會把頁面擠到被切掉）；
+  // 手機留在視窗正下方（面板在很下面，手指要捲很遠）。
+  const editBars = (
+    <>
+          {selLayer && view === '2d' && !adjust && (
+            <div className="cal-adjust cal-textbar" role="group" aria-label="編輯文字框">
+              <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
+                aria-label="文字內容" onChange={e => patchLayer({ text: e.target.value }, 'text-typing')} />
+              <div className="cal-row">
+                {FONTS.map(f => (
+                  <button key={f.id} className={`chip tap${selLayer.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
+                    onClick={() => patchLayer({ font: f.id })}>{f.name}</button>
+                ))}
+                <button className={`chip tap${selLayer.bold ? ' on' : ''}`} aria-pressed={selLayer.bold} onClick={() => patchLayer({ bold: !selLayer.bold })}><b>粗體</b></button>
+              </div>
+              <label className="cal-adjust-z">
+                <span>大小</span>
+                <input type="range" min={TEXT_LIMITS.SIZE_MIN} max={TEXT_LIMITS.SIZE_MAX} step="0.1" value={selLayer.size} aria-label="文字大小"
+                  onChange={e => patchLayer({ size: Number(e.target.value) }, 'text-size')} />
+                <b>{selLayer.size.toFixed(1)}</b>
+              </label>
+              <span className="cal-label">文字顏色</span>
+              <div className="cal-row cal-tcolors">
+                {[...new Set([colors.ink, colors.accent, colors.weekend, colors.base, '#FFFFFF', '#22201E'])].map(c => (
+                  <button key={c} className={`cal-sw sm tap${selLayer.color.toLowerCase() === c.toLowerCase() ? ' on' : ''}`} style={{ '--sw': c }}
+                    aria-label={`文字顏色 ${c}`} onClick={() => patchLayer({ color: c })} />
+                ))}
+                <label className="cal-sw sm custom" title="自訂顏色">
+                  <input type="color" value={selLayer.color} aria-label="自訂文字顏色" onChange={e => patchLayer({ color: e.target.value }, 'text-color')} />
+                </label>
+              </div>
+              {(() => {
+                // 文字與它的底色太接近就提醒（大字的 AA 門檻是 3）。沒有底色時拿紙張色比——
+                // 疊在照片上的字無從判斷，那種情況交給「淺底／深底」解決。
+                const under = selLayer.bg === 'ink' ? colors.ink : selLayer.bg === 'accent' ? colors.accent : colors.paper
+                const c = contrast(selLayer.color, under)
+                return c < 3 && <p className="cal-warn">文字顏色和底色太接近（對比 {c.toFixed(1)}），印出來可能看不清楚。換個顏色，或改用「淺底／深底」。</p>
+              })()}
+              <span className="cal-label">底色・對齊</span>
+              <div className="cal-row">
+                {[['none', '無'], ['paper', '淺底'], ['ink', '深底'], ['accent', '強調色']].map(([v, l]) => (
+                  <button key={v} className={`chip tap${selLayer.bg === v ? ' on' : ''}`} onClick={() => patchLayer({ bg: v })}>{l}</button>
+                ))}
+                {[['left', '靠左'], ['center', '置中'], ['right', '靠右']].map(([v, l]) => (
+                  <button key={v} className={`chip tap${selLayer.align === v ? ' on' : ''}`} onClick={() => patchLayer({ align: v })}>{l}</button>
+                ))}
+              </div>
+              <div className="cal-row">
+                <button className="b tap" onClick={() => patchLayer({ x: 0.5 })}>水平置中</button>
+                {calFront && (
+                  <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
+                    {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
+                  </button>
+                )}
+                <button className="b tap" onClick={duplicateLayer}>複製</button>
+                <button className="b tap" onClick={removeLayer}>刪除</button>
+                <button className="b dark tap" onClick={() => setSel(null)}>完成</button>
+              </div>
+              <p className="cal-note">也可以用方向鍵微調位置（Shift 加大步距），Delete 刪除。</p>
+            </div>
+          )}
+          {adjust && (
+            <div className="cal-adjust">
+              <label className="cal-adjust-z">
+                <span>縮放</span>
+                <input type="range" min="1" max="3" step="0.01" value={crop.z || 1} aria-label="照片縮放"
+                  onChange={e => zoomTo(Number(e.target.value))} />
+                <b>{Math.round((crop.z || 1) * 100)}%</b>
+              </label>
+              <div className="cal-row">
+                <button className="b tap" onClick={() => setCrop({ z: 1, x: 0, y: 0 })}>置中重設</button>
+                <button className="b tap" onClick={pickPhoto}>換一張</button>
+                <button className="b dark tap" onClick={() => setAdjust(false)}>完成</button>
+              </div>
+            </div>
+          )}
+    </>
+  )
+  const editing = !!((selLayer && view === '2d' && !adjust) || adjust)
+
   const saveLabel = isLocal ? '存在這個瀏覽器' : { saved: '已儲存', dirty: '尚未儲存', saving: '儲存中…', error: '儲存失敗，會再試' }[saveState]
 
   return (
@@ -615,7 +708,12 @@ export default function CalDesign({ id = 'local' }) {
                         style={{ left: b.left - 4, top: b.top - 4, width: b.width + 8, height: b.height + 8 }}
                         role="button" tabIndex={0} aria-label={`文字框：${t.text}，拖曳可移動`}
                         onPointerDown={(e) => onTextDown(e, scope, t)} onPointerMove={onTextMove} onPointerUp={onTextUp} onPointerCancel={onTextUp}
-                        onClick={(e) => e.stopPropagation()}>
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const w = wasSel.current
+                          if (w && w.id === t.id && Math.hypot(e.clientX - w.x, e.clientY - w.y) < 5) focusText()
+                        }}
+                        onDoubleClick={(e) => { e.stopPropagation(); focusText() }}>
                         {scope === 'global' && <span className="cal-tl-tag">每一頁</span>}
                         {!String(t.text).trim() && <span className="cal-tl-ph" style={{ fontFamily: FONT[t.font], fontSize: t.size * pw / 100 }}>輸入文字</span>}
                         {on && (
@@ -638,82 +736,12 @@ export default function CalDesign({ id = 'local' }) {
             </Suspense>
           )}
           </div>
-          {selLayer && view === '2d' && !adjust && (
-            <div className="cal-adjust cal-textbar" role="group" aria-label="編輯文字框">
-              <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
-                aria-label="文字內容" onChange={e => patchLayer({ text: e.target.value }, 'text-typing')} />
-              <div className="cal-row">
-                {FONTS.map(f => (
-                  <button key={f.id} className={`chip tap${selLayer.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
-                    onClick={() => patchLayer({ font: f.id })}>{f.name}</button>
-                ))}
-                <button className={`chip tap${selLayer.bold ? ' on' : ''}`} aria-pressed={selLayer.bold} onClick={() => patchLayer({ bold: !selLayer.bold })}><b>粗體</b></button>
-              </div>
-              <label className="cal-adjust-z">
-                <span>大小</span>
-                <input type="range" min={TEXT_LIMITS.SIZE_MIN} max={TEXT_LIMITS.SIZE_MAX} step="0.1" value={selLayer.size} aria-label="文字大小"
-                  onChange={e => patchLayer({ size: Number(e.target.value) }, 'text-size')} />
-                <b>{selLayer.size.toFixed(1)}</b>
-              </label>
-              <span className="cal-label">文字顏色</span>
-              <div className="cal-row cal-tcolors">
-                {[...new Set([colors.ink, colors.accent, colors.weekend, colors.base, '#FFFFFF', '#22201E'])].map(c => (
-                  <button key={c} className={`cal-sw sm tap${selLayer.color.toLowerCase() === c.toLowerCase() ? ' on' : ''}`} style={{ '--sw': c }}
-                    aria-label={`文字顏色 ${c}`} onClick={() => patchLayer({ color: c })} />
-                ))}
-                <label className="cal-sw sm custom" title="自訂顏色">
-                  <input type="color" value={selLayer.color} aria-label="自訂文字顏色" onChange={e => patchLayer({ color: e.target.value }, 'text-color')} />
-                </label>
-              </div>
-              {(() => {
-                // 文字與它的底色太接近就提醒（大字的 AA 門檻是 3）。沒有底色時拿紙張色比——
-                // 疊在照片上的字無從判斷，那種情況交給「淺底／深底」解決。
-                const under = selLayer.bg === 'ink' ? colors.ink : selLayer.bg === 'accent' ? colors.accent : colors.paper
-                const c = contrast(selLayer.color, under)
-                return c < 3 && <p className="cal-warn">文字顏色和底色太接近（對比 {c.toFixed(1)}），印出來可能看不清楚。換個顏色，或改用「淺底／深底」。</p>
-              })()}
-              <span className="cal-label">底色・對齊</span>
-              <div className="cal-row">
-                {[['none', '無'], ['paper', '淺底'], ['ink', '深底'], ['accent', '強調色']].map(([v, l]) => (
-                  <button key={v} className={`chip tap${selLayer.bg === v ? ' on' : ''}`} onClick={() => patchLayer({ bg: v })}>{l}</button>
-                ))}
-                {[['left', '靠左'], ['center', '置中'], ['right', '靠右']].map(([v, l]) => (
-                  <button key={v} className={`chip tap${selLayer.align === v ? ' on' : ''}`} onClick={() => patchLayer({ align: v })}>{l}</button>
-                ))}
-              </div>
-              <div className="cal-row">
-                <button className="b tap" onClick={() => patchLayer({ x: 0.5 })}>水平置中</button>
-                {calFront && (
-                  <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
-                    {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
-                  </button>
-                )}
-                <button className="b tap" onClick={duplicateLayer}>複製</button>
-                <button className="b tap" onClick={removeLayer}>刪除</button>
-                <button className="b dark tap" onClick={() => setSel(null)}>完成</button>
-              </div>
-              <p className="cal-note">也可以用方向鍵微調位置（Shift 加大步距），Delete 刪除。</p>
-            </div>
-          )}
-          {adjust && (
-            <div className="cal-adjust">
-              <label className="cal-adjust-z">
-                <span>縮放</span>
-                <input type="range" min="1" max="3" step="0.01" value={crop.z || 1} aria-label="照片縮放"
-                  onChange={e => zoomTo(Number(e.target.value))} />
-                <b>{Math.round((crop.z || 1) * 100)}%</b>
-              </label>
-              <div className="cal-row">
-                <button className="b tap" onClick={() => setCrop({ z: 1, x: 0, y: 0 })}>置中重設</button>
-                <button className="b tap" onClick={pickPhoto}>換一張</button>
-                <button className="b dark tap" onClick={() => setAdjust(false)}>完成</button>
-              </div>
-            </div>
-          )}
+          {!wide && editBars}
         </div>
 
         {/* ── 編輯面板 ── */}
         <div className="cal-panel">
+          {wide && editing && <div className="cal-editdock">{editBars}</div>}
           <div className="cal-tabs" role="tablist" aria-label="編輯項目">
             {TABS.map(([k, l]) => (
               <button key={k} role="tab" aria-selected={tab === k} className={`cal-tab tap${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>{l}</button>
