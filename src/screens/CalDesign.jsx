@@ -40,6 +40,8 @@ const writeMyPals = (a) => { try { localStorage.setItem(MYPAL_KEY, JSON.stringif
 const sameColors = (a = {}, b = {}) => COLOR_SLOTS.every(({ key }) => String(a[key] || '').toLowerCase() === String(b[key] || '').toLowerCase())
 const SW = ['base', 'paper', 'accent', 'weekend']
 
+// 視角預設（建模軟體的「正視圖／側視圖／俯視圖」）
+const VIEWS = [['persp', '透視'], ['front', '正面'], ['side', '側面'], ['back', '背面'], ['top', '俯視']]
 const TABS = [['page', '這一頁'], ['layout', '版型'], ['style', '樣式'], ['send', '分享・洽詢']]
 // ── 「面」：c＝-1 是封面、0 起是日曆頁；f＝'front'|'back' ──
 // 所有「這一頁」的編輯（照片、文字、標題）都經過這兩支，封面與背面才不必各寫一套。
@@ -68,6 +70,7 @@ export default function CalDesign({ id = 'local' }) {
   const [saveState, setSaveState] = useState('saved') // saved | dirty | saving | error
   const [cur, setCur] = useState(0)                   // -1＝封面
   const [face, setFace] = useState('front')           // 正面／背面
+  const [viewCmd, setViewCmd] = useState(null)        // 視角按鈕：{ name, n }（n 讓同一個視角可以連按）
   // ★ 預設看 3D 實物、預設停在「這一頁」：使用者要的是「直接感受到這個畫面」，
   //   一進來先看到的應該是成品，而不是一張版型設定表（2026-10-04 使用者回饋「不直觀」）。
   const [tab, setTab] = useState('page')
@@ -524,22 +527,55 @@ export default function CalDesign({ id = 'local' }) {
   return (
     <>
       <TopBar title={stripEmoji(design.title)} onBack right={<span className={`cal-save s-${isLocal ? 'local' : saveState}`}>{saveLabel}</span>} />
-      <div className="body cal-body">
-        {/* ── 預覽 ── */}
-        <div className="cal-stage">
-          <div className="cal-toolbar">
-            <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
-              {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
-                <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
+      <div className="body cal-body cal-ws">
+        {/* ── 工具列（像建模軟體：檢視模式｜視角｜編輯動作）── */}
+        <div className="cal-topbar" role="toolbar" aria-label="設計工具">
+          <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
+            {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
+            ))}
+          </div>
+          {view === '3d' && (
+            <div className="cal-views" role="group" aria-label="視角">
+              {VIEWS.map(([k, l]) => (
+                <button key={k} className="cal-vbtn tap" onClick={() => setViewCmd(v => ({ name: k, n: (v?.n || 0) + 1 }))}>{l}</button>
               ))}
             </div>
-            {/* 復原／重做：自由編輯工具最重要的安全網——敢試，是因為隨時退得回去 */}
-            <div className="cal-hist">
-              <button className="cal-hb tap" onClick={undo} disabled={!hist.current.past.length} aria-label="復原" title="復原（Ctrl+Z）">↶</button>
-              <button className="cal-hb tap" onClick={redo} disabled={!hist.current.future.length} aria-label="重做" title="重做（Ctrl+Shift+Z）">↷</button>
-              <button className="cal-addt tap" onClick={addText}>＋ 文字</button>
-            </div>
+          )}
+          <span className="cal-tb-sp" />
+          {/* 復原／重做：自由編輯工具最重要的安全網——敢試，是因為隨時退得回去 */}
+          <div className="cal-hist">
+            <button className="cal-hb tap" onClick={undo} disabled={!hist.current.past.length} aria-label="復原" title="復原（Ctrl+Z）">↶</button>
+            <button className="cal-hb tap" onClick={redo} disabled={!hist.current.future.length} aria-label="重做" title="重做（Ctrl+Shift+Z）">↷</button>
+            <button className="cal-addt tap" onClick={addText}>＋ 文字</button>
           </div>
+        </div>
+
+        {/* ── 大綱：封面＋每一頁（像建模軟體的物件清單）── */}
+        <aside className="cal-outliner" aria-label="頁面清單">
+          <div className="cal-ol-hd">頁面<small>{pages.length + 1} 張</small></div>
+          {/* 每一張紙都是雙面的：正面／背面切換。背面沒放東西就是空白紙。 */}
+          <div className="cal-faces" role="radiogroup" aria-label="正面或背面">
+            {[['front', isCover ? '封面' : '正面'], ['back', '背面']].map(([f, l]) => (
+              <button key={f} role="radio" aria-checked={face === f} className={`cal-face tap${face === f ? ' on' : ''}`} onClick={() => setFace(f)}>
+                {l}{f === 'back' && (isCover ? design.cover?.back : design.pages[cur]?.back) ? <i className="cal-face-dot" aria-label="已有內容" /> : null}
+              </button>
+            ))}
+          </div>
+          <div className="cal-strip" role="listbox" aria-label="選擇頁面">
+            <button role="option" aria-selected={cur === -1} className={`cal-chip tap cover${cur === -1 ? ' on' : ''}${design.cover?.img ? ' has-img' : ''}${design.cover?.back ? ' has-back' : ''}`}
+              onClick={() => goTo(-1, face)}><span>封面</span></button>
+            {pages.map((p, i) => (
+              <button key={i} role="option" aria-selected={i === cur} className={`cal-chip tap${i === cur ? ' on' : ''}${design.pages[i]?.img ? ' has-img' : ''}${design.pages[i]?.back ? ' has-back' : ''}`}
+                onClick={() => goTo(i, face)}><span>{p.label}</span></button>
+            ))}
+          </div>
+        </aside>
+
+        {/* ── 視窗 ── */}
+        <div className="cal-stage">
+          <div className="cal-vp">
+          <span className="cal-vp-tag" aria-hidden="true">{view === '3d' ? '透視' : '平面'} · {sideName}</span>
           {view === '2d' ? (
             <div className="cal-page-wrap">
               <div className="cal-page" ref={previewRef} />
@@ -589,11 +625,12 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           ) : (
             <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} version={version}
+              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} viewCmd={viewCmd} version={version}
                 baseColor={base} paperColor={paper} label={`${design.title}，${sideName}，拖曳可轉動，點左右兩側翻頁`}
                 onFlip={(d) => goTo(Math.min(pages.length, Math.max(0, sheet3d + d)) - 1)} />
             </Suspense>
           )}
+          </div>
           {selLayer && view === '2d' && !adjust && (
             <div className="cal-adjust cal-textbar" role="group" aria-label="編輯文字框">
               <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
@@ -666,30 +703,6 @@ export default function CalDesign({ id = 'local' }) {
               </div>
             </div>
           )}
-          <div className="cal-nav">
-            <button className="cal-navb tap" onClick={() => goTo(cur - 1, face)} disabled={cur <= -1} aria-label="上一頁">‹</button>
-            <span className="cal-navl" aria-live="polite"><b>{sideName}</b><small>{isCover ? '封面' : `第 ${cur + 1} / ${pages.length} 頁`}</small></span>
-            <button className="cal-navb tap" onClick={() => goTo(cur + 1, face)} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
-          </div>
-          {/* 每一張紙都是雙面的：正面／背面切換。背面沒放東西就是空白紙。 */}
-          <div className="cal-faces" role="radiogroup" aria-label="正面或背面">
-            {[['front', isCover ? '封面' : '正面（日曆）'], ['back', '背面']].map(([f, l]) => (
-              <button key={f} role="radio" aria-checked={face === f} className={`cal-face tap${face === f ? ' on' : ''}`} onClick={() => setFace(f)}>
-                {l}{f === 'back' && (isCover ? design.cover?.back : design.pages[cur]?.back) ? <i className="cal-face-dot" aria-label="已有內容" /> : null}
-              </button>
-            ))}
-          </div>
-          <p className="cal-hint">{view === '3d'
-            ? '拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻'
-            : '直接點頁面上的照片或標題就能編輯'}</p>
-          <div className="cal-strip" role="listbox" aria-label="選擇頁面">
-            <button role="option" aria-selected={cur === -1} className={`cal-chip tap cover${cur === -1 ? ' on' : ''}${design.cover?.img ? ' has-img' : ''}`}
-              onClick={() => goTo(-1, face)}>封面</button>
-            {pages.map((p, i) => (
-              <button key={i} role="option" aria-selected={i === cur} className={`cal-chip tap${i === cur ? ' on' : ''}${design.pages[i]?.img ? ' has-img' : ''}${design.pages[i]?.back ? ' has-back' : ''}`}
-                onClick={() => goTo(i, face)}>{p.label}</button>
-            ))}
-          </div>
         </div>
 
         {/* ── 編輯面板 ── */}
@@ -948,6 +961,15 @@ export default function CalDesign({ id = 'local' }) {
               )}
             </div>
           )}
+        </div>
+        {/* ── 狀態列 ── */}
+        <div className="cal-status">
+          <button className="cal-navb tap" onClick={() => goTo(cur - 1, face)} disabled={cur <= -1} aria-label="上一頁">‹</button>
+          <span className="cal-navl" aria-live="polite"><b>{sideName}</b><small>{isCover ? '封面' : `第 ${cur + 1} / ${pages.length} 頁`}</small></span>
+          <button className="cal-navb tap" onClick={() => goTo(cur + 1, face)} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
+          <span className="cal-hint">{view === '3d'
+            ? '左鍵拖曳旋轉・滾輪縮放・點右側往後翻、點左側或轉到背面往前翻'
+            : '直接點頁面上的照片或標題就能編輯'}</span>
         </div>
         {busy && <div className="cal-busy" role="status">{busy}</div>}
       </div>

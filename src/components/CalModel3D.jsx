@@ -26,7 +26,7 @@ const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(pref
 // ★ 第 0 張是封面（2026-10-04）。每一張紙都有背面：getBack(i) 回傳 canvas 或 null（空白紙）。
 //   翻過去的紙掛在底座後面，背面朝外——轉到後面看，就是那一頁的背面（真的桌曆也是這樣）。
 // face='back'：使用者正在編輯背面 ⇒ 相機轉到後面，讓他直接看到自己在改的那一面。
-export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', baseColor, paperColor, version, label }) {
+export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', viewCmd = null, baseColor, paperColor, version, label }) {
   const hostRef = useRef(null)
   const api = useRef(null)
   const cb = useRef({ onFlip, getCanvas, getBack })
@@ -75,6 +75,24 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
     const track = (x) => { disposables.push(x); return x }
     const root = new THREE.Group()
     scene.add(root)
+
+    // 建模軟體式的地板：細格線＋中心十字（主軸線較亮），讓人一眼看出比例與方位
+    const grid = new THREE.GridHelper(8, 40, 0x5b6470, 0x3a4048)
+    grid.material.transparent = true
+    grid.material.opacity = 0.55
+    grid.material.depthWrite = false
+    track(grid.geometry); track(grid.material)
+    scene.add(grid)
+    // 接觸陰影：一張徑向漸層貼圖（不開真陰影——那很貴，而且會讓紙面變灰）
+    const sh = document.createElement('canvas'); sh.width = sh.height = 128
+    const sg = sh.getContext('2d'), rg = sg.createRadialGradient(64, 64, 4, 64, 64, 64)
+    rg.addColorStop(0, 'rgba(0,0,0,.55)'); rg.addColorStop(1, 'rgba(0,0,0,0)')
+    sg.fillStyle = rg; sg.fillRect(0, 0, 128, 128)
+    const shadow = new THREE.Mesh(track(new THREE.PlaneGeometry(PW * 1.5, 1.1)),
+      track(new THREE.MeshBasicMaterial({ map: track(new THREE.CanvasTexture(sh)), transparent: true, depthWrite: false })))
+    shadow.rotation.x = -Math.PI / 2
+    shadow.position.y = 0.002
+    scene.add(shadow)
 
     // 鉸鏈在頂端；紙頁從鉸鏈往下掛
     // ⚠️ 鉸鏈高度要由「面板」長度算，不是紙頁：面板比紙頁長 0.1，
@@ -149,7 +167,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
       //    半寬 0.95（桌曆半寬 0.87 ＋ 一點透視餘裕）、半高 0.64。使用者兩度回報「模型太小」：
       //    1.2／0.95（只佔六成）→ 1.05／0.74 → 現值。再小就會在起始角度切到邊。
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-      const need = Math.max(0.95 / (tanV * camera.aspect), 0.64 / tanV)
+      const need = Math.max(1.06 / (tanV * camera.aspect), 0.8 / tanV)   // 寬視窗（建模式工作區）時由高度決定，0.64 會切到線圈
       controls.maxDistance = Math.max(6.5, need * 1.6)
       camera.position.sub(controls.target).setLength(need).add(controls.target)
       camera.updateProjectionMatrix()
@@ -184,9 +202,15 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
     cvs.addEventListener('keydown', onKey)
 
     let raf = 0
+    let goal = null
+    controls.addEventListener('start', () => { goal = null })   // 使用者自己拖了就停止自動移動
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const instant = reduceMotion()
+      if (goal) {
+        if (instant || camera.position.distanceTo(goal) < 0.002) { camera.position.copy(goal); goal = null }
+        else camera.position.lerp(goal, 0.16)
+      }
       for (let i = 0; i < pages.length; i++) {
         const p = pages[i]
         const target = i < cur ? BACK : FRONT
@@ -234,6 +258,13 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
         } else {
           p.back.material = p.plainBack
         }
+      },
+      // 視角預設：保留目前距離，只換方向（平滑移過去）
+      setView(name) {
+        const d = camera.position.distanceTo(controls.target)
+        const dir = { persp: [0.5, 0.45, 3.6], front: [0, 0.12, 1], side: [1, 0.12, 0], back: [0, 0.12, -1], top: [0, 1, 0.02] }[name]
+        if (!dir) return
+        goal = new THREE.Vector3(...dir).normalize().multiplyScalar(d).add(controls.target)
       },
       viewFrom(side) {
         // 只把相機搬到前方或後方，保留使用者目前的距離與高度
@@ -309,6 +340,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
   }, [current, version, count])
 
   useEffect(() => { api.current?.viewFrom(face) }, [face, count])
+  useEffect(() => { if (viewCmd) api.current?.setView(viewCmd.name) }, [viewCmd])
 
   // 畫面上的前後翻頁鈕：觸控時「點左半邊往前翻」不容易被發現，箭頭是看得到的提示
   return (
