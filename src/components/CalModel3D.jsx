@@ -50,7 +50,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50)
     // 起始角度偏正面（只微微斜一點）：一打開就看得清楚整頁，想看側面再自己轉
-    camera.position.set(0.85, 0.55, 3.6)
+    camera.position.set(0.5, 0.45, 3.6)
     const controls = new OrbitControls(camera, cvs)
     controls.enableDamping = true
     controls.dampingFactor = 0.08

@@ -776,8 +776,8 @@ button.ty.glossable, button.tn.glossable {
 
 /* 桌機：預覽在左（黏住）、編輯在右 */
 @media (min-width: 900px) and (min-height: 600px) {
-  .stage.signed-in .screen-calDesign .body { width: min(100%, 1060px); }
-  .stage.signed-in .screen-calDesign .cal-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); align-items: start; gap: 8px; }
+  .stage.signed-in .screen-calDesign .body { width: min(100%, 1320px); }
+  .stage.signed-in .screen-calDesign .cal-body { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(340px, 1fr); align-items: start; gap: 8px; }
   .stage.signed-in .screen-calDesign .cal-stage { position: sticky; top: 84px; }
   .stage.signed-in .screen-calDesign .cal3d { height: 480px; }
   .stage.signed-in .screen-calView .body { width: min(100%, 860px); }
@@ -994,7 +994,7 @@ button.ty.glossable, button.tn.glossable {
   .stage.signed-in .screen-calDesign .cal-panel .cal-tabs {
     position: sticky; top: 0; z-index: 4; box-shadow: 0 -8px 0 var(--color-bg);
   }
-  .stage.signed-in .screen-calDesign .cal3d { max-height: calc(100vh - 230px); }
+  .stage.signed-in .screen-calDesign .cal3d { max-height: calc(100vh - 190px); }
 }
 
 /* ── 桌曆：封面＋雙面（2026-10-04）── */
@@ -1008,3 +1008,9 @@ button.ty.glossable, button.tn.glossable {
 .cal-face-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent, var(--text)); display: inline-block; }
 .cal-chip.cover { font-weight: 800; }
 .cal-chip.has-back { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--text) 35%, transparent); }
+
+/* 桌曆設計器：3D 要大（使用者兩度回報「模型佔比太小」）。全站內容卡是 1000px，
+   這一頁是工具不是文件，放寬到 1320 讓左邊預覽欄能長到 ~830px。只限這一頁。 */
+@media (min-width: 1200px) and (min-height: 600px) {
+  .stage.signed-in .device:has(.screen-calDesign) { width: min(100%, 1320px); max-width: 1320px; }
+}
