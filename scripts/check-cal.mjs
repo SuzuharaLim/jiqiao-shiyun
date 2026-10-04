@@ -82,7 +82,11 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
   ok(dirty.start.date !== '1900-01-01', 'B 範圍外的日期不可照收')
   ok(dirty.style.base === 'sage' && dirty.style.font === 'serif' && dirty.style.weekStart === 0, 'B 樣式白名單')
   ok(dirty.style.marks.yiji === false, 'B 宜忌必須是明確的 true 才開（民俗內容預設關）')
-  ok(!dirty.pages[0].img && dirty.pages[0].title.length <= 30 && dirty.pages[0].text.length <= 140, 'B 不合法的圖片 id 丟掉、文字截斷')
+  ok(!dirty.pages[0].img && dirty.pages[0].title.length <= 30, 'B 不合法的圖片 id 丟掉、標題截斷')
+  // 舊版「一句話」→ 文字框：內容要完整搬過去（上限 140），不可以默默切掉
+  const legacy = normalizeDesign({ pages: { 0: { text: '字'.repeat(140) } } })
+  ok(legacy.pages[0].texts?.[0]?.text.length === 140 && !('text' in legacy.pages[0]), 'B 舊版「一句話」要完整轉成文字框（140 字不可被切掉）')
+  ok(dirty.pages[0].texts?.[0]?.text.length <= 140, 'B 文字框內容截在 140 字')
   ok(!dirty.pages[60] && !dirty.pages[-1], 'B 頁碼超出 0–51 要丟掉')
   ok(dirty.pages[3].img.src === 'upload', 'B 圖片來源只有 upload／site 兩種')
   const flags = designFlags(normalizeDesign({ cadence: 'month', pages: { 2: { img: { id: 'abcdef12-1', w: 1600, h: 1200 } } } }))
@@ -106,6 +110,27 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
     }
     ok(outside === 0, `B2 cropRect 有 ${outside} 種組合取景超出原圖（會畫出空白邊）`)
   }
+}
+
+// ── B3) 自由文字框與配色 ──
+{
+  const { resolveColors, contrast, TEXT_LIMITS: TL, PALETTES } = await import('../src/data/calendarRules.js')
+  const d = normalizeDesign({
+    texts: Array(9).fill({ text: '王家', x: 5, y: -2, size: 99, font: 'comic', color: 'blue', bg: 'neon', align: 'up' }),
+    pages: { 0: { texts: Array(20).fill({ text: 'a' }).concat([{ text: '   ' }]) } },
+    style: { palette: 'sea', colors: { ink: '#FFFFFF', evil: '#000000', grid: 'red' } },
+  })
+  const t = d.texts[0]
+  ok(d.texts.length === TL.GLOBAL && d.pages[0].texts.length === TL.PER_PAGE, 'B3 文字框數量要有上限（每一頁都放／單頁）')
+  ok(t.x === 1 && t.y === 0 && t.size === TL.SIZE_MAX, 'B3 位置與大小要夾在範圍內')
+  ok(t.font === 'serif' && t.color === '#2B2118' && t.bg === 'none' && t.align === 'center', 'B3 字體／顏色／底色／對齊走白名單')
+  ok(JSON.stringify(d.style.colors) === '{"ink":"#FFFFFF"}', 'B3 未知的顏色欄位與不合法的色碼要丟掉')
+  ok(resolveColors(d).ink === '#FFFFFF' && resolveColors(d).grid === PALETTES.find(p => p.id === 'sea').colors.grid, 'B3 覆寫只蓋那一格，其他沿用組合')
+  // 舊設計（沒有 palette 欄位）要維持原本的底座／紙張顏色，不可以突然變成預設組合
+  const old = normalizeDesign({ style: { base: 'slate', paper: 'white' } })
+  ok(old.style.palette === null && resolveColors(old).base === '#4E6E80' && resolveColors(old).paper === '#FFFFFF', 'B3 舊設計的顏色不可在升級後改變')
+  // 每一組配色的「日期 vs 紙張」都要能讀（組合是我們挑的，不可以挑出看不清楚的）
+  ok(PALETTES.every(p => contrast(p.colors.ink, p.colors.paper) >= 7), 'B3 每一組配色的日期與紙張對比都要 ≥ 7')
 }
 
 // ── C) 原圖只有後台拿得到 ──────────────────────────────────────

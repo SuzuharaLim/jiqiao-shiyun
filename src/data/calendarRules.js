@@ -44,10 +44,87 @@ export const PAPER_COLORS = [
   { id: 'white', name: '純白', hex: '#FFFFFF' },
   { id: 'mist',  name: '霧灰', hex: '#F1F0EC' },
 ]
+// ⚠️ 只列「每台裝置都有對應字體」的三種：網頁字型下載會拖慢、也違反站上零外部資源的原則；
+//   而系統字在不同裝置上長得略有不同 ⇒ 畫面與後台都註明「字體以打樣為準」。
 export const FONTS = [
-  { id: 'serif', name: '明體（典雅）' },
-  { id: 'sans',  name: '黑體（俐落）' },
+  { id: 'serif', name: '明體', hint: '典雅' },
+  { id: 'sans',  name: '黑體', hint: '俐落' },
+  { id: 'kai',   name: '楷體', hint: '手寫感' },
 ]
+
+// ── 配色 ──────────────────────────────────────────────────────
+// 六個顏色欄位。先選「配色組合」一次換整本，再到細項微調任一格。
+// ★ 組合都是先調好對比的：選哪一組都不會做出看不清楚的日曆。
+export const COLOR_SLOTS = [
+  { key: 'base',    name: '底座' },
+  { key: 'paper',   name: '紙張' },
+  { key: 'accent',  name: '標題與節氣' },
+  { key: 'ink',     name: '日期數字' },
+  { key: 'weekend', name: '週末' },
+  { key: 'grid',    name: '格線' },
+]
+export const PALETTES = [
+  { id: 'sage',  name: '鼠尾草', colors: { base: '#6E7F5C', paper: '#FBF7EE', accent: '#5B6B49', ink: '#2B2118', weekend: '#A8553F', grid: '#D9D3C4' } },
+  { id: 'ink',   name: '墨韻',   colors: { base: '#22201E', paper: '#F7F5F0', accent: '#22201E', ink: '#22201E', weekend: '#9A3B2E', grid: '#D6D2CA' } },
+  { id: 'sea',   name: '海霧',   colors: { base: '#4E6E80', paper: '#F4F6F6', accent: '#34617A', ink: '#1F2E36', weekend: '#B0563E', grid: '#CFD8DC' } },
+  { id: 'terra', name: '陶土',   colors: { base: '#A8553F', paper: '#FBF4EC', accent: '#8E4430', ink: '#3A2418', weekend: '#8E4430', grid: '#E2D2C2' } },
+  { id: 'honey', name: '蜂蜜',   colors: { base: '#B98A2E', paper: '#FFFBF0', accent: '#8A6414', ink: '#33270F', weekend: '#B0563E', grid: '#E8DCBC' } },
+  { id: 'sakura',name: '櫻粉',   colors: { base: '#C98A92', paper: '#FFF8F7', accent: '#A4535F', ink: '#3A2427', weekend: '#A4535F', grid: '#EBD5D5' } },
+  { id: 'night', name: '夜幕',   colors: { base: '#2E3440', paper: '#FAFAF7', accent: '#3B4A6B', ink: '#1E2430', weekend: '#B04A4A', grid: '#D5D8DE' } },
+]
+const HEX = /^#[0-9a-f]{6}$/i
+
+/** 這份設計最後實際用的六個顏色（組合 ＋ 個別覆寫）。渲染端只吃這一份。 */
+export function resolveColors(design) {
+  const st = design?.style || {}
+  const pal = PALETTES.find(p => p.id === st.palette)
+  const base = pal ? pal.colors : {
+    // 沒選組合（舊設計）：沿用舊的底座／紙張欄位推出一組
+    ...PALETTES[0].colors,
+    base: (BASE_COLORS.find(c => c.id === st.base) || BASE_COLORS[0]).hex,
+    paper: (PAPER_COLORS.find(c => c.id === st.paper) || PAPER_COLORS[0]).hex,
+  }
+  const out = { ...base }
+  for (const { key } of COLOR_SLOTS) if (HEX.test(st.colors?.[key] || '')) out[key] = st.colors[key]
+  return out
+}
+
+/** WCAG 對比值。用來在「日期數字 vs 紙張」太接近時提醒（印出來看不清楚）。 */
+export function contrast(a, b) {
+  const L = (hex) => {
+    const n = parseInt(String(hex).slice(1), 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+      .map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 })
+      .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0)
+  }
+  const x = L(a), y = L(b)
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
+// ── 自由文字 ──────────────────────────────────────────────────
+// 每頁可以放幾個文字框；「每一頁都放」的放在 design.texts（例如家族名、公司名）。
+// x、y＝文字框**中心**在頁面上的位置（0–1，相對頁寬／頁高）；size＝字高佔頁寬的百分比。
+// ⚠️ MAX_CHARS 不可小於舊版「一句話」的 140：舊設計會被轉成文字框，上限較小的話超出的字會被默默切掉。
+export const TEXT_LIMITS = { PER_PAGE: 8, GLOBAL: 4, MAX_CHARS: 140, SIZE_MIN: 1.4, SIZE_MAX: 16 }
+const TEXT_BG = ['none', 'paper', 'ink', 'accent']
+function normText(t) {
+  if (!t || typeof t !== 'object') return null
+  const text = strML(t.text, TEXT_LIMITS.MAX_CHARS).split('\n').slice(0, 4).join('\n')   // 最多 4 行
+  if (!text.trim()) return null
+  const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
+  return {
+    id: /^[a-z0-9]{4,16}$/i.test(String(t.id || '')) ? String(t.id) : Math.random().toString(36).slice(2, 10),
+    text,
+    x: +num(t.x, 0, 1, 0.5).toFixed(4), y: +num(t.y, 0, 1, 0.5).toFixed(4),
+    size: +num(t.size, TEXT_LIMITS.SIZE_MIN, TEXT_LIMITS.SIZE_MAX, 4).toFixed(2),
+    font: pick(t.font, FONTS, 'serif'),
+    color: HEX.test(t.color || '') ? t.color : '#2B2118',
+    bold: t.bold !== false,
+    align: ['left', 'center', 'right'].includes(t.align) ? t.align : 'center',
+    bg: TEXT_BG.includes(t.bg) ? t.bg : 'none',
+  }
+}
+const normTexts = (arr, max) => (Array.isArray(arr) ? arr : []).map(normText).filter(Boolean).slice(0, max)
 
 const YEAR_MIN = 2025, YEAR_MAX = 2035
 const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
@@ -63,10 +140,12 @@ export function defaultDesign(now = new Date()) {
     cadence: 'month',
     start: { year: y, month: 1, termIndex: 0, date: `${y}-01-04` },
     style: {
+      palette: 'sage', colors: {},
       base: 'sage', paper: 'cream', font: 'serif', weekStart: 0,
       marks: { lunar: true, term: true, fest: true, yiji: false },
     },
     pages: {},
+    texts: [],
   }
 }
 
@@ -80,6 +159,7 @@ export function normalizeDesign(raw) {
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s.date || ''))
   const date = iso && +iso[1] >= YEAR_MIN && +iso[1] <= YEAR_MAX ? `${iso[1]}-${iso[2]}-${iso[3]}` : `${year}-01-04`
   const st = r.style || {}
+  const st0 = { font: pick(st.font, FONTS, 'serif') }
   const mk = st.marks || {}
   // 超出目前週期頁數的內容先保留（使用者可能只是暫時切換週期），上限 52 頁
   const pages = {}
@@ -88,7 +168,14 @@ export function normalizeDesign(raw) {
     if (!Number.isInteger(i) || i < 0 || i >= 52 || !p || typeof p !== 'object') continue
     const out = {}
     const t = str(p.title, 30); if (t) out.title = t
-    const x = strML(p.text, 140); if (x.trim()) out.text = x
+    const texts = normTexts(p.texts, TEXT_LIMITS.PER_PAGE)
+    // 舊版的「一句話」（固定印在照片左下）→ 轉成一個可以自由移動的文字框，原本的設計不會不見
+    const legacy = strML(p.text, 140)
+    if (!texts.length && legacy.trim()) {
+      const t = normText({ text: legacy, x: 0.24, y: 0.35, size: 2.3, align: 'left', bg: 'paper', bold: false, font: st0.font })
+      if (t) texts.push(t)
+    }
+    if (texts.length) out.texts = texts
     const img = p.img
     if (img && typeof img === 'object' && /^[a-f0-9-]{8,60}$/i.test(String(img.id || ''))) {
       out.img = {
@@ -118,6 +205,11 @@ export function normalizeDesign(raw) {
       date,
     },
     style: {
+      // 有效的組合 id → 用它；其他（舊設計沒有這個欄位、或使用者明確清掉）→ null，
+      // resolveColors 會改用舊的底座／紙張欄位推一組，舊設計的顏色不會突然變掉。
+      // 全新設計由 defaultDesign 給預設組合，不經過這裡的 null。
+      palette: PALETTES.some(p => p.id === st.palette) ? st.palette : (raw?.style ? null : d.style.palette),
+      colors: Object.fromEntries(COLOR_SLOTS.map(({ key }) => [key, st.colors?.[key]]).filter(([, v]) => HEX.test(v || ''))),
       base: pick(st.base, BASE_COLORS, d.style.base),
       paper: pick(st.paper, PAPER_COLORS, d.style.paper),
       font: pick(st.font, FONTS, d.style.font),
@@ -125,6 +217,7 @@ export function normalizeDesign(raw) {
       marks: { lunar: mk.lunar !== false, term: mk.term !== false, fest: mk.fest !== false, yiji: mk.yiji === true },
     },
     pages,
+    texts: normTexts(r.texts, TEXT_LIMITS.GLOBAL),
   }
 }
 

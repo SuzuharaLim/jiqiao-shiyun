@@ -4,8 +4,8 @@ import { TopBar, Switch, SheetMask, Link, Disclaimer } from '../components/ui.js
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { buildPages, TERM_START_OPTIONS } from '../data/calendarLayout.js'
-import { CADENCES, BASE_COLORS, PAPER_COLORS, FONTS, CAL_LIMITS, defaultDesign, normalizeDesign, designFlags } from '../data/calendarRules.js'
-import { baseHex, paperHex, pageRegions, cropRect } from '../lib/calRender.js'
+import { CADENCES, FONTS, CAL_LIMITS, PALETTES, COLOR_SLOTS, TEXT_LIMITS, defaultDesign, normalizeDesign, designFlags, resolveColors, contrast } from '../data/calendarRules.js'
+import { baseHex, paperHex, pageRegions, cropRect, measureTextLayer, PAGE_RATIO, FONT } from '../lib/calRender.js'
 import { renderPageCanvas } from '../lib/calPages.js'
 import { processPick, putPrintBlob, getPrintBlob, blobToDataURL } from '../lib/calImages.js'
 import { stripEmoji } from '../lib/text.js'
@@ -44,6 +44,9 @@ export default function CalDesign({ id = 'local' }) {
   const signedIn = !!user && !user.guest
 
   const [design, setDesign] = useState(null)
+  // ⚠️ 這兩個 ref 一定要宣告在載入 effect 之前（站規：TDZ 在本專案已經咬過三次，build 不會報）
+  const designRef = useRef(null)                     // 目前的設計（update／undo 讀這一份，不讀 render 閉包）
+  const hist = useRef({ past: [], future: [], key: '', at: 0 })
   const [meta, setMeta] = useState(null)              // 伺服器上的 { status, shareToken }
   const [err, setErr] = useState(null)
   const [saveState, setSaveState] = useState('saved') // saved | dirty | saving | error
@@ -53,6 +56,10 @@ export default function CalDesign({ id = 'local' }) {
   const [tab, setTab] = useState('page')
   const [view, setView] = useState('3d')
   const [adjust, setAdjust] = useState(false)          // 照片調整模式（拖曳移動、縮放）
+  const [sel, setSel] = useState(null)                 // 選中的文字框 { scope: 'page'|'global', id }
+  const [guide, setGuide] = useState(null)             // 拖曳文字時的置中參考線 { v, h }
+  const [pw, setPw] = useState(0)                      // 平面預覽在畫面上的寬度（文字框覆蓋層要用）
+  const measureCtx = useRef(null)
   const drag = useRef(null)
   // ⚠️ React 的 onWheel 是 passive，preventDefault 無效 ⇒ 在照片上滾輪縮放會連整頁一起捲走。
   //    自己掛一個 passive:false 的監聽器，處理函式用 ref 拿最新的那一份。
@@ -79,10 +86,12 @@ export default function CalDesign({ id = 'local' }) {
   useEffect(() => {
     let alive = true
     setErr(null); setDesign(null)
-    if (isLocal) { setDesign(readLocalDesign() || defaultDesign()); setMeta(null); return }
+    hist.current = { past: [], future: [], key: '', at: 0 }
+    const load = (d) => { designRef.current = d; setDesign(d) }
+    if (isLocal) { load(readLocalDesign() || normalizeDesign(defaultDesign())); setMeta(null); return }
     api.calGet(id).then(r => {
       if (!alive) return
-      setDesign(normalizeDesign(r.design.design))
+      load(normalizeDesign(r.design.design))
       setMeta({ status: r.design.status, shareToken: r.design.shareToken })
     }).catch(e => { if (alive) setErr(e?.status === 404 ? 'notfound' : e?.status === 401 ? 'login' : 'net') })
     if (signedIn) api.calInquiries(id).then(r => { if (alive) setInq(r.inquiries || []) }).catch(() => {})
@@ -101,19 +110,55 @@ export default function CalDesign({ id = 'local' }) {
     setSaveState('saving')
     try { await api.calSave(id, d); setSaveState(pending.current ? 'dirty' : 'saved') } catch { setSaveState('error') }
   }, [id, isLocal])
-  const update = useCallback((fn) => {
-    setDesign(prev => {
-      const next = normalizeDesign(fn(prev))
-      if (isLocal) writeLocal(next)
-      else {
-        pending.current = next
-        setSaveState('dirty')
-        clearTimeout(saveTimer.current)
-        saveTimer.current = setTimeout(flush, 1200)
-      }
-      return next
-    })
+  // ── 改動＋復原／重做 ──
+  // ⚠️ 不可把「存檔、記歷史」寫進 setState 的更新函式裡：React 可能為了併發重跑它，
+  //    副作用會執行不只一次（站規：remember() 那個坑）。改用 ref 拿目前的設計、在外面算好再 set。
+  const persist = useCallback((next) => {
+    if (isLocal) { writeLocal(next); return }
+    pending.current = next
+    setSaveState('dirty')
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(flush, 1200)
   }, [isLocal, flush])
+  const [histTick, setHistTick] = useState(0)        // 讓復原／重做按鈕的可用狀態跟著更新
+  /**
+   * @param fn  prev → next
+   * @param key 同一種連續動作（拖曳文字、拖曳照片、滑桿）用同一個 key：
+   *            0.7 秒內的連續改動併成一步，否則拖一下就要按幾十次復原。
+   */
+  const update = useCallback((fn, key = '') => {
+    const prev = designRef.current
+    if (!prev) return
+    const next = normalizeDesign(fn(prev))
+    const h = hist.current, t = Date.now()
+    if (!key || key !== h.key || t - h.at > 700) {
+      h.past.push(prev)
+      if (h.past.length > 80) h.past.shift()
+    }
+    h.future = []
+    h.key = key; h.at = t
+    designRef.current = next
+    setDesign(next)
+    persist(next)
+    setHistTick(x => x + 1)
+  }, [persist])
+  const undo = useCallback(() => {
+    const h = hist.current
+    if (!h.past.length || !designRef.current) return
+    h.future.push(designRef.current)
+    const d = h.past.pop()
+    h.key = ''
+    designRef.current = d; setDesign(d); persist(d); setHistTick(x => x + 1)
+  }, [persist])
+  const redo = useCallback(() => {
+    const h = hist.current
+    if (!h.future.length || !designRef.current) return
+    h.past.push(designRef.current)
+    const d = h.future.pop()
+    h.key = ''
+    designRef.current = d; setDesign(d); persist(d); setHistTick(x => x + 1)
+  }, [persist])
+  void histTick
   // 離開頁面前把還沒送出的改動送出去
   useEffect(() => () => { clearTimeout(saveTimer.current); flush() }, [flush])
 
@@ -126,6 +171,28 @@ export default function CalDesign({ id = 'local' }) {
   //    先切到平面再打開調整模式，effect 在 render 之後才跑，會把剛打開的又關掉。
   useEffect(() => { setAdjust(false) }, [cur])
   useEffect(() => { if (view === '3d') setAdjust(false) }, [view])
+  useEffect(() => { setSel(s => (s?.scope === 'global' ? s : null)) }, [cur])
+  useEffect(() => { if (adjust) setSel(null) }, [adjust])
+
+  // 平面預覽的實際寬度：文字框覆蓋層要用它把「頁寬比例」換成螢幕像素
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el || view !== '2d') return
+    const set = () => setPw(el.clientWidth)
+    set()
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    window.addEventListener('resize', set)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', set) }
+  }, [view, design === null])
+
+  // 鍵盤：復原／重做、刪除與微調選中的文字框。處理函式在 render 後半段才定義，用 ref 拿最新的。
+  const keyFn = useRef(null)
+  useEffect(() => {
+    const h = (e) => keyFn.current?.(e)
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [])
 
   // 內容版本：任何會改變畫面的東西都算進來（2D 重畫、3D 重新載貼圖）
   const version = useMemo(() => JSON.stringify([design?.style, design?.pages, design?.cadence, design?.start]), [design])
@@ -166,12 +233,12 @@ export default function CalDesign({ id = 'local' }) {
 
   const page = pages[cur]
   const over = design.pages[cur] || {}
-  const setPage = (patch) => update(d => ({ ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), ...patch } } }))
+  const setPage = (patch, key) => update(d => ({ ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), ...patch } } }), key)
   const flags = designFlags(design)
   const base = baseHex(design), paper = paperHex(design)
   const regions = pageRegions(page?.kind)
   const crop = over.img?.crop || { z: 1, x: 0, y: 0 }
-  const setCrop = (c) => setPage({ img: { ...over.img, crop: { ...crop, ...c } } })
+  const setCrop = (c) => setPage({ img: { ...over.img, crop: { ...crop, ...c } } }, 'crop')
 
   // ── 照片調整：拖曳移動、滾輪／雙指／滑桿縮放 ──
   // 位置存成「可移動範圍的比例」（calRender.cropRect），所以預覽、3D、印刷取景一致。
@@ -197,7 +264,7 @@ export default function CalDesign({ id = 'local' }) {
   }
   const onAdjMove = (e) => {
     const d = drag.current
-    if (!d?.pts.has(e.pointerId)) return
+    if (!d?.pts?.has(e.pointerId)) return       // 文字拖曳也用 drag.current（形狀不同），要防呆
     const prev = d.pts.get(e.pointerId)
     d.pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (d.pinch && d.pts.size === 2) { zoomTo(d.pinch.z * dist(d.pts) / d.pinch.dist); return }
@@ -205,7 +272,7 @@ export default function CalDesign({ id = 'local' }) {
   }
   const onAdjUp = (e) => {
     const d = drag.current
-    if (!d) return
+    if (!d?.pts) return
     d.pts.delete(e.pointerId)
     if (d.pts.size < 2) d.pinch = null
     if (!d.pts.size) drag.current = null
@@ -220,6 +287,98 @@ export default function CalDesign({ id = 'local' }) {
     setTimeout(() => { const el = document.getElementById('cal-ptitle'); el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }) }, 60)
   }
   const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` })
+
+  // ── 自由文字框 ───────────────────────────────────────────────
+  const colors = resolveColors(design)
+  const layersOf = (d, scope) => (scope === 'global' ? d.texts || [] : d.pages?.[cur]?.texts || [])
+  const setLayers = (scope, fn, key) => update(d => (scope === 'global'
+    ? { ...d, texts: fn(d.texts || []) }
+    : { ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), texts: fn(d.pages[cur]?.texts || []) } } }), key)
+  const selLayer = sel ? layersOf(design, sel.scope).find(t => t.id === sel.id) : null
+  const patchLayer = (patch, key) => sel && setLayers(sel.scope, arr => arr.map(t => (t.id === sel.id ? { ...t, ...patch } : t)), key)
+  const rid = () => Math.random().toString(36).slice(2, 10)
+  const addText = () => {
+    if (layersOf(design, 'page').length >= TEXT_LIMITS.PER_PAGE) { setToast(`一頁最多 ${TEXT_LIMITS.PER_PAGE} 個文字框`); return }
+    const t = { id: rid(), text: '輸入文字', x: 0.5, y: 0.22, size: 5, font: design.style.font, color: colors.ink, bold: true, align: 'center', bg: 'paper' }
+    setLayers('page', arr => [...arr, t])
+    setAdjust(false); setView('2d'); setSel({ scope: 'page', id: t.id })
+    setTimeout(() => { const el = document.getElementById('cal-tl-text'); el?.focus(); el?.select?.() }, 80)
+  }
+  const removeLayer = () => { if (!sel) return; setLayers(sel.scope, arr => arr.filter(t => t.id !== sel.id)); setSel(null) }
+  const duplicateLayer = () => {
+    if (!selLayer) return
+    if (layersOf(design, sel.scope).length >= (sel.scope === 'global' ? TEXT_LIMITS.GLOBAL : TEXT_LIMITS.PER_PAGE)) { setToast('文字框已經到上限了'); return }
+    const t = { ...selLayer, id: rid(), x: Math.min(0.95, selLayer.x + 0.04), y: Math.min(0.95, selLayer.y + 0.04) }
+    setLayers(sel.scope, arr => [...arr, t]); setSel({ scope: sel.scope, id: t.id })
+  }
+  // 「每一頁都放」：在 design.texts（全部頁）與這一頁的 texts 之間搬移
+  const toggleGlobal = () => {
+    if (!selLayer) return
+    const to = sel.scope === 'global' ? 'page' : 'global'
+    if (to === 'global' && (design.texts || []).length >= TEXT_LIMITS.GLOBAL) { setToast(`「每一頁都放」最多 ${TEXT_LIMITS.GLOBAL} 個`); return }
+    update(d => {
+      const t = layersOf(d, sel.scope).find(x => x.id === sel.id)
+      const page = { ...(d.pages[cur] || {}) }
+      if (to === 'global') { page.texts = (page.texts || []).filter(x => x.id !== sel.id); return { ...d, texts: [...(d.texts || []), t], pages: { ...d.pages, [cur]: page } } }
+      page.texts = [...(page.texts || []), t]
+      return { ...d, texts: (d.texts || []).filter(x => x.id !== sel.id), pages: { ...d.pages, [cur]: page } }
+    })
+    setSel({ scope: to, id: sel.id })
+  }
+
+  // 文字框在螢幕上的外框（跟畫布上畫出來的字用同一支量測，框才會剛好包住字）
+  const ph = pw * PAGE_RATIO
+  const boxOf = (t) => {
+    if (!pw) return null
+    if (!measureCtx.current) measureCtx.current = document.createElement('canvas').getContext('2d')
+    const m = measureTextLayer(measureCtx.current, t, pw / 100)
+    const w = m.w + m.padX * 2, h = m.h + m.padY * 2
+    return { left: t.x * pw - w / 2, top: t.y * ph - h / 2, width: w, height: h }
+  }
+  // 拖曳移動／拉角縮放。靠近頁面中線時吸附並顯示參考線——對齊不用靠眼力。
+  const SNAP = 0.012
+  const onTextDown = (e, scope, t, mode = 'move') => {
+    e.stopPropagation()
+    setSel({ scope, id: t.id })
+    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* 見照片拖曳的註解 */ }
+    const cx = t.x * pw, cy = t.y * ph
+    const r = previewRef.current.getBoundingClientRect()
+    drag.current = { text: { mode, scope, id: t.id, sx: e.clientX, sy: e.clientY, x0: t.x, y0: t.y, size0: t.size,
+      d0: Math.hypot(e.clientX - (r.left + cx), e.clientY - (r.top + cy)) || 1, left: r.left, top: r.top } }
+  }
+  const onTextMove = (e) => {
+    const d = drag.current?.text
+    if (!d) return
+    const upd = (patch) => setLayers(d.scope, arr => arr.map(t => (t.id === d.id ? { ...t, ...patch } : t)), 'text-' + d.mode)
+    if (d.mode === 'resize') {
+      const cx = d.left + d.x0 * pw, cy = d.top + d.y0 * ph
+      const k = Math.hypot(e.clientX - cx, e.clientY - cy) / d.d0
+      upd({ size: Math.max(TEXT_LIMITS.SIZE_MIN, Math.min(TEXT_LIMITS.SIZE_MAX, d.size0 * k)) })
+      return
+    }
+    let x = d.x0 + (e.clientX - d.sx) / pw, y = d.y0 + (e.clientY - d.sy) / ph
+    const gv = Math.abs(x - 0.5) < SNAP, gh = Math.abs(y - 0.5) < SNAP
+    if (gv) x = 0.5
+    if (gh) y = 0.5
+    setGuide({ v: gv, h: gh })
+    upd({ x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) })
+  }
+  const onTextUp = () => { if (drag.current?.text) drag.current = null; setGuide(null) }
+
+  keyFn.current = (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable
+    const mod = e.ctrlKey || e.metaKey
+    // 在輸入框裡打字時交給瀏覽器自己的復原（那是使用者預期的行為）
+    if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return }
+    if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return }
+    if (!sel || typing || view !== '2d') return
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeLayer(); return }
+    if (e.key === 'Escape') { setSel(null); return }
+    const step = e.shiftKey ? 0.02 : 0.004
+    const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key]
+    if (mv && selLayer) { e.preventDefault(); patchLayer({ x: Math.max(0, Math.min(1, selLayer.x + mv[0])), y: Math.max(0, Math.min(1, selLayer.y + mv[1])) }, 'text-nudge') }
+  }
+  const lowContrast = contrast(colors.ink, colors.paper) < 4.5
 
   // ── 照片 ──
   const pickPhoto = () => {
@@ -324,10 +483,18 @@ export default function CalDesign({ id = 'local' }) {
       <div className="body cal-body">
         {/* ── 預覽 ── */}
         <div className="cal-stage">
-          <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
-            {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
-            ))}
+          <div className="cal-toolbar">
+            <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
+              {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
+                <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
+              ))}
+            </div>
+            {/* 復原／重做：自由編輯工具最重要的安全網——敢試，是因為隨時退得回去 */}
+            <div className="cal-hist">
+              <button className="cal-hb tap" onClick={undo} disabled={!hist.current.past.length} aria-label="復原" title="復原（Ctrl+Z）">↶</button>
+              <button className="cal-hb tap" onClick={redo} disabled={!hist.current.future.length} aria-label="重做" title="重做（Ctrl+Shift+Z）">↷</button>
+              <button className="cal-addt tap" onClick={addText}>＋ 文字</button>
+            </div>
           </div>
           {view === '2d' ? (
             <div className="cal-page-wrap">
@@ -349,6 +516,27 @@ export default function CalDesign({ id = 'local' }) {
                   <button type="button" className="cal-hit header tap" style={pct(regions.header)} onClick={tapHeader} aria-label="編輯這一頁的標題與文字">
                     <span className="cal-hit-tag">{over.title ? '點一下改文字' : '＋ 點這裡寫標題'}</span>
                   </button>
+                  {/* 自由文字框：疊在最上層，可以拖曳、拉右下角縮放 */}
+                  {[...(design.texts || []).map(t => ['global', t]), ...(over.texts || []).map(t => ['page', t])].map(([scope, t]) => {
+                    const b = boxOf(t)
+                    if (!b) return null
+                    const on = sel?.id === t.id
+                    return (
+                      <div key={t.id} className={`cal-tl${on ? ' on' : ''}${scope === 'global' ? ' global' : ''}`}
+                        style={{ left: b.left - 4, top: b.top - 4, width: b.width + 8, height: b.height + 8 }}
+                        role="button" tabIndex={0} aria-label={`文字框：${t.text}，拖曳可移動`}
+                        onPointerDown={(e) => onTextDown(e, scope, t)} onPointerMove={onTextMove} onPointerUp={onTextUp} onPointerCancel={onTextUp}
+                        onClick={(e) => e.stopPropagation()}>
+                        {scope === 'global' && <span className="cal-tl-tag">每一頁</span>}
+                        {on && (
+                          <span className="cal-tl-resize" aria-label="拖曳縮放文字"
+                            onPointerDown={(e) => onTextDown(e, scope, t, 'resize')} onPointerMove={onTextMove} onPointerUp={onTextUp} onPointerCancel={onTextUp} />
+                        )}
+                      </div>
+                    )
+                  })}
+                  {guide?.v && <span className="cal-guide v" aria-hidden="true" />}
+                  {guide?.h && <span className="cal-guide h" aria-hidden="true" />}
                 </>
               )}
             </div>
@@ -358,6 +546,61 @@ export default function CalDesign({ id = 'local' }) {
                 baseColor={base} paperColor={paper} label={`${design.title}，第 ${cur + 1} 頁 ${page?.label || ''}，拖曳可轉動，點左右兩側翻頁`}
                 onFlip={(d) => setCur(c => Math.min(pages.length - 1, Math.max(0, c + d)))} />
             </Suspense>
+          )}
+          {selLayer && view === '2d' && !adjust && (
+            <div className="cal-adjust cal-textbar" role="group" aria-label="編輯文字框">
+              <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
+                aria-label="文字內容" onChange={e => patchLayer({ text: e.target.value }, 'text-typing')} />
+              <div className="cal-row">
+                {FONTS.map(f => (
+                  <button key={f.id} className={`chip tap${selLayer.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
+                    onClick={() => patchLayer({ font: f.id })}>{f.name}</button>
+                ))}
+                <button className={`chip tap${selLayer.bold ? ' on' : ''}`} aria-pressed={selLayer.bold} onClick={() => patchLayer({ bold: !selLayer.bold })}><b>粗體</b></button>
+              </div>
+              <label className="cal-adjust-z">
+                <span>大小</span>
+                <input type="range" min={TEXT_LIMITS.SIZE_MIN} max={TEXT_LIMITS.SIZE_MAX} step="0.1" value={selLayer.size} aria-label="文字大小"
+                  onChange={e => patchLayer({ size: Number(e.target.value) }, 'text-size')} />
+                <b>{selLayer.size.toFixed(1)}</b>
+              </label>
+              <span className="cal-label">文字顏色</span>
+              <div className="cal-row cal-tcolors">
+                {[...new Set([colors.ink, colors.accent, colors.weekend, colors.base, '#FFFFFF', '#22201E'])].map(c => (
+                  <button key={c} className={`cal-sw sm tap${selLayer.color.toLowerCase() === c.toLowerCase() ? ' on' : ''}`} style={{ '--sw': c }}
+                    aria-label={`文字顏色 ${c}`} onClick={() => patchLayer({ color: c })} />
+                ))}
+                <label className="cal-sw sm custom" title="自訂顏色">
+                  <input type="color" value={selLayer.color} aria-label="自訂文字顏色" onChange={e => patchLayer({ color: e.target.value }, 'text-color')} />
+                </label>
+              </div>
+              {(() => {
+                // 文字與它的底色太接近就提醒（大字的 AA 門檻是 3）。沒有底色時拿紙張色比——
+                // 疊在照片上的字無從判斷，那種情況交給「淺底／深底」解決。
+                const under = selLayer.bg === 'ink' ? colors.ink : selLayer.bg === 'accent' ? colors.accent : colors.paper
+                const c = contrast(selLayer.color, under)
+                return c < 3 && <p className="cal-warn">文字顏色和底色太接近（對比 {c.toFixed(1)}），印出來可能看不清楚。換個顏色，或改用「淺底／深底」。</p>
+              })()}
+              <span className="cal-label">底色・對齊</span>
+              <div className="cal-row">
+                {[['none', '無'], ['paper', '淺底'], ['ink', '深底'], ['accent', '強調色']].map(([v, l]) => (
+                  <button key={v} className={`chip tap${selLayer.bg === v ? ' on' : ''}`} onClick={() => patchLayer({ bg: v })}>{l}</button>
+                ))}
+                {[['left', '靠左'], ['center', '置中'], ['right', '靠右']].map(([v, l]) => (
+                  <button key={v} className={`chip tap${selLayer.align === v ? ' on' : ''}`} onClick={() => patchLayer({ align: v })}>{l}</button>
+                ))}
+              </div>
+              <div className="cal-row">
+                <button className="b tap" onClick={() => patchLayer({ x: 0.5 })}>水平置中</button>
+                <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
+                  {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
+                </button>
+                <button className="b tap" onClick={duplicateLayer}>複製</button>
+                <button className="b tap" onClick={removeLayer}>刪除</button>
+                <button className="b dark tap" onClick={() => setSel(null)}>完成</button>
+              </div>
+              <p className="cal-note">也可以用方向鍵微調位置（Shift 加大步距），Delete 刪除。</p>
+            </div>
           )}
           {adjust && (
             <div className="cal-adjust">
@@ -471,36 +714,64 @@ export default function CalDesign({ id = 'local' }) {
               <label className="cal-label" htmlFor="cal-ptitle">頁面標題（選填）</label>
               <input id="cal-ptitle" className="cal-input" maxLength={30} placeholder="例如：全家第一次露營" value={over.title || ''}
                 onChange={e => setPage({ title: e.target.value })} />
-              <label className="cal-label" htmlFor="cal-ptext">一句話或詩詞（選填，最多兩行）</label>
-              <textarea id="cal-ptext" className="cal-input cal-area" maxLength={140} rows={2} value={over.text || ''}
-                placeholder="印在照片左下角" onChange={e => setPage({ text: e.target.value.split('\n').slice(0, 2).join('\n') })} />
+              <span className="cal-label">文字</span>
+              <p className="cal-note">在頁面上任何位置加文字：拖曳移動、拉右下角縮放，可以換字體、顏色、底色。</p>
+              <div className="cal-layers">
+                {[...(design.texts || []).map(t => ['global', t]), ...(over.texts || []).map(t => ['page', t])].map(([scope, t]) => (
+                  <button key={t.id} className={`cal-layer tap${sel?.id === t.id ? ' on' : ''}`}
+                    onClick={() => { setView('2d'); setAdjust(false); setSel({ scope, id: t.id }) }}>
+                    <span style={{ fontFamily: FONT[t.font], color: t.color }}>{t.text.split('\n')[0] || '（空白）'}</span>
+                    {scope === 'global' && <em>每一頁</em>}
+                  </button>
+                ))}
+                <button className="b dark tap" onClick={addText}>＋ 加文字</button>
+              </div>
             </div>
           )}
 
           {tab === 'style' && (
             <div className="cal-sec">
-              <span className="cal-label">底座顏色</span>
-              <div className="cal-swatches">
-                {BASE_COLORS.map(c => (
-                  <button key={c.id} className={`cal-sw tap${design.style.base === c.id ? ' on' : ''}`} style={{ '--sw': c.hex }}
-                    aria-label={c.name} aria-pressed={design.style.base === c.id} title={c.name}
-                    onClick={() => update(d => ({ ...d, style: { ...d.style, base: c.id } }))} />
+              <span className="cal-label">配色組合</span>
+              <p className="cal-note">一次換整本的顏色。每一組都調過對比，選哪一組都看得清楚；之後還能在下面微調任一格。</p>
+              <div className="cal-palettes">
+                {PALETTES.map(p => (
+                  <button key={p.id} className={`cal-pal tap${design.style.palette === p.id && !Object.keys(design.style.colors || {}).length ? ' on' : ''}`}
+                    aria-pressed={design.style.palette === p.id}
+                    onClick={() => update(d => ({ ...d, style: { ...d.style, palette: p.id, colors: {} } }))}>
+                    <span className="cal-pal-sw" aria-hidden="true">
+                      {['base', 'paper', 'accent', 'weekend'].map(k => <i key={k} style={{ background: p.colors[k] }} />)}
+                    </span>
+                    <b>{p.name}</b>
+                  </button>
                 ))}
               </div>
-              <span className="cal-label">紙張</span>
-              <div className="cal-row">
-                {PAPER_COLORS.map(c => (
-                  <button key={c.id} className={`chip tap${design.style.paper === c.id ? ' on' : ''}`}
-                    onClick={() => update(d => ({ ...d, style: { ...d.style, paper: c.id } }))}>{c.name}</button>
+
+              <span className="cal-label">細部顏色</span>
+              <div className="cal-colors">
+                {COLOR_SLOTS.map(({ key, name }) => (
+                  <label key={key} className="cal-color">
+                    <input type="color" value={colors[key]} aria-label={`${name}的顏色`}
+                      onChange={e => update(d => ({ ...d, style: { ...d.style, colors: { ...(d.style.colors || {}), [key]: e.target.value } } }), 'color-' + key)} />
+                    <span>{name}</span>
+                  </label>
                 ))}
               </div>
-              <span className="cal-label">字體</span>
+              {lowContrast && (
+                <p className="cal-warn">「日期數字」和「紙張」的顏色太接近（對比 {contrast(colors.ink, colors.paper).toFixed(1)}），印出來日期會看不清楚。建議對比 4.5 以上。</p>
+              )}
+              {Object.keys(design.style.colors || {}).length > 0 && (
+                <button className="b tap" style={{ alignSelf: 'flex-start' }}
+                  onClick={() => update(d => ({ ...d, style: { ...d.style, colors: {} } }))}>還原成「{PALETTES.find(p => p.id === design.style.palette)?.name || '原本'}」配色</button>
+              )}
+
+              <span className="cal-label">日曆字體</span>
               <div className="cal-row">
                 {FONTS.map(f => (
-                  <button key={f.id} className={`chip tap${design.style.font === f.id ? ' on' : ''}`}
+                  <button key={f.id} className={`chip tap${design.style.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
                     onClick={() => update(d => ({ ...d, style: { ...d.style, font: f.id } }))}>{f.name}</button>
                 ))}
               </div>
+              <p className="cal-note">字體用的是裝置上的系統字，不同電腦會略有差異，實際以打樣為準。</p>
               <span className="cal-label">一週從哪天開始</span>
               <div className="cal-row">
                 {[[0, '星期日'], [1, '星期一']].map(([v, l]) => (

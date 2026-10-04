@@ -10,25 +10,20 @@
 // 頁面比例 4:3（桌曆常見的橫式），所有尺寸都用頁寬的比例算，縮放不會跑版。
 // ============================================================================
 import { WD_ZH } from '../data/calendarLayout.js'
-import { BASE_COLORS, PAPER_COLORS } from '../data/calendarRules.js'
+import { resolveColors } from '../data/calendarRules.js'
 
 export const PAGE_RATIO = 3 / 4          // 高 ÷ 寬
-const INK = '#2B2118', MUTED = '#8A7E72', LINE = 'rgba(43,33,24,.12)'
-const FONT = {
+// ⚠️ 字體只用系統字（見 calendarRules.js 的 FONTS）。設計器的文字框覆蓋層（DOM）用同一份字串，
+//    畫布上的字與可拖曳的框才對得齊。
+export const FONT = {
   serif: '"Noto Serif TC","Source Han Serif TC","Songti TC","PMingLiU",Georgia,serif',
   sans: 'system-ui,-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif',
+  kai: '"Kaiti TC","BiauKai","STKaiti","DFKai-SB","標楷體","Noto Serif TC",serif',
 }
 
-export const baseHex = (d) => (BASE_COLORS.find(c => c.id === d.style.base) || BASE_COLORS[0]).hex
-export const paperHex = (d) => (PAPER_COLORS.find(c => c.id === d.style.paper) || PAPER_COLORS[0]).hex
-
-// 淺色底座（奶油）拿來當文字色會看不見 → 文字點綴色退回深色
-function luminance(hex) {
-  const n = parseInt(hex.slice(1), 16)
-  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 })
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
-}
-const accentOf = (d) => { const h = baseHex(d); return luminance(h) > 0.45 ? '#7A5A2A' : h }
+// 顏色一律從 resolveColors 拿（配色組合 ＋ 個別覆寫），不在這裡另外推
+export const baseHex = (d) => resolveColors(d).base
+export const paperHex = (d) => resolveColors(d).paper
 const tint = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})` }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -90,7 +85,9 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   const ctx = canvas.getContext('2d')
   const u = W / 100                                   // 1u ＝ 頁寬 1%
   const font = FONT[design.style.font] || FONT.serif
-  const paper = paperHex(design), base = baseHex(design), accent = accentOf(design)
+  const C = resolveColors(design)
+  const paper = C.paper, base = C.base, accent = C.accent, ink = C.ink
+  const muted = tint(C.ink, 0.55)                    // 次要文字：日期色淡一階，跟著配色走
   const marks = design.style.marks || {}
 
   ctx.fillStyle = paper
@@ -118,19 +115,7 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
     ctx.globalAlpha = 1
   }
   ctx.restore()
-  // 詩詞／一句話：壓在圖片左下，半透明底確保看得清
-  if (over.text) {
-    const lines = String(over.text).split('\n').slice(0, 2)
-    ctx.font = `600 ${2.3 * u}px ${font}`
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    const tw = Math.min(bw * 0.7, Math.max(...lines.map(l => ctx.measureText(l).width)) + 3 * u)
-    const th = lines.length * 3.2 * u + 2 * u
-    ctx.fillStyle = 'rgba(251,247,238,.86)'
-    roundRect(ctx, bx + 2 * u, by + bh - th - 2 * u, tw, th, 0.8 * u); ctx.fill()
-    ctx.fillStyle = INK
-    lines.forEach((l, i) => ctx.fillText(fit(ctx, l, tw - 3 * u), bx + 3.5 * u, by + bh - th - 2 * u + (i + 1) * 3.2 * u + 0.2 * u))
-  }
+  // （舊版的「一句話」固定印在照片左下；現在由 normalizeDesign 轉成自由文字框，在最後一起畫）
 
   // ── 標題列 ──
   const hy = by + bh + 6.6 * u
@@ -143,18 +128,18 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   let lx = pad + ctx.measureText(label).width + 2.4 * u
   if (page.en) {
     ctx.font = `600 ${1.8 * u}px ${FONT.sans}`
-    ctx.fillStyle = MUTED
+    ctx.fillStyle = muted
     ctx.fillText(page.en, lx, hy - 0.4 * u)
     lx += ctx.measureText(page.en).width + 2.4 * u
   }
   if (over.title) {
     ctx.font = `700 ${2.6 * u}px ${font}`
-    ctx.fillStyle = INK
+    ctx.fillStyle = ink
     ctx.fillText(fit(ctx, over.title, W - pad - lx - 22 * u), lx, hy - 0.3 * u)
   }
   ctx.textAlign = 'right'
   ctx.font = `600 ${1.9 * u}px ${FONT.sans}`
-  ctx.fillStyle = MUTED
+  ctx.fillStyle = muted
   ctx.fillText(page.sub, W - pad, hy - 0.4 * u)
 
   // ── 日期格 ──
@@ -164,18 +149,53 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
     const colW = (W - pad * 2 - 4 * u) / 3
     page.months.forEach((mo, k) => drawGrid(ctx, {
       x: pad + k * (colW + 2 * u), y: gy, w: colW, h: gh, weeks: mo.weeks, title: mo.label,
-      u, font, accent, base, marks, compact: true, design, opts,
+      u, font, C, muted, marks, compact: true, design, opts,
     }))
   } else {
-    drawGrid(ctx, { x: pad, y: gy, w: W - pad * 2, h: gh, weeks: page.weeks, u, font, accent, base, marks,
+    drawGrid(ctx, { x: pad, y: gy, w: W - pad * 2, h: gh, weeks: page.weeks, u, font, C, muted, marks,
       tall: page.kind === 'week', design, opts })
   }
+
+  // ── 自由文字框：「每一頁都放」的先畫，這一頁自己的疊在上面 ──
+  for (const t of [...(design.texts || []), ...(over.texts || [])]) drawTextLayer(ctx, t, W, H, u, C)
 
   if (opts.watermark !== false) watermark(ctx, W, H, u)
   return canvas
 }
 
-function drawGrid(ctx, { x, y, w, h, weeks, title, u, font, accent, base, marks, compact, tall, design, opts }) {
+/**
+ * 文字框的量測（畫布與設計器的拖曳框共用，框才會剛好包住字）。
+ * 回傳以畫布像素為單位的 { lines, fontSize, lineH, w, h, padX, padY }。
+ */
+export function measureTextLayer(ctx, t, u) {
+  const fontSize = t.size * u
+  ctx.font = `${t.bold ? 700 : 500} ${fontSize}px ${FONT[t.font] || FONT.serif}`
+  const lines = String(t.text).split('\n')
+  const lineH = fontSize * 1.28
+  const w = Math.max(...lines.map(l => ctx.measureText(l).width), fontSize)
+  const pad = t.bg && t.bg !== 'none'
+  return { lines, fontSize, lineH, w, h: lines.length * lineH, padX: pad ? fontSize * 0.55 : 0, padY: pad ? fontSize * 0.32 : 0 }
+}
+function drawTextLayer(ctx, t, W, H, u, C) {
+  const m = measureTextLayer(ctx, t, u)
+  const cx = t.x * W, cy = t.y * H
+  const left = cx - m.w / 2, top = cy - m.h / 2
+  if (t.bg && t.bg !== 'none') {
+    const bgHex = t.bg === 'ink' ? C.ink : t.bg === 'accent' ? C.accent : C.paper
+    ctx.fillStyle = tint(bgHex, t.bg === 'paper' ? 0.88 : 0.92)
+    roundRect(ctx, left - m.padX, top - m.padY, m.w + m.padX * 2, m.h + m.padY * 2, Math.min(m.fontSize * 0.5, 1.2 * u))
+    ctx.fill()
+  }
+  ctx.fillStyle = t.color
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = t.align
+  const ax = t.align === 'left' ? left : t.align === 'right' ? left + m.w : cx
+  m.lines.forEach((l, i) => ctx.fillText(l, ax, top + m.lineH * (i + 0.5)))
+  ctx.textBaseline = 'alphabetic'
+}
+
+function drawGrid(ctx, { x, y, w, h, weeks, title, u, font, C, muted, marks, compact, tall, design, opts }) {
+  const accent = C.accent, base = C.accent, INK = C.ink, MUTED = muted
   let top = y
   if (title) {
     ctx.textAlign = 'left'; ctx.fillStyle = accent
@@ -190,13 +210,13 @@ function drawGrid(ctx, { x, y, w, h, weeks, title, u, font, accent, base, marks,
   ctx.font = `700 ${(compact ? 1.3 : 1.6) * u}px ${FONT.sans}`
   for (let c = 0; c < 7; c++) {
     const wd = (c + ws) % 7
-    ctx.fillStyle = wd === 0 ? tint(accent, 0.95) : MUTED
+    ctx.fillStyle = (wd === 0 || wd === 6) ? C.weekend : MUTED
     ctx.fillText(WD_ZH[wd], x + cw * c + cw / 2, top + headH * 0.7)
   }
   top += headH
   const rows = weeks.length
   const ch = (y + h - top) / rows
-  ctx.strokeStyle = LINE
+  ctx.strokeStyle = C.grid
   ctx.lineWidth = Math.max(1, 0.12 * u)
   for (let r = 0; r <= rows; r++) { ctx.beginPath(); ctx.moveTo(x, top + r * ch); ctx.lineTo(x + w, top + r * ch); ctx.stroke() }
 
@@ -210,7 +230,7 @@ function drawGrid(ctx, { x, y, w, h, weeks, title, u, font, accent, base, marks,
       ctx.fillRect(cx + 0.2 * u, cy + 0.2 * u, cw - 0.4 * u, ch - 0.4 * u)
     }
     ctx.textAlign = compact ? 'center' : 'left'
-    ctx.fillStyle = day.wd === 0 ? accent : INK
+    ctx.fillStyle = (day.wd === 0 || day.wd === 6) ? C.weekend : INK
     ctx.font = `700 ${numSize}px ${font}`
     const nx = compact ? cx + cw / 2 : cx + 0.9 * u
     ctx.fillText(String(day.d), nx, cy + numSize * 1.05 + (compact ? 0.2 * u : 0.5 * u))

@@ -103,6 +103,12 @@ export default function AdminCalInquiries({ isAdmin }) {
                 const adj = Object.entries(q.design.pages || {}).filter(([i, p]) => p.img?.crop && Number(i) < n).map(([i]) => Number(i) + 1)
                 return adj.length > 0 && <span className="inq-flag">照片已調整位置／縮放：第 {adj.join('、')} 頁（以預覽取景為準）</span>
               })()}
+              {(() => {
+                // 自由文字用的是客人裝置上的系統字，我們這邊打開可能略有不同（尤其楷體）
+                const n2 = (q.design.texts || []).length + Object.entries(q.design.pages || {}).filter(([i]) => Number(i) < n)
+                  .reduce((a, [, p]) => a + (p.texts?.length || 0), 0)
+                return n2 > 0 && <span className="inq-flag">含 {n2} 個自由文字框（系統字，打樣前請核對字形）</span>
+              })()}
               {q.flags?.folk && <span className="inq-flag">含每日宜（民俗內容）</span>}
               {q.flags?.unverified && <span className="inq-flag">Email 未驗證</span>}
               <span className="inq-flag">客人已勾選照片使用權——報價前仍請人工確認</span>
