@@ -1250,3 +1250,45 @@ button.ty.glossable, button.tn.glossable {
 .cal-def-n { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
 .cal-def .cal-input:disabled { opacity: .5; }
 .cal-def .b { padding: 0 10px; white-space: nowrap; }
+
+/* ── 文字屬性面板（2026-10-04 使用者回報「這一整排功能排列太亂」）──
+   建模軟體的屬性面板：左欄固定寬的屬性名、右邊控制項，一列一個屬性；互斥選項用分段按鈕。 */
+.cal-props { display: flex; flex-direction: column; gap: 10px; }
+.cal-props-hd { display: flex; align-items: center; gap: 8px; }
+.cal-props-hd b { font-size: 14px; }
+.cal-props-hd em { font-style: normal; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #2f4f86; color: #fff; }
+.cal-props-x {
+  margin-left: auto; min-height: 30px; padding: 0 14px; border: none; border-radius: 8px;
+  background: var(--primary); color: var(--pfg); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.cal-prop { display: grid; grid-template-columns: 3em minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 32px; }
+.cal-prop-n { font-size: 12px; color: var(--muted); }
+.cal-prop-v { min-width: 2.4em; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cal-prop input[type=range] { width: 100%; accent-color: var(--primary); }
+.cal-prop-check { grid-template-columns: 3em auto minmax(0, 1fr); cursor: pointer; font-size: 13px; }
+.cal-prop-check input { width: 18px; height: 18px; accent-color: var(--primary); margin: 0; }
+
+/* 分段按鈕：一整條，選中的那格亮起來 */
+.cal-seg { display: flex; padding: 2px; border-radius: 9px; background: #1b1d21; min-width: 0; }
+.cal-seg > button {
+  flex: 1 1 0; min-width: 0; min-height: 28px; padding: 0 6px; border: none; border-radius: 7px; background: transparent;
+  font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.cal-seg > button.on { background: #30343b; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+/* 方形圖示鈕（粗體、水平置中） */
+.cal-ico {
+  width: 32px; height: 32px; min-height: 32px; border: none; border-radius: 8px; background: #1b1d21;
+  color: var(--muted); font: inherit; font-size: 15px; cursor: pointer; display: grid; place-items: center;
+}
+.cal-ico.on { background: var(--primary); color: #fff; }
+/* 顏色：一律正圓、同尺寸 */
+.cal-dots { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 2 / -1; }
+.cal-dot {
+  width: 24px; height: 24px; min-height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid #1b1d21; box-shadow: 0 0 0 1px rgba(255,255,255,.18); position: relative; overflow: hidden; flex: 0 0 auto;
+}
+.cal-dot.on { box-shadow: 0 0 0 2px #8db8ff; }
+.cal-dot.custom { background: conic-gradient(#e0447a, #f2b134, #5fb36a, #3f7fd6, #9a5bd1, #e0447a); }
+.cal-dot.custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; }
+.cal-props-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,.06); }
+.cal-ws .cal-danger { color: #f0a090; }

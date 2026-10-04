@@ -542,60 +542,88 @@ export default function CalDesign({ id = 'local' }) {
   const editBars = (
     <>
           {selLayer && view === '2d' && !adjust && (
-            <div className="cal-adjust cal-textbar" role="group" aria-label="編輯文字框">
-              <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
-                aria-label="文字內容" onChange={e => patchLayer({ text: e.target.value }, 'text-typing')} />
-              <div className="cal-row">
-                {FONTS.map(f => (
-                  <button key={f.id} className={`chip tap${selLayer.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
-                    onClick={() => patchLayer({ font: f.id })}>{f.name}</button>
-                ))}
-                <button className={`chip tap${selLayer.bold ? ' on' : ''}`} aria-pressed={selLayer.bold} onClick={() => patchLayer({ bold: !selLayer.bold })}><b>粗體</b></button>
+            // 屬性面板式排版（像建模軟體）：左邊是屬性名、右邊是控制項，一列一個屬性；
+            // 同一組互斥選項用分段按鈕，動作集中在最下面。（使用者回報「排列太亂」）
+            <div className="cal-adjust cal-props" role="group" aria-label="編輯文字框">
+              <div className="cal-props-hd">
+                <b>文字</b>
+                {sel.scope === 'global' && <em>每一頁都放</em>}
+                <button className="cal-props-x tap" onClick={() => setSel(null)} aria-label="完成，關閉文字設定">完成</button>
               </div>
-              <label className="cal-adjust-z">
-                <span>大小</span>
+              <textarea id="cal-tl-text" className="cal-input cal-area" rows={2} maxLength={TEXT_LIMITS.MAX_CHARS} value={selLayer.text}
+                aria-label="文字內容" placeholder="輸入文字" onChange={e => patchLayer({ text: e.target.value }, 'text-typing')} />
+
+              <div className="cal-prop">
+                <span className="cal-prop-n">字體</span>
+                <div className="cal-seg">
+                  {FONTS.map(f => (
+                    <button key={f.id} className={`tap${selLayer.font === f.id ? ' on' : ''}`} aria-pressed={selLayer.font === f.id} style={{ fontFamily: FONT[f.id] }}
+                      onClick={() => patchLayer({ font: f.id })}>{f.name}</button>
+                  ))}
+                </div>
+                <button className={`cal-ico tap${selLayer.bold ? ' on' : ''}`} aria-pressed={selLayer.bold} aria-label="粗體" title="粗體"
+                  onClick={() => patchLayer({ bold: !selLayer.bold })}><b>B</b></button>
+              </div>
+
+              <div className="cal-prop">
+                <span className="cal-prop-n">大小</span>
                 <input type="range" min={TEXT_LIMITS.SIZE_MIN} max={TEXT_LIMITS.SIZE_MAX} step="0.1" value={selLayer.size} aria-label="文字大小"
                   onChange={e => patchLayer({ size: Number(e.target.value) }, 'text-size')} />
-                <b>{selLayer.size.toFixed(1)}</b>
-              </label>
-              <span className="cal-label">文字顏色</span>
-              <div className="cal-row cal-tcolors">
-                {[...new Set([colors.ink, colors.accent, colors.weekend, colors.base, '#FFFFFF', '#22201E'])].map(c => (
-                  <button key={c} className={`cal-sw sm tap${selLayer.color.toLowerCase() === c.toLowerCase() ? ' on' : ''}`} style={{ '--sw': c }}
-                    aria-label={`文字顏色 ${c}`} onClick={() => patchLayer({ color: c })} />
-                ))}
-                <label className="cal-sw sm custom" title="自訂顏色">
-                  <input type="color" value={selLayer.color} aria-label="自訂文字顏色" onChange={e => patchLayer({ color: e.target.value }, 'text-color')} />
-                </label>
+                <span className="cal-prop-v">{selLayer.size.toFixed(1)}</span>
+              </div>
+
+              <div className="cal-prop">
+                <span className="cal-prop-n">顏色</span>
+                <div className="cal-dots">
+                  {[...new Set([colors.ink, colors.accent, colors.weekend, colors.base, '#FFFFFF', '#22201E'])].map(c => (
+                    <button key={c} className={`cal-dot tap${selLayer.color.toLowerCase() === c.toLowerCase() ? ' on' : ''}`} style={{ background: c }}
+                      aria-label={`文字顏色 ${c}`} aria-pressed={selLayer.color.toLowerCase() === c.toLowerCase()} onClick={() => patchLayer({ color: c })} />
+                  ))}
+                  <label className="cal-dot custom" title="自訂顏色">
+                    <input type="color" value={selLayer.color} aria-label="自訂文字顏色" onChange={e => patchLayer({ color: e.target.value }, 'text-color')} />
+                  </label>
+                </div>
               </div>
               {(() => {
                 // 文字與它的底色太接近就提醒（大字的 AA 門檻是 3）。沒有底色時拿紙張色比——
                 // 疊在照片上的字無從判斷，那種情況交給「淺底／深底」解決。
                 const under = selLayer.bg === 'ink' ? colors.ink : selLayer.bg === 'accent' ? colors.accent : colors.paper
                 const c = contrast(selLayer.color, under)
-                return c < 3 && <p className="cal-warn">文字顏色和底色太接近（對比 {c.toFixed(1)}），印出來可能看不清楚。換個顏色，或改用「淺底／深底」。</p>
+                return c < 3 && <p className="cal-warn">文字顏色和底色太接近（對比 {c.toFixed(1)}），印出來可能看不清楚。</p>
               })()}
-              <span className="cal-label">底色・對齊</span>
-              <div className="cal-row">
-                {[['none', '無'], ['paper', '淺底'], ['ink', '深底'], ['accent', '強調色']].map(([v, l]) => (
-                  <button key={v} className={`chip tap${selLayer.bg === v ? ' on' : ''}`} onClick={() => patchLayer({ bg: v })}>{l}</button>
-                ))}
-                {[['left', '靠左'], ['center', '置中'], ['right', '靠右']].map(([v, l]) => (
-                  <button key={v} className={`chip tap${selLayer.align === v ? ' on' : ''}`} onClick={() => patchLayer({ align: v })}>{l}</button>
-                ))}
+
+              <div className="cal-prop">
+                <span className="cal-prop-n">底色</span>
+                <div className="cal-seg">
+                  {[['none', '無'], ['paper', '淺'], ['ink', '深'], ['accent', '強調']].map(([v, l]) => (
+                    <button key={v} className={`tap${selLayer.bg === v ? ' on' : ''}`} aria-pressed={selLayer.bg === v} onClick={() => patchLayer({ bg: v })}>{l}</button>
+                  ))}
+                </div>
               </div>
-              <div className="cal-row">
-                <button className="b tap" onClick={() => patchLayer({ x: 0.5 })}>水平置中</button>
-                {calFront && (
-                  <button className={`b tap${sel.scope === 'global' ? ' dark' : ''}`} aria-pressed={sel.scope === 'global'} onClick={toggleGlobal}>
-                    {sel.scope === 'global' ? '✓ 每一頁都放' : '每一頁都放'}
-                  </button>
-                )}
+
+              <div className="cal-prop">
+                <span className="cal-prop-n">對齊</span>
+                <div className="cal-seg">
+                  {[['left', '靠左'], ['center', '置中'], ['right', '靠右']].map(([v, l]) => (
+                    <button key={v} className={`tap${selLayer.align === v ? ' on' : ''}`} aria-pressed={selLayer.align === v} onClick={() => patchLayer({ align: v })}>{l}</button>
+                  ))}
+                </div>
+                <button className="cal-ico tap" onClick={() => patchLayer({ x: 0.5 })} aria-label="移到水平中央" title="移到水平中央">⇔</button>
+              </div>
+
+              {calFront && (
+                <label className="cal-prop cal-prop-check">
+                  <span className="cal-prop-n">範圍</span>
+                  <input type="checkbox" checked={sel.scope === 'global'} onChange={toggleGlobal} />
+                  <span>每一頁都放這段字</span>
+                </label>
+              )}
+
+              <div className="cal-props-acts">
                 <button className="b tap" onClick={duplicateLayer}>複製</button>
-                <button className="b tap" onClick={removeLayer}>刪除</button>
-                <button className="b dark tap" onClick={() => setSel(null)}>完成</button>
+                <button className="b tap cal-danger" onClick={removeLayer}>刪除</button>
               </div>
-              <p className="cal-note">也可以用方向鍵微調位置（Shift 加大步距），Delete 刪除。</p>
+              <p className="cal-note">方向鍵微調位置（Shift 加大步距）・Delete 刪除</p>
             </div>
           )}
           {adjust && (
