@@ -10,7 +10,7 @@
 export const CAL_LIMITS = {
   DRAFTS_PER_USER: 3,          // 每人同時最多 3 份「草稿」（已送出洽詢的不算）
   INQUIRIES_PER_DAY: 3,        // 每人每天最多送出 3 筆洽詢
-  SOURCE_MAX_BYTES: 15 * 1024 * 1024,   // 使用者選的原始照片上限（轉檔前）
+  SOURCE_MAX_BYTES: 10 * 1024 * 1024,   // 使用者選的原始照片上限（轉檔前）
   PRINT_LONG_EDGE: 3200,       // 印刷用版本的長邊（約 A5 滿版 300dpi 還有餘裕）
   PRINT_MAX_BYTES: 6 * 1024 * 1024,     // 轉檔後的印刷檔上限（伺服器端再擋一次）
   PREVIEW_LONG_EDGE: 1400,     // 設計與 3D 預覽用的小圖
