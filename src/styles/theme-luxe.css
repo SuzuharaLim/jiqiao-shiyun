@@ -1152,3 +1152,14 @@ button.ty.glossable, button.tn.glossable {
   .cal-ws .cal-page-wrap { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
   .stage.signed-in .screen-calDesign .cal-ws .cal-page-wrap > .cal-page { width: min(100%, 860px); }
 }
+
+/* 桌曆設計器：網站導覽列在這一頁不黏頂（2026-10-04 使用者回報「擋畫面」）。
+   工作區有自己的工具列，捲動時浮起的導覽膠囊會正好蓋在工具列上。
+   ⚠️ 這頁的 .screen 也是 has-stack 浮層，所以用 :has 只鎖這一頁，其他頁維持黏頂。 */
+@media (min-width: 600px) and (min-height: 600px) {
+  .stage.signed-in:has(.screen-calDesign) .webnav { position: relative; }
+}
+@media (min-width: 900px) and (min-height: 600px) {
+  /* 一個視窗高放得下：導覽列（約 76）＋頁面標題列（約 74）＋上下邊距 */
+  .stage.signed-in .screen-calDesign .cal-body.cal-ws { height: calc(100vh - 186px); min-height: 520px; margin: 8px 0 12px; }
+}
