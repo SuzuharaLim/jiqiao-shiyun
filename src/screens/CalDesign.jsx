@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, useCallback } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Switch, SheetMask, Link, Disclaimer } from '../components/ui.jsx'
+import { TopBar, SheetMask, Link, Disclaimer } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { buildPages, TERM_START_OPTIONS } from '../data/calendarLayout.js'
@@ -33,6 +33,13 @@ export const readLocalDesign = () => {
 const writeLocal = (d) => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(d)) } catch { /* 無痕模式 */ } }
 export const clearLocalDesign = () => { try { localStorage.removeItem(LOCAL_KEY) } catch { /* ignore */ } }
 
+// 「我的配色」：自己調好、取了名字的顏色組合，存在這個瀏覽器，下一本桌曆也能用
+const MYPAL_KEY = 'jq-cal-palettes'
+const readMyPals = () => { try { const a = JSON.parse(localStorage.getItem(MYPAL_KEY) || '[]'); return Array.isArray(a) ? a.filter(p => p && p.colors).slice(0, 12) : [] } catch { return [] } }
+const writeMyPals = (a) => { try { localStorage.setItem(MYPAL_KEY, JSON.stringify(a)) } catch { /* 無痕模式存不了也無妨 */ } }
+const sameColors = (a = {}, b = {}) => COLOR_SLOTS.every(({ key }) => String(a[key] || '').toLowerCase() === String(b[key] || '').toLowerCase())
+const SW = ['base', 'paper', 'accent', 'weekend']
+
 const TABS = [['page', '這一頁'], ['layout', '版型'], ['style', '樣式'], ['send', '分享・洽詢']]
 const dist = (pts) => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1 }
 const thisYear = new Date().getFullYear()
@@ -56,7 +63,10 @@ export default function CalDesign({ id = 'local' }) {
   const [tab, setTab] = useState('page')
   const [view, setView] = useState('3d')
   const [adjust, setAdjust] = useState(false)          // 照片調整模式（拖曳移動、縮放）
-  const [sel, setSel] = useState(null)                 // 選中的文字框 { scope: 'page'|'global', id }
+  const [myPals, setMyPals] = useState(readMyPals)    // 我的配色（存在這個瀏覽器）
+  const [customOpen, setCustomOpen] = useState(false)
+  const [palName, setPalName] = useState('')
+  const [sel, setSel] = useState(null)                // 選中的文字框 { scope: 'page'|'global', id }
   const [guide, setGuide] = useState(null)             // 拖曳文字時的置中參考線 { v, h }
   const [pw, setPw] = useState(0)                      // 平面預覽在畫面上的寬度（文字框覆蓋層要用）
   const measureCtx = useRef(null)
@@ -748,66 +758,102 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           )}
 
-          {tab === 'style' && (
-            <div className="cal-sec">
-              <span className="cal-label">配色組合</span>
-              <p className="cal-note">一次換整本的顏色。每一組都調過對比，選哪一組都看得清楚；之後還能在下面微調任一格。</p>
-              <div className="cal-palettes">
-                {PALETTES.map(p => (
-                  <button key={p.id} className={`cal-pal tap${design.style.palette === p.id && !Object.keys(design.style.colors || {}).length ? ' on' : ''}`}
-                    aria-pressed={design.style.palette === p.id}
-                    onClick={() => update(d => ({ ...d, style: { ...d.style, palette: p.id, colors: {} } }))}>
-                    <span className="cal-pal-sw" aria-hidden="true">
-                      {['base', 'paper', 'accent', 'weekend'].map(k => <i key={k} style={{ background: p.colors[k] }} />)}
-                    </span>
-                    <b>{p.name}</b>
+          {tab === 'style' && (() => {
+            const overrides = Object.keys(design.style.colors || {}).length > 0
+            const mine = overrides ? myPals.find(p => sameColors(p.colors, colors)) : null
+            const customOn = customOpen || (overrides && !mine)
+            const setColors = (c) => update(d => ({ ...d, style: { ...d.style, colors: { ...c } } }))
+            const sw = (c) => <span className="cal-pchip-sw" aria-hidden="true">{SW.map(k => <i key={k} style={{ background: c[k] }} />)}</span>
+            return (
+              <div className="cal-sec cal-style">
+                <span className="cal-label">配色</span>
+                {/* 一列橫向捲動：自訂＋我的配色＋預設組合 */}
+                <div className="cal-palrow">
+                  <button className={`cal-pchip custom tap${customOn ? ' on' : ''}`} aria-pressed={customOn}
+                    onClick={() => { setCustomOpen(true); if (!overrides) setColors(colors) }}>
+                    {sw(colors)}<b>自訂</b>
                   </button>
-                ))}
-              </div>
-
-              <span className="cal-label">細部顏色</span>
-              <div className="cal-colors">
-                {COLOR_SLOTS.map(({ key, name }) => (
-                  <label key={key} className="cal-color">
-                    <input type="color" value={colors[key]} aria-label={`${name}的顏色`}
-                      onChange={e => update(d => ({ ...d, style: { ...d.style, colors: { ...(d.style.colors || {}), [key]: e.target.value } } }), 'color-' + key)} />
-                    <span>{name}</span>
-                  </label>
-                ))}
-              </div>
-              {lowContrast && (
-                <p className="cal-warn">「日期數字」和「紙張」的顏色太接近（對比 {contrast(colors.ink, colors.paper).toFixed(1)}），印出來日期會看不清楚。建議對比 4.5 以上。</p>
-              )}
-              {Object.keys(design.style.colors || {}).length > 0 && (
-                <button className="b tap" style={{ alignSelf: 'flex-start' }}
-                  onClick={() => update(d => ({ ...d, style: { ...d.style, colors: {} } }))}>還原成「{PALETTES.find(p => p.id === design.style.palette)?.name || '原本'}」配色</button>
-              )}
-
-              <span className="cal-label">日曆字體</span>
-              <div className="cal-row">
-                {FONTS.map(f => (
-                  <button key={f.id} className={`chip tap${design.style.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
-                    onClick={() => update(d => ({ ...d, style: { ...d.style, font: f.id } }))}>{f.name}</button>
-                ))}
-              </div>
-              <p className="cal-note">字體用的是裝置上的系統字，不同電腦會略有差異，實際以打樣為準。</p>
-              <span className="cal-label">一週從哪天開始</span>
-              <div className="cal-row">
-                {[[0, '星期日'], [1, '星期一']].map(([v, l]) => (
-                  <button key={v} className={`chip tap${design.style.weekStart === v ? ' on' : ''}`}
-                    onClick={() => update(d => ({ ...d, style: { ...d.style, weekStart: v } }))}>{l}</button>
-                ))}
-              </div>
-              <span className="cal-label">日期格上要標什麼</span>
-              {[['lunar', '農曆日期'], ['term', '二十四節氣'], ['fest', '節日'], ['yiji', '每日宜（民俗）']].map(([k, l]) => (
-                <div className="opt" key={k}>
-                  <div className="l">{l}</div>
-                  <Switch on={!!design.style.marks[k]} onChange={(v) => update(d => ({ ...d, style: { ...d.style, marks: { ...d.style.marks, [k]: v } } }))} />
+                  {myPals.map(p => {
+                    const on = mine?.id === p.id && !customOpen
+                    return (
+                      <span key={p.id} className="cal-pchip-wrap">
+                        <button className={`cal-pchip tap${on ? ' on' : ''}`} aria-pressed={on}
+                          onClick={() => { setCustomOpen(false); setColors(p.colors) }}>{sw(p.colors)}<b>{p.name}</b></button>
+                        <button className="cal-pchip-x tap" aria-label={`刪除我的配色「${p.name}」`}
+                          onClick={() => { const a = myPals.filter(x => x.id !== p.id); setMyPals(a); writeMyPals(a) }}>×</button>
+                      </span>
+                    )
+                  })}
+                  {PALETTES.map(p => {
+                    const on = design.style.palette === p.id && !overrides && !customOpen
+                    return (
+                      <button key={p.id} className={`cal-pchip tap${on ? ' on' : ''}`} aria-pressed={on}
+                        onClick={() => { setCustomOpen(false); update(d => ({ ...d, style: { ...d.style, palette: p.id, colors: {} } })) }}>
+                        {sw(p.colors)}<b>{p.name}</b>
+                      </button>
+                    )
+                  })}
                 </div>
-              ))}
-              <p className="cal-note">農曆與節氣是天文演算；「每日宜」屬傳統民俗推算，各家說法不同。節日只標名稱，國定假日以政府公告為準。</p>
-            </div>
-          )}
+
+                {customOn && (
+                  <div className="cal-custom">
+                    <div className="cal-colors">
+                      {COLOR_SLOTS.map(({ key, name }) => (
+                        <label key={key} className="cal-color">
+                          <input type="color" value={colors[key]} aria-label={`${name}的顏色`}
+                            onChange={e => update(d => ({ ...d, style: { ...d.style, colors: { ...(d.style.colors || {}), [key]: e.target.value } } }), 'color-' + key)} />
+                          <span>{name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {lowContrast && (
+                      <p className="cal-warn">「日期數字」和「紙張」太接近（對比 {contrast(colors.ink, colors.paper).toFixed(1)}），印出來會看不清楚，建議 4.5 以上。</p>
+                    )}
+                    <div className="cal-row cal-savepal">
+                      <input className="cal-input" maxLength={8} placeholder="幫這組配色取個名字" aria-label="配色名稱"
+                        value={palName} onChange={e => setPalName(e.target.value)} />
+                      <button className="b dark tap" disabled={!palName.trim()} onClick={() => {
+                        const a = [{ id: Math.random().toString(36).slice(2, 9), name: palName.trim().slice(0, 8), colors: { ...colors } }, ...myPals].slice(0, 12)
+                        setMyPals(a); writeMyPals(a); setPalName(''); setCustomOpen(false)
+                        setToast('已存成我的配色，下一本桌曆也能用')
+                      }}>存成我的配色</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="cal-inline">
+                  <span className="cal-label">字體</span>
+                  <div className="cal-row">
+                    {FONTS.map(f => (
+                      <button key={f.id} className={`chip tap${design.style.font === f.id ? ' on' : ''}`} style={{ fontFamily: FONT[f.id] }}
+                        onClick={() => update(d => ({ ...d, style: { ...d.style, font: f.id } }))}>{f.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="cal-inline">
+                  <span className="cal-label">每週從</span>
+                  <div className="cal-row">
+                    {[[0, '星期日'], [1, '星期一']].map(([v, l]) => (
+                      <button key={v} className={`chip tap${design.style.weekStart === v ? ' on' : ''}`}
+                        onClick={() => update(d => ({ ...d, style: { ...d.style, weekStart: v } }))}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="cal-inline">
+                  <span className="cal-label">日期格標示</span>
+                  <div className="cal-row">
+                    {[['lunar', '農曆'], ['term', '節氣'], ['fest', '節日'], ['yiji', '每日宜']].map(([k, l]) => (
+                      <button key={k} className={`chip tap${design.style.marks[k] ? ' on' : ''}`} aria-pressed={!!design.style.marks[k]}
+                        onClick={() => update(d => ({ ...d, style: { ...d.style, marks: { ...d.style.marks, [k]: !d.style.marks[k] } } }))}>
+                        {design.style.marks[k] ? '✓ ' : ''}{l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="cal-note">字體為裝置系統字、顏色以打樣為準；農曆節氣為天文演算，「每日宜」屬民俗推算；國定假日以政府公告為準。</p>
+              </div>
+            )
+          })()}
 
           {tab === 'send' && (
             <div className="cal-sec">

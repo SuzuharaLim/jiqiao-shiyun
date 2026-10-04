@@ -948,3 +948,51 @@ button.ty.glossable, button.tn.glossable {
 /* 空的文字框：畫布上不畫任何東西，這裡給一個淡淡的提示字，看得到也抓得到 */
 .cal-tl-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: color-mix(in srgb, var(--text) 40%, transparent); font-weight: 700; line-height: 1; pointer-events: none; white-space: nowrap; }
 .cal-tl:has(.cal-tl-ph) { border-color: color-mix(in srgb, var(--text) 45%, transparent); border-style: dashed; }
+
+/* ── 桌曆設計器：樣式可自訂＋少捲動（2026-10-04）── */
+.cal-palrow {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin: 0 -2px;
+  scroll-snap-type: x proximity; scrollbar-width: thin;
+}
+.cal-pchip-wrap { position: relative; flex: 0 0 auto; display: flex; }
+.cal-pchip {
+  flex: 0 0 auto; scroll-snap-align: start; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  width: 84px; min-height: 0; padding: 8px; border-radius: 12px; border: 1px solid var(--line2);
+  background: var(--card); font: inherit; color: var(--text); cursor: pointer;
+}
+.cal-pchip b { font-size: var(--text-2xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cal-pchip.on { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+.cal-pchip.custom { border-style: dashed; }
+.cal-pchip.custom.on { border-style: solid; }
+.cal-pchip-sw { display: flex; width: 100%; height: 16px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.cal-pchip-sw i { flex: 1; }
+.cal-pchip-x {
+  position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; min-height: 24px; border-radius: 50%;
+  border: 1px solid var(--line2); background: var(--card); color: var(--muted); font-size: 14px; line-height: 1;
+  display: grid; place-items: center; padding: 0; cursor: pointer;
+}
+.cal-custom { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--chip); }
+.cal-custom .cal-colors { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.cal-custom .cal-color { flex-direction: column; gap: 3px; padding: 6px 2px; min-height: 0; justify-content: center; text-align: center; }
+.cal-custom .cal-color span { font-size: 11px; line-height: 1.2; }
+.cal-savepal { flex-wrap: nowrap; }
+.cal-savepal .cal-input { flex: 1 1 auto; min-width: 0; }
+.cal-savepal .b { flex: 0 0 auto; white-space: nowrap; }
+.cal-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cal-inline > .cal-label { flex: 0 0 auto; min-width: 5.5em; margin: 0; }
+.cal-inline > .cal-row { flex: 1 1 auto; }
+@media (max-width: 400px) {
+  .cal-custom .cal-colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* 桌機：整個設計器收在一個視窗高度內——預覽固定在左、右邊面板自己捲，頁面不必一直滾 */
+@media (min-width: 900px) and (min-height: 600px) {
+  .stage.signed-in .screen-calDesign .cal-panel {
+    position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .stage.signed-in .screen-calDesign .cal-panel .cal-tabs {
+    position: sticky; top: 0; z-index: 4; box-shadow: 0 -8px 0 var(--color-bg);
+  }
+  .stage.signed-in .screen-calDesign .cal3d { max-height: calc(100vh - 230px); }
+}
