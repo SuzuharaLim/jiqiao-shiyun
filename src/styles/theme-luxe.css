@@ -1163,3 +1163,6 @@ button.ty.glossable, button.tn.glossable {
   /* 一個視窗高放得下：導覽列（約 76）＋頁面標題列（約 74）＋上下邊距 */
   .stage.signed-in .screen-calDesign .cal-body.cal-ws { height: calc(100vh - 186px); min-height: 520px; margin: 8px 0 12px; }
 }
+
+/* 頁面標題列在設計器也不黏頂：它跟導覽列一樣會蓋住工作區的工具列（2026-10-04 使用者第二次回報） */
+.stage.signed-in .screen.screen-calDesign .topbar { position: relative; top: auto; }
