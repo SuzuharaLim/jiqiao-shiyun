@@ -733,6 +733,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **`.screen` 在桌機是 `position:static`，靠 `flex:1` 撐開的畫面會塌掉**：相機／掃描是「取景器」不是文件，`.cam{flex:1}` 在內容高的容器裡等於 0，`.cam-stage{min-height:0}` 再把它壓到最小——實測 1180px 高的平板上整個相機只有 277px，取景畫面是一條細縫，看起來就是壞掉。這兩頁要明確給 `min-height:calc(100dvh - 62px)`。
 - **hook 一律寫在提早 return 之前**：`PostDetail` 的編輯狀態（`editing/eTitle/eCap/saving`）原本寫在 `if (!post) return 載入中` 之後——第一次渲染只跑 11 個 hook、資料回來後 15 個，React 丟「Rendered more hooks than during the previous render」，**整個貼文詳情頁被 ErrorBoundary 接走**（點進貼文只看到錯誤畫面，build 不會報錯）。新增狀態時務必放在所有 `return` 之前。
 - **`ToolRow` 本身是 `<button>`**：放進去的互動子元件不能是 `<button>`（button 巢 button＝DOM 穿模）；`Switch` 用 `<span role="switch">`。
+- **★★ AI 回覆的逐句 span 曾叫 `.seg`，撞到全站「分段切換」元件 `.seg`（2026-10-04 修）**：結果 AI 的每一句都被畫成一顆獨立的白色膠囊（白底、6px 16px 內距、14px 圓角），行內換行處出現缺口與互相重疊，看起來像排版壞掉。已改名 `.ai-seg`。這是 `.calcell.empty` 之後第二次撞名——**新元件取 class 名前一律先 grep 有沒有同名的全站元件**，短字（`seg`／`empty`／`chip`／`tag`）尤其危險。
+- **AI 頁 `/app/ai` 的樣式全部收在 `theme-luxe.css` 末段、帶 `.screen-aiChat` 前綴的一塊**：原本散在 styles.css 本體、styles.css 末段舊主題、theme-luxe 三層互相打架。開場建議（`.ai-starters`）放在 `.chat` 裡緊接開場白，不再黏在畫面底部；免責文案在輸入列正下方（`.ai-note`）。
 - **`.calcell.empty` 的 `empty` 會撞到全站空狀態元件 `.empty`**（那個有 `padding:50px 24px`）：月曆前導空白格是 `<span class="calcell empty">`，被撐成 100px 把首週那列從 46px 拉高（就是舊註解說的「首週大空隙」，但原因不是 aspect-ratio）。`visibility:hidden` **不會讓它不占位**，必須顯式 `padding:0; min-height:0`。**新元件取 class 名前先確認沒有同名的全站元件。**
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
 - **桌機內容卡 `.device` 用 `overflow:clip` 不能 `overflow:hidden`**：`hidden` 會讓它變 sticky 的捲動容器，害 sticky 頂列偏移出空白帶。

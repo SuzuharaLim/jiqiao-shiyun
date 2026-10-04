@@ -1,7 +1,7 @@
 import { stripEmoji } from '../lib/text.js'
 import { useState, useRef, useEffect, Fragment } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, Disclaimer } from '../components/ui.jsx'
+import { TopBar, Seal } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { aiOpenFor, aiQuickRepliesFor, aiReply } from '../data/mock.js'
@@ -32,7 +32,10 @@ function stripMdRaw(s) {
 function AiSegments({ text }) {
   const parts = String(text).split(/(?<=[。！？!?\n])/).filter(Boolean)
   return parts.map((s, i) => (
-    <span key={i} className="seg" style={{ animationDelay: `${i * 0.16}s` }}>{s}</span>
+    // ⚠️ class 不可叫 `.seg`：那是全站「分段切換」元件的名字（白底、6px 16px 內距、
+    //    14px 圓角），撞名的結果是 AI 每一句都被畫成一顆獨立的白色膠囊，
+    //    行內換行處出現缺口與重疊（2026-10-04 修）。站規記過同一類的坑：`.calcell.empty`。
+    <span key={i} className="ai-seg" style={{ animationDelay: `${i * 0.16}s` }}>{s}</span>
   ))
 }
 
@@ -226,21 +229,19 @@ export default function AIChat() {
       <TopBar title="AI 時光顧問" onBack
         right={<button className="iconbtn tap" aria-label="重新開始對話" onClick={restart}><Icon name="dots" /></button>} />
 
-      {/* 今日運勢橫幅 */}
-      <div className="luck">
+      {/* 今日一列：原本是一張置中的大卡＋一段免責，佔掉手機畫面三分之一，
+          資訊卻只有星等、日柱、兩個宜。壓成一列，把高度還給對話。 */}
+      <div className="ai-today">
+        <span className="ai-today-k">今日</span>
+        <span className="ai-today-gz">{today.ganzhi}</span>
         {/* 星等逐顆點亮（--i 給 stagger 延遲；沿用曆頁同一套 starPop） */}
-        <div className="s" aria-label={`今日運勢 ${today.stars} 顆星`}>
+        <span className="ai-today-s" role="img" aria-label={`今日運勢 ${today.stars} 顆星`}>
           {Array.from({ length: 5 }, (_, i) => (
             <i key={i} aria-hidden="true" style={{ '--i': i }}>{i < today.stars ? '★' : '☆'}</i>
           ))}
-        </div>
-        <div className="l">今日運勢 · {today.ganzhi} · 宜{today.yi.slice(0, 2).join('')}</div>
+        </span>
+        {today.yi.length > 0 && <span className="ai-today-yi">宜 {today.yi.slice(0, 2).join('、')}</span>}
       </div>
-
-      {/* 免責文案依實際狀態切換：接了金鑰之後還寫「示範內容」就是不實陳述 */}
-      <Disclaimer text={aiLive === false
-        ? 'AI 尚未接上，目前顯示的是示範內容；命理僅供參考娛樂，不構成專業建議'
-        : '命理與宜忌僅供參考娛樂，不構成醫療、投資、法律或婚姻的專業建議'} />
 
       <div className="chat" ref={scroller} role="log" aria-live="polite" aria-relevant="additions"
         onScroll={() => setAtBottom(nearBottom())}>
@@ -268,6 +269,11 @@ export default function AIChat() {
                   </div>
                 </div>
               ) : m.who === 'ai' ? (
+                <div className="ai-row">
+                {/* 頭像只掛在一串 AI 訊息的第一則：每則都掛會變成一整排印章 */}
+                {prev?.who === 'ai'
+                  ? <span className="ai-av ghost" aria-hidden="true" />
+                  : <span className="ai-av" aria-hidden="true"><Seal badge alt="" /></span>}
                 <div className={`msg ai${m.live ? ' live' : ''}`} data-demo={m.demo ? '示範' : undefined}>
                   {m.live ? m.text : <AiSegments text={m.text} />}
                   {/* 行動卡片：本地層回答時附上站內導引，讓「聊天」可以直接變「辦事」 */}
@@ -279,13 +285,26 @@ export default function AIChat() {
                     </div>
                   )}
                 </div>
+                </div>
               ) : (
                 <div className="msg me">{m.text}</div>
               )}
             </Fragment>
           )
         })}
-        {typing && <div className="typing"><i /><i /><i /></div>}
+        {showQuick && (
+          <div className="ai-starters" role="group" aria-label="可以這樣問">
+            <span className="ai-starters-h">可以這樣問</span>
+            <div className="ai-starters-g">
+              {aiQuickRepliesFor(today).map((q, i) => (
+                <button key={q} className="ai-starter tap" style={{ '--i': i }} onClick={() => send(q)}>
+                  <span>{q}</span><Icon name="chev" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {typing && <div className="ai-row"><span className="ai-av ghost" aria-hidden="true" /><div className="typing"><i /><i /><i /></div></div>}
 
         {/* 回到最新：使用者往回讀時，新訊息不該把他硬拉走，但要讓他知道有新的。
              必須放在 .chat 內部——sticky 只在自己的捲動容器裡有效；
@@ -306,14 +325,6 @@ export default function AIChat() {
           </div>
         )}
       </div>
-
-      {showQuick && (
-        <div className="quick">
-          {aiQuickRepliesFor(today).map((q, i) => (
-            <button key={q} className="qchip tap" style={{ '--i': i }} onClick={() => send(q)}>{q}</button>
-          ))}
-        </div>
-      )}
 
       <div className="cinput">
         <div className="f">
@@ -342,6 +353,13 @@ export default function AIChat() {
           : <button className="sendbtn tap" onClick={() => send()} aria-label="送出"
               disabled={typing || !text.trim()}><Icon name="send" /></button>}
       </div>
+      {/* 免責文案依實際狀態切換：接了金鑰之後還寫「示範內容」就是不實陳述。
+          放在輸入列正下方＝每次送出前都在視線內，而不是捲走就看不到。 */}
+      <p className="ai-note">
+        {aiLive === false
+          ? 'AI 尚未接上，目前為示範內容。命理僅供參考娛樂，不構成專業建議。'
+          : 'AI 可能出錯；命理與宜忌僅供參考，不構成醫療、投資、法律或婚姻建議。'}
+      </p>
     </>
   )
 }

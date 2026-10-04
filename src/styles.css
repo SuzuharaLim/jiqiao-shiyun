@@ -875,7 +875,7 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
       長回覆會撐出橫向捲軸。 */
 /* ⚠️ 同「動畫只負責怎麼出現、不負責是否存在」原則：不預設 opacity:0。
    這裡是 AI 的回覆本文——動畫沒跑就看不到答案，是最不能接受的失效。 */
-.msg.ai .seg { display:inline; animation:segIn .38s ease both; }
+.msg.ai .ai-seg { display:inline; animation:segIn .38s ease both; }
 @keyframes segIn { from { opacity:0 } to { opacity:1 } }
 .typing { align-self:flex-start; background:var(--chip); border-radius:16px;
   border-bottom-left-radius:5px; padding:var(--space-4) 15px; display:flex; gap:4px; }
