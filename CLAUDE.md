@@ -164,6 +164,27 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ---
 
+## ★★★★ 2026-10-04 根目錄改為承氣有限公司官網，App 整個搬到 `/app/`（`/AR` 不動）
+
+使用者指定：chengqi.tw 變成**承氣有限公司**官網，機巧時運是公司的產品；`/AR` 必須保持原樣。
+
+| 網址 | 內容 |
+| --- | --- |
+| `/` | 官網（`server/corporate.js`，伺服器直接吐的獨立 HTML，不載 App） |
+| `/app`、`/app/…` | 機巧時運（原本所有頁面） |
+| `/AR`、`/ar/model/:slug`、`/ar/card/:slug` | **留在根目錄**（實體卡片已印出、`qrFallback` 認這些網址） |
+| 舊網址 `/almanac/day/…`、`/post/1`、`/verify-email`、`/?date=…` | **301** 到 `/app/…`（保住 Google 排名與已寄出的信） |
+
+- **★★★★ 路由表維持「App 內部的邏輯路徑」，不可把 `/app` 寫進去。** `SCREEN_PATH`（paths.js）與 `ROUTES`（seo.js）仍是 `/post/:id`；前綴只在**網址進出那一層**加減：產生網址走 `toPublic()`、解析網址走 `toLogical()`（`src/data/appBase.js`）。這樣伺服器裡上百處 `p === '/post/:id'` 與 check-nav 的三方比對一行都不用改。
+  - 前端進出口：`nav.jsx` 的 `buildPath`／`hrefForTab`／`pathFromState`／`routeFromPath`。後端進出口：`seo.js` 的 `matchRoute`（先 `toLogical` 再比對）。
+  - ⚠️ **按位置取網址片段的地方要先 `toLogical`**：`pathname.split('/')[1]` 加了前綴會整個錯位（seo.js 擇日頁的 kind 就是這樣，已修）。
+  - ⚠️ **手寫的絕對網址要自己加 `/app`**：信件連結（`${APP_URL}/app/verify-email`）、RSS、IndexNow、widget、`seo.js` 首屏靜態層的 `href`、sitemap 的 loc、`manifest` 的 start_url／shortcuts、`robots.txt`、各畫面 JSON-LD 的 `https://chengqi.tw/app/…`。新加這種網址時一律用 `hrefForScreen`（前端）或 `toPublic`（後端）。
+- **`appBase.js` 必須住在 `src/data/`**：Dockerfile 只把 `src/data` 帶進正式容器，放 `src/store` 伺服器會 import 失敗、整個服務起不來。
+- **官網的公司資料（`server/corporate.js` 的 `COMPANY`）沒給的欄位一律 `null`，畫面直接不顯示**。絕不可先填「看起來合理」的統編、地址、英文名——官網上的公司資料是對外正式聲明。也不可顯示「待填」（一部署就公開）。
+- 官網不可有 inline script（CSP `scriptSrc 'self'`），本來也不需要 JS。
+- 開發模式（vite 5173）打開 `/` 會直接進 App 首頁——官網只由 node 伺服器提供（`npm run build && npm start` 才看得到）。
+- Windows 本機 `/AR` 會被轉成 `/AR/`（檔案系統不分大小寫，撞到 `dist/ar/`），是既有行為；正式站 Linux 不會。
+
 ## ★★★ 2026-09-09 全站視覺推翻：「宣紙／墨／朱紅印章」→「編輯奢華」（soft-skill）＋ 全站禁用 emoji
 
 使用者指定：推翻原有 UI 風格、只動 UI/UX 不動功能；方向是**高端代理商感（陰影、動效豐富）**，

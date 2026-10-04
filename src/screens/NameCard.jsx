@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNav } from '../store/nav.jsx'
+import { useNav, hrefForScreen } from '../store/nav.jsx'
 import { TopBar, Avatar, Seal, Link, Empty, Disclaimer } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import BadgeArt from '../components/BadgeArt.jsx'
@@ -46,7 +46,7 @@ export default function NameCard({ handle }) {
   }, [who])
 
   const share = async () => {
-    const url = `${location.origin}/card/${encodeURIComponent(who)}`
+    const url = location.origin + hrefForScreen('nameCard', { handle: who })
     const title = data ? `${stripEmoji(data.user.name)} · 機巧時運` : '機巧時運'
     try {
       if (navigator.share) { await navigator.share({ title, url }); return }

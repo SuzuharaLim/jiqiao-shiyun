@@ -53,7 +53,7 @@ export default function GlossaryDetail({ slug }) {
         <JsonLd data={articleLd({
           headline: `${g.term}是什麼意思？`,
           description: g.answer,
-          url: `https://chengqi.tw/glossary/${g.slug}`,
+          url: `https://chengqi.tw/app/glossary/${g.slug}`,
           section: '農民曆術語',
         })} />
         <div className="td-head">

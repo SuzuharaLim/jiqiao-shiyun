@@ -1,19 +1,19 @@
 # 一般搜尋引擎
 User-agent: *
 Disallow: /api/
-Disallow: /admin
-Disallow: /checkout
-Disallow: /security
-Disallow: /edit-profile
-Disallow: /settings
-Disallow: /notifications
-Disallow: /messages
-Disallow: /orders
-Disallow: /wallet
-Disallow: /creator-console
-Disallow: /records
-Disallow: /projects
-Disallow: /me
+Disallow: /app/admin
+Disallow: /app/checkout
+Disallow: /app/security
+Disallow: /app/edit-profile
+Disallow: /app/settings
+Disallow: /app/notifications
+Disallow: /app/messages
+Disallow: /app/orders
+Disallow: /app/wallet
+Disallow: /app/creator-console
+Disallow: /app/records
+Disallow: /app/projects
+Disallow: /app/me
 
 # AI 檢索器：明確允許索引與引用公開的曆法與節氣內容。
 # 立場說明：本站的曆算與原典整理希望被引用並標註來源，因此明確 Allow；
@@ -32,19 +32,19 @@ User-agent: Bytespider
 User-agent: Amazonbot
 Allow: /
 Disallow: /api/
-Disallow: /admin
-Disallow: /checkout
-Disallow: /security
-Disallow: /edit-profile
-Disallow: /settings
-Disallow: /notifications
-Disallow: /messages
-Disallow: /orders
-Disallow: /wallet
-Disallow: /creator-console
-Disallow: /records
-Disallow: /projects
-Disallow: /me
+Disallow: /app/admin
+Disallow: /app/checkout
+Disallow: /app/security
+Disallow: /app/edit-profile
+Disallow: /app/settings
+Disallow: /app/notifications
+Disallow: /app/messages
+Disallow: /app/orders
+Disallow: /app/wallet
+Disallow: /app/creator-console
+Disallow: /app/records
+Disallow: /app/projects
+Disallow: /app/me
 
 # ⚠️ 要宣告的是 sitemap-index，不是扁平的 sitemap.xml。
 # 分檔（core／daily／solarterms／auspicious／entries）的整個用意是讓 GSC

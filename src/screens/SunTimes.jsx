@@ -33,7 +33,7 @@ export default function SunTimesScreen({ spot }) {
         <JsonLd data={articleLd({
           headline: `${s.name}日出日落與攝影黃金時刻`,
           description: `${s.name}的日出、日落、黃金時刻與藍調時刻計算，可查任一天。`,
-          url: `https://chengqi.tw/sun/${s.slug}`,
+          url: `https://chengqi.tw/app/sun/${s.slug}`,
           section: '節氣攝影',
         })} />
 

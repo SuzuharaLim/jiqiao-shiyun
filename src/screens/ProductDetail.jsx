@@ -32,7 +32,7 @@ export default function ProductDetail({ slug }) {
         <JsonLd data={productLd({
           name: p.name,
           description: p.lead,
-          url: `https://chengqi.tw/store/${p.slug}`,
+          url: `https://chengqi.tw/app/store/${p.slug}`,
           price: p.price,
           sku: p.id,
         })} />

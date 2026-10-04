@@ -3,7 +3,7 @@
   "short_name": "機巧時運",
   "description": "今天宜什麼？AI 幫你把國民曆讀成人話。每日宜忌、二十四節氣與節氣攝影社群。",
   "lang": "zh-Hant-TW",
-  "start_url": "/?source=pwa",
+  "start_url": "/app?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -36,7 +36,7 @@
     {
       "name": "今日宜忌",
       "short_name": "今日",
-      "url": "/almanac/day?source=pwa",
+      "url": "/app/almanac/day?source=pwa",
       "description": "今日完整國民曆：宜忌、吉時、沖煞、建除",
       "icons": [
         {
@@ -48,7 +48,7 @@
     {
       "name": "擇日工具",
       "short_name": "擇日",
-      "url": "/auspicious?source=pwa",
+      "url": "/app/auspicious?source=pwa",
       "description": "搬家、結婚、開市吉日查詢",
       "icons": [
         {
@@ -60,7 +60,7 @@
     {
       "name": "二十四節氣",
       "short_name": "節氣",
-      "url": "/solarterms?source=pwa",
+      "url": "/app/solarterms?source=pwa",
       "description": "節氣專欄：由來、三候、當令食材",
       "icons": [
         {
@@ -72,7 +72,7 @@
     {
       "name": "解夢",
       "short_name": "解夢",
-      "url": "/dream?source=pwa",
+      "url": "/app/dream?source=pwa",
       "description": "《周公解夢》原典斷語與現代參考",
       "icons": [
         {

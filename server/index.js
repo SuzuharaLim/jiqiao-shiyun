@@ -15,6 +15,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import db from './db.js'
 import { sendMail, mailStatus } from './mailer.js'
 import { sendPushToAll, pushEnabled, publicKey as vapidPublicKey, pushStatus } from './push.js'
+import { corporateHtml } from './corporate.js'
+import { toLogical } from '../src/data/appBase.js'
 import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
@@ -93,7 +95,7 @@ async function notify(userId, emoji, body, toScreen = null, props = null) {
     [uuid(), userId, emoji, body, toScreen, props ? JSON.stringify(props) : null, now()])
   // 站內通知的單一入口 → 在此掛推播，所有互動（讚/留言/追蹤）自動都有推播，
   // 不需逐處修改。推播失敗不可影響通知寫入，故 fire-and-forget + 捕捉。
-  pushToUser(userId, 'social', { title: '機巧時運', body: `${emoji} ${body}`, to: toScreen || '/notifications' })
+  pushToUser(userId, 'social', { title: '機巧時運', body: `${emoji} ${body}`, to: '/app/notifications' })
     .catch(e => console.warn('[push] social 推播失敗:', e.message))
 }
 // 角色階層（低→高）：一般使用者 < 創作者 < 版主 < 管理者
@@ -257,7 +259,7 @@ app.post('/api/register', authLimiter, ah(async (req, res) => {
   const token = randToken()
   await db.run('INSERT INTO tokens (id,user_id,kind,token_hash,expires_at,created_at) VALUES (?,?,?,?,?,?)',
     [uuid(), id, 'email_verify', sha256(token), plusMs(24 * 60 * 60 * 1000), now()])
-  const link = `${APP_URL}/verify-email?token=${token}`
+  const link = `${APP_URL}/app/verify-email?token=${token}`
   const { devLink } = sendMail({ to: email, subject: '請驗證你的機巧時運帳號', link, kind: 'verify' })
   const csrf = await startSession(res, { id }, req)
   const u = await db.get('SELECT * FROM users WHERE id=?', [id])
@@ -319,7 +321,7 @@ app.post('/api/password/forgot', authLimiter, ah(async (req, res) => {
     const token = randToken()
     await db.run('INSERT INTO tokens (id,user_id,kind,token_hash,expires_at,created_at) VALUES (?,?,?,?,?,?)',
       [uuid(), u.id, 'password_reset', sha256(token), plusMs(60 * 60 * 1000), now()])
-    const link = `${APP_URL}/reset-password?token=${token}`
+    const link = `${APP_URL}/app/reset-password?token=${token}`
     devLink = sendMail({ to: email, subject: '重設你的機巧時運密碼', link, kind: 'reset' }).devLink
     await audit('password_forgot', req, u.id)
   } else await audit('password_forgot_nouser', req, null, email)
@@ -522,7 +524,7 @@ app.post('/api/email/resend', requireAuth, requireCsrf, authLimiter, ah(async (r
   const token = randToken()
   await db.run('INSERT INTO tokens (id,user_id,kind,token_hash,expires_at,created_at) VALUES (?,?,?,?,?,?)',
     [uuid(), req.user.id, 'email_verify', sha256(token), plusMs(24 * 60 * 60 * 1000), now()])
-  const link = `${APP_URL}/verify-email?token=${token}`
+  const link = `${APP_URL}/app/verify-email?token=${token}`
   const { devLink } = sendMail({ to: req.user.email, subject: '請驗證你的機巧時運帳號', link, kind: 'verify' })
   await audit('email_resend', req, req.user.id)
   res.json({ ok: true, devVerifyLink: devLink })
@@ -578,7 +580,7 @@ app.post('/api/orders', requireAuth, requireCsrf, ah(async (req, res) => {
   await audit('order_create', req, req.user.id, id)
   // 分潤記帳（先記帳、後付款）——記帳失敗不可讓訂單失敗，故捕捉錯誤
   recordLedger(id, clean).catch(e => console.error('[ledger] 記帳失敗:', e.message))
-  sendMail({ to: req.user.email, subject: `訂單確認 ${id}（NT$${total}）`, link: `${APP_URL}/orders`, kind: 'order' })
+  sendMail({ to: req.user.email, subject: `訂單確認 ${id}（NT$${total}）`, link: `${APP_URL}/app/orders`, kind: 'order' })
   res.json({ order })
 }))
 
@@ -997,7 +999,7 @@ app.patch('/api/push/prefs', requireAuth, requireCsrf, ah(async (req, res) => {
 app.post('/api/push/test', requireAuth, requireCsrf, ah(async (req, res) => {
   const subs = await db.all('SELECT * FROM push_subs WHERE user_id=?', [req.user.id])
   if (!subs.length) return res.status(400).json({ error: '這個帳號還沒有任何裝置訂閱推播' })
-  const r = await sendPushToAll(subs, { title: '機巧時運', body: '推播測試成功 你會收到節氣與互動提醒', to: '/' })
+  const r = await sendPushToAll(subs, { title: '機巧時運', body: '推播測試成功 你會收到節氣與互動提醒', to: '/app' })
   if (r.goneIds.length) for (const id of r.goneIds) await db.run('DELETE FROM push_subs WHERE id=?', [id])
   res.json({ ...r, enabled: pushEnabled() })
 }))
@@ -2397,7 +2399,7 @@ if (existsSync(distDir)) {
     const origin = originOf(req)
     const urls = Array.isArray(req.body?.urls) && req.body.urls.length
       ? req.body.urls.slice(0, 10000)
-      : [`${origin}/`, `${origin}/almanac/day`, `${origin}/solarterms`, `${origin}/auspicious`, `${origin}/glossary`]
+      : [`${origin}/`, `${origin}/app`, `${origin}/app/almanac/day`, `${origin}/app/solarterms`, `${origin}/app/auspicious`, `${origin}/app/glossary`]
     res.json(await pingIndexNow(urls))
   })
 
@@ -2414,7 +2416,7 @@ if (existsSync(distDir)) {
       const off = t0 + i
       const d = dayFor(off)
       const dt = dateFromOffset(off)
-      const link = `${origin}/almanac/day/${iso(dt)}`
+      const link = `${origin}/app/almanac/day/${iso(dt)}`
       // ⚠️ RSS 原本 14 則一張圖都沒有。feed 是 Discover 與訂閱工具的入口，
       //    純文字的條目在任何有縮圖的清單裡都會被略過。
       //    用 media:content 不用 enclosure——enclosure 的 length 屬性是必填的
@@ -2555,7 +2557,7 @@ if (existsSync(distDir)) {
       `<div class="r"><span class="k">宜</span><span>${esc(d.yi.join('、'))}</span></div>`,
       `<div class="r"><span class="k">忌</span><span>${esc(d.ji.join('、'))}</span></div>`,
       `<div class="r"><span class="k">吉時</span><span>${esc(d.luckyHours)}</span></div>`,
-      `<div style="margin-top:10px"><a href="${origin}/almanac/day" target="_blank" rel="noopener">資料來源：機巧時運</a></div>`,
+      `<div style="margin-top:10px"><a href="${origin}/app/almanac/day" target="_blank" rel="noopener">資料來源：機巧時運</a></div>`,
       '</div></body></html>',
     ].join(NEWLINE))
   })
@@ -2566,6 +2568,27 @@ if (existsSync(distDir)) {
   //    但 body 仍要送 SPA 的 HTML，使用者才會看到 App 內設計過的找不到頁面。
   app.get('*', ah(async (req, res, next) => {
     if (req.path.startsWith('/api/')) return next()
+    const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : ''
+
+    // ★ 根目錄＝承氣有限公司官網（2026-10-04）。獨立 HTML，不載 App。
+    //   ⚠️ 例外：舊的首頁翻日網址 `/?date=…` 是 App 的內容，要轉去 /app。
+    if (req.path === '/') {
+      if (req.query.date) return res.redirect(301, '/app' + qs)
+      return res.type('html').set('Cache-Control', 'no-cache')
+        .send(corporateHtml({ origin: originOf(req) }))
+    }
+
+    // ★★★ 搬家前的舊網址一律 301 到 /app/…（2026-10-04）。
+    //   Google 已收錄的頁面、別人貼出去的連結、已寄出的驗證信／重設密碼信，
+    //   都還指向沒有前綴的舊網址。301 會把排名一起帶過去；回 404 等於整站從零開始。
+    //   ⚠️ `/AR`、`/ar/*` 本來就在根目錄，toLogical 不是 null，不會走進這裡。
+    if (toLogical(req.path) == null) {
+      const legacy = '/app' + req.path
+      if (matchRoute(legacy) || /^\/(verify-email|reset-password)\/?$/.test(req.path)) {
+        return res.redirect(301, legacy + qs)
+      }
+    }
+
     const route = matchRoute(req.path)
     // ⚠️ 路由樣板對得上還不夠——條目頁的 slug 也要真的存在，
     //    否則 /solarterms/nope 這種網址會回 200＋「找不到」畫面＝soft 404。

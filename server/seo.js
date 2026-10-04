@@ -11,6 +11,8 @@ import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
 import { termTable } from '../src/data/lunisolar.js'
 import { OFFICIAL_CARDS } from '../src/data/arCards.js'
+// ★ 路由表是 App 的邏輯路徑；實際網址多一層 /app（/AR、/ar/* 例外）。見 appBase.js 檔頭。
+import { toPublic, toLogical } from '../src/data/appBase.js'
 
 // 有獨立頁的夢境：只收「有原典斷語」者。沒有原典的條目內容太薄，
 // 做成獨立頁就是空殼，量一多反而拖累全站評價。
@@ -187,7 +189,11 @@ const MATCHERS = ROUTES.map(r => ({
 }))
 
 export function matchRoute(pathname) {
-  return MATCHERS.find(m => m.rx.test(pathname)) || null
+  // ⚠️ 傳進來的是**實際網址**（/app/post/1），路由表是邏輯路徑（/post/:id）。
+  //    不屬於 App 的路徑（官網 `/`、舊網址）回 null，由 index.js 決定官網／轉址／404。
+  const logical = toLogical(pathname)
+  if (logical == null) return null
+  return MATCHERS.find(m => m.rx.test(logical)) || null
 }
 
 // 靜態頁內容的最後實質更新日。⚠️ 手動維護——改了頁面內容才更新這個值。
@@ -293,7 +299,7 @@ function entryMeta(pathname, route) {
     }
   }
   if (p === '/auspicious/:kind' || p === '/auspicious/:kind/:ym') {
-    const parts = pathname.split('/').filter(Boolean)   // ['auspicious', kind, ym?]
+    const parts = (toLogical(pathname) ?? pathname).split('/').filter(Boolean)   // ['auspicious', kind, ym?]
     const kd = purposeBySlug(decodeURIComponent(parts[1] || ''))
     if (!kd) return null
     const ym = /^(\d{4})-(\d{2})$/.exec(parts[2] || '')
@@ -420,18 +426,18 @@ function almanacFallback(iso) {
       屬確定性計算、可與中央氣象署的天文資料交叉驗證。建除十二神、二十八星宿、黃道黑道十二神、
       宜忌、沖煞、胎神、彭祖百忌與吉神方位屬傳統擇日，規則有典據且可逐步推導，
       但不同通書流派的判定可能相異——凡有流派差異之處本站都在頁面標明採用的版本。
-      詳細來源與校對流程見<a href="/editorial">編輯政策</a>，名詞解釋見<a href="/glossary">術語解釋</a>。</p>
+      詳細來源與校對流程見<a href="/app/editorial">編輯政策</a>，名詞解釋見<a href="/app/glossary">術語解釋</a>。</p>
       <h2>今天是什麼節氣？</h2>
       <p>${esc(a.term)}（${esc(a.termRange || '')}）第 ${a.termDay} 天。
-      ${termSlug ? `<a href="/solarterms/${termSlug}">看${esc(a.term)}的完整介紹</a>——七十二候、台灣氣候、當令農產。` : ''}
+      ${termSlug ? `<a href="/app/solarterms/${termSlug}">看${esc(a.term)}的完整介紹</a>——七十二候、台灣氣候、當令農產。` : ''}
       ${a.festival ? `今天也是${esc(a.festival)}。` : ''}</p>
       <h2>想挑日子做某件事？</h2>
       <p>今天的宜忌只回答「今天適不適合」。如果你要挑的是未來某一天，可以直接看
-      <a href="/auspicious/moving">搬家吉日</a>、<a href="/auspicious/wedding">結婚好日子</a>、
-      <a href="/auspicious/opening">開市吉日</a>、<a href="/auspicious/bed">安床吉日</a>的整年一覽，
+      <a href="/app/auspicious/moving">搬家吉日</a>、<a href="/app/auspicious/wedding">結婚好日子</a>、
+      <a href="/app/auspicious/opening">開市吉日</a>、<a href="/app/auspicious/bed">安床吉日</a>的整年一覽，
       每一天都附沖煞與宜忌說明。看不懂上面的名詞可以查
-      <a href="/glossary/jianchu">建除十二神</a>、<a href="/glossary/chongsha">沖煞</a>、
-      <a href="/glossary/huangdao">黃道吉時</a>的解釋。</p>`
+      <a href="/app/glossary/jianchu">建除十二神</a>、<a href="/app/glossary/chongsha">沖煞</a>、
+      <a href="/app/glossary/huangdao">黃道吉時</a>的解釋。</p>`
 }
 
 // 首頁的首屏內容。
@@ -462,29 +468,29 @@ function homeFallback() {
       宜${esc(a.yi.join('、') || '諸事不宜')}；忌${esc(a.ji.join('、') || '無')}。
       黃道吉時${esc(hours || '無')}。吉日星等 ${a.stars} / 5，${esc(a.rating)}。</p>
       ${a.summary ? `<p>${esc(a.summary)}</p>` : ''}
-      <p><a href="/almanac/day">看今日完整曆頁</a>——沖煞生肖與虛歲、建除十二神、二十八星宿、
+      <p><a href="/app/almanac/day">看今日完整曆頁</a>——沖煞生肖與虛歲、建除十二神、二十八星宿、
       逐日胎神、彭祖百忌、財喜貴神方位與十二時辰吉凶。</p>
       <h2>要挑未來某一天怎麼查？</h2>
       <p>今天的宜忌只回答「今天適不適合」。挑日子請用擇日工具：
-      <a href="/auspicious/moving">搬家吉日</a>、<a href="/auspicious/wedding">結婚好日子</a>、
-      <a href="/auspicious/opening">開市吉日</a>、<a href="/auspicious/bed">安床吉日</a>，
-      或看<a href="/auspicious">全部用途</a>的整年一覽。
-      指定日期也可以直接查：<a href="/almanac/day">農民曆查詢</a>。</p>
+      <a href="/app/auspicious/moving">搬家吉日</a>、<a href="/app/auspicious/wedding">結婚好日子</a>、
+      <a href="/app/auspicious/opening">開市吉日</a>、<a href="/app/auspicious/bed">安床吉日</a>，
+      或看<a href="/app/auspicious">全部用途</a>的整年一覽。
+      指定日期也可以直接查：<a href="/app/almanac/day">農民曆查詢</a>。</p>
       <h2>看不懂曆頁上的名詞？</h2>
       <p>建除、彭祖百忌、受死日、黃道吉時、沖煞這些名詞在
-      <a href="/glossary">術語解釋</a>都有逐條說明，每則標明典據，
-      沒有明確出處的就誠實說沒有，並附上該項最常見的誤解（見<a href="/myths">常見誤解</a>）。
-      資料怎麼來、怎麼校對，寫在<a href="/editorial">編輯政策</a>。</p>
+      <a href="/app/glossary">術語解釋</a>都有逐條說明，每則標明典據，
+      沒有明確出處的就誠實說沒有，並附上該項最常見的誤解（見<a href="/app/myths">常見誤解</a>）。
+      資料怎麼來、怎麼校對，寫在<a href="/app/editorial">編輯政策</a>。</p>
       <h2>二十四節氣與節氣攝影</h2>
       <p>現在是${esc(a.term)}${a.termRange ? `（${esc(a.termRange)}）` : ''}。
-      ${termSlug ? `<a href="/solarterms/${termSlug}">${esc(a.term)}專頁</a>有七十二候、台灣氣候實況與當令農產；` : ''}
-      <a href="/solarterms">二十四節氣專欄</a>是完整年表。
-      機巧時運同時是節氣攝影社群——到<a href="/explore">探索</a>看大家拍下的此刻，
-      或用<a href="/sun">攝影時刻表</a>查各地的日出日落與黃金時刻。</p>
+      ${termSlug ? `<a href="/app/solarterms/${termSlug}">${esc(a.term)}專頁</a>有七十二候、台灣氣候實況與當令農產；` : ''}
+      <a href="/app/solarterms">二十四節氣專欄</a>是完整年表。
+      機巧時運同時是節氣攝影社群——到<a href="/app/explore">探索</a>看大家拍下的此刻，
+      或用<a href="/app/sun">攝影時刻表</a>查各地的日出日落與黃金時刻。</p>
       <h2>還有什麼可以查？</h2>
-      <p><a href="/almanac">農民曆工具箱</a>收了生肖每日運勢、生肖星座婚配、袁天罡秤骨、
+      <p><a href="/app/almanac">農民曆工具箱</a>收了生肖每日運勢、生肖星座婚配、袁天罡秤骨、
       周公解夢原典、臺灣神佛誕辰倒數與台灣諺語；
-      <a href="/almanac/year">年度總覽</a>則是當年的太歲、犯太歲生肖與地母經。</p>`
+      <a href="/app/almanac/year">年度總覽</a>則是當年的太歲、犯太歲生肖與地母經。</p>`
 }
 
 // 節氣專頁的首屏內容——這是「預渲染」真正要解決的：24 個節氣頁若沒有這一層，
@@ -531,10 +537,10 @@ function termFallback(slug) {
       交節當天起算，到下一個節氣前一天為止，都算在${esc(a.term)}的區間內。</p>
       <h2>前後節氣</h2>
       <p>${esc(a.term)}是二十四節氣的第 ${idx + 1} 個，屬${esc(a.season)}季${g?.date ? `，${esc(g.date)}` : ''}。
-      前一個節氣是 <a href="/solarterms/${prev.slug}">${esc(prev.term)}</a>，
-      後一個是 <a href="/solarterms/${next.slug}">${esc(next.term)}</a>。
-      也可以回<a href="/solarterms">二十四節氣專欄</a>看完整年表，
-      或看<a href="/almanac/day">今日完整國民曆</a>的宜忌與吉時。</p>`
+      前一個節氣是 <a href="/app/solarterms/${prev.slug}">${esc(prev.term)}</a>，
+      後一個是 <a href="/app/solarterms/${next.slug}">${esc(next.term)}</a>。
+      也可以回<a href="/app/solarterms">二十四節氣專欄</a>看完整年表，
+      或看<a href="/app/almanac/day">今日完整國民曆</a>的宜忌與吉時。</p>`
 }
 
 // 商品頁的首屏內容。⚠️ 每一段都對得上 ProductDetail.jsx 實際渲染的區塊。
@@ -558,7 +564,7 @@ function productFallback(slug) {
       <h2>為什麼做這個</h2><p>${esc(p.why)}</p>
       <h2>其他商品</h2>
       <ul>${PRODUCTS.filter(x => x.slug !== p.slug).map(o =>
-        `<li><a href="/store/${o.slug}">${esc(o.name)}</a></li>`).join('')}</ul>`
+        `<li><a href="/app/store/${o.slug}">${esc(o.name)}</a></li>`).join('')}</ul>`
 }
 
 function deityFallback(slug) {
@@ -591,7 +597,7 @@ function dreamFallback(slug) {
       <p>夢見${esc(d.k[0])}的夢象屬${esc(d.wx)}。本站會把它與當日日柱的納音五行做生剋比對，
       給出「順勢而為」或「宜守不宜攻」這類提示——同一個夢在不同的日子，延伸提示並不相同。</p>
       ${related.length ? `<h2>其他屬${esc(d.wx)}的夢境</h2><ul>${related.map(r =>
-        `<li><a href="/dream/${encodeURIComponent(r.k[0])}">夢見${esc(r.k[0])}</a></li>`).join('')}</ul>` : ''}`
+        `<li><a href="/app/dream/${encodeURIComponent(r.k[0])}">夢見${esc(r.k[0])}</a></li>`).join('')}</ul>` : ''}`
 }
 
 // 哪些路由要注入首屏靜態內容。
@@ -641,7 +647,7 @@ function fallbackFor(pathname, route) {
       時刻由太陽位置實算，誤差約 ±7 分鐘（春分秋分前後最大、夏至冬至最準），建議提早到現場。</p>
       <h2>其他拍攝地點</h2>
       <ul>${SPOTS.filter(x => x.slug !== sp.slug).map(x =>
-        `<li><a href="/sun/${x.slug}">${esc(x.name)}</a>——${esc(x.note)}</li>`).join('')}</ul>`
+        `<li><a href="/app/sun/${x.slug}">${esc(x.name)}</a>——${esc(x.note)}</li>`).join('')}</ul>`
   }
   if (p === '/sun') {
     const today = new Date()
@@ -649,7 +655,7 @@ function fallbackFor(pathname, route) {
       <h1>台灣攝影時刻表｜日出日落、黃金時刻與藍調時刻</h1>
       <ul>${SPOTS.map(x => {
         const t = sunTimes(today, x.lat, x.lng)
-        return `<li><a href="/sun/${x.slug}">${esc(x.name)}</a>　日出 ${esc(t.sunrise)}　日落 ${esc(t.sunset)}——${esc(x.note)}</li>`
+        return `<li><a href="/app/sun/${x.slug}">${esc(x.name)}</a>　日出 ${esc(t.sunrise)}　日落 ${esc(t.sunset)}——${esc(x.note)}</li>`
       }).join('')}</ul>`
   }
   // 商店總覽：列出商品的真連結，爬蟲才走得到四個商品頁
@@ -657,23 +663,23 @@ function fallbackFor(pathname, route) {
     return `
       <h1>機巧時運選物｜節氣手帳、企業客製月曆與數位素材</h1>
       <ul>${PRODUCTS.map(x =>
-        `<li><a href="/store/${x.slug}">${esc(x.name)}</a>——${esc(x.tagline)}　${x.price != null ? `NT$${x.price}` : '洽詢報價'}</li>`).join('')}</ul>`
+        `<li><a href="/app/store/${x.slug}">${esc(x.name)}</a>——${esc(x.tagline)}　${x.price != null ? `NT$${x.price}` : '洽詢報價'}</li>`).join('')}</ul>`
   }
   if (p === '/glossary') {
     return `
       <h1>農民曆術語解釋｜建除、彭祖百忌、受死日、黃道吉時</h1>
       <ul>${GLOSSARY.map(g =>
-        `<li><a href="/glossary/${g.slug}">${esc(g.term)}</a>——${esc(g.answer.slice(0, 40))}…</li>`).join('')}</ul>`
+        `<li><a href="/app/glossary/${g.slug}">${esc(g.term)}</a>——${esc(g.answer.slice(0, 40))}…</li>`).join('')}</ul>`
   }
   if (p === '/auspicious') {
     return `
       <h1>擇日工具｜搬家、結婚、開市吉日查詢</h1>
       <p>依傳統擇日的宜忌推算各用途的吉日。判準來自曆頁的宜欄與當日神煞，不另外發明規則。</p>
       <ul>${PURPOSES.map(x =>
-        `<li><a href="/auspicious/${x.slug}">${esc(x.title)}</a>——${esc(x.intro.slice(0, 36))}…</li>`).join('')}</ul>`
+        `<li><a href="/app/auspicious/${x.slug}">${esc(x.title)}</a>——${esc(x.intro.slice(0, 36))}…</li>`).join('')}</ul>`
   }
   if (p === '/auspicious/:kind' || p === '/auspicious/:kind/:ym') {
-    const parts = pathname.split('/').filter(Boolean)
+    const parts = (toLogical(pathname) ?? pathname).split('/').filter(Boolean)
     const kd = purposeBySlug(decodeURIComponent(parts[1] || ''))
     if (!kd) return ''
     const ym = /^(\d{4})-(\d{2})$/.exec(parts[2] || '')
@@ -697,21 +703,21 @@ function fallbackFor(pathname, route) {
     return `
       <h1>二十四節氣專欄｜由來、七十二候、台灣氣候與當令</h1>
       <ul>${TERM_ARTICLES.map(a =>
-        `<li><a href="/solarterms/${a.slug}">${esc(a.term)}</a>——${esc(a.meaning.slice(0, 30))}…</li>`).join('')}</ul>`
+        `<li><a href="/app/solarterms/${a.slug}">${esc(a.term)}</a>——${esc(a.meaning.slice(0, 30))}…</li>`).join('')}</ul>`
   }
   // 神佛總覽同理
   if (p === '/deities') {
     return `
       <h1>臺灣神佛誕辰一覽｜農曆換算國曆與倒數天數</h1>
       <ul>${DEITY_ARTICLES.map(d =>
-        `<li><a href="/deities/${d.slug}">${esc(d.name)}</a>——農曆 ${d.lunarMonth} 月 ${d.lunarDay} 日</li>`).join('')}</ul>`
+        `<li><a href="/app/deities/${d.slug}">${esc(d.name)}</a>——農曆 ${d.lunarMonth} 月 ${d.lunarDay} 日</li>`).join('')}</ul>`
   }
   // 解夢總覽：列出有原典的詞條
   if (p === '/dream') {
     return `
       <h1>解夢｜《周公解夢》原典斷語與現代參考</h1>
       <ul>${DREAM_PAGES.map(d =>
-        `<li><a href="/dream/${encodeURIComponent(d.k[0])}">夢見${esc(d.k[0])}</a>——${esc(d.classic.slice(0, 20))}</li>`).join('')}</ul>`
+        `<li><a href="/app/dream/${encodeURIComponent(d.k[0])}">夢見${esc(d.k[0])}</a>——${esc(d.classic.slice(0, 20))}</li>`).join('')}</ul>`
   }
   return ''
 }
@@ -817,8 +823,9 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
   const wrap = (rows) => [XML_HEAD, `<urlset xmlns="${NS}">`, ...rows, '</urlset>', ''].join(String.fromCharCode(10))
 
   if (kind === 'core') {
-    return wrap(ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
-      .map(r => item(origin + r.path, lastmodFor(r.path, r.lastmod || lastmod))))
+    // ★ 根目錄是承氣有限公司官網（server/corporate.js），不在 App 的路由表裡，要另外列。
+    return wrap([item(origin + '/', lastmod), ...ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
+      .map(r => item(origin + toPublic(r.path), lastmodFor(r.path, r.lastmod || lastmod)))])
   }
   if (kind === 'daily') {
     const rows = []
@@ -827,22 +834,22 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
     for (let i = -DAILY_PAST; i <= DAILY_FUTURE; i++) {
       const d = new Date(base); d.setDate(d.getDate() + i)
       const ds = iso(d)
-      rows.push(item(`${origin}/almanac/day/${ds}`, ds))
+      rows.push(item(`${origin}/app/almanac/day/${ds}`, ds))
     }
     return wrap(rows)
   }
   if (kind === 'solarterms') {
-    return wrap(TERM_ARTICLES.map(a => item(`${origin}/solarterms/${a.slug}`, lastmod)))
+    return wrap(TERM_ARTICLES.map(a => item(`${origin}/app/solarterms/${a.slug}`, lastmod)))
   }
   if (kind === 'auspicious') {
     // 總表 + 當年與明年的月份頁（吃「9月搬家吉日」這種查詢）
     const y = new Date().getFullYear()
     const rows = []
     for (const p of PURPOSES) {
-      rows.push(item(`${origin}/auspicious/${p.slug}`, lastmod))
+      rows.push(item(`${origin}/app/auspicious/${p.slug}`, lastmod))
       for (const yy of [y, y + 1]) {
         for (let m = 1; m <= 12; m++) {
-          rows.push(item(`${origin}/auspicious/${p.slug}/${yy}-${String(m).padStart(2, '0')}`, lastmod))
+          rows.push(item(`${origin}/app/auspicious/${p.slug}/${yy}-${String(m).padStart(2, '0')}`, lastmod))
         }
       }
     }
@@ -850,11 +857,11 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
   }
   if (kind === 'entries') {
     return wrap([
-      ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
-      ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
-      ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
-      ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
-      ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
+      ...DEITY_ARTICLES.map(d => item(`${origin}/app/deities/${d.slug}`, lastmod)),
+      ...DREAM_PAGES.map(d => item(`${origin}/app/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
+      ...GLOSSARY.map(g => item(`${origin}/app/glossary/${g.slug}`, lastmod)),
+      ...SPOTS.map(x => item(`${origin}/app/sun/${x.slug}`, lastmod)),
+      ...PRODUCTS.map(x => item(`${origin}/app/store/${x.slug}`, lastmod)),
       ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
     ])
   }
@@ -867,9 +874,9 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
 
   // 靜態路由。⚠️ lastmod 不可一律填「今天」——29 個網址每天都宣稱自己更新過，
   //    Google 判定這份 lastmod 不可信之後會**整份忽略**。用內容真正的版本日期。
-  const statics = ROUTES
+  const statics = [item(origin + '/', lastmod), ...ROUTES
     .filter(r => !r.noindex && !r.path.includes(':'))
-    .map(r => item(origin + r.path, lastmodFor(r.path, r.lastmod || lastmod)))
+    .map(r => item(origin + toPublic(r.path), lastmodFor(r.path, r.lastmod || lastmod)))]
 
   // 日期頁：過去一年 + 未來一年，每天一個網址。
   // 這是這類產品最大的單一流量來源——「2026年8月1日農民曆」一年 365 天都有人搜，
@@ -882,25 +889,25 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     const d = new Date(base)
     d.setDate(d.getDate() + i)
     const ds = iso(d)
-    days.push(item(`${origin}/almanac/day/${ds}`, ds))
+    days.push(item(`${origin}/app/almanac/day/${ds}`, ds))
   }
 
   // 條目頁：節氣 24、神佛 12、解夢（有原典者）——每一頁都有實質內容才收錄。
   // ⚠️ 沒有原典斷語的夢境不進 sitemap：內容太薄的頁面量一多會拖累全站評價，
   //    寧可少幾十頁，也不要生一批空殼。
   const entries = [
-    ...TERM_ARTICLES.map(a => item(`${origin}/solarterms/${a.slug}`, lastmod)),
-    ...DEITY_ARTICLES.map(d => item(`${origin}/deities/${d.slug}`, lastmod)),
-    ...DREAM_PAGES.map(d => item(`${origin}/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
-    ...GLOSSARY.map(g => item(`${origin}/glossary/${g.slug}`, lastmod)),
-    ...SPOTS.map(x => item(`${origin}/sun/${x.slug}`, lastmod)),
-    ...PRODUCTS.map(x => item(`${origin}/store/${x.slug}`, lastmod)),
+    ...TERM_ARTICLES.map(a => item(`${origin}/app/solarterms/${a.slug}`, lastmod)),
+    ...DEITY_ARTICLES.map(d => item(`${origin}/app/deities/${d.slug}`, lastmod)),
+    ...DREAM_PAGES.map(d => item(`${origin}/app/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
+    ...GLOSSARY.map(g => item(`${origin}/app/glossary/${g.slug}`, lastmod)),
+    ...SPOTS.map(x => item(`${origin}/app/sun/${x.slug}`, lastmod)),
+    ...PRODUCTS.map(x => item(`${origin}/app/store/${x.slug}`, lastmod)),
     ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
     ...PURPOSES.flatMap(p => [
-      item(`${origin}/auspicious/${p.slug}`, lastmod),
+      item(`${origin}/app/auspicious/${p.slug}`, lastmod),
       ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
         Array.from({ length: 12 }, (_, m) =>
-          item(`${origin}/auspicious/${p.slug}/${yy}-${String(m + 1).padStart(2, '0')}`, lastmod))),
+          item(`${origin}/app/auspicious/${p.slug}/${yy}-${String(m + 1).padStart(2, '0')}`, lastmod))),
     ]),
   ]
 

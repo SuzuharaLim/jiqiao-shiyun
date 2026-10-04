@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { dayFor, todayOffset, parseDateParam, taipeiToday } from '../data/almanac.js'
 import { termFromDate } from '../data/lunisolar.js'
 import { TERM_ARTICLES } from '../data/termArticle.js'
@@ -21,6 +21,9 @@ import {
   TAB_PATHS, SCREEN_PATH, SCREEN_MATCHERS, requiredParams, buildPathInfo,
 } from './paths.js'
 export { TAB_PATHS, SCREEN_PATH, requiredParams }
+// ★ 路由表是「App 內部的邏輯路徑」；實際網址多一層 `/app`（`/AR`、`/ar/*` 例外）。
+//   只在網址進出的這一層換算，見 src/data/appBase.js 的檔頭。
+import { toPublic, toLogical } from '../data/appBase.js'
 
 // ⚠️ 開發模式要大聲喊出「誰漏了哪個必填參數」——那個錯誤在畫面上完全看不出來
 //    （文字顯示的值是對的、只有 href 是空的），所以兩輪人工驗收都沒抓到。
@@ -32,13 +35,13 @@ function buildPath(screen, props = {}) {
       + `，會產生壞掉的網址「${path}」。`
       + ` 檢查 <Link screen="${screen}" params={{ ${missing[0]}: … }}>`)
   }
-  return path
+  return path == null ? path : toPublic(path)
 }
 // 給 <Link> 產生真實 href 用（SPA 的連結必須是真的 <a href>，才能支援
 // Cmd/Ctrl+click 開新分頁、右鍵複製網址、爬蟲辨識）。
 // ★ 這裡是路徑組成的唯一真相，Link 不可自行重實作一份。
 export const hrefForScreen = (screen, props) => buildPath(screen, props)
-export const hrefForTab = (tab) => TAB_PATHS[tab] || '/'
+export const hrefForTab = (tab) => toPublic(TAB_PATHS[tab] || '/')
 // 首頁翻到的日期（`/?date=YYYY-MM-DD`）。
 //
 // ⚠️ 為什麼首頁的翻日一定要進網址：先前不管翻到哪一天網址都是 `/`，造成兩個
@@ -70,11 +73,14 @@ function pathFromState(tab, stack, homeDate) {
   // 也無法把壞掉的連結回報給我們。
   if (top?.screen === 'notFound') return window.location.pathname + window.location.search
   if (top) { const p = buildPath(top.screen, top.props); if (p) return p }
-  const base = TAB_PATHS[tab] || '/'
+  const base = toPublic(TAB_PATHS[tab] || '/')
   return (tab === 0 && homeDate) ? `${base}?date=${homeDate}` : base
 }
 function routeFromPath(pathname) {
-  const p = (pathname || '/').replace(/\/+$/, '') || '/'
+  // ⚠️ 不屬於 App 的路徑（`/` 是官網）在正式站根本不會載入這支 SPA——伺服器直接
+  //    回官網 HTML。會走到這裡只有開發模式或舊快取，一律當成 App 首頁。
+  const logical = toLogical((pathname || '/').replace(/\/+$/, '') || '/') ?? '/'
+  const p = logical.replace(/\/+$/, '') || '/'
   const ti = TAB_PATHS.indexOf(p)
   if (ti >= 0) return { tab: ti, stack: [] }
   for (const m of SCREEN_MATCHERS) {

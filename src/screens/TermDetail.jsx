@@ -81,7 +81,7 @@ export default function TermDetail({ slug }) {
         <JsonLd data={articleLd({
           headline: `${a.term}｜由來、七十二候、台灣氣候與當令`,
           description: a.meaning,
-          url: `https://chengqi.tw/solarterms/${a.slug}`,
+          url: `https://chengqi.tw/app/solarterms/${a.slug}`,
           section: '二十四節氣',
         })} />
         <div className="td-head">
