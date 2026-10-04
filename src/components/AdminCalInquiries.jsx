@@ -98,6 +98,11 @@ export default function AdminCalInquiries({ isAdmin }) {
             <div className="inq-flags">
               {q.flags?.lowres?.length > 0 && <span className="inq-flag warn">低解析：第 {q.flags.lowres.map(i => i + 1).join('、')} 頁</span>}
               {q.flags?.missing?.length > 0 && <span className="inq-flag warn">缺原圖（只有預覽）：第 {q.flags.missing.map(i => i + 1).join('、')} 頁</span>}
+              {(() => {
+                // 客人調過照片的縮放／位置：印刷時要照 3D 預覽的取景，不是預設置中
+                const adj = Object.entries(q.design.pages || {}).filter(([i, p]) => p.img?.crop && Number(i) < n).map(([i]) => Number(i) + 1)
+                return adj.length > 0 && <span className="inq-flag">照片已調整位置／縮放：第 {adj.join('、')} 頁（以預覽取景為準）</span>
+              })()}
               {q.flags?.folk && <span className="inq-flag">含每日宜（民俗內容）</span>}
               {q.flags?.unverified && <span className="inq-flag">Email 未驗證</span>}
               <span className="inq-flag">客人已勾選照片使用權——報價前仍請人工確認</span>

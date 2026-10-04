@@ -43,10 +43,35 @@ function fit(ctx, text, maxW) {
   while (t.length && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1)
   return t + '…'
 }
-function drawCover(ctx, img, x, y, w, h) {
-  const s = Math.max(w / img.width, h / img.height)
+// crop：使用者在設計器裡調整的縮放與位置。
+//   z ≥ 1：在「剛好填滿」之上再放大幾倍；x、y ∈ [-1, 1]：在可移動範圍內偏左／偏右、偏上／偏下（0＝置中）。
+//   ★ 用「可移動範圍的比例」而不是像素：同一份設計在 900px 預覽、1024px 3D 貼圖、
+//     後台用原圖重畫印刷檔時，取景都一模一樣。
+export function cropRect(iw, ih, w, h, crop = {}) {
+  const z = Math.min(4, Math.max(1, Number(crop.z) || 1))
+  const s = Math.max(w / iw, h / ih) * z
   const sw = w / s, sh = h / s
-  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h)
+  const cx = (iw - sw) / 2 * (1 + Math.min(1, Math.max(-1, Number(crop.x) || 0)))
+  const cy = (ih - sh) / 2 * (1 + Math.min(1, Math.max(-1, Number(crop.y) || 0)))
+  return { sx: cx, sy: cy, sw, sh }
+}
+function drawCover(ctx, img, x, y, w, h, crop) {
+  const r = cropRect(img.width, img.height, w, h, crop)
+  ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, x, y, w, h)
+}
+
+/**
+ * 頁面上各區塊的位置（以頁寬／頁高的比例表示）。設計器拿來做「直接點頁面編輯」：
+ * 點照片區＝放照片／調整照片，點標題區＝改文字。
+ * ⚠️ 必須跟 drawPage 實際畫的位置一致——改 drawPage 的排版要一起改這裡。
+ */
+export function pageRegions(kind) {
+  const H = 100 * PAGE_RATIO                          // 以 u（頁寬 1%）為單位的頁高
+  const bandH = (kind === 'week' ? 0.34 : 0.36) * H
+  return {
+    photo: { x: 0.04, y: 4 / H, w: 0.92, h: bandH / H },
+    header: { x: 0.04, y: (4 + bandH + 1) / H, w: 0.92, h: 7.4 / H },
+  }
 }
 
 /**
@@ -79,7 +104,7 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   roundRect(ctx, bx, by, bw, bh, 1.4 * u)
   ctx.clip()
   if (image) {
-    drawCover(ctx, image, bx, by, bw, bh)
+    drawCover(ctx, image, bx, by, bw, bh, over.img?.crop)
   } else {
     // 沒有照片：用節氣／月份字當主視覺（跟文章卡、徽章字形磚同一套語彙）
     ctx.fillStyle = tint(base, 0.16)

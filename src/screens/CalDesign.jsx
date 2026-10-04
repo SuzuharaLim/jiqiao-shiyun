@@ -5,7 +5,7 @@ import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { buildPages, TERM_START_OPTIONS } from '../data/calendarLayout.js'
 import { CADENCES, BASE_COLORS, PAPER_COLORS, FONTS, CAL_LIMITS, defaultDesign, normalizeDesign, designFlags } from '../data/calendarRules.js'
-import { baseHex, paperHex } from '../lib/calRender.js'
+import { baseHex, paperHex, pageRegions, cropRect } from '../lib/calRender.js'
 import { renderPageCanvas } from '../lib/calPages.js'
 import { processPick, putPrintBlob, getPrintBlob, blobToDataURL } from '../lib/calImages.js'
 import { stripEmoji } from '../lib/text.js'
@@ -33,7 +33,8 @@ export const readLocalDesign = () => {
 const writeLocal = (d) => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(d)) } catch { /* 無痕模式 */ } }
 export const clearLocalDesign = () => { try { localStorage.removeItem(LOCAL_KEY) } catch { /* ignore */ } }
 
-const TABS = [['layout', '版型'], ['page', '這一頁'], ['style', '樣式'], ['send', '分享・洽詢']]
+const TABS = [['page', '這一頁'], ['layout', '版型'], ['style', '樣式'], ['send', '分享・洽詢']]
+const dist = (pts) => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1 }
 const thisYear = new Date().getFullYear()
 const YEARS = [thisYear, thisYear + 1, thisYear + 2]
 
@@ -47,8 +48,23 @@ export default function CalDesign({ id = 'local' }) {
   const [err, setErr] = useState(null)
   const [saveState, setSaveState] = useState('saved') // saved | dirty | saving | error
   const [cur, setCur] = useState(0)
-  const [tab, setTab] = useState('layout')
-  const [view, setView] = useState('2d')
+  // ★ 預設看 3D 實物、預設停在「這一頁」：使用者要的是「直接感受到這個畫面」，
+  //   一進來先看到的應該是成品，而不是一張版型設定表（2026-10-04 使用者回饋「不直觀」）。
+  const [tab, setTab] = useState('page')
+  const [view, setView] = useState('3d')
+  const [adjust, setAdjust] = useState(false)          // 照片調整模式（拖曳移動、縮放）
+  const drag = useRef(null)
+  // ⚠️ React 的 onWheel 是 passive，preventDefault 無效 ⇒ 在照片上滾輪縮放會連整頁一起捲走。
+  //    自己掛一個 passive:false 的監聽器，處理函式用 ref 拿最新的那一份。
+  const adjRef = useRef(null)
+  const wheelFn = useRef(null)
+  useEffect(() => {
+    const el = adjRef.current
+    if (!el) return
+    const h = (e) => wheelFn.current?.(e)
+    el.addEventListener('wheel', h, { passive: false })
+    return () => el.removeEventListener('wheel', h)
+  }, [adjust, view, cur])
   const [busy, setBusy] = useState('')
   const [picker, setPicker] = useState(false)
   const [inq, setInq] = useState([])
@@ -106,6 +122,10 @@ export default function CalDesign({ id = 'local' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [design?.cadence, design?.start?.year, design?.start?.month, design?.start?.termIndex, design?.start?.date, design?.style?.weekStart])
   useEffect(() => { if (cur >= pages.length && pages.length) setCur(pages.length - 1) }, [pages.length, cur])
+  // 換頁、切回 3D 時結束調整模式。⚠️ 不可寫成「view 一變就關」：「調整大小與位置」是
+  //    先切到平面再打開調整模式，effect 在 render 之後才跑，會把剛打開的又關掉。
+  useEffect(() => { setAdjust(false) }, [cur])
+  useEffect(() => { if (view === '3d') setAdjust(false) }, [view])
 
   // 內容版本：任何會改變畫面的東西都算進來（2D 重畫、3D 重新載貼圖）
   const version = useMemo(() => JSON.stringify([design?.style, design?.pages, design?.cadence, design?.start]), [design])
@@ -149,6 +169,57 @@ export default function CalDesign({ id = 'local' }) {
   const setPage = (patch) => update(d => ({ ...d, pages: { ...d.pages, [cur]: { ...(d.pages[cur] || {}), ...patch } } }))
   const flags = designFlags(design)
   const base = baseHex(design), paper = paperHex(design)
+  const regions = pageRegions(page?.kind)
+  const crop = over.img?.crop || { z: 1, x: 0, y: 0 }
+  const setCrop = (c) => setPage({ img: { ...over.img, crop: { ...crop, ...c } } })
+
+  // ── 照片調整：拖曳移動、滾輪／雙指／滑桿縮放 ──
+  // 位置存成「可移動範圍的比例」（calRender.cropRect），所以預覽、3D、印刷取景一致。
+  const panBy = (dxPx, dyPx, rect) => {
+    const img = over.img
+    if (!img?.w || !img?.h) return
+    const r = cropRect(img.w, img.h, rect.width, rect.height, crop)
+    const rangeX = (img.w - r.sw) / 2, rangeY = (img.h - r.sh) / 2
+    // 手指往右拖＝照片往右移＝取景窗往左 ⇒ x 減少
+    const nx = rangeX > 0 ? (crop.x || 0) - (dxPx * (r.sw / rect.width)) / rangeX : 0
+    const ny = rangeY > 0 ? (crop.y || 0) - (dyPx * (r.sh / rect.height)) / rangeY : 0
+    setCrop({ x: Math.max(-1, Math.min(1, nx)), y: Math.max(-1, Math.min(1, ny)) })
+  }
+  const zoomTo = (z) => setCrop({ z: Math.max(1, Math.min(3, z)) })
+  const onAdjDown = (e) => {
+    // ⚠️ setPointerCapture 在某些情況會拋例外（指標已不存在、部分 WebView）——
+    //    拋出去的話後面的拖曳狀態不會被記下來，照片就拖不動，而且沒有任何錯誤提示。
+    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* 沒捕捉也能拖，只是手指滑出框外會中斷 */ }
+    const d = drag.current || { pts: new Map() }
+    d.pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    d.pinch = d.pts.size === 2 ? { dist: dist(d.pts), z: crop.z || 1 } : null
+    drag.current = d
+  }
+  const onAdjMove = (e) => {
+    const d = drag.current
+    if (!d?.pts.has(e.pointerId)) return
+    const prev = d.pts.get(e.pointerId)
+    d.pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (d.pinch && d.pts.size === 2) { zoomTo(d.pinch.z * dist(d.pts) / d.pinch.dist); return }
+    panBy(e.clientX - prev.x, e.clientY - prev.y, e.currentTarget.getBoundingClientRect())
+  }
+  const onAdjUp = (e) => {
+    const d = drag.current
+    if (!d) return
+    d.pts.delete(e.pointerId)
+    if (d.pts.size < 2) d.pinch = null
+    if (!d.pts.size) drag.current = null
+  }
+  const onAdjWheel = (e) => { e.preventDefault(); zoomTo((crop.z || 1) * Math.exp(-e.deltaY * 0.0015)) }
+  wheelFn.current = onAdjWheel
+
+  // 點頁面上的照片區：沒照片就放照片，有照片就進入調整模式
+  const tapPhoto = () => { setTab('page'); if (over.img) setAdjust(true); else pickPhoto() }
+  const tapHeader = () => {
+    setTab('page')
+    setTimeout(() => { const el = document.getElementById('cal-ptitle'); el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }) }, 60)
+  }
+  const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` })
 
   // ── 照片 ──
   const pickPhoto = () => {
@@ -166,6 +237,8 @@ export default function CalDesign({ id = 'local' }) {
       const r = await api.uploadImage(preview)
       await putPrintBlob(r.id, print)                  // 印刷版只存在這個瀏覽器，送出時才上傳
       setPage({ img: { id: r.id, w, h, src: 'upload' } })
+      // 放好照片的下一步幾乎一定是「移一下、放大一點」——直接帶進調整模式
+      setView('2d'); setAdjust(true)
       if (Math.max(w, h) < CAL_LIMITS.LOWRES_LONG_EDGE) setToast('這張照片解析度偏低，印出來可能會有點模糊')
     } catch (er) {
       setToast(er?.message || '照片處理失敗，請換一張')
@@ -252,25 +325,63 @@ export default function CalDesign({ id = 'local' }) {
         {/* ── 預覽 ── */}
         <div className="cal-stage">
           <div className="cal-viewtabs" role="tablist" aria-label="預覽方式">
-            {[['2d', '平面'], ['3d', '3D 立體']].map(([k, l]) => (
+            {[['3d', '3D 實物'], ['2d', '平面編輯']].map(([k, l]) => (
               <button key={k} role="tab" aria-selected={view === k} className={`cal-vt tap${view === k ? ' on' : ''}`} onClick={() => setView(k)}>{l}</button>
             ))}
           </div>
-          {view === '2d'
-            ? <div className="cal-page" ref={previewRef} />
-            : (
-              <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-                <CalModel3D count={pages.length} current={cur} getCanvas={getCanvas} version={version}
-                  baseColor={base} paperColor={paper} label={`${design.title}，第 ${cur + 1} 頁 ${page?.label || ''}，拖曳可轉動、點一下翻頁`}
-                  onFlip={(d) => setCur(c => Math.min(pages.length - 1, Math.max(0, c + d)))} />
-              </Suspense>
-            )}
+          {view === '2d' ? (
+            <div className="cal-page-wrap">
+              <div className="cal-page" ref={previewRef} />
+              {/* 直接在頁面上編輯：點照片區放／調整照片、點標題區寫字。
+                  虛線框與提示一直看得到——「可以點這裡」不能靠使用者自己猜。 */}
+              {adjust ? (
+                <div className="cal-hit photo adjusting" style={pct(regions.photo)} ref={adjRef}
+                  onPointerDown={onAdjDown} onPointerMove={onAdjMove} onPointerUp={onAdjUp} onPointerCancel={onAdjUp}
+                  role="application" aria-label="拖曳移動照片位置，滾輪或雙指縮放">
+                  <span className="cal-hit-tag">拖曳移動・滾輪或雙指縮放</span>
+                </div>
+              ) : (
+                <>
+                  <button type="button" className={`cal-hit photo tap${over.img ? ' has' : ''}`} style={pct(regions.photo)} onClick={tapPhoto}
+                    aria-label={over.img ? '調整這張照片的大小與位置' : '在這一頁放照片'}>
+                    <span className="cal-hit-tag">{over.img ? '點一下調整照片' : '＋ 點這裡放照片'}</span>
+                  </button>
+                  <button type="button" className="cal-hit header tap" style={pct(regions.header)} onClick={tapHeader} aria-label="編輯這一頁的標題與文字">
+                    <span className="cal-hit-tag">{over.title ? '點一下改文字' : '＋ 點這裡寫標題'}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
+              <CalModel3D count={pages.length} current={cur} getCanvas={getCanvas} version={version}
+                baseColor={base} paperColor={paper} label={`${design.title}，第 ${cur + 1} 頁 ${page?.label || ''}，拖曳可轉動，點左右兩側翻頁`}
+                onFlip={(d) => setCur(c => Math.min(pages.length - 1, Math.max(0, c + d)))} />
+            </Suspense>
+          )}
+          {adjust && (
+            <div className="cal-adjust">
+              <label className="cal-adjust-z">
+                <span>縮放</span>
+                <input type="range" min="1" max="3" step="0.01" value={crop.z || 1} aria-label="照片縮放"
+                  onChange={e => zoomTo(Number(e.target.value))} />
+                <b>{Math.round((crop.z || 1) * 100)}%</b>
+              </label>
+              <div className="cal-row">
+                <button className="b tap" onClick={() => setCrop({ z: 1, x: 0, y: 0 })}>置中重設</button>
+                <button className="b tap" onClick={pickPhoto}>換一張</button>
+                <button className="b dark tap" onClick={() => setAdjust(false)}>完成</button>
+              </div>
+            </div>
+          )}
           <div className="cal-nav">
             <button className="cal-navb tap" onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0} aria-label="上一頁">‹</button>
             <span className="cal-navl" aria-live="polite"><b>{page?.label}</b><small>第 {cur + 1} / {pages.length} 頁</small></span>
             <button className="cal-navb tap" onClick={() => setCur(c => Math.min(pages.length - 1, c + 1))} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
           </div>
-          {view === '3d' && <p className="cal-hint">拖曳轉動角度・雙指或滾輪縮放・點一下翻頁</p>}
+          <p className="cal-hint">{view === '3d'
+            ? '拖曳轉動角度・雙指或滾輪縮放・點左右兩側往前／往後翻'
+            : '直接點頁面上的照片或標題就能編輯'}</p>
           <div className="cal-strip" role="listbox" aria-label="選擇頁面">
             {pages.map((p, i) => (
               <button key={i} role="option" aria-selected={i === cur} className={`cal-chip tap${i === cur ? ' on' : ''}${design.pages[i]?.img ? ' has-img' : ''}`}
@@ -343,6 +454,7 @@ export default function CalDesign({ id = 'local' }) {
                       ? <p className="cal-warn">解析度偏低（{over.img.w}×{over.img.h}），印出來可能會模糊。建議換一張原始照片。</p>
                       : <p className="cal-ok">解析度足夠印刷（{over.img.w}×{over.img.h}）</p>}
                     <div className="cal-row">
+                      <button className="b dark tap" onClick={() => { setView('2d'); setAdjust(true) }}>調整大小與位置</button>
                       <button className="b tap" onClick={pickPhoto}>換一張</button>
                       <button className="b tap" onClick={() => setPage({ img: null })}>移除</button>
                     </div>

@@ -39,14 +39,15 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
     cvs.className = 'cal3d-canvas'
     cvs.setAttribute('role', 'img')
     cvs.setAttribute('tabindex', '0')
-    host.appendChild(cvs)
+    host.prepend(cvs)      // 放在翻頁箭頭之前，箭頭才疊得在畫布上面
     // 不給右鍵選單（「另存圖片」）——擋不住截圖，但不提供現成的下載路徑
     const noMenu = (e) => e.preventDefault()
     cvs.addEventListener('contextmenu', noMenu)
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50)
-    camera.position.set(1.5, 0.75, 3.6)
+    // 起始角度偏正面（只微微斜一點）：一打開就看得清楚整頁，想看側面再自己轉
+    camera.position.set(0.85, 0.55, 3.6)
     const controls = new OrbitControls(camera, cvs)
     controls.enableDamping = true
     controls.dampingFactor = 0.08
@@ -141,8 +142,10 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       // ⚠️ 距離要由長寬比**推導**，不可寫死（站規：AR 模型頁的 jq-fit 踩過同一個坑）。
       //    fov 是垂直視角，水平看得到多少取決於長寬比：直立手機寬度不夠，寫死的距離會切掉右邊。
       //    要放進的半寬約 1.2（桌曆半寬 0.87 ＋ 斜看時的透視與底座深度）。
-      const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect
-      const need = Math.max(1.2 / tanH, 0.95 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))
+      //    半寬 1.05（桌曆半寬 0.87 ＋ 斜看時的透視餘裕）、半高 0.74：第一版用 1.2／0.95 留太多邊，
+      //    整座桌曆只佔畫面六成（使用者回報「3D 模型太小」）。
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const need = Math.max(1.05 / (tanV * camera.aspect), 0.74 / tanV)
       controls.maxDistance = Math.max(6.5, need * 1.6)
       camera.position.sub(controls.target).setLength(need).add(controls.target)
       camera.updateProjectionMatrix()
@@ -159,7 +162,11 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       if (!down) return
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y)
       down = null
-      if (moved < 6) cb.current.onFlip?.(1)
+      // 點右半邊＝往後翻、左半邊＝往前翻（使用者要求：不能只能往下一頁翻）
+      if (moved < 6) {
+        const r = cvs.getBoundingClientRect()
+        cb.current.onFlip?.(e.clientX - r.left < r.width / 2 ? -1 : 1)
+      }
     }
     const onKey = (e) => {
       if (e.key === 'ArrowRight') { e.preventDefault(); cb.current.onFlip?.(1) }
@@ -255,5 +262,13 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
     return () => { alive = false }
   }, [current, version, count])
 
-  return <div className="cal3d" ref={hostRef} />
+  // 畫面上的前後翻頁鈕：觸控時「點左半邊往前翻」不容易被發現，箭頭是看得到的提示
+  return (
+    <div className="cal3d" ref={hostRef}>
+      <button type="button" className="cal3d-arrow prev tap" aria-label="往前翻一頁"
+        disabled={current <= 0} onClick={() => onFlip?.(-1)}>‹</button>
+      <button type="button" className="cal3d-arrow next tap" aria-label="往後翻一頁"
+        disabled={current >= count - 1} onClick={() => onFlip?.(1)}>›</button>
+    </div>
+  )
 }

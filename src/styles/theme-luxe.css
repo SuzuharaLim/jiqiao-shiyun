@@ -804,3 +804,67 @@ button.ty.glossable, button.tn.glossable {
 .inq-card .kv { gap: 12px; }
 .inq-card .kv > span:first-child { flex: 0 0 auto; white-space: nowrap; }
 .inq-card .kv > :last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+/* ── 桌曆設計器第二版（2026-10-04 使用者回饋：不直觀、3D 太小、要能往前翻、要能調照片）── */
+/* 3D 舞台放大：手機上佔大半個畫面（使用者回報「3D 模型的位置太小」）。dvh 配 vh 退路。 */
+.cal3d { height: min(66vh, 560px); height: min(66dvh, 560px); min-height: 300px; }
+/* 手機直立：桌曆是橫的，舞台太高只會上下留白。改成接近正方形，相機會依長寬比自己拉近 */
+@media (max-width: 599px) {
+  .cal3d { height: auto; aspect-ratio: 1 / 1.02; max-height: 66vh; max-height: 66dvh; min-height: 280px; }
+}
+@media (min-width: 900px) and (min-height: 600px) {
+  /* 桌曆是橫的：舞台也要接近桌曆的比例，否則上下一大片空白、相機又被寬度限制拉遠 */
+  .stage.signed-in .screen-calDesign .cal3d { height: auto; aspect-ratio: 1.12 / 1; max-height: 72vh; }
+  .stage.signed-in .screen-calView .cal3d { height: auto; aspect-ratio: 16 / 10; max-height: 74vh; }
+}
+/* 3D 上的前後翻頁箭頭（觸控時「點左半邊往前翻」看不出來，要有看得到的鈕） */
+.cal3d-arrow {
+  position: absolute; top: 50%; z-index: 2; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line2);
+  background: color-mix(in srgb, var(--card) 88%, transparent); color: var(--text);
+  font-size: 26px; line-height: 1; cursor: pointer; box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.cal3d-arrow.prev { left: 10px; }
+.cal3d-arrow.next { right: 10px; }
+.cal3d-arrow:disabled { opacity: 0; pointer-events: none; }
+
+/* 平面編輯：直接點頁面 */
+.cal-page-wrap { position: relative; }
+.cal-hit {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 0; border: 2px dashed color-mix(in srgb, var(--text) 35%, transparent); border-radius: 10px;
+  background: transparent; cursor: pointer; font: inherit; color: var(--text);
+  transition: border-color var(--m-fast), background-color var(--m-fast);
+}
+.cal-hit.photo.has { border-color: color-mix(in srgb, var(--text) 18%, transparent); }
+.cal-hit-tag {
+  padding: 6px 12px; border-radius: 999px; font-size: var(--text-2xs); font-weight: 700;
+  background: color-mix(in srgb, var(--card) 92%, transparent); box-shadow: var(--shadow-sm); white-space: nowrap;
+}
+.cal-hit.header { justify-content: flex-end; padding-right: 8px; }
+.cal-hit.photo.has .cal-hit-tag { opacity: .9; }
+@media (hover: hover) and (pointer: fine) {
+  .cal-hit:hover { border-color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+}
+/* 調整模式：整塊照片區是拖曳面，觸控不可被瀏覽器拿去捲頁 */
+.cal-hit.adjusting {
+  border: 2px solid var(--text); cursor: grab; touch-action: none;
+  box-shadow: 0 0 0 9999px rgba(43, 33, 24, .28);   /* 其他區域壓暗，焦點落在照片上 */
+  align-items: flex-end; padding-bottom: 8px;
+}
+.cal-hit.adjusting:active { cursor: grabbing; }
+.cal-page-wrap:has(.adjusting) .cal-page { overflow: visible; }
+.cal-page-wrap:has(.adjusting) { overflow: hidden; border-radius: 14px; }
+.cal-adjust {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+}
+.cal-adjust-z { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; font-size: var(--text-xs); }
+.cal-adjust-z input { width: 100%; accent-color: var(--primary); min-height: 32px; }
+.cal-adjust-z b { min-width: 3.4em; text-align: right; font-variant-numeric: tabular-nums; }
+.cal-adjust .cal-row .b { flex: 1 1 auto; }
+@media (prefers-reduced-motion: reduce) { .cal-hit { transition: none; } }
+/* 「調整大小與位置」是這一區的主要動作：獨佔一列，不要被擠成兩行 */
+.cal-photo .cal-row .b.dark { flex: 1 1 100%; }
+.cal-photo .cal-row .b { flex: 1 1 auto; }

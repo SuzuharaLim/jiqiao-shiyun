@@ -89,6 +89,25 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
   ok(flags.lowres.includes(2), `B 長邊 < ${CAL_LIMITS.LOWRES_LONG_EDGE} 要被標成低解析`)
 }
 
+// ── B2) 照片縮放／位置（crop）──
+{
+  const d = normalizeDesign({ pages: { 0: { img: { id: 'abcdef12-1', w: 3000, h: 2000, crop: { z: 9, x: -5, y: 0.3, evil: 1 } } },
+    1: { img: { id: 'abcdef12-2', w: 3000, h: 2000, crop: { z: 1, x: 0, y: 0 } } } } })
+  const c = d.pages[0].img.crop
+  ok(c && c.z === 4 && c.x === -1 && c.y === 0.3 && !('evil' in c), 'B2 crop 要夾在範圍內（z 1–4、x/y −1–1）並丟掉未知欄位')
+  ok(!d.pages[1].img.crop, 'B2 沒調過（置中、不放大）的 crop 不存，維持預設')
+  const { cropRect } = await import('../src/lib/calRender.js').catch(() => ({}))
+  if (cropRect) {
+    // 取景窗不可超出原圖：任何 crop 都要落在 [0, iw]×[0, ih] 內
+    let outside = 0
+    for (const z of [1, 1.7, 3]) for (const x of [-1, 0, 1]) for (const y of [-1, 0.5, 1]) {
+      const r = cropRect(3000, 2000, 900, 300, { z, x, y })
+      if (r.sx < -1e-6 || r.sy < -1e-6 || r.sx + r.sw > 3000 + 1e-6 || r.sy + r.sh > 2000 + 1e-6) outside++
+    }
+    ok(outside === 0, `B2 cropRect 有 ${outside} 種組合取景超出原圖（會畫出空白邊）`)
+  }
+}
+
 // ── C) 原圖只有後台拿得到 ──────────────────────────────────────
 {
   // 自我驗證：這支 regex 必須抓得到「一支沒有 requireRole 卻讀原圖」的路由

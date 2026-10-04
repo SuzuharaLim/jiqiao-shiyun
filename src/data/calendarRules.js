@@ -96,6 +96,14 @@ export function normalizeDesign(raw) {
         w: clampInt(img.w, 0, 20000, 0), h: clampInt(img.h, 0, 20000, 0),
         src: img.src === 'site' ? 'site' : 'upload',     // site＝從自己的作品選（只有站上的壓縮版）
       }
+      // 使用者調整過的縮放與位置（見 calRender.js 的 cropRect）。沒調過就不存，維持置中填滿。
+      const c = img.crop
+      if (c && typeof c === 'object') {
+        const z = Math.min(4, Math.max(1, Number(c.z) || 1))
+        const cx = Math.min(1, Math.max(-1, Number(c.x) || 0))
+        const cy = Math.min(1, Math.max(-1, Number(c.y) || 0))
+        if (z !== 1 || cx !== 0 || cy !== 0) out.img.crop = { z: +z.toFixed(3), x: +cx.toFixed(3), y: +cy.toFixed(3) }
+      }
     }
     if (Object.keys(out).length) pages[i] = out
   }
