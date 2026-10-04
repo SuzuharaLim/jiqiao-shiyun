@@ -146,7 +146,7 @@ export default function NewPost({ photo: incomingPhoto = null }) {
           </div>
         ) : (
           <div className="np-attach" role="group" aria-label="附加照片（選填）">
-            <span className="np-attach-h">附加照片（選填）</span>
+            <span className="np-attach-h">附加照片（選填）· 附照片才能同時上架市集</span>
             <div className="np-attach-g">
               <button className="np-attach-b tap" onClick={() => push('camera')}>
                 <Icon name="camera" /><span>拍照<small>相機工作室・濾鏡特效</small></span>

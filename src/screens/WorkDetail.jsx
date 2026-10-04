@@ -3,6 +3,8 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
+import { useWorks } from '../hooks/useApi.js'
+import { stripEmoji } from '../lib/text.js'
 
 // 作品詳情 —— 嚴格來自資料庫（GET /api/works/:id）。
 export default function WorkDetail({ id }) {
@@ -13,6 +15,9 @@ export default function WorkDetail({ id }) {
     api.work(id).then(r => { if (alive && r.work) setW(r.work) }).catch(() => {})
     return () => { alive = false }
   }, [id])
+  // 同節氣的其他市集作品：買的人可以順著逛下去（2026-10-04）。
+  // ⚠️ hook 一律寫在提早 return 之前（站規：PostDetail 曾因此整頁被 ErrorBoundary 接走）。
+  const sameTerm = useWorks(w?.term || null)
 
   if (!w) {
     return (
@@ -23,7 +28,11 @@ export default function WorkDetail({ id }) {
     )
   }
 
-  const price = w.price || 30
+  // ⚠️ 原本是 `w.price || 30`：創作者選「免費授權」存的是 0，|| 會把它當成沒填，
+  //    **照樣向買家收 NT$30**——而探索頁的標籤寫的是「免費授權」。0 就是免費。
+  const price = Number(w.price) || 0
+  const free = price === 0
+  const related = sameTerm.filter(x => x.id !== w.id).slice(0, 10)
   const isSaved = saved[w.id]
 
   return (
@@ -62,20 +71,40 @@ export default function WorkDetail({ id }) {
           <div className="cap2 muted">節氣攝影作品，可授權用於個人植物月曆與手帳排版。</div>
 
           <div className="card">
-            <div className="kv"><span>市集授權價</span><b>NT${price}</b></div>
+            <div className="kv"><span>市集授權價</span><b>{free ? '免費授權' : `NT$${price}`}</b></div>
             <div className="kv"><span>用途</span><span className="muted">個人非商用</span></div>
-            <div className="kv"><span>創作者分潤</span><span className="muted">70%（NT${Math.round(price * 0.7)}）</span></div>
+            {!free && <div className="kv"><span>創作者分潤</span><span className="muted">70%（NT${Math.round(price * 0.7)}）</span></div>}
           </div>
 
           <div className="wd-acts" style={{ padding: '4px var(--space-4)', display: 'flex', gap: 8 }}>
             <button className="b tap" onClick={() => { toggleSave(w.id); setToast(isSaved ? '已移除' : '已加入月曆素材 ✓') }}>
               {isSaved ? '已加入月曆' : '＋ 加入月曆'}
             </button>
+            {!free && (
             <button className="b dark tap" onClick={() => { if (!requireAccount('購買授權')) return; addToCart({ id: w.id, name: `${w.title} 授權`, price }); push('checkout') }}>
               購買授權 NT${price}
             </button>
+            )}
           </div>
+          {free && <div className="cap2 muted">創作者開放免費授權：個人非商用可直接使用，請註明作者 @{w.author}。</div>}
         </div>
+
+        {related.length > 0 && (
+          <section className="ex-market wd-related" aria-labelledby="wd-rel-h">
+            <div className="railhd"><div className="t" id="wd-rel-h">〈{w.term}〉的其他市集作品</div></div>
+            <div className="ex-mrail">
+              {related.map(x => (
+                <button key={x.id} className="ex-mcard tap" onClick={() => push('workDetail', { id: x.id })}>
+                  <span className="ph" style={{ background: x.bg }}>
+                    {x.image ? <PhotoImg src={x.image} alt="" /> : <Icon name="image" className="ph-ic" />}
+                    <span className="gbadge">{x.price ? `NT$${x.price}` : '免費授權'}</span>
+                  </span>
+                  <span className="ex-mcap">{stripEmoji(x.title)}<small>@{x.author}</small></span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         <div style={{ height: 16 }} />
       </div>
     </>

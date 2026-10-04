@@ -629,13 +629,22 @@ const postShape = (r) => ({
   term: r.term, title: r.title, caption: r.caption, tags: r.tags_json ? JSON.parse(r.tags_json) : [],
   likes: r.like_count, comments: r.comment_count, place: r.place, time: relTime(r.created_at),
   image: r.image_id ? `/api/images/${r.image_id}` : null,
+  // 市集：price 0 是「免費授權」，不是「沒在賣」（有 sale 物件就代表有上架）
+  sale: r.sale_id ? { id: r.sale_id, price: Number(r.sale_price) || 0 } : null,
 })
 const workShape = (w) => ({
   id: w.id, emoji: w.emoji, bg: w.bg, term: w.term, author: w.handle || w.uname, title: w.title,
   tags: w.tags_json ? JSON.parse(w.tags_json) : [],
   image: w.image_id ? `/api/images/${w.image_id}` : null, ...(w.price ? { price: w.price } : {}),
 })
-const POST_SELECT = `SELECT p.*, u.handle, u.name AS uname, u.avatar, u.avatar_bg
+// ★ sale_*：這則貼文的照片有沒有上架市集（2026-10-04）。
+//   發文時勾「同時上架」會用**同一張圖**另建一件 works，兩者只靠 image_id 對得上。
+//   探索頁改成列貼文之後，卡片要靠這兩欄才能掛價格標籤、詳情頁才連得到購買。
+//   ⚠️ 用子查詢不用 LEFT JOIN：一張圖若被上架兩次，JOIN 會讓同一則貼文出現兩列。
+//   p.image_id 為 NULL（文章型貼文）時 `w.image_id = NULL` 恆為假 ⇒ 自然是 NULL。
+const POST_SELECT = `SELECT p.*, u.handle, u.name AS uname, u.avatar, u.avatar_bg,
+    (SELECT w.id    FROM works w WHERE w.image_id = p.image_id ORDER BY w.created_at LIMIT 1) AS sale_id,
+    (SELECT w.price FROM works w WHERE w.image_id = p.image_id ORDER BY w.created_at LIMIT 1) AS sale_price
   FROM posts p JOIN users u ON u.id=p.user_id`
 
 // ── cursor 分頁 ──
@@ -667,6 +676,15 @@ app.get('/api/posts', ah(async (req, res) => {
 }))
 
 // 單一貼文（含留言、是否已讚）
+// 各節氣的**貼文**件數（照片＋文章）——探索頁改列貼文後，節氣面板的件數要跟著換（2026-10-04）。
+// ⚠️ 必須寫在 /api/posts/:id **之前**，否則 Express 會把 term-counts 當成貼文 id。
+app.get('/api/posts/term-counts', ah(async (req, res) => {
+  const rows = await db.all(`SELECT term, COUNT(*) AS c FROM posts WHERE term IS NOT NULL AND term<>'' GROUP BY term`)
+  const counts = {}
+  for (const r of rows) counts[r.term] = Number(r.c)
+  res.json({ counts })
+}))
+
 app.get('/api/posts/:id', ah(async (req, res) => {
   const r = await db.get(`${POST_SELECT} WHERE p.id=?`, [req.params.id])
   if (!r) return res.status(404).json({ error: '找不到貼文' })

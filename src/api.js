@@ -57,6 +57,7 @@ export const api = {
   likePost: (id) => req(`/posts/${encodeURIComponent(id)}/like`, { method: 'POST' }),
   addComment: (id, body) => req(`/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
   termCounts: () => req('/works/term-counts'),
+  postTermCounts: () => req('/posts/term-counts'),
   works: (term, before) => {
     const q = new URLSearchParams()
     if (term && term !== '全部') q.set('term', term)

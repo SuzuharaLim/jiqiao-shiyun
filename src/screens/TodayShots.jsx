@@ -24,7 +24,7 @@ export default function TodayShots({ term }) {
           {sorted.map((it, i) => (
             <button key={`${it.kind}-${it.id}-${i}`} className="it tap" onClick={() => open(it)}>
               <div className="ph" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}>
-                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} title={it.title} caption={it.caption} />
+                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影，攝影者 @${it.user}`} title={it.title} caption={it.caption} term={it.term} />
                 {it.price && <div className="gbadge">NT${it.price}</div>}
               </div>
               <div className="cap">{it.title}<small>@{it.by} · {it.term}</small></div>

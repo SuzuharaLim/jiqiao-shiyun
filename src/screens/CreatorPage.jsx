@@ -31,7 +31,7 @@ export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--
     const m = new Map()
     ;(data?.posts || []).forEach(p =>
       m.set(p.image || `post:${p.id}`,
-        { id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post', title: p.title, caption: p.caption }))
+        { id: p.id, emoji: p.emoji, bg: p.bg, image: p.image, price: 0, kind: 'post', title: p.title, caption: p.caption, term: p.term }))
     ;(data?.works || []).forEach(w => {
       const k = w.image || `work:${w.id}`
       const hit = m.get(k)
@@ -86,7 +86,7 @@ export default function CreatorPage({ user = '', avatar = '', avatarBg = 'var(--
             {gallery.map(it => (
               <button key={`${it.kind}-${it.id}`} className="gimg tap" style={{ background: it.bg, position: 'relative', overflow: 'hidden' }}
                 onClick={() => push(it.kind === 'work' ? 'workDetail' : 'postDetail', { id: it.id })}>
-                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} title={it.title} caption={it.caption} />
+                <PostCover image={it.image} alt={`${it.title}｜${it.term || "節氣"}攝影作品`} title={it.title} caption={it.caption} term={it.term} />
                 {it.price ? <div className="gbadge">${it.price}</div> : null}
               </button>
             ))}

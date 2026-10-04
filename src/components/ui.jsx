@@ -441,17 +441,32 @@ export function PhotoImg({ src, alt = '', style }) {
 //    「圖片載入失敗」。2026-10-04 貼文開放純文字之後，這種卡片會越來越多。
 // ⚠️ 只用在**貼文**的卡片。市集作品（works）一定是照片，維持原本的佔位圖示。
 // 必須放在已經 `position:relative; overflow:hidden` 的封面容器裡（.ph／.gimg／.img 都是）。
-export function PostCover({ image, alt = '', title = '', caption = '' }) {
+//
+// ★ 文章卡要「像一張設計過的卡」，不是「缺了照片的格子」（2026-10-04 第二版）：
+//   ① 底色跟著**節氣所屬的季節**走（春綠／夏陶土／秋蜂蜜／冬灰藍，站上既有的四組色票）；
+//   ② 角落放節氣名的大字形——與徽章字形磚同一套語彙；
+//   ③ 主視覺是內文**第一句**的引言。標題多半已經印在卡片下方的 .cap，不重複。
+//   探索頁照片與文章混排時，這三件事讓文章卡在格子裡有自己的辨識度。
+const SEASON_OF = {}
+;[['spring', '立春雨水驚蟄春分清明穀雨'], ['summer', '立夏小滿芒種夏至小暑大暑'],
+  ['autumn', '立秋處暑白露秋分寒露霜降'], ['winter', '立冬小雪大雪冬至小寒大寒']]
+  .forEach(([s, str]) => { for (let i = 0; i < str.length; i += 2) SEASON_OF[str.slice(i, i + 2)] = s })
+
+export function PostCover({ image, alt = '', title = '', caption = '', term = '' }) {
   if (image) return <PhotoImg src={image} alt={alt} />
   const body = stripEmoji(String(caption || '')).replace(/#[^\s#]+/g, '').replace(/\s+/g, ' ').trim()
-  // 標題通常就是內文第一行（發文頁沒填標題時的推導規則），摘要要跳過重複的那段
+  // 標題通常就是內文第一行（發文頁沒填標題時的推導規則），引言要跳過重複的那段
   const t = stripEmoji(String(title || '')).trim()
-  const excerpt = body.startsWith(t) ? body.slice(t.length).trim() : body
+  const rest = body.startsWith(t) ? body.slice(t.length).trim() : body
+  // 取第一句當引言；一句太長就截斷。沒有內文就用標題。
+  const first = (rest.match(/^[^。！？!?]+[。！？!?]?/) || [rest])[0].trim()
+  const quote = (first || t || '文章').slice(0, 60)
+  const tm = String(term || '').replace('（交節）', '')
   return (
-    <span className="txtcover">
-      <Icon name="pen" className="txtcover-ic" />
-      <b>{t || '文章'}</b>
-      {excerpt && <span>{excerpt.slice(0, 90)}</span>}
+    <span className={`txtcover s-${SEASON_OF[tm] || 'none'}`}>
+      {tm && <span className="txtcover-term" aria-hidden="true">{tm}</span>}
+      <span className="txtcover-k"><Icon name="pen" className="txtcover-ic" />文章</span>
+      <q className="txtcover-q">{quote}</q>
     </span>
   )
 }

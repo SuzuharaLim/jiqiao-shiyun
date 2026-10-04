@@ -208,6 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_created  ON posts(created_at);
 CREATE INDEX IF NOT EXISTS idx_posts_term     ON posts(term);
 CREATE INDEX IF NOT EXISTS idx_comments_post  ON comments(post_id);
 CREATE INDEX IF NOT EXISTS idx_works_created  ON works(created_at);
+CREATE INDEX IF NOT EXISTS idx_works_image    ON works(image_id);   -- 貼文→市集作品的對應（POST_SELECT 的 sale_*）
 CREATE INDEX IF NOT EXISTS idx_notis_user     ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_ref_kind       ON ref_items(kind);
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, PhotoImg, Avatar } from '../components/ui.jsx'
+import { TopBar, PhotoImg, Avatar, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { stripEmoji } from '../lib/text.js'
@@ -144,7 +144,16 @@ export default function PostDetail({ id }) {
           <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
             <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} />
           </div>
-        ) : !editing && (
+        ) : null}
+        {/* 這張照片有上架市集：探索頁的卡片掛了價格標籤，點進來卻找不到哪裡買，
+            等於把人帶到門口又不開門。（sale 由後端用 image_id 對應出來） */}
+        {post.image && post.sale && (
+          <Link screen="workDetail" params={{ id: post.sale.id }} className="post-sale">
+            <span>這張照片在市集上架 · <b>{post.sale.price ? `NT$${post.sale.price}` : '免費授權'}</b></span>
+            <span>看授權方案 <Icon name="chev" style={{ display: 'inline-block', verticalAlign: '-3px' }} /></span>
+          </Link>
+        )}
+        {!post.image && !editing && (
           <article className="post-article">
             <span className="post-article-k">{post.term ? `${post.term} · 文章` : '文章'}</span>
             <h2>{stripEmoji(post.title)}</h2>

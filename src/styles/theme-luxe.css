@@ -515,23 +515,83 @@ button.ty.glossable, button.tn.glossable {
 /* 卡片封面：沒有照片時顯示標題＋摘要（取代「圖片」佔位圖示，那看起來像載入失敗）。
    鋪滿 .ph／.gimg 這類已經 position:relative; overflow:hidden 的封面容器。 */
 .txtcover {
-  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px;
-  padding: 14px; text-align: left; color: var(--text); overflow: hidden;
-  font-size: var(--text-xs); line-height: 1.55;
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+  padding: 14px; text-align: left; overflow: hidden;
+  background: var(--tc-bg, var(--tone-1)); color: var(--text);
 }
-.txtcover-ic { width: 16px; height: 16px; stroke: var(--muted); flex: 0 0 auto; }
-.txtcover b {
-  font-family: var(--serif); font-weight: 700; font-size: var(--text-sm); line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+/* 依節氣所屬季節上色（站上既有的四組色票；深色模式由 tone-* 自動翻轉） */
+.txtcover.s-spring { --tc-bg: var(--tone-2); --tc-ink: var(--green-ink); }
+.txtcover.s-summer { --tc-bg: var(--tone-4); --tc-ink: var(--red-ink); }
+.txtcover.s-autumn { --tc-bg: var(--tone-5); --tc-ink: var(--yellow-ink); }
+.txtcover.s-winter { --tc-bg: var(--tone-3); --tc-ink: var(--blue-ink); }
+:root[data-theme="dark"] .txtcover.s-spring { --tc-ink: #9DB58E; }
+:root[data-theme="dark"] .txtcover.s-summer { --tc-ink: #E29A8C; }
+:root[data-theme="dark"] .txtcover.s-autumn { --tc-ink: #E0BC6B; }
+:root[data-theme="dark"] .txtcover.s-winter { --tc-ink: #93B7CB; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .txtcover.s-spring { --tc-ink: #9DB58E; }
+  :root:not([data-theme="light"]) .txtcover.s-summer { --tc-ink: #E29A8C; }
+  :root:not([data-theme="light"]) .txtcover.s-autumn { --tc-ink: #E0BC6B; }
+  :root:not([data-theme="light"]) .txtcover.s-winter { --tc-ink: #93B7CB; }
 }
-.txtcover span {
-  color: var(--muted);
+/* 角落的節氣大字：純裝飾（aria-hidden），淡到不搶引言 */
+.txtcover-term {
+  position: absolute; top: 6px; right: 10px; writing-mode: vertical-rl;
+  font-family: var(--serif); font-weight: 800; font-size: 34px; line-height: 1;
+  color: var(--tc-ink, var(--muted)); opacity: .22; letter-spacing: .05em; pointer-events: none;
+}
+.txtcover-k {
+  display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-2xs);
+  color: var(--tc-ink, var(--muted)); font-weight: 700; letter-spacing: .12em;
+}
+.txtcover-ic { width: 13px; height: 13px; stroke: currentColor; flex: 0 0 auto; }
+.txtcover-q {
+  quotes: "「" "」"; font-family: var(--serif); font-weight: 700;
+  font-size: var(--text-sm); line-height: 1.5; color: var(--text);
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
-/* 個人頁／創作者頁的方格縮圖很小：只留標題 */
-.grid .gimg .txtcover span, .album .it .txtcover span { -webkit-line-clamp: 3; }
-.grid .gimg .txtcover { padding: 10px; }
-.grid .gimg .txtcover b { font-size: var(--text-xs); -webkit-line-clamp: 4; }
+/* 個人頁／創作者頁的方格縮圖很小 */
+.grid .gimg .txtcover { padding: 10px; gap: 4px; }
+.grid .gimg .txtcover-q { font-size: var(--text-xs); -webkit-line-clamp: 3; }
+.grid .gimg .txtcover-term { font-size: 24px; }
+
+/* 探索頁：本節氣市集（橫向捲動，不是篩選） */
+.ex-market { display: flex; flex-direction: column; flex: 0 0 auto; }
+.ex-mrail {
+  display: flex; gap: 12px; overflow-x: auto; padding: 4px var(--space-4) 14px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.ex-mrail::-webkit-scrollbar { display: none; }
+.ex-mcard {
+  flex: 0 0 132px; display: flex; flex-direction: column; gap: 6px; text-align: left; scroll-snap-align: start;
+  font: inherit; color: var(--text); background: none; border: none; padding: 0; cursor: pointer;
+}
+.ex-mcard .ph {
+  position: relative; display: block; overflow: hidden; height: 132px; border-radius: 16px;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm);
+}
+.ex-mcard .gbadge { position: absolute; left: 8px; right: auto; bottom: 8px; top: auto; width: auto; }
+.ex-mcap { display: flex; flex-direction: column; font-size: var(--text-xs); font-weight: 600; line-height: 1.35; }
+.ex-mcap small { font-weight: 400; color: var(--muted); font-size: var(--text-2xs); }
+.ex-mmore {
+  flex: 0 0 96px; height: 132px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font: inherit; font-size: var(--text-xs); font-weight: 700; color: var(--text);
+  background: var(--card); border: 1px dashed var(--line2); border-radius: 16px; cursor: pointer;
+}
+.ex-mmore .ic { width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) {
+  .ex-mcard:hover .ph { box-shadow: 0 0 0 1px var(--line2), var(--shadow-md); }
+}
+
+/* 貼文詳情：照片有上架時的購買入口 */
+.post-sale {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 4px var(--space-4) 6px; padding: 12px 16px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+  color: var(--text); text-decoration: none; font-size: var(--text-xs);
+}
+.post-sale b { font-weight: 700; }
+.post-sale .ic { width: 16px; height: 16px; flex: 0 0 auto; }
 
 /* 貼文詳情：文章排成文章，不畫空的封面色塊 */
 .post-article {
@@ -588,3 +648,5 @@ button.ty.glossable, button.tn.glossable {
 .np-photo-acts .b { flex: 1; }
 
 @media (max-width: 360px) { .np-attach-g { grid-template-columns: 1fr; } }
+/* 作品詳情：桌機是「圖｜資訊」兩欄 grid，同節氣作品列要跨滿 */
+.wd-body > .wd-related { grid-column: 1 / -1; }
