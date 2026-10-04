@@ -4,9 +4,9 @@ import { TopBar, SheetMask, Link, Disclaimer } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import { buildPages, TERM_START_OPTIONS } from '../data/calendarLayout.js'
-import { CADENCES, FONTS, CAL_LIMITS, PALETTES, COLOR_SLOTS, TEXT_LIMITS, defaultDesign, normalizeDesign, designFlags, designSurfaces, slotLabel, resolveColors, contrast } from '../data/calendarRules.js'
+import { CADENCES, DEFAULT_TEXT_FIELDS, FONTS, CAL_LIMITS, PALETTES, COLOR_SLOTS, TEXT_LIMITS, defaultDesign, normalizeDesign, designFlags, designSurfaces, slotLabel, resolveColors, contrast } from '../data/calendarRules.js'
 import { baseHex, paperHex, pageRegions, cropRect, measureTextLayer, PAGE_RATIO, FONT } from '../lib/calRender.js'
-import { renderSurfaceCanvas } from '../lib/calPages.js'
+import { renderSurfaceCanvas, coverSub } from '../lib/calPages.js'
 import { processPick, putPrintBlob, getPrintBlob, blobToDataURL } from '../lib/calImages.js'
 import { stripEmoji } from '../lib/text.js'
 
@@ -343,7 +343,7 @@ export default function CalDesign({ id = 'local' }) {
   const tapPhoto = () => { setTab('page'); if (over.img) setAdjust(true); else pickPhoto() }
   const tapHeader = () => {
     setTab('page')
-    setTimeout(() => { const el = document.getElementById('cal-ptitle'); el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }) }, 60)
+    setTimeout(() => { const el = document.getElementById(isCover ? 'cal-ptitle' : 'cal-dt-label'); el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }) }, 60)
   }
   const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` })
 
@@ -826,6 +826,32 @@ export default function CalDesign({ id = 'local' }) {
                 <input id="cal-ptitle" className="cal-input" maxLength={30} placeholder={isCover ? design.title : '例如：全家第一次露營'} value={over.title || ''}
                   onChange={e => setPage({ title: e.target.value })} />
               </>)}
+
+              {/* 預設文字：系統依日期算出來的字也都能改、能隱藏、能還原（使用者指定） */}
+              {!isBack && (() => {
+                const rows = isCover
+                  ? [['sub', '書名下方的小字', coverSub(pages)], ['glyph', '沒照片時的大字', String(pages[0]?.from?.y || '')]]
+                  : [['label', '月份／頁名', page?.label], ['en', '英文小字', page?.en], ['sub', '右上角日期', page?.sub], ['glyph', '沒照片時的大字', page?.term || page?.label]]
+                return (
+                  <div className="cal-defs">
+                    <span className="cal-label">頁面上的預設文字</span>
+                    {rows.map(([k, name, def]) => {
+                      const v = over[k], hidden = v === '', custom = typeof v === 'string' && v !== ''
+                      return (
+                        <div key={k} className="cal-def">
+                          <label className="cal-def-n" htmlFor={`cal-dt-${k}`}>{name}</label>
+                          <input id={`cal-dt-${k}`} className="cal-input" maxLength={DEFAULT_TEXT_FIELDS[k]} disabled={hidden}
+                            placeholder={hidden ? '（已隱藏）' : def || '（無）'} value={custom ? v : ''}
+                            onChange={e => setPage({ [k]: e.target.value === '' ? undefined : e.target.value }, 'def-' + k)} />
+                          <button className="b tap" aria-pressed={hidden} onClick={() => setPage({ [k]: hidden ? undefined : '' })}>{hidden ? '顯示' : '隱藏'}</button>
+                          {(custom || hidden) && <button className="b tap" onClick={() => setPage({ [k]: undefined })} title="回到系統預設">還原</button>}
+                        </div>
+                      )
+                    })}
+                    <p className="cal-note">留白＝用系統預設（灰字）。改了只影響這一頁。</p>
+                  </div>
+                )
+              })()}
               <span className="cal-label">文字</span>
               <p className="cal-note">在頁面上任何位置加文字：拖曳移動、拉右下角縮放，可以換字體、顏色、底色。</p>
               <div className="cal-layers">

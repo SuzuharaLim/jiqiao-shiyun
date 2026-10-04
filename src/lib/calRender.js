@@ -117,7 +117,7 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
     ctx.globalAlpha = 0.22
-    ctx.fillText(page.term || page.label, bx + bw - 3 * u, by + bh * 0.55)
+    ctx.fillText(over.glyph ?? (page.term || page.label), bx + bw - 3 * u, by + bh * 0.55)
     ctx.globalAlpha = 1
   }
   ctx.restore()
@@ -129,14 +129,16 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = accent
   ctx.font = `800 ${5.2 * u}px ${font}`
-  const label = page.label
+  // 預設文字都可以被這一頁覆寫（undefined＝預設、''＝隱藏），見 calendarRules.js 的 DEFAULT_TEXT_FIELDS
+  const label = over.label ?? page.label
+  const en = over.en ?? page.en
   ctx.fillText(label, pad, hy)
-  let lx = pad + ctx.measureText(label).width + 2.4 * u
-  if (page.en) {
+  let lx = pad + (label ? ctx.measureText(label).width + 2.4 * u : 0)
+  if (en) {
     ctx.font = `600 ${1.8 * u}px ${FONT.sans}`
     ctx.fillStyle = muted
-    ctx.fillText(page.en, lx, hy - 0.4 * u)
-    lx += ctx.measureText(page.en).width + 2.4 * u
+    ctx.fillText(en, lx, hy - 0.4 * u)
+    lx += ctx.measureText(en).width + 2.4 * u
   }
   if (over.title) {
     ctx.font = `700 ${2.6 * u}px ${font}`
@@ -146,7 +148,7 @@ export function drawPage(canvas, { page, over = {}, design, image = null, opts =
   ctx.textAlign = 'right'
   ctx.font = `600 ${1.9 * u}px ${FONT.sans}`
   ctx.fillStyle = muted
-  ctx.fillText(page.sub, W - pad, hy - 0.4 * u)
+  ctx.fillText(over.sub ?? page.sub, W - pad, hy - 0.4 * u)
 
   // ── 日期格 ──
   const gy = hy + 2.6 * u
@@ -200,7 +202,7 @@ export function drawSide(canvas, { kind, over = {}, design, image = null, title 
       ctx.globalAlpha = 0.22
       ctx.font = `800 ${ph * 0.5}px ${FONT.serif}`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(glyph, px + pw / 2, py + ph * 0.54)
+      ctx.fillText(over.glyph ?? glyph, px + pw / 2, py + ph * 0.54)
       ctx.globalAlpha = 1
     }
     ctx.restore()
@@ -213,7 +215,7 @@ export function drawSide(canvas, { kind, over = {}, design, image = null, title 
     ctx.fillText(fit(ctx, title, W - 8 * u), 4 * u, hy + 7 * u)
     ctx.fillStyle = tint(C.ink, 0.55)
     ctx.font = `600 ${2 * u}px ${FONT.sans}`
-    ctx.fillText(fit(ctx, sub, W - 8 * u), 4 * u, hy + 11.2 * u)
+    ctx.fillText(fit(ctx, over.sub ?? sub, W - 8 * u), 4 * u, hy + 11.2 * u)
   }
   for (const t of over.texts || []) drawTextLayer(ctx, t, W, H, u, C)
   if (opts.watermark !== false) watermark(ctx, W, H, u)

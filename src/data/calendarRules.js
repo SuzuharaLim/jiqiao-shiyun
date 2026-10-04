@@ -172,10 +172,17 @@ function normImg(img) {
 }
 // 封面與背面（2026-10-04 使用者指定：要有封面、每一頁都可以雙面、背面放圖）。
 // 結構跟日曆頁一樣是 { title?, img?, texts? }；封面另外可以有自己的背面。沒內容就是 null（＝空白紙）。
+// 頁面上「預設文字」的覆寫（2026-10-04 使用者指定：每一頁的文字都要能改，預設的也要）。
+// 三種狀態：沒有這個欄位＝用系統算出來的預設；空字串＝隱藏；其他＝使用者自訂。
+// ⚠️ 空字串不可以被當成「沒填」丟掉——那是「隱藏」的意思。
+export const DEFAULT_TEXT_FIELDS = { label: 12, en: 20, sub: 40, glyph: 8 }
+function copyDefaults(p, out, keys) {
+  for (const k of keys) if (typeof p[k] === 'string') out[k] = str(p[k], DEFAULT_TEXT_FIELDS[k])
+}
 function normSide(p, withTitle) {
   if (!p || typeof p !== 'object') return null
   const out = {}
-  if (withTitle) { const t = str(p.title, 30); if (t) out.title = t }
+  if (withTitle) { const t = str(p.title, 30); if (t) out.title = t; copyDefaults(p, out, ['sub', 'glyph']) }
   const im = normImg(p.img); if (im) out.img = im
   const texts = normTexts(p.texts, TEXT_LIMITS.PER_PAGE); if (texts.length) out.texts = texts
   return Object.keys(out).length ? out : null
@@ -199,6 +206,7 @@ export function normalizeDesign(raw) {
     if (!Number.isInteger(i) || i < 0 || i >= 52 || !p || typeof p !== 'object') continue
     const out = {}
     const t = str(p.title, 30); if (t) out.title = t
+    copyDefaults(p, out, ['label', 'en', 'sub', 'glyph'])
     const texts = normTexts(p.texts, TEXT_LIMITS.PER_PAGE)
     // 舊版的「一句話」（固定印在照片左下）→ 轉成一個可以自由移動的文字框，原本的設計不會不見
     const legacy = strML(p.text, 140)

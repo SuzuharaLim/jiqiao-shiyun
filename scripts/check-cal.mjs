@@ -180,6 +180,15 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
   ok(!('cover' in old) && !old.pages[0].back, 'E 舊設計沒有封面／背面時不可憑空長出來（否則後台會顯示一堆空白面）')
 }
 
+// ── F. 預設文字可改、可隱藏（2026-10-04）──
+{
+  const d = normalizeDesign({ pages: { 0: { label: '一月', en: '', sub: 5 } }, cover: { sub: '', glyph: '家' } })
+  ok(d.pages[0].label === '一月', 'F 自訂的月份文字要保留')
+  ok(d.pages[0].en === '', 'F 空字串＝隱藏，不可被當成沒填丟掉（否則按了隱藏又冒出來）')
+  ok(!('sub' in d.pages[0]), 'F 非字串＝用預設，不可存進去')
+  ok(d.cover.sub === '' && d.cover.glyph === '家', 'F 封面的預設文字也能改與隱藏')
+}
+
 if (fail) {
   console.error(`\n✗ 桌曆設計器 ${fail} / ${n} 項檢查沒過。`)
   process.exit(1)

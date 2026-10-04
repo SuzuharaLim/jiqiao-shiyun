@@ -1243,3 +1243,10 @@ button.ty.glossable, button.tn.glossable {
 
 /* 選了文字框時，照片／標題區的提示標籤不可蓋在字上（使用者截圖：「點這裡放照片」壓在文字框中間） */
 .cal-page-wrap:has(.cal-tl.on) .cal-hit-tag { opacity: 0; }
+
+/* 預設文字的覆寫列：名稱｜輸入框｜隱藏｜還原 */
+.cal-defs { display: flex; flex-direction: column; gap: 6px; }
+.cal-def { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 6px; align-items: center; }
+.cal-def-n { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.cal-def .cal-input:disabled { opacity: .5; }
+.cal-def .b { padding: 0 10px; white-space: nowrap; }
