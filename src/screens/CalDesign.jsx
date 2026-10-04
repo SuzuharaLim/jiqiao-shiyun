@@ -642,7 +642,7 @@ export default function CalDesign({ id = 'local' }) {
             <button className="cal-navb tap" onClick={() => setCur(c => Math.min(pages.length - 1, c + 1))} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
           </div>
           <p className="cal-hint">{view === '3d'
-            ? '拖曳轉動角度・雙指或滾輪縮放・點左右兩側往前／往後翻'
+            ? '拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻'
             : '直接點頁面上的照片或標題就能編輯'}</p>
           <div className="cal-strip" role="listbox" aria-label="選擇頁面">
             {pages.map((p, i) => (

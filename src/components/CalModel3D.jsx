@@ -56,7 +56,9 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
     controls.maxDistance = 6.5
     controls.minPolarAngle = THREE.MathUtils.degToRad(15)
     controls.maxPolarAngle = THREE.MathUtils.degToRad(100)
-    controls.target.set(0, PH * 0.45, 0)
+    // 注視點放在桌曆的視覺中心（底板到線圈的一半），不是紙頁中心——
+    // 用紙頁中心的話整座桌曆在畫面裡偏上（使用者截圖：上方貼邊、下方空一截）
+    controls.target.set(0, PH * 0.52, 0)
 
     scene.add(new THREE.HemisphereLight(0xfff8ee, 0x8a7f72, 1.25))
     const key = new THREE.DirectionalLight(0xffffff, 1.35)
@@ -141,11 +143,10 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       camera.aspect = w / h
       // ⚠️ 距離要由長寬比**推導**，不可寫死（站規：AR 模型頁的 jq-fit 踩過同一個坑）。
       //    fov 是垂直視角，水平看得到多少取決於長寬比：直立手機寬度不夠，寫死的距離會切掉右邊。
-      //    要放進的半寬約 1.2（桌曆半寬 0.87 ＋ 斜看時的透視與底座深度）。
-      //    半寬 1.05（桌曆半寬 0.87 ＋ 斜看時的透視餘裕）、半高 0.74：第一版用 1.2／0.95 留太多邊，
-      //    整座桌曆只佔畫面六成（使用者回報「3D 模型太小」）。
+      //    半寬 0.95（桌曆半寬 0.87 ＋ 一點透視餘裕）、半高 0.64。使用者兩度回報「模型太小」：
+      //    1.2／0.95（只佔六成）→ 1.05／0.74 → 現值。再小就會在起始角度切到邊。
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-      const need = Math.max(1.05 / (tanV * camera.aspect), 0.74 / tanV)
+      const need = Math.max(0.95 / (tanV * camera.aspect), 0.64 / tanV)
       controls.maxDistance = Math.max(6.5, need * 1.6)
       camera.position.sub(controls.target).setLength(need).add(controls.target)
       camera.updateProjectionMatrix()
@@ -165,7 +166,10 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, baseColo
       // 點右半邊＝往後翻、左半邊＝往前翻（使用者要求：不能只能往下一頁翻）
       if (moved < 6) {
         const r = cvs.getBoundingClientRect()
-        cb.current.onFlip?.(e.clientX - r.left < r.width / 2 ? -1 : 1)
+        // ★ 轉到背面看的時候，點一下＝往前翻（使用者要求）：背面看到的是「已經翻過去的頁」，
+        //   點它的直覺就是把它翻回來。判斷依據是相機在桌曆的前方還是後方。
+        const back = camera.position.z - controls.target.z < 0
+        cb.current.onFlip?.(back ? -1 : (e.clientX - r.left < r.width / 2 ? -1 : 1))
       }
     }
     const onKey = (e) => {

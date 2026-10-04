@@ -58,7 +58,7 @@ export default function CalView({ token, design: given = null, title: givenTitle
             <span className="cal-navl" aria-live="polite"><b>{page?.label}</b><small>第 {cur + 1} / {pages.length} 頁</small></span>
             <button className="cal-navb tap" onClick={() => setCur(c => Math.min(pages.length - 1, c + 1))} disabled={cur >= pages.length - 1} aria-label="下一頁">›</button>
           </div>
-          <p className="cal-hint">拖曳轉動角度・雙指或滾輪縮放・點一下翻頁</p>
+          <p className="cal-hint">拖曳轉動角度・雙指或滾輪縮放・點右側往後翻、點左側或轉到背面點一下往前翻</p>
         </div>
         {data.author && (
           <div className="cal-callout">
