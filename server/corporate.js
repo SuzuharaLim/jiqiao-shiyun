@@ -19,15 +19,28 @@
 // ⚠️ 全站禁用 emoji（CLAUDE.md），這一頁同樣適用。
 // ============================================================================
 
+// 來源：《機巧時運＿U-start 第二階段營運計畫簡報》（2026-10-04 使用者提供）。
+// ⚠️ 簡報 PDF 的文字是用康熙部首相容字（⼀⼤⾏⾀…）排的，抄出來一定要 NFKC 正規化，
+//   否則執行長的名字會變成「蕭⾀程」（⾀＝KANGXI RADICAL BRUSH），正解是「蕭聿程」。
+// ⚠️ 簡報裡的財務預估、定價、募資策略、競品分析是**內部資料**，刻意不放上官網。
 export const COMPANY = {
   name: '承氣有限公司',
-  nameEn: null,        // 英文名稱（待公司提供）
-  taxId: null,         // 統一編號
-  address: null,       // 公司地址
-  phone: null,         // 聯絡電話
-  email: null,         // 聯絡信箱
-  founded: null,       // 成立年份
-  intro: null,         // 公司簡介（一段）；null 時用下面的 DEFAULT_INTRO
+  nameEn: null,        // 英文名稱（簡報未載，待公司提供）
+  taxId: '62046190',
+  address: '臺中市西區臺灣大道二段 186 號 24 樓',
+  phone: null,         // 簡報未載
+  email: 'chengqi1943@gmail.com',
+  founded: '2026 年 8 月',
+  foundedIso: '2026-08',
+  incubator: '大葉大學創新育成中心',
+  slogan: '承時代之氣，掌機巧之運',
+  intro: '我們把在地的節氣內容，轉譯成可以掃描互動、每年可以更換的年曆，並以模組化的流程，承接校園、企業與宮廟的客製版本。',
+  team: [
+    { name: '蕭聿程', role: '執行長', duty: 'WebAR 網站開發測試、對外聯繫' },
+    { name: '王柏安', role: '資訊長', duty: 'AR 3D 建模、資料庫與平台建置' },
+    { name: '黃品鈞', role: '財務長', duty: '經費控管、資料彙整與圖像生成' },
+  ],
+  advisor: { name: '陳縣綉', role: '指導老師', duty: '大葉大學資訊工程學系助理教授' },
 }
 
 // 只寫確定成立的事：機巧時運是我們的產品、它做什麼（與站內 /about 一致）。
@@ -44,6 +57,7 @@ export function corporateHtml({ origin = 'https://chengqi.tw' } = {}) {
     ['英文名稱', c.nameEn],
     ['統一編號', c.taxId],
     ['成立', c.founded],
+    ['進駐', c.incubator],
     ['地址', c.address],
     ['電話', c.phone],
     ['信箱', c.email && `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`],
@@ -63,7 +77,7 @@ export function corporateHtml({ origin = 'https://chengqi.tw' } = {}) {
     ...(c.phone ? { telephone: c.phone } : {}),
     ...(c.taxId ? { taxID: c.taxId } : {}),
     ...(c.address ? { address: c.address } : {}),
-    ...(c.founded ? { foundingDate: String(c.founded) } : {}),
+    ...(c.foundedIso ? { foundingDate: c.foundedIso } : {}),
     brand: { '@type': 'Brand', name: '機巧時運', url: origin + '/app' },
   }
 
@@ -113,6 +127,11 @@ section{padding:0 0 clamp(48px,8vw,88px)}
 .prod img{width:72px;height:72px}
 .prod h3{font-family:var(--serif);font-size:26px;margin:0 0 6px}
 .prod p{margin:0 0 20px;color:var(--muted)}
+.sub{color:var(--muted);margin:-8px 0 20px}
+.grid3{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.mini{padding:24px}.mini h3{font-family:var(--serif);font-size:20px;margin:0 0 8px}.mini p{margin:0;color:var(--muted);font-size:16px}
+.role{display:inline-block;font-size:13px;color:var(--muted);letter-spacing:.1em;margin-bottom:4px}
+@media (max-width:760px){.grid3{grid-template-columns:1fr}}
 .prod ul{margin:0 0 24px;padding-left:1.2em}
 .acts{display:flex;flex-wrap:wrap;gap:12px}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:999px;
@@ -123,9 +142,13 @@ section{padding:0 0 clamp(48px,8vw,88px)}
 .btn:active{transform:scale(.985)}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:10px 24px;margin:0}
 dt{color:var(--muted)} dd{margin:0}
+dd a{display:inline-flex;align-items:center;min-height:24px}
 footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:14px;display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
 footer a{display:inline-flex;align-items:center;min-height:24px}
-@media (max-width:560px){.prod{grid-template-columns:1fr}.prod img{width:56px;height:56px}nav a{padding:0 8px}dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:10px}}
+/* 手機：品牌獨佔一列不換行，導覽在下一列、放不下就橫向捲（不可換成兩行擠在一起） */
+@media (max-width:560px){header{flex-wrap:wrap;gap:4px;padding:16px 0 8px}.brand{white-space:nowrap}
+  nav{width:100%;display:flex;overflow-x:auto;margin:0 -12px;scrollbar-width:none}nav a{padding:0 12px;white-space:nowrap}
+  .prod{grid-template-columns:1fr}.prod img{width:56px;height:56px}dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:10px}}
 @media (prefers-reduced-motion:reduce){.btn{transition:none}}
 </style>
 </head>
@@ -133,12 +156,12 @@ footer a{display:inline-flex;align-items:center;min-height:24px}
 <div class="wrap">
   <header>
     <a class="brand" href="/"><img src="/favicon.svg" alt="" width="32" height="32">${esc(c.name)}</a>
-    <nav aria-label="主要導覽"><a href="#product">產品</a><a href="#company">公司資訊</a><a href="/app/contact">聯絡我們</a></nav>
+    <nav aria-label="主要導覽"><a href="#product">產品</a><a href="#custom">客製合作</a><a href="#team">團隊</a><a href="#company">公司資訊</a></nav>
   </header>
 
   <main>
     <section class="hero">
-      ${c.nameEn ? `<span class="eyebrow">${esc(c.nameEn)}</span>` : ''}
+      ${c.slogan ? `<span class="eyebrow">${esc(c.slogan)}</span>` : ''}
       <h1>${esc(c.name)}</h1>
       <p class="lead">${esc(intro)}</p>
     </section>
@@ -148,12 +171,12 @@ footer a{display:inline-flex;align-items:center;min-height:24px}
       <article class="card prod">
         <img src="/logo.svg" alt="" width="72" height="72">
         <div>
-          <h3>機巧時運</h3>
-          <p>智慧互動國民曆 × 二十四節氣攝影社群 × AI 時光顧問</p>
+          <h3>機巧時運 · 2027 二十四節氣曆</h3>
+          <p>一本掃得動、每年換的節氣曆</p>
           <ul>
-            <li>每日國民曆：宜忌、黃道吉時、沖煞、建除，用白話讀懂</li>
-            <li>二十四節氣攝影社群：記錄每個節氣的台灣</li>
-            <li>節氣卡片：掃描實體卡片，看 3D 角色與當令知識</li>
+            <li>24 張節氣主視覺，每張約兩週；桌曆本體即文具收納盒，曆芯每年可換</li>
+            <li>掃描節氣圖案：3D 動畫與語音導覽，接著是知識卡與互動問答</li>
+            <li>線上國民曆與節氣知識庫：每日宜忌、二十四節氣、當令食材</li>
           </ul>
           <div class="acts">
             <a class="btn primary" href="/app">開啟機巧時運</a>
@@ -162,6 +185,25 @@ footer a{display:inline-flex;align-items:center;min-height:24px}
         </div>
       </article>
     </section>
+
+    <section id="custom" aria-labelledby="h-custom">
+      <h2 id="h-custom">客製合作</h2>
+      <p class="sub">AR 與視覺流程都是模組化的——換一組內容，就是另一個版本。</p>
+      <div class="grid3">
+        <article class="card mini"><h3>校園版</h3><p>二十四節氣是國中小既有教學單元。以學校的植物與在地內容做成可掃描互動的節氣教材。</p></article>
+        <article class="card mini"><h3>企業禮贈</h3><p>年節贈禮與 ESG 專案，可加印企業標誌。</p></article>
+        <article class="card mini"><h3>宮廟民俗</h3><p>換成宮廟的神祇、文物與祭典，做成信眾與參訪者帶得走的年度商品。</p></article>
+      </div>
+      <div class="acts" style="margin-top:20px">${c.email ? `<a class="btn primary" href="mailto:${esc(c.email)}?subject=${encodeURIComponent('客製合作洽詢')}">洽詢客製</a>` : ''}</div>
+    </section>
+
+    ${c.team?.length ? `<section id="team" aria-labelledby="h-team">
+      <h2 id="h-team">團隊</h2>
+      <div class="grid3">
+        ${c.team.map(m => `<article class="card mini"><span class="role">${esc(m.role)}</span><h3>${esc(m.name)}</h3><p>${esc(m.duty)}</p></article>`).join('')}
+      </div>
+      ${c.advisor ? `<p class="sub" style="margin-top:20px">${esc(c.advisor.role)}：${esc(c.advisor.name)}（${esc(c.advisor.duty)}）</p>` : ''}
+    </section>` : ''}
 
     <section id="company" aria-labelledby="h-company">
       <h2 id="h-company">公司資訊</h2>

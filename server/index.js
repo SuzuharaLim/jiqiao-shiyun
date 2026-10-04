@@ -2357,7 +2357,7 @@ if (existsSync(distDir)) {
   //    但足以擋掉整站爬取式的濫用。
   const publicApiLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false,
-    message: { error: '請求太頻繁，請稍後再試。若需要大量資料，歡迎來信 hello@chengqi.tw' },
+    message: { error: '請求太頻繁，請稍後再試。若需要大量資料，歡迎來信 chengqi1943@gmail.com' },
   })
 
   // sitemap 分拆：index + 五個分類。
