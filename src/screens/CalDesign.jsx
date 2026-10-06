@@ -58,7 +58,7 @@ const thisYear = new Date().getFullYear()
 const YEARS = [thisYear, thisYear + 1, thisYear + 2]
 
 export default function CalDesign({ id = 'local' }) {
-  const { user, push, replace, pop, setToast, setStamp, requireAccount } = useNav()
+  const { user, push, replace, pop, setToast, setStamp, requireAccount, theme, toggleTheme } = useNav()
   const isLocal = id === 'local'
   const signedIn = !!user && !user.guest
 
@@ -676,6 +676,13 @@ export default function CalDesign({ id = 'local' }) {
             <button className="cal-hb tap" onClick={undo} disabled={!hist.current.past.length} aria-label="復原" title="復原（Ctrl+Z）">↶</button>
             <button className="cal-hb tap" onClick={redo} disabled={!hist.current.future.length} aria-label="重做" title="重做（Ctrl+Shift+Z）">↷</button>
             <button className="cal-addt tap" onClick={addText}>＋ 文字</button>
+            {/* 工作區深／淺色：就是全站主題（導覽列那顆同一個開關），放在這裡是因為
+                手機版沒有導覽列的主題鈕，而設計時最常想換的就是工作區底色 */}
+            <button className="cal-hb tap" onClick={(e) => toggleTheme(e)}
+              aria-label={theme === 'dark' ? '切換成淺色工作區' : '切換成深色工作區'}
+              title={theme === 'dark' ? '淺色工作區' : '深色工作區'}>
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+            </button>
           </div>
         </div>
 
@@ -758,7 +765,7 @@ export default function CalDesign({ id = 'local' }) {
             </div>
           ) : (
             <Suspense fallback={<div className="cal3d cal3d-loading">載入 3D 模型中…</div>}>
-              <CalModel3D count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} viewCmd={viewCmd} onOrbit={() => setViewCmd(v => (v ? { ...v, name: null } : v))} version={version}
+              <CalModel3D tone={theme === 'dark' ? 'dark' : 'light'} count={pages.length + 1} current={sheet3d} getCanvas={getCanvas} getBack={getBack} face={face} viewCmd={viewCmd} onOrbit={() => setViewCmd(v => (v ? { ...v, name: null } : v))} version={version}
                 baseColor={base} paperColor={paper} label={`${design.title}，${sideName}，拖曳可轉動，點左右兩側翻頁`}
                 onFlip={(d) => goTo(Math.min(pages.length, Math.max(0, sheet3d + d)) - 1)} />
             </Suspense>

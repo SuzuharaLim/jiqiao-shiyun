@@ -878,6 +878,9 @@ button.ty.glossable, button.tn.glossable {
   font-size: 20px; line-height: 1; color: var(--text); cursor: pointer;
 }
 .cal-hb:disabled { opacity: .35; cursor: default; }
+/* 主題切換鈕裡的線條圖示：.ic 是 display:block、23px，要置中並縮到跟 ↶↷ 同大 */
+.cal-hb { display: inline-grid; place-items: center; padding: 0; }
+.cal-hb .ic { width: 18px; height: 18px; }
 .cal-addt {
   min-height: 40px; padding: 0 16px; border-radius: 999px; border: none; cursor: pointer;
   background: var(--primary); color: var(--pfg); font: inherit; font-size: var(--text-xs); font-weight: 700;
@@ -1024,7 +1027,29 @@ button.ty.glossable, button.tn.glossable {
      只改 --color-* 的話別名不會跟著變。
    ⚠️ 視窗的徑向底光是「3D 場景背景幕」，與 /ar/model 同一類例外（站規：UI 元件不用漸層）。
    ════════════════════════════════════════════════════════════════════════ */
+/* ★ 淺色是預設（與全站一致），網站切到深色（html[data-theme="dark"]）時換成深色工作區。
+   工作區自己的色階用 --ws-*：0 最深（輸入框、分段軌道）→ 4 最亮（按鈕、chip）；
+   sel＝選中項目底色、div＝區塊分隔線、edge＝元件細框、vp1..3＝3D 視窗的底光漸層。
+   ⚠️ 新增工作區樣式時**不可再寫死色碼**，一律用這些變數，否則另一個模式會壞。 */
 .screen-calDesign {
+  --color-bg: #eef0f3; --color-surface: #ffffff; --color-surface-2: #f4f5f7; --color-shell: #f4f5f7;
+  --color-text: #1f2328; --color-text-muted: #5c6570; --color-border: rgba(0,0,0,.10);
+  --color-brand: #1f55c0; --color-brand-solid: #2563d9; --color-on-brand: #ffffff; --color-focus: #2563d9;
+  --bg: #eef0f3; --card: #ffffff; --text: #1f2328; --muted: #5c6570; --line: rgba(0,0,0,.10);
+  --line2: rgba(0,0,0,.16); --chip: #e6e9ed; --field: #f4f5f7; --primary: #2563d9; --pfg: #ffffff;
+  --accent: #1f55c0; --cinnabar: #1f55c0; --c-text: #1f2328; --c-bg: #eef0f3; --c-border: rgba(0,0,0,.10);
+  --note-bg: #f2f4f7; --ok-bg: #e7f4ea; --ok-fg: #1e7b3a; --no-bg: #fdecea; --no-fg: #b3261e;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.08); --shadow-md: 0 2px 10px rgba(0,0,0,.08); --inset-hi: inset 0 1px 0 rgba(255,255,255,.6);
+  --ws-0: #e9ecf0; --ws-1: #f3f4f6; --ws-2: #ffffff; --ws-3: #eef0f3; --ws-4: #e2e6eb;
+  --ws-sel: #dbe6ff; --ws-sel-fg: #173f8f; --ws-on: #2563d9; --ws-focus: #2563d9;
+  --ws-div: rgba(0,0,0,.09); --ws-edge: rgba(0,0,0,.10); --ws-ring: rgba(0,0,0,.22);
+  --ws-float: rgba(255,255,255,.92); --ws-tag: rgba(31,35,40,.55);
+  --ws-vp1: #ffffff; --ws-vp2: #f1f3f6; --ws-vp3: #e3e7ec;
+  --ws-dot-img: #3c9a52; --ws-dot-back: #c8962c; --ws-danger: #c0392b;
+  --ws-hover: brightness(.95); --ws-press: brightness(.88);
+  color: var(--text);
+}
+[data-theme="dark"] .screen-calDesign {
   --color-bg: #1b1d21; --color-surface: #24272c; --color-surface-2: #2c3036; --color-shell: #2c3036;
   --color-text: #e7e9ec; --color-text-muted: #9aa1ab; --color-border: rgba(255,255,255,.08);
   --color-brand: #8db8ff; --color-brand-solid: #3d7eff; --color-on-brand: #ffffff; --color-focus: #8db8ff;
@@ -1033,82 +1058,88 @@ button.ty.glossable, button.tn.glossable {
   --accent: #8db8ff; --cinnabar: #8db8ff; --c-text: #e7e9ec; --c-bg: #1b1d21; --c-border: rgba(255,255,255,.08);
   --note-bg: #22252a; --ok-bg: #1f2b22; --ok-fg: #8fcf9b; --no-bg: #33221f; --no-fg: #f0a090;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 2px 8px rgba(0,0,0,.45); --inset-hi: inset 0 1px 0 rgba(255,255,255,.04);
-  color: var(--text);
+  --ws-0: #1b1d21; --ws-1: #212428; --ws-2: #24272c; --ws-3: #2a2e34; --ws-4: #30343b;
+  --ws-sel: #2f4f86; --ws-sel-fg: #ffffff; --ws-on: #3d7eff; --ws-focus: #8db8ff;
+  --ws-div: rgba(0,0,0,.42); --ws-edge: rgba(255,255,255,.08); --ws-ring: rgba(255,255,255,.18);
+  --ws-float: rgba(48,52,59,.85); --ws-tag: rgba(231,233,236,.62);
+  --ws-vp1: #3a3f47; --ws-vp2: #24272c; --ws-vp3: #1b1d21;
+  --ws-dot-img: #8fcf9b; --ws-dot-back: #e0bc6b; --ws-danger: #f0a090;
+  --ws-hover: brightness(1.22); --ws-press: brightness(1.4);
 }
 @media (min-width: 900px) and (min-height: 600px) {
   .stage.signed-in .device:has(.screen-calDesign) { width: min(100% - 32px, 1760px); max-width: 1760px; }
 }
 .screen-calDesign .cal-ws {
-  background: #1b1d21; border-radius: 14px; overflow: hidden; gap: 0 !important; padding: 0 !important;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.4), var(--shadow-md);
+  background: var(--ws-0); border-radius: 14px; overflow: hidden; gap: 0 !important; padding: 0 !important;
+  box-shadow: 0 0 0 1px var(--ws-div), var(--shadow-md);
 }
 .cal-ws .cal-topbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px;
-  background: #24272c; border-bottom: 1px solid rgba(0,0,0,.45);
+  background: var(--ws-2); border-bottom: 1px solid var(--ws-div);
 }
 .cal-ws .cal-tb-sp { flex: 1 1 auto; }
-.cal-ws .cal-viewtabs { background: #1b1d21; }
-.cal-views { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #1b1d21; }
+.cal-ws .cal-viewtabs { background: var(--ws-0); }
+.cal-views { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--ws-0); }
 .cal-vbtn {
   min-height: 32px; padding: 0 12px; border: none; border-radius: 8px; background: transparent; cursor: pointer;
   font: inherit; font-size: var(--text-2xs); font-weight: 700; color: var(--muted);
 }
-@media (hover: hover) and (pointer: fine) { .cal-vbtn:hover { background: #30343b; color: var(--text); } }
-.cal-ws .cal-hb { background: #30343b; border-color: transparent; color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .cal-vbtn:hover { background: var(--ws-4); color: var(--text); } }
+.cal-ws .cal-hb { background: var(--ws-4); border-color: transparent; color: var(--text); }
 .cal-ws .cal-addt { background: var(--primary); color: var(--pfg); }
 
-.cal-outliner { background: #212428; border-right: 1px solid rgba(0,0,0,.4); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cal-outliner { background: var(--ws-1); border-right: 1px solid var(--ws-div); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .cal-ol-hd { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--text-2xs); font-weight: 800; letter-spacing: .08em; color: var(--muted); padding: 0 4px; }
 .cal-ol-hd small { font-weight: 600; letter-spacing: 0; }
-.cal-ws .cal-faces { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; background: #1b1d21; }
+.cal-ws .cal-faces { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; background: var(--ws-0); }
 .cal-ws .cal-face { justify-content: center; padding: 0 8px; }
-.cal-ws .cal-face.on { background: #30343b; box-shadow: none; }
+.cal-ws .cal-face.on { background: var(--ws-4); box-shadow: none; }
 .cal-ws .cal-strip { gap: 2px; padding: 0; }
 .cal-ws .cal-chip {
   background: transparent; border: none; border-radius: 8px; color: var(--text); box-shadow: none;
   justify-content: flex-start; text-align: left; position: relative;
 }
-.cal-ws .cal-chip.on { background: #2f4f86; color: #fff; }
-@media (hover: hover) and (pointer: fine) { .cal-ws .cal-chip:not(.on):hover { background: #2a2e34; } }
+.cal-ws .cal-chip.on { background: var(--ws-sel); color: var(--ws-sel-fg); }
+@media (hover: hover) and (pointer: fine) { .cal-ws .cal-chip:not(.on):hover { background: var(--ws-3); } }
 .cal-ws .cal-chip.has-img::after, .cal-ws .cal-chip.has-back::before {
   content: ""; position: absolute; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 2px;
 }
-.cal-ws .cal-chip.has-img::after { right: 10px; background: #8fcf9b; }
-.cal-ws .cal-chip.has-back::before { right: 20px; background: #e0bc6b; }
+.cal-ws .cal-chip.has-img::after { right: 10px; background: var(--ws-dot-img); }
+.cal-ws .cal-chip.has-back::before { right: 20px; background: var(--ws-dot-back); }
 .cal-ws .cal-chip.has-back { box-shadow: none; }
 
-.cal-ws .cal-stage { padding: 0; gap: 0; background: #1b1d21; min-width: 0; }
+.cal-ws .cal-stage { padding: 0; gap: 0; background: var(--ws-0); min-width: 0; }
 .cal-vp { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .cal-vp-tag {
   position: absolute; top: 10px; left: 12px; z-index: 4; pointer-events: none;
-  font-size: 12px; font-weight: 700; letter-spacing: .04em; color: rgba(231,233,236,.62);
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--ws-tag);
 }
 .cal-ws .cal3d {
   border-radius: 0; box-shadow: none; border: none;
-  background: radial-gradient(120% 90% at 50% 38%, #3a3f47 0%, #24272c 55%, #1b1d21 100%);
+  background: radial-gradient(120% 90% at 50% 38%, var(--ws-vp1) 0%, var(--ws-vp2) 55%, var(--ws-vp3) 100%);
 }
-.cal-ws .cal3d-arrow { background: rgba(48,52,59,.85); color: var(--text); border: 1px solid rgba(255,255,255,.1); }
-.cal-ws .cal-adjust { margin: 0; border-radius: 0; background: #24272c; border-top: 1px solid rgba(0,0,0,.4); box-shadow: none; }
+.cal-ws .cal3d-arrow { background: var(--ws-float); color: var(--text); border: 1px solid var(--ws-edge); }
+.cal-ws .cal-adjust { margin: 0; border-radius: 0; background: var(--ws-2); border-top: 1px solid var(--ws-div); box-shadow: none; }
 
-.cal-ws .cal-panel { background: #24272c; border-left: 1px solid rgba(0,0,0,.4); padding: 10px 14px 16px; }
-.cal-ws .cal-tabs { background: #1b1d21; }
-.cal-ws .cal-tab.on { background: #30343b; color: var(--text); box-shadow: none; }
+.cal-ws .cal-panel { background: var(--ws-2); border-left: 1px solid var(--ws-div); padding: 10px 14px 16px; }
+.cal-ws .cal-tabs { background: var(--ws-0); }
+.cal-ws .cal-tab.on { background: var(--ws-4); color: var(--text); box-shadow: none; }
 .cal-ws .cal-label { color: var(--muted); font-size: var(--text-2xs); letter-spacing: .06em; }
-.cal-ws .cal-input, .cal-ws select.cal-input { background: #1b1d21; border-color: rgba(255,255,255,.1); color: var(--text); }
-.cal-ws .b { background: #30343b; color: var(--text); border-color: transparent; }
+.cal-ws .cal-input, .cal-ws select.cal-input { background: var(--ws-0); border-color: var(--ws-edge); color: var(--text); }
+.cal-ws .b { background: var(--ws-4); color: var(--text); border-color: transparent; }
 .cal-ws .b.dark, .cal-ws .btn-primary { background: var(--primary); color: #fff; }
-.cal-ws .chip { background: #30343b; color: var(--text); border-color: transparent; }
+.cal-ws .chip { background: var(--ws-4); color: var(--text); border-color: transparent; }
 .cal-ws .chip.on { background: var(--primary); color: #fff; }
-.cal-ws .cal-card, .cal-ws .cal-pchip, .cal-ws .cal-color, .cal-ws .cal-layer { background: #2a2e34; border-color: rgba(255,255,255,.08); color: var(--text); }
-.cal-ws .cal-card.on, .cal-ws .cal-pchip.on, .cal-ws .cal-layer.on { border-color: #3d7eff; box-shadow: 0 0 0 1px #3d7eff; }
-.cal-ws .cal-custom { background: #1f2226; }
+.cal-ws .cal-card, .cal-ws .cal-pchip, .cal-ws .cal-color, .cal-ws .cal-layer { background: var(--ws-3); border-color: var(--ws-edge); color: var(--text); }
+.cal-ws .cal-card.on, .cal-ws .cal-pchip.on, .cal-ws .cal-layer.on { border-color: var(--ws-on); box-shadow: 0 0 0 1px var(--ws-on); }
+.cal-ws .cal-custom { background: var(--field); }
 .cal-ws .cal-note { color: var(--muted); }
 
 .cal-status {
   display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 40px;
-  background: #212428; border-top: 1px solid rgba(0,0,0,.45); font-size: 12px; color: var(--muted);
+  background: var(--ws-1); border-top: 1px solid var(--ws-div); font-size: 12px; color: var(--muted);
 }
-.cal-status .cal-navb { width: 30px; height: 30px; min-height: 30px; background: #30343b; border: none; color: var(--text); }
+.cal-status .cal-navb { width: 30px; height: 30px; min-height: 30px; background: var(--ws-4); border: none; color: var(--text); }
 .cal-status .cal-navl { flex-direction: row; gap: 8px; align-items: baseline; }
 .cal-status .cal-navl b { color: var(--text); font-size: 13px; }
 .cal-status .cal-hint { margin: 0 0 0 auto; font-size: 12px; color: var(--muted); text-align: right; }
@@ -1125,7 +1156,7 @@ button.ty.glossable, button.tn.glossable {
   .cal-ws .cal-chip { flex: 0 0 auto; padding-right: 22px; }
   .cal-ws .cal-chip.has-img::after { right: 4px; }
   .cal-ws .cal-chip.has-back::before { right: 12px; }
-  .cal-outliner { border-right: none; border-top: 1px solid rgba(0,0,0,.4); }
+  .cal-outliner { border-right: none; border-top: 1px solid var(--ws-div); }
   .cal-status .cal-hint { display: none; }
   .cal-views { overflow-x: auto; max-width: 100%; }
 }
@@ -1144,7 +1175,7 @@ button.ty.glossable, button.tn.glossable {
   .cal-ws > .cal-outliner { grid-area: out; overflow-y: auto; }
   .stage.signed-in .screen-calDesign .cal-ws > .cal-stage { grid-area: stage; position: static; overflow-y: auto; display: flex; flex-direction: column; }
   .stage.signed-in .screen-calDesign .cal-ws > .cal-panel { grid-area: panel; position: static; max-height: none; overflow-y: auto; }
-  .stage.signed-in .screen-calDesign .cal-ws .cal-panel .cal-tabs { position: sticky; top: -10px; box-shadow: 0 -10px 0 #24272c; }
+  .stage.signed-in .screen-calDesign .cal-ws .cal-panel .cal-tabs { position: sticky; top: -10px; box-shadow: 0 -10px 0 var(--ws-2); }
   .cal-ws > .cal-status { grid-area: stat; }
   .cal-ws .cal-strip { flex-direction: column; flex-wrap: nowrap; overflow: visible; }
   .stage.signed-in .screen-calDesign .cal-ws .cal3d { height: auto; flex: 1 1 auto; min-height: 360px; aspect-ratio: auto; max-height: none; }
@@ -1169,15 +1200,15 @@ button.ty.glossable, button.tn.glossable {
    停用狀態也只有淡一點。三件事要看得到：滑過會亮、按下會縮、不能按的一眼看得出來。 */
 .cal-ws button { transition: background-color var(--m-fast) var(--e-out), filter var(--m-fast) var(--e-out), transform var(--m-fast) var(--e-out), box-shadow var(--m-fast) var(--e-out); }
 @media (hover: hover) and (pointer: fine) {
-  .cal-ws button:not(:disabled):hover { filter: brightness(1.22); }
-  .cal-ws .cal-tab:not(.on):hover, .cal-ws .cal-face:not(.on):hover, .cal-ws .cal-vt:not(.on):hover { background: #2a2e34; color: var(--text); }
+  .cal-ws button:not(:disabled):hover { filter: var(--ws-hover); }
+  .cal-ws .cal-tab:not(.on):hover, .cal-ws .cal-face:not(.on):hover, .cal-ws .cal-vt:not(.on):hover { background: var(--ws-3); color: var(--text); }
 }
-.cal-ws button:not(:disabled):active { transform: scale(.96); filter: brightness(1.4); }
+.cal-ws button:not(:disabled):active { transform: scale(.96); filter: var(--ws-press); }
 .cal-ws button:disabled { opacity: .28; cursor: not-allowed; filter: none; }
 /* 目前的視角：跟其他選中狀態同一個藍 */
-.cal-vbtn.on { background: #2f4f86; color: #fff; }
+.cal-vbtn.on { background: var(--ws-sel); color: var(--ws-sel-fg); }
 /* 鍵盤焦點要在深色上看得到 */
-.cal-ws button:focus-visible { outline: 2px solid #8db8ff; outline-offset: 2px; }
+.cal-ws button:focus-visible { outline: 2px solid var(--ws-focus); outline-offset: 2px; }
 
 /* ── 桌曆工作區：密度（2026-10-04 使用者回報「瀏覽器要縮到 75% 才能正常用」）──
    Windows 顯示比例 125% 的 1080p 螢幕，瀏覽器實際只有約 1536×730 CSS px。
@@ -1190,7 +1221,7 @@ button.ty.glossable, button.tn.glossable {
   .stage.signed-in .screen.screen-calDesign > .topbar { display: none; }
   .cal-tb-back {
     display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-height: 32px;
-    border: none; border-radius: 8px; background: #30343b; color: var(--text); font-size: 20px; line-height: 1; cursor: pointer;
+    border: none; border-radius: 8px; background: var(--ws-4); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer;
   }
   .cal-tb-title { display: block; font-size: 14px; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
   .cal-tb-save { display: inline; font-size: 12px; color: var(--muted); }
@@ -1228,7 +1259,7 @@ button.ty.glossable, button.tn.glossable {
    ⇒ .cal-page-wrap 必須跟頁面**一樣大**，不可以有 padding、也不可以讓頁面在它裡面置中。
    先前為了深色底光給了 28px padding ⇒ 每個框都往左上偏 28px。底光改畫在外層 .cal-vp。 */
 .cal-ws .cal-vp:has(.cal-page-wrap) {
-  background: radial-gradient(120% 90% at 50% 40%, #3a3f47 0%, #24272c 60%, #1b1d21 100%);
+  background: radial-gradient(120% 90% at 50% 40%, var(--ws-vp1) 0%, var(--ws-vp2) 60%, var(--ws-vp3) 100%);
   padding: 24px; overflow: auto; align-items: center;
 }
 .cal-ws .cal-page-wrap { padding: 0; margin: auto; flex: none; width: 100%; }
@@ -1237,7 +1268,7 @@ button.ty.glossable, button.tn.glossable {
   .cal-ws .cal-page-wrap { width: min(100%, 900px, calc((100vh - 230px) * 4 / 3)); }
   .stage.signed-in .screen-calDesign .cal-ws > .cal-stage { overflow: hidden; }
   /* 編輯列（文字／照片）停在右側面板最上面 */
-  .cal-editdock { margin: 0 -12px 10px; border-bottom: 1px solid rgba(0,0,0,.45); }
+  .cal-editdock { margin: 0 -12px 10px; border-bottom: 1px solid var(--ws-div); }
   .cal-editdock .cal-adjust { border-top: none; max-height: none; }
 }
 
@@ -1256,7 +1287,7 @@ button.ty.glossable, button.tn.glossable {
 .cal-props { display: flex; flex-direction: column; gap: 10px; }
 .cal-props-hd { display: flex; align-items: center; gap: 8px; }
 .cal-props-hd b { font-size: 14px; }
-.cal-props-hd em { font-style: normal; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #2f4f86; color: #fff; }
+.cal-props-hd em { font-style: normal; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--ws-sel); color: var(--ws-sel-fg); }
 .cal-props-x {
   margin-left: auto; min-height: 30px; padding: 0 14px; border: none; border-radius: 8px;
   background: var(--primary); color: var(--pfg); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
@@ -1269,15 +1300,15 @@ button.ty.glossable, button.tn.glossable {
 .cal-prop-check input { width: 18px; height: 18px; accent-color: var(--primary); margin: 0; }
 
 /* 分段按鈕：一整條，選中的那格亮起來 */
-.cal-seg { display: flex; padding: 2px; border-radius: 9px; background: #1b1d21; min-width: 0; }
+.cal-seg { display: flex; padding: 2px; border-radius: 9px; background: var(--ws-0); min-width: 0; }
 .cal-seg > button {
   flex: 1 1 0; min-width: 0; min-height: 28px; padding: 0 6px; border: none; border-radius: 7px; background: transparent;
   font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
-.cal-seg > button.on { background: #30343b; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.cal-seg > button.on { background: var(--ws-4); color: var(--text); box-shadow: var(--shadow-sm); }
 /* 方形圖示鈕（粗體、水平置中） */
 .cal-ico {
-  width: 32px; height: 32px; min-height: 32px; border: none; border-radius: 8px; background: #1b1d21;
+  width: 32px; height: 32px; min-height: 32px; border: none; border-radius: 8px; background: var(--ws-0);
   color: var(--muted); font: inherit; font-size: 15px; cursor: pointer; display: grid; place-items: center;
 }
 .cal-ico.on { background: var(--primary); color: #fff; }
@@ -1285,10 +1316,10 @@ button.ty.glossable, button.tn.glossable {
 .cal-dots { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 2 / -1; }
 .cal-dot {
   width: 24px; height: 24px; min-height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
-  border: 2px solid #1b1d21; box-shadow: 0 0 0 1px rgba(255,255,255,.18); position: relative; overflow: hidden; flex: 0 0 auto;
+  border: 2px solid var(--ws-2); box-shadow: 0 0 0 1px var(--ws-ring); position: relative; overflow: hidden; flex: 0 0 auto;
 }
-.cal-dot.on { box-shadow: 0 0 0 2px #8db8ff; }
+.cal-dot.on { box-shadow: 0 0 0 2px var(--ws-focus); }
 .cal-dot.custom { background: conic-gradient(#e0447a, #f2b134, #5fb36a, #3f7fd6, #9a5bd1, #e0447a); }
 .cal-dot.custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; }
-.cal-props-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,.06); }
-.cal-ws .cal-danger { color: #f0a090; }
+.cal-props-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 4px; border-top: 1px solid var(--ws-edge); }
+.cal-ws .cal-danger { color: var(--ws-danger); }

@@ -26,7 +26,7 @@ const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(pref
 // ★ 第 0 張是封面（2026-10-04）。每一張紙都有背面：getBack(i) 回傳 canvas 或 null（空白紙）。
 //   翻過去的紙掛在底座後面，背面朝外——轉到後面看，就是那一頁的背面（真的桌曆也是這樣）。
 // face='back'：使用者正在編輯背面 ⇒ 相機轉到後面，讓他直接看到自己在改的那一面。
-export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', viewCmd = null, onOrbit, baseColor, paperColor, version, label }) {
+export default function CalModel3D({ count, current, onFlip, getCanvas, getBack, face = 'front', viewCmd = null, onOrbit, baseColor, paperColor, version, label, tone = 'dark' }) {
   const hostRef = useRef(null)
   const api = useRef(null)
   const cb = useRef({ onFlip, getCanvas, getBack, onOrbit })
@@ -77,12 +77,20 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
     scene.add(root)
 
     // 建模軟體式的地板：細格線＋中心十字（主軸線較亮），讓人一眼看出比例與方位
-    const grid = new THREE.GridHelper(8, 40, 0x5b6470, 0x3a4048)
-    grid.material.transparent = true
-    grid.material.opacity = 0.55
-    grid.material.depthWrite = false
-    track(grid.geometry); track(grid.material)
-    scene.add(grid)
+    // ★ 格線顏色跟著工作區的深淺色（`tone`）：深色格線放在淺色底光上會又黑又重，
+    //   淺色的放在深底上則幾乎看不見。換色時整組重建（GridHelper 的顏色是頂點色，重建最單純）。
+    const GRID_TONES = { dark: [0x5b6470, 0x3a4048, 0.55], light: [0x9aa3ae, 0xc6ccd4, 0.7] }
+    let grid = null
+    const makeGrid = (t) => {
+      if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose() }
+      const [c1, c2, op] = GRID_TONES[t] || GRID_TONES.dark
+      grid = new THREE.GridHelper(8, 40, c1, c2)
+      grid.material.transparent = true
+      grid.material.opacity = op
+      grid.material.depthWrite = false
+      scene.add(grid)
+    }
+    makeGrid(tone)
     // 接觸陰影：一張徑向漸層貼圖（不開真陰影——那很貴，而且會讓紙面變灰）
     const sh = document.createElement('canvas'); sh.width = sh.height = 128
     const sg = sh.getContext('2d'), rg = sg.createRadialGradient(64, 64, 4, 64, 64, 64)
@@ -275,6 +283,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
         camera.position.copy(controls.target).add(off)
       },
       loadedBack: new Set(),
+      setTone(t) { makeGrid(t) },
       setColors(base, paper) {
         standMat.color.set(base)
         pages.forEach(p => { p.back.material.color.set(paper); if (!p.tex) p.front.material.color.set(paper) })
@@ -293,6 +302,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
       cvs.removeEventListener('contextmenu', noMenu)
       controls.dispose()
       pages.forEach(p => { p.tex?.dispose(); p.btex?.dispose() })
+      try { grid?.geometry.dispose(); grid?.material.dispose() } catch { /* ignore */ }   // 格線不在 disposables（換色會重建）
       disposables.forEach(d => d.dispose?.())
       renderer.dispose()
       renderer.forceContextLoss()
@@ -304,6 +314,7 @@ export default function CalModel3D({ count, current, onFlip, getCanvas, getBack,
   }, [count])
 
   useEffect(() => { api.current?.setColors(baseColor, paperColor) }, [baseColor, paperColor])
+  useEffect(() => { api.current?.setTone(tone) }, [tone])
   useEffect(() => { hostRef.current?.querySelector('canvas')?.setAttribute('aria-label', label || '桌曆 3D 預覽') }, [label])
 
   // ── 目前頁改變、或設計內容改變（version）：只載入 current ±1 的貼圖 ──
