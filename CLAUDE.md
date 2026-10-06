@@ -189,7 +189,8 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **★★★ 翻頁要能往前**：3D 點右半邊往後翻、左半邊往前翻；**相機轉到背面時點哪裡都是往前翻**（背面看到的是翻過去的頁，點它的直覺是翻回來；判斷看 `camera.position.z − target.z < 0`），另有畫面上的 ‹ › 箭頭（觸控時「點左半邊」看不出來）與方向鍵。
 - **★★★ 直接在頁面上編輯**（2026-10-04 使用者回饋「不直觀」）：預設開 3D 實物；「平面編輯」上有虛線框，點照片區＝放照片／進入調整，點標題區＝跳到文字欄。區塊位置由 `pageRegions()` 提供，**改 `drawPage` 的排版要一起改它**。
 - **★★★ 照片縮放與位置存成 `img.crop {z, x, y}`**：z 是「填滿之上再放大幾倍」、x/y 是「可移動範圍的比例」——不存像素，預覽、3D、印刷取景才一致。拖曳／雙指／滾輪／滑桿四種輸入。⚠️ React 的 onWheel 是 passive，要自己掛 `passive:false` 的監聽器；`setPointerCapture` 會拋例外，要包 try（否則拖不動且無提示）。上傳完直接進入調整模式。後台會標「照片已調整位置／縮放」。
-- **★★★ 設計器是建模軟體式的深色工作區（2026-10-04 使用者指定）**：工具列（3D／平面、視角預設 透視／正面／側面／背面／俯視、復原重做）＋左側頁面大綱＋中央視窗（地板格線、接觸陰影）＋右側屬性面板＋狀態列。桌機是一個視窗高的四區 grid、各區自己捲；手機依序疊放。樣式在 `theme-luxe.css` 末段的 `.screen-calDesign`／`.cal-ws` 區塊——**深色是靠在 `.screen-calDesign` 重設色彩 token（含 `--text`／`--card`／`--line` 這些別名）達成**，只改 `--color-*` 別名不會跟著變。視窗的徑向底光屬 3D 場景背景幕例外（同 `/ar/model`）。相機距離 `need = max(1.06/(tanV·aspect), 0.8/tanV)`：寬視窗時由高度決定，0.64 會切到線圈。
+- **★★★ 設計器工作區有深色與淺色兩種（2026-10-06 使用者指定，取代原本「固定深色」）**：跟全站主題走（`html[data-theme]`），工作區工具列另有一顆日／月切換鈕（＝全站 `toggleTheme`，手機沒有導覽列的主題鈕）。`.screen-calDesign` 放**淺色**（預設，與全站一致），`[data-theme="dark"] .screen-calDesign` 放原本那組深色——兩組都重設全站 token 別名，外加工作區色階 `--ws-0..4`、`--ws-sel/-sel-fg`、`--ws-div`、`--ws-edge`、`--ws-vp1..3`（3D 底光）、`--ws-hover/-press`（按鈕 filter）等。⚠️ **工作區樣式不可再寫死色碼**，一律用 `--ws-*`／token，否則另一個模式會壞（目前只剩自訂色的彩虹色環與藍底白字是刻意的字面色）。3D 地板格線由 `CalModel3D` 的 `tone` 屬性換色（`setTone` 重建 GridHelper；`CalView` 沒傳，維持深色格線）。
+- **★★★ 設計器是建模軟體式工作區（2026-10-04 使用者指定）**：工具列（3D／平面、視角預設 透視／正面／側面／背面／俯視、復原重做）＋左側頁面大綱＋中央視窗（地板格線、接觸陰影）＋右側屬性面板＋狀態列。桌機是一個視窗高的四區 grid、各區自己捲；手機依序疊放。樣式在 `theme-luxe.css` 末段的 `.screen-calDesign`／`.cal-ws` 區塊——**深色是靠在 `.screen-calDesign` 重設色彩 token（含 `--text`／`--card`／`--line` 這些別名）達成**，只改 `--color-*` 別名不會跟著變。視窗的徑向底光屬 3D 場景背景幕例外（同 `/ar/model`）。相機距離 `need = max(1.06/(tanV·aspect), 0.8/tanV)`：寬視窗時由高度決定，0.64 會切到線圈。
 - **★★★ 平面編輯的熱區與文字框是「相對 `.cal-page-wrap` 左上角」定位、用頁寬換算的 ⇒ `.cal-page-wrap` 必須與頁面一樣大，不可有 padding、不可讓頁面在裡面置中**（2026-10-04 給了 28px padding 做深色底光 ⇒ 每個框都偏 28px，使用者回報「框框跟文字對不上」）。底光畫在外層 `.cal-vp`。桌機的文字／照片編輯列放在右側面板頂端（`editBars`＋`wide`），放視窗下面會把頁面擠到被切掉；手機留在視窗正下方。點一下已選中的文字框（沒拖動）或雙擊＝焦點進輸入框開始打字。
 - **★★★ 預設文字都可改（2026-10-04 使用者指定）**：`label`／`en`／`sub`／`glyph`（封面是 `sub`／`glyph`）三態——沒有欄位＝系統預設、`''`＝隱藏、其他＝自訂。⚠️ 空字串不可在 normalize 被丟掉（那是「隱藏」），閘門 F 段鎖住。繪製一律 `over.x ?? 預設`（不可用 `||`，會把隱藏變回預設）。
 - **★★★ 封面＋每一張紙都是雙面（2026-10-04 使用者指定）**：`design.cover`（`{title, img, texts, back}`）與 `design.pages[i].back`（`{img, texts}`）。背面沒內容＝空白紙（`normSide` 回 null）。
@@ -208,6 +209,30 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **★★ 草稿 90 天／未成交原圖 60 天／成交留到隔年年底／上傳到一半放棄 1 天**：由 `calSweep()` 依狀態清（Cloud Storage 生命週期規則看不到狀態，所以不用它）。草稿刪除時連帶刪掉「只有它在用」的預覽圖。刪帳號要自己清 printStore（不會跟著 DB 的 CASCADE）。
 - **★★ 限制**：每人 3 份草稿（已送出的不算）、每天 3 筆洽詢、原檔 10 MB（2026-10-04 由 15 調降）、承諾 3 個工作天回覆——全部在 `CAL_LIMITS`，寄信模板的「3 個工作天」要跟著改。
 - ⚠️ 訪客能玩版型與樣式（存 localStorage `jq-cal-local`），放照片／分享／洽詢要登入；登入後在設計器按「存到我的帳號」整份搬進去（用 `replace` 換網址，上一頁才不會回到已清空的 local）。
+
+## ★★★★ AR 模型頁改用「二十四節氣貓」（2026-10-05，`/ar/model/:slug`）
+
+使用者指定：**小寒卡的 3D 主角由結球白菜改成小寒節氣貓「八爺黑貓」**，另外 23 個節氣也都有 `/ar/model/2027-<節氣代號>`（不需要實體卡）。
+
+| 項目 | 位置 |
+| --- | --- |
+| 模型本體（24 頁＋引擎） | `public/ar/cats/NN-key.html`／`NN-key.js`／`neko-core.js`／`boot.js`／`NN-key.png` |
+| three r128（節氣貓專用，與本專案 three 0.185 無關） | `public/vendor/three-r128/` |
+| 角色資料（自動產生，**不要手改**） | `src/data/arCats.js` |
+| 來源專案與匯出指令 | `C:\Users\92100\Downloads\節氣貓建模`，`python tools/build_ar.py`（同時更新上面三處） |
+
+- **模型頁用同源 iframe 掛節氣貓**（`ArModel.jsx` 的 `catActor`），不走 A-Frame。理由：24 隻都是在 r128 上逐張對原圖驗收的，搬到 r185 的色彩管理與 shader chunk 會同時走樣。白菜的 A-Frame 路徑**完整保留**（`characterOf(card)` 沒有 `model.cat` 時照舊）。
+- **對話面板不必改**：`catActor` 實作 `setAction`／`setOverlay`／`setOverlayLevel`，用 postMessage（`neko:action`／`neko:overlay`／`neko:fit`）轉給 iframe；iframe 回 `neko:ready`／`neko:error`／`neko:poke`。可見區沿用 jq-fit 的量法，嵌入頁用 `camera.setViewOffset` 把角色框在泡泡與輸入列之間。
+- **`arCards.js`**：卡片多一個 `character`（小寒＝`cat-xiaohan`）；24 隻併入 `CARD_OBJECTS`；`TERM_CAT_PAGES` 是 23 個**虛擬頁**，刻意**不進 `OFFICIAL_CARDS`**（`/AR` 會把 OFFICIAL_CARDS 編進辨識目標、卡片頁也逐張列出，沒有 `.mind`／卡面圖的項目放進去會壞）。模型頁用 `arPageBySlug`，掃描與卡片頁仍用 `cardBySlug`。白菜熱區與 `napa-cabbage` 物件保留（實體卡印著「掃描主物件：結球白菜」，徽章與小挑戰也靠它），只是模型頁不再把它當話題。卡面改版時再處理那一格。
+- **伺服器**：`/api/ar/talk` 的 persona 白名單改為走訪 `[...OFFICIAL_CARDS, ...TERM_CAT_PAGES]` 的 `character`＋熱區（規則文字裡寫死的「我是結球白菜」「帶回小寒」已改成通用說法）；SEO 的 `/ar/model/:slug` 認得虛擬頁。
+- **開場白的提問例子**（`cardTime.js` 的 `greetingFor`）改取角色自己前兩條 fact 的標題：白菜是「品種」「產地」，節氣貓是「品種」「角色」。寫死「產地」會讓貓請人問一件牠沒有的事。
+- **★★★ 快取**：`express.static` 對 dist 一律 `maxAge: '1y'`（只有 index.html 例外），而 `/ar/cats/` 的檔名不帶雜湊 ⇒ 匯出時每個網址都加 `?v=<內容雜湊>`（html 裡的 script、`arCats.js` 的 page／thumb）。少了它，模型更新後使用者**一年內都拿舊檔**——實測踩過：修好的 bug 在瀏覽器裡一直重現。
+- **★★ iframe 透明要兩邊的 `color-scheme` 一致**：深色模式下父頁是 dark、iframe 若是 light，瀏覽器會把 iframe 畫成不透明白底。嵌入頁 `html.embed{color-scheme:normal}`、`.armodel-frame{color-scheme:normal}`。
+- **★★ 嵌入頁的動作每幀要從歸零的俯仰角開始疊**：引擎的 `pose()` 每幀重寫 `headG.rotation.z` 但不碰 `.x`，用 `+=` 疊點頭會累加，頭在幾秒內轉離脖子（實測 -10 弧度）。
+- **CSP 不必放寬**：嵌入頁零內嵌 script（`build_ar.py` 匯出時檢查）、Google Fonts 已拿掉；`frame-src` 回退 `child-src 'self'`，`frame-ancestors 'self'`／`X-Frame-Options: SAMEORIGIN` 都允許同源。實測 24/24 在 CSP 下回 `neko:ready`（3–7 秒）。
+- **入口**：`/AR` 的「二十四節氣貓 3D」圖鑑（`Scan.jsx` 的 `.scan-cats`）。
+- **成本**：主 bundle 615.8 → 650.7 kB（gzip +21 kB，是 24 隻的對話資料）；`public/ar/cats` 約 6 MB、three r128 約 630 kB，都只在打開模型頁時才下載。
+- **語音閘門也涵蓋節氣貓**：`check-speak` 會逐條檢查 `CARD_OBJECTS` 的語音稿每段 ≤60 字，所以節氣貓的設計說明太長會擋建置——要改來源的 `src/chars/NN-*.js` 再重新匯出。
 
 ## ★★★★ 2026-10-04 根目錄改為承氣有限公司官網，App 整個搬到 `/app/`（`/AR` 不動）
 

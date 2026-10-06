@@ -30,7 +30,7 @@ import { dayFor, todayOffset, dateFromOffset, offsetFromDate, BROWSE_RANGE_DAYS,
 import { termFromDate } from '../src/data/lunisolar.js'
 import { StringDecoder } from 'node:string_decoder'
 import { TERM_ARTICLES } from '../src/data/termArticle.js'
-import { OFFICIAL_CARDS, CARD_OBJECTS } from '../src/data/arCards.js'
+import { OFFICIAL_CARDS, CARD_OBJECTS, TERM_CAT_PAGES } from '../src/data/arCards.js'
 import { cardTimeContext } from '../src/data/cardTime.js'
 import { seededDeck, RULES as QZ } from '../src/data/quiz.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
@@ -1573,7 +1573,7 @@ const AR_PERSONA_RULES = [
   '  不要每句都像在報資料。被問到「你好」「你是誰」「無聊」這種閒聊，就自然地聊。',
   // ★★★ 使用者回報：它每一則都先報一次名號。開場白已經自我介紹過了，
   //   熟人聊天不會每句都說「我是某某」——那讀起來像跳針，也很像機器。
-  '【不要重複自我介紹】開場白已經介紹過你自己了。**接下來不要再說「我是結球白菜」**，',
+  '【不要重複自我介紹】開場白已經介紹過你自己了。**接下來不要再說「我是某某」**，',
   '  也不要每則都報上自己的名字或身分。直接接著對方的話講就好。',
   '  只有在對方**明確問你是誰**的時候才自我介紹。',
   '【長度】每則 40~120 字，口語，不要條列、不要 Markdown、不要標題。',
@@ -1591,7 +1591,7 @@ const AR_PERSONA_RULES = [
   '  被問到營養或功效時，就說這個不能亂講，然後把話題帶到料理、產季或民俗。',
   '【範圍】只聊這張卡、這個節氣、相關的食材與民俗。',
   '  被問到與節氣、作物、卡片無關的一般知識（數學、票價、程式…），就說你不知道、',
-  '  不要亂報，然後把話題帶回小寒。**這種時候絕對不要提到營養或法規**——',
+  '  不要亂報，然後把話題帶回這個節氣。**這種時候絕對不要提到營養或法規**——',
   '  那跟對方問的事情完全無關，講出來只會讓人一頭霧水。',
   '【語言】一律用**與對方上一則訊息相同的語言**回覆：對方用英文問就用英文答，',
   '  日文就用日文。婉拒的時候也一樣要跟隨語言。',
@@ -1603,8 +1603,11 @@ const AR_PERSONA_CARD = {}
 const AR_PERSONA_NAME = {}
 const AR_PERSONAS = (() => {
   const out = {}
-  for (const card of OFFICIAL_CARDS) {
-    for (const hs of card.hotspots || []) {
+  // ★ 2026-10-04：節氣貓。實體卡的 `character`（小寒八爺黑貓）與沒有實體卡的 23 個節氣貓虛擬頁
+  //   也要進白名單——它們的 objectId 一樣只能是 arCards.js 裡已有的物件。
+  for (const card of [...OFFICIAL_CARDS, ...TERM_CAT_PAGES]) {
+    const spots = [...(card.character ? [{ objectId: card.character }] : []), ...(card.hotspots || [])]
+    for (const hs of spots) {
       const o = hs.objectId ? CARD_OBJECTS[hs.objectId] : null
       if (!o) continue
       // ★★★ 帶**整張卡**的資料，不只自己那一格。
@@ -1615,7 +1618,7 @@ const AR_PERSONAS = (() => {
       //      等於把系統提示的控制權交出去。
       const factsOf = (x) => (x.facts || [])
         .map(f => `・${f.label}：${f.value}${f.source ? `（出處：${f.source}）` : ''}`).join('\n')
-      const others = (card.hotspots || [])
+      const others = spots
         .map(h => (h.objectId && h.objectId !== hs.objectId ? CARD_OBJECTS[h.objectId] : null))
         .filter(x => x && (x.facts || []).length)
         .map(x => `【${x.name}】\n${factsOf(x)}`).join('\n')

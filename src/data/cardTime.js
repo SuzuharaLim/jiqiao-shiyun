@@ -118,7 +118,10 @@ export function cardTimeLabel(ctx) {
  */
 export function greetingFor(obj, ctx) {
   const name = obj?.name || '我'
-  const tail = '想知道什麼？打字問我，例如「品種」「產地」；點我一下我會動。'
+  // 例子取這個角色自己前兩條資料的標題：白菜是「品種」「產地」，節氣貓是「品種」「角色」——
+  //   寫死「產地」的話，貓會請人問一件牠根本沒有的事。
+  const ex = (obj?.facts ?? []).map(f => f?.label).filter(Boolean).slice(0, 2)
+  const tail = `想知道什麼？打字問我，例如${ex.length ? ex.map(x => `「${x}」`).join('') : '「品種」「產地」'}；點我一下我會動。`
   if (!ctx?.cardTerm) return `${obj?.line || `我是${name}。`}\n${tail}`
   if (ctx.phase === 'DURING') return `${obj?.line || `我是${name}。`}\n${tail}`
   if (ctx.phase === 'AFTER') {

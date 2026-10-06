@@ -10,7 +10,7 @@ import { termGuide } from '../src/data/termGuide.js'
 import { PRODUCE_BY_MONTH } from '../src/data/produce.js'
 import { monthsForTerm } from '../src/data/almanac.js'
 import { termTable } from '../src/data/lunisolar.js'
-import { OFFICIAL_CARDS } from '../src/data/arCards.js'
+import { OFFICIAL_CARDS, arPageBySlug, characterOf } from '../src/data/arCards.js'
 // ★ 路由表是 App 的邏輯路徑；實際網址多一層 /app（/AR、/ar/* 例外）。見 appBase.js 檔頭。
 import { toPublic, toLogical } from '../src/data/appBase.js'
 
@@ -268,8 +268,15 @@ function entryMeta(pathname, route) {
     }
   }
   if (p === '/ar/model/:slug') {
-    const c = OFFICIAL_CARDS.find(x => x.slug === slugOf(pathname))
+    const c = arPageBySlug(slugOf(pathname))
     if (!c) return null
+    const hero = characterOf(c)
+    if (hero?.model?.cat) {
+      return {
+        title: `${hero.title || c.title} 3D 模型｜${c.term}節氣貓｜機巧時運`,
+        desc: `2027 二十四節氣貓的${c.term}：${hero.name}。可以轉動、縮放觀察 3D 模型，也可以直接問它扮演的角色、服飾與道具的設計。不需要實體卡片。`,
+      }
+    }
     return {
       title: `${c.title} 3D 模型｜${c.term}｜機巧時運`,
       // ⚠️ 不可預設對方「已經掃過卡片」——這一頁**不需要實體卡也能用**，

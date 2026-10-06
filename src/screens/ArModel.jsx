@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, Link, SheetMask } from '../components/ui.jsx'
-import { cardBySlug, objectForHotspot } from '../data/arCards.js'
+import { arPageBySlug, characterOf, objectForHotspot } from '../data/arCards.js'
 import { cardTimeContext, cardTimeLabel } from '../data/cardTime.js'
 import { useNav } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -355,9 +355,36 @@ async function ensureAframe() {
   return AFRAME
 }
 
+/**
+ * ★★★ 節氣貓（2026-10-04）：有 `model.cat` 的角色**不走 A-Frame**，改用 iframe 掛
+ *   `public/ar/cats/NN-key.html?embed=1`（節氣貓引擎，three r128 自帶在 `/vendor/three-r128/`）。
+ *
+ * ⚠️ 為什麼是 iframe 而不是把引擎改寫成本專案 three 0.185 的模組：
+ *    24 隻模型都是在 r128 上逐張對原圖驗收過的（殼層毛髮 shader 讀 `vUv`、色彩以 sRGB→linear
+ *    手動換算），搬到 r185 的色彩管理與 shader chunk 會讓 24 隻同時走樣而且要全部重驗。
+ *    iframe 讓那份已驗收的引擎原封不動地跑，代價只有一個同源頁面。
+ * ⚠️ 同源，所以 CSP 不必放寬：`script-src 'self'`（頁面裡沒有任何內嵌 script，
+ *    由 `tools/build_ar.py` 匯出時檢查）、`frame-src` 回退 `child-src 'self'`、
+ *    helmet 的 `frame-ancestors 'self'`／`X-Frame-Options: SAMEORIGIN` 都允許。
+ * ⚠️ 對話面板要的 actor 介面（setAction／setOverlay／setOverlayLevel）用 postMessage 轉給
+ *    iframe；可見區（jq-fit 那一套）也一樣，嵌入頁用 setViewOffset 把角色框在沒被泡泡蓋住的那段。
+ */
+function catActor(frame) {
+  const send = (msg) => { try { frame.contentWindow?.postMessage(msg, location.origin) } catch { /* ignore */ } }
+  return {
+    setAction: (name) => send({ type: 'neko:action', name: String(name || 'present') }),
+    setOverlay: (name) => send({ type: 'neko:overlay', name: name || null }),
+    setOverlayLevel: () => {},   // 節氣貓沒有開口嘴型通道，說話時由 overlay 的點頭與彈跳表現
+    send,
+  }
+}
+
 export default function ArModel({ slug, hotspot }) {
   const { user } = useNav()
-  const card = cardBySlug(slug) || null
+  const card = arPageBySlug(slug) || null
+  // ★ 3D 主角。小寒卡已改成節氣貓（arCards.js 的 `character`），其餘節氣是虛擬頁。
+  const hero = characterOf(card)
+  const isCat = !!hero?.model?.cat
   const hostRef = useRef(null)
   // 對話面板用它驅動角色（換動作、開／關說話疊加通道）
   const actorRef = useRef(null)
@@ -380,7 +407,12 @@ export default function ArModel({ slug, hotspot }) {
 
   // ★ 這張卡上「有內容可以聊」的主題。上下滑動就在這個清單裡換。
   //   ⚠️ 只收 `objectForHotspot` 拿得到東西的熱區——空的一格會讓人以為壞了。
-  const spots = (card?.hotspots ?? []).filter(h => objectForHotspot(h))
+  //   ★ 有 `character` 的卡：主角排第一個話題；原本的 3D 主角（有 `model` 的熱區物件，
+  //     例如結球白菜）就不再當話題——使用者指定由節氣貓取代它。
+  const spots = [
+    ...(card?.character && hero ? [{ id: 'hs-character', objectId: card.character, label: hero.name, primary: true }] : []),
+    ...(card?.hotspots ?? []).filter(h => objectForHotspot(h) && !(card?.character && objectForHotspot(h)?.model)),
+  ]
   // 掃描時瞄到的熱區（有的話），沒有就用 primary
   const initial = Math.max(0, spots.findIndex(h => h.id === hotspot)) ||
     Math.max(0, spots.findIndex(h => h.primary))
@@ -391,8 +423,7 @@ export default function ArModel({ slug, hotspot }) {
   // ★★★ 3D 角色**永遠是卡片的主角**（這張卡只有結球白菜有 model），
   //   換主題只換內容不換模型。所以說話的人一直是它——問句的稱謂要用它，
   //   不可用 `obj.name`，否則會變成「問問小寒 · 身體保健…」。
-  const speaker = objectForHotspot(card?.hotspots?.find(h => h.primary) ?? card?.hotspots?.[0])?.name
-    ?? obj?.name ?? ''
+  const speaker = hero?.name ?? obj?.name ?? ''
 
   /** 換主題。⚠️ 用取模繞回去：到底了就回到第一個，不做「到底了沒反應」——
    *  那與「手勢沒被辨識到」在畫面上完全無從分辨。 */
@@ -416,7 +447,64 @@ export default function ArModel({ slug, hotspot }) {
     let onZoom = null
     let onPoke = null
     let pokeTimer = 0
-    ;(async () => {
+    let frame = null
+    let onMsg = null
+    let readyTimer = 0
+    if (isCat) {
+      // ── 節氣貓：同源 iframe（見 catActor 的說明）──
+      try {
+        frame = document.createElement('iframe')
+        frame.className = 'armodel-frame'
+        // ⚠️ page 已帶 `?v=<內容雜湊>`（靜態檔一律快取一年，見 tools/build_ar.py），所以用 & 接
+        frame.src = `${hero.model.page}${hero.model.page.includes('?') ? '&' : '?'}embed=1`
+        frame.title = `${hero.name}的 3D 模型，可拖曳轉動、捏合縮放`
+        frame.setAttribute('allow', '')
+        onMsg = (e) => {
+          if (e.origin !== location.origin || e.source !== frame?.contentWindow) return
+          const d = e.data || {}
+          if (d.type === 'neko:ready') {
+            clearTimeout(readyTimer)
+            actorRef.current = catActor(frame)
+            if (!cancelled) setPhase('ready')
+            syncVisible?.()
+          } else if (d.type === 'neko:error') {
+            clearTimeout(readyTimer)
+            if (!cancelled) { setErr(d.message || '3D 模型載入失敗'); setPhase('failed') }
+          }
+        }
+        window.addEventListener('message', onMsg)
+        hostRef.current?.appendChild(frame)
+        // 載不到檔案時 SPA fallback 會回 index.html（200），iframe 照樣觸發 load 卻永遠不會 ready
+        readyTimer = setTimeout(() => {
+          if (!cancelled && !actorRef.current) { setErr('3D 模型逾時沒有回應'); setPhase('failed') }
+        }, 25000)
+        syncVisible = () => {
+          const sceneBox = hostRef.current?.parentElement
+          const panel = sceneBox?.querySelector('.artalk')
+          const say = sceneBox?.querySelector('.artalk-say')
+          if (!sceneBox || !panel || !frame) return
+          const box = sceneBox.getBoundingClientRect()
+          const h = box.height
+          if (!h) return
+          const top = say ? Math.max(0, say.getBoundingClientRect().bottom - box.top) : 0
+          const covered = panel.getBoundingClientRect().height
+          const off = Math.max(0, Math.min(0.6, top / h))
+          const vis = Math.max(0.28, Math.min(1 - off, 1 - off - covered / h))
+          catActor(frame).send({ type: 'neko:fit', visible: +vis.toFixed(3), offset: +off.toFixed(3) })
+        }
+        syncRef.current = syncVisible
+        setTimeout(syncVisible, 0)
+        if (typeof ResizeObserver !== 'undefined' && hostRef.current?.parentElement) {
+          ro2 = new ResizeObserver(() => syncVisible())
+          ro2.observe(hostRef.current.parentElement)
+        }
+        window.addEventListener('resize', syncVisible)
+      } catch (e) {
+        console.error('[AR] 節氣貓模型建立失敗', e)
+        setErr(e?.message || String(e)); setPhase('failed')
+      }
+    }
+    if (!isCat) (async () => {
       try {
         await ensureAframe()
         if (cancelled || !hostRef.current) return
@@ -544,6 +632,9 @@ export default function ArModel({ slug, hotspot }) {
     })()
     return () => {
       cancelled = true
+      clearTimeout(readyTimer)
+      try { if (onMsg) window.removeEventListener('message', onMsg) } catch { /* ignore */ }
+      try { frame?.parentNode?.removeChild(frame) } catch { /* ignore */ }
       try { ro?.disconnect() } catch { /* ignore */ }
       try { ro2?.disconnect() } catch { /* ignore */ }
       try { if (syncVisible) window.removeEventListener('resize', syncVisible) } catch { /* ignore */ }
@@ -599,10 +690,10 @@ export default function ArModel({ slug, hotspot }) {
                   <>
                     <p><b>3D 模型載不起來</b></p>
                     <p className="muted">{err}</p>
-                    {/* 不要變成死路：這頁的內容在卡片頁也有 */}
-                    <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
-                      改看卡片頁 ›
-                    </Link>
+                    {/* 不要變成死路：這頁的內容在卡片頁也有（節氣貓虛擬頁沒有卡片頁，回 /AR） */}
+                    {card.virtual
+                      ? <Link screen="scan" className="btn-primary tap">回 AR 掃描頁 ›</Link>
+                      : <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">改看卡片頁 ›</Link>}
                   </>
                 )}
               </div>
@@ -676,9 +767,16 @@ export default function ArModel({ slug, hotspot }) {
                   </div>
 
                   <div className="armodel-acts">
-                    <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
-                      看這張卡的完整內容 ›
-                    </Link>
+                    {obj.link && (
+                      <Link screen={obj.link.screen} params={obj.link.props} className="btn-ghost tap">
+                        {obj.link.label} ›
+                      </Link>
+                    )}
+                    {!card.virtual && (
+                      <Link screen="arCard" params={{ slug: card.slug }} className="btn-primary tap">
+                        看這張卡的完整內容 ›
+                      </Link>
+                    )}
                     <Link screen="scan" className="btn-ghost tap">再掃一次</Link>
                   </div>
                 </div>

@@ -1776,6 +1776,9 @@ a.tabbtn, a.wn-link, a.wn-brand, a.wn-icon, a.wn-user, .wf-links a {
    ⚠️ 代價是這一塊區域不能用來捲頁面——所以舞台高度刻意壓到 56dvh，
       上下都留得出可以捲的地方。 */
 .armodel-stage canvas { touch-action: none; }
+/* 節氣貓模型頁：同源 iframe（ArModel.jsx 的 catActor）。透明底讓場景的徑向底光透出來；
+   觸控交給 iframe 裡的 OrbitControls（拖曳轉動、捏合縮放）。 */
+.armodel-stage .armodel-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: normal; touch-action: none; }
 .armodel-cover { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
 .armodel-hint { text-align: center; font-size: var(--text-2xs); padding: var(--space-3) var(--space-4) 0; flex: 0 0 auto; }
@@ -4536,3 +4539,12 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
 .screen-myths         .card > p:not([class]) + p:not([class]) {
   margin-top: var(--space-3);
 }
+
+/* /AR 的二十四節氣貓 3D 圖鑑（Scan.jsx） */
+.scan-cats { padding: 0 var(--space-4) var(--space-6); }
+.scan-cats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--space-3); }
+.scan-cat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--space-2) var(--space-1) var(--space-3);
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-decoration: none; color: var(--text); text-align: center; min-width: 0; }
+.scan-cat img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; }
+.scan-cat b { font-size: var(--text-sm); }
+.scan-cat span { font-size: var(--text-2xs); line-height: 1.35; overflow-wrap: anywhere; }

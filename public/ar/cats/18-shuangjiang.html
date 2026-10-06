@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>霜降・霜刃將軍 | 二十四節氣貓</title>
+<style>
+/* Layout: full-bleed 3D stage; title, part card and control dock float over it (stacked on phones). */
+:root {
+  --paper: #F7F8F1;
+  --ink: #2E3527;
+  --muted: #687060;
+  --line: #DCE2D0;
+  --card: rgba(255, 255, 252, 0.9);
+  --accent: #6E8C4E;
+  --accent-ink: #FFFFFF;
+  --glow: rgba(163, 188, 126, 0.30);
+  --f-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #161B15; --ink: #E8EEDD; --muted: #A3AC96; --line: #2E372B;
+    --card: rgba(30, 37, 28, 0.9); --accent: var(--accent-dk, #A9C58A); --accent-ink: #172014;
+    --glow: var(--glow-dk, rgba(163, 188, 126, 0.14)); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #161B15; --ink: #E8EEDD; --muted: #A3AC96; --line: #2E372B;
+  --card: rgba(30, 37, 28, 0.9); --accent: var(--accent-dk, #A9C58A); --accent-ink: #172014;
+  --glow: var(--glow-dk, rgba(163, 188, 126, 0.14)); color-scheme: dark;
+}
+html { height: 100%; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 14px; }
+
+.app { position: relative; height: 100%; overflow: hidden; }
+.stage {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 55% at 50% 46%, var(--glow), transparent 70%), var(--paper);
+  touch-action: none;
+}
+/* watercolour-paper grain over the stage, echoing the picture-book originals */
+.stage::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.22; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.5 0 0 0 0 0.42 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.stage canvas { display: block; width: 100%; height: 100%; outline: none; }
+.stage canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
+.status {
+  position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; padding: 24px; text-align: center;
+  color: var(--muted); font-size: 15px; letter-spacing: 0.08em; pointer-events: none; white-space: pre-wrap;
+}
+
+.masthead { position: absolute; z-index: 1; top: 24px; left: 28px; display: flex; gap: 14px; align-items: flex-start; pointer-events: none; max-width: calc(100% - 380px); }
+.masthead a { pointer-events: auto; }
+.seal {
+  width: 46px; height: 46px; flex: none; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); border-radius: 10px;
+  font-family: var(--f-display); font-weight: 900; font-size: 26px; line-height: 1;
+}
+.eyebrow { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.22em; color: var(--muted); }
+h1 { margin: 0; font-family: var(--f-display); font-weight: 900; font-size: 34px; letter-spacing: 0.06em; line-height: 1.15; text-wrap: balance; }
+.hint { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.back { display: inline-block; margin-top: 10px; font-size: 13px; color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+
+.info {
+  position: absolute; top: 24px; right: 24px; width: 316px; max-height: calc(100% - 150px); overflow: auto;
+  background: var(--card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 20px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tag { align-self: flex-start; font-size: 11px; letter-spacing: 0.2em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 2px 8px; }
+.info h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 21px; letter-spacing: 0.04em; text-wrap: balance; }
+.info p { margin: 0; font-size: 14.5px; line-height: 1.8; color: var(--ink); }
+.palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+.sw { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.sw i { display: block; height: 30px; border-radius: 6px; border: 1px solid var(--line); }
+.spec { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; font-variant-numeric: tabular-nums; }
+.spec b { color: var(--ink); font-weight: 500; }
+
+.dock {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+  width: min(900px, calc(100% - 48px));
+  display: flex; flex-direction: column; gap: 10px; align-items: center;
+}
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.chip {
+  font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.btn {
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn[aria-pressed="true"] .dot { background: var(--accent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.chip:focus-visible, .btn:focus-visible, .back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 760px) {
+  html, body { height: auto; }
+  .app { height: auto; min-height: 100%; overflow: visible; display: flex; flex-direction: column; }
+  .masthead { position: static; padding: 16px 16px 0; order: 0; max-width: none; }
+  h1 { font-size: 28px; }
+  .seal { width: 40px; height: 40px; font-size: 22px; }
+  .stage { position: relative; inset: auto; height: 58vh; min-height: 320px; order: 1; }
+  .dock { position: static; transform: none; width: auto; padding: 0 16px; order: 2; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; max-width: 100%; padding-bottom: 4px; scrollbar-width: none; }
+  .chip { flex: none; }
+  .info { position: static; width: auto; max-height: none; margin: 14px 16px 20px; order: 3; }
+}
+
+/* headless capture mode (?shot=...): bare white stage, no chrome */
+.shot body, .shot .stage { background: #FFFFFF; }
+.shot .stage::after, .shot .masthead, .shot .dock, .shot .info { display: none !important; }
+.shot .status { color: #B00020; font-size: 22px; }
+.shot.alpha body, .shot.alpha .stage { background: transparent; }
+/* embed mode (?embed=1, hosted in an iframe by the 機巧時運 AR page): canvas only */
+html.embed { color-scheme: normal !important; }   /* must match the host iframe's color-scheme, or the iframe is painted opaque */
+.embed body, .embed .stage { background: transparent; }
+.embed .stage::after, .embed .masthead, .embed .dock, .embed .info { display: none !important; }
+.embed .app { overflow: hidden; }
+.embed .status { color: #8A8170; }
+@media (max-width: 760px) {
+  html.embed, .embed body { height: 100%; }
+  .embed .app { height: 100%; display: block; overflow: hidden; }
+  .embed .stage { position: absolute; inset: 0; height: auto; min-height: 0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="masthead">
+    <div class="seal" id="seal" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow" id="eyebrow"></p>
+      <h1 id="title"></h1>
+      <p class="hint">拖曳旋轉 · 滾輪或雙指縮放 · 點模型上的部位看說明</p>
+      <a class="back" href="/AR">← 二十四節氣貓總覽</a>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="status" id="status">正在搭建節氣貓…</div>
+  </div>
+
+  <nav class="dock" aria-label="檢視控制">
+    <div class="chips" id="chips"></div>
+    <div class="actions">
+      <button class="btn" id="spin" type="button" aria-pressed="true"><span class="dot"></span>自動旋轉</button>
+      <button class="btn" id="furBtn" type="button" aria-pressed="true"><span class="dot"></span>蓬鬆毛</button>
+      <button class="btn" id="decorBtn" type="button" aria-pressed="true" hidden><span class="dot"></span>節氣點綴</button>
+      <button class="btn primary" id="act" type="button">行禮</button>
+      <button class="btn" id="reset" type="button">回到全貌</button>
+    </div>
+  </nav>
+
+  <aside class="info" id="info" aria-live="polite">
+    <span class="tag" id="infoTag"></span>
+    <h2 id="infoName"></h2>
+    <p id="infoText"></p>
+    <div class="palette" id="palette"></div>
+    <div class="spec" id="spec"></div>
+  </aside>
+</div>
+
+<script src="boot.js?v=605974cbbc"></script>
+<script src="/vendor/three-r128/three.min.js"></script>
+<script src="/vendor/three-r128/OrbitControls.js"></script>
+<script src="neko-core.js?v=0cf461e8e6"></script>
+<script src="18-shuangjiang.js?v=e85491f9eb"></script>
+</body>
+</html>

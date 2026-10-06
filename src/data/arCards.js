@@ -25,6 +25,8 @@
 //   `/ar/card/:slug` 的「熱區校對」會把 rect 直接畫在卡面上，用眼睛就能複核。
 // ============================================================================
 
+import { AR_CATS } from './arCats.js'
+
 /**
  * 2027 小寒（丁未年 · 中華民國116年）
  *
@@ -63,6 +65,13 @@ export const CARD_2027_XIAOHAN = {
   // ⚠️ 實際付印尺寸尚未定案，這裡先取「A4 短邊 210mm ＋ 稿件實際長寬比」，
   //    確保比例正確。尺寸定了要改成真值（比例必須與印出來的一致）。
   sizeMM: [288, 210],
+  // ★★★ 3D 主角（2026-10-04 使用者指定）：**小寒節氣貓「八爺黑貓」取代結球白菜**。
+  //   `/ar/model/:slug` 的 3D 角色、對話的說話者、第一個話題都改用它。
+  //   ⚠️ 卡面熱區（含「結球白菜」那一格）與 `napa-cabbage` 物件**保留不動**：
+  //      實體卡已經印出「掃描主物件：結球白菜」，掃描時的熱區提示、卡片頁、
+  //      徽章與小挑戰都還靠它。只有模型頁不再把白菜當主角。
+  //      卡面改版時再把那一格換掉。
+  character: 'cat-xiaohan',
   hotspots: [
     {
       // 卡面左側綠色虛線框，框內含插圖與「掃描主物件：結球白菜」那行字
@@ -309,7 +318,40 @@ export const CARD_OBJECTS = {
   },
 }
 
+// ★★★ 二十四節氣貓（2027 年曆）：每一隻都是 CARD_OBJECTS 的一員（id `cat-<節氣代號>`），
+//   有 `model.cat` 的物件在模型頁用節氣貓引擎畫（見 ArModel.jsx）。資料由 arCats.js 自動產生。
+for (const c of AR_CATS) CARD_OBJECTS[c.id] = c
+
 export const OFFICIAL_CARDS = [CARD_2027_XIAOHAN]
 
+/**
+ * ★★★ 沒有實體卡的節氣也有 `/ar/model/2027-<節氣代號>`（2026-10-04 使用者指定「24 隻都可以看」）。
+ *
+ * ⚠️ 這些是**模型頁專用**的虛擬頁，刻意**不放進 OFFICIAL_CARDS**：
+ *    `/AR` 會把 OFFICIAL_CARDS 全部編進辨識目標、徽章與卡片頁也逐張列出——
+ *    沒有 `.mind`／卡面圖的項目放進去，掃描頁會壞、卡片頁會開出空白卡。
+ *    所以 `cardBySlug`（卡片頁、掃描）維持只認實體卡，模型頁改用 `arPageBySlug`。
+ * ⚠️ 已有實體卡的節氣（小寒）不再產生虛擬頁：同一個節氣兩個網址會互相搶。
+ */
+export const TERM_CAT_PAGES = AR_CATS
+  .filter(c => !OFFICIAL_CARDS.some(card => card.term === c.term))
+  .map(c => ({
+    id: `cat-page-2027-${c.link.props.slug}`,
+    slug: `2027-${c.link.props.slug}`,
+    title: `2027 ${c.term}`,
+    subtitle: `${c.term}節氣貓`,
+    term: c.term,
+    year: 2027,
+    character: c.id,
+    hotspots: [],
+    virtual: true,
+  }))
+
 export const cardBySlug = (slug) => OFFICIAL_CARDS.find(c => c.slug === slug) || null
+/** 模型頁用：實體卡優先，其次是節氣貓的虛擬頁。 */
+export const arPageBySlug = (slug) => cardBySlug(slug) || TERM_CAT_PAGES.find(c => c.slug === slug) || null
 export const objectForHotspot = (hs) => (hs?.objectId ? CARD_OBJECTS[hs.objectId] : null) || null
+/** 這一頁的 3D 主角：有 `character` 就用它，否則沿用 primary 熱區的物件（舊卡的寫法）。 */
+export const characterOf = (card) => (card?.character ? CARD_OBJECTS[card.character] : null)
+  ?? objectForHotspot(card?.hotspots?.find(h => h.primary) ?? card?.hotspots?.[0])
+  ?? null

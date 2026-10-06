@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { OFFICIAL_CARDS, objectForHotspot } from '../data/arCards.js'
+import { AR_CATS } from '../data/arCats.js'
 import { createSession, inAppBrowser } from '../ar/session.js'
 import { isCompat, enableCompatAndReload, disableCompat } from '../ar/tfjsCompat.js'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -743,6 +744,24 @@ export default function Scan() {
               </Link>
             </div>
           ))}
+        </div>
+
+        {/* ── 二十四節氣貓 3D 圖鑑（2026-10-04）──
+            不必掃卡也能看：每一隻都開在 /ar/model/2027-<節氣>（小寒那隻就是官方卡的主角）。 */}
+        <div className="scan-cats">
+          <SectionHead title="二十四節氣貓 3D" />
+          <p className="muted" style={{ fontSize: 'var(--text-xs)', margin: '0 0 var(--space-3)' }}>
+            2027 年曆的節氣貓都做成了 3D 模型，點開就能轉動觀察、跟牠聊天。
+          </p>
+          <div className="scan-cats-grid">
+            {AR_CATS.map(c => (
+              <Link key={c.id} screen="arModel" params={{ slug: `2027-${c.link.props.slug}` }} className="scan-cat tap">
+                <img src={c.model.thumb} alt="" loading="lazy" decoding="async" />
+                <b>{c.term}</b>
+                <span className="muted">{c.name}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </>
