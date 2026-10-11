@@ -111,6 +111,24 @@ ranges() {
 }
 HAVE_PY=0
 if python3 -c 'pass' >/dev/null 2>&1; then HAVE_PY=1; fi
+# ★★ 版本清單一律用 --format=json 讀，不可用 value(...)（2026-10-11 在正式專案實測踩到）：
+#   gcloud 對 secrets versions 的 value() 會套顯示轉換——state 印成小寫「enabled」、createTime 印成
+#   「2026-09-09T11:20:16」（去掉時區、換成本機時間）。照 API 文件寫的「ENABLED」去比對就全部對不上 ⇒
+#   每個 Secret 都被判成「看不懂」而略過（本機模擬的假 gcloud 印的是 API 原值，所以測不出來）。
+#   JSON 是 API 原始值（ENABLED、…Z），不受顯示轉換影響。
+# 每行輸出：版本號<TAB>狀態（大寫）<TAB>createTime<TAB>scheduledDestroyTime（沒有就印 -，
+#   避免空欄被 read 併掉造成錯位）
+VERS_PY='
+import json, sys
+for v in json.load(sys.stdin) or []:
+    n = str(v.get("name", "")).rsplit("/", 1)[-1]
+    st = str(v.get("state", "")).upper()
+    print("\t".join([n, st, v.get("createTime") or "-", v.get("scheduledDestroyTime") or "-"]))
+'
+list_versions() {   # 用法：list_versions <secret>——成功時印出上面那種格式，失敗回傳非 0（錯誤在 $ERR）
+  gcloud secrets versions list "$1" --project="$PROJECT_ID" --format=json >"$TMPD/vers.json" 2>"$ERR" \
+    && python3 -I -c "$VERS_PY" <"$TMPD/vers.json" 2>"$ERR"
+}
 
 echo
 echo "== 成本清理：Secret 舊版本 ＋ Artifact Registry 舊映像 =="
@@ -225,17 +243,17 @@ plan_secret() {   # 用法：plan_secret <secret> [report]（report＝只報告�
     return 0
   fi
   ttl="$(cat "$TMPD/ttl")"
-  # scheduledDestroyTime 放最後一欄：它常常是空的，而 read 會把連續的 tab 併成一個分隔，
-  # 空欄放中間的話後面的欄位會往前錯位。createTime 一定有值。
-  if ! listing="$(gcloud secrets versions list "$s" --project="$PROJECT_ID" \
-                    --format='value(name,state,createTime,scheduledDestroyTime)' 2>"$ERR")"; then
-    echo "   · $s：列不出版本，略過（$(errline)）"
+  if [ "$HAVE_PY" != "1" ]; then
+    echo "   · $s：找不到可用的 python3（用來解析版本清單），略過"
     return 0
   fi
-  # name 可能是完整資源名稱 projects/N/secrets/S/versions/V，也可能只有 V；一律取最後一段
-  while read -r vname vstate vtime vsched; do
-    if [ -z "$vname" ]; then continue; fi
-    n="${vname##*/}"
+  if ! listing="$(list_versions "$s")"; then
+    echo "   · $s：列不出版本，略過（$(errlast)）"
+    return 0
+  fi
+  while read -r n vstate vtime vsched; do
+    if [ -z "$n" ]; then continue; fi
+    if [ "$vsched" = "-" ]; then vsched=""; fi
     if ! [[ "$n" =~ ^[0-9]+$ ]]; then bad=1; continue; fi
     # ★ 最新版本要連 DESTROYED 一起算，所以放在 case 之前：`latest` 是「最後建立」的版本、不論狀態
     #   （官方 API：「latest is an alias to the most recently created SecretVersion」）。
@@ -475,7 +493,7 @@ if [ "$TODO_COUNT" -gt 0 ]; then
     done
     FAILS=$((FAILS + fail_n))
     # 重新列一次，報告「實際」剩幾個（不是預估）
-    if after="$(gcloud secrets versions list "$s" --project="$PROJECT_ID" --format='value(name,state)' 2>/dev/null)"; then
+    if after="$(list_versions "$s")"; then
       left="$(awk '$2=="ENABLED" || $2=="DISABLED" {c++} END {print c+0}' <<<"$after")"
     else
       left="?（重新列出失敗）"

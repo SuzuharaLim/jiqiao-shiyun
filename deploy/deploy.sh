@@ -120,7 +120,9 @@ put_secret() {   # 用法：put_secret <secret 名稱> <值>
   # 最新的版本（不論狀態——:latest 就是指「最後建立」的那個）是什麼時候建的。讀不到／看不懂 ⇒ 當成太新、照加。
   ctime="$(gcloud secrets versions list "$name" --sort-by=~createTime --limit=1 \
              --format='value(createTime)' 2>/dev/null || true)"
-  if [ -z "$ctime" ] || ! ts="$(date -u -d "$ctime" +%s 2>/dev/null)" \
+  # ⚠️ value() 印的 createTime 是 gcloud 轉成「本機時間、不帶時區」的字串（例：2026-09-09T11:20:16），
+  #   所以用 date -d（本機時區）解析，不可加 -u——本機不是 UTC 時會差好幾個小時。
+  if [ -z "$ctime" ] || ! ts="$(date -d "$ctime" +%s 2>/dev/null)" \
      || [ $(( $(date -u +%s) - ts )) -lt $(( GRACE_HOURS * 3600 )) ]; then
     why="最新版本建立未滿 ${GRACE_HOURS} 小時（或讀不到建立時間），:latest 可能還沒更新，不比對、照加"
   # ⚠️ 尾巴補一個 x 再去掉：$(…) 會吃掉結尾的換行，不補的話值結尾有換行時永遠比對不上。

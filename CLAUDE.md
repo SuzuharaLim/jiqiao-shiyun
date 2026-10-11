@@ -993,6 +993,17 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 
 ---
 
+## ★★★ 雲端費用：Secret 版本與映像會隨部署累積（2026-10-11 對帳）
+
+2026-09 帳單 Secret Manager 452 TWD（8 月 372）、比 Cloud SQL（約 300）還貴，站上幾乎沒人。成因是舊版 `deploy.sh` 每跑一次就對每把金鑰 `versions add`、從不清舊版本（實測 `jiqiao-db-pass` 累積 111 個版本）。
+- **Secret Manager 按「有效版本數」逐月計費，停用（DISABLED）的版本也算**，只有銷毀（DESTROYED）免費（官方價目表：「active when it's in any of these states: Enabled and Disabled」）。⇒ 「停用舊版本」省不到錢。
+- `deploy/deploy.sh` 的 `put_secret`：值沒變就不加版本（最新版本未滿 `GRACE_HOURS`=24 小時則照加——`latest` 別名不是強一致）。
+- `deploy/cost-cleanup.sh` 是清理的**唯一實作**（deploy.sh 部署成功後呼叫，也可單獨跑；`DRY_RUN=1` 只報告）：每個 Secret 只留最新 ENABLED 版本、其餘**銷毀（不可復原）**；被 Cloud Run 以版本號釘住的不動、讀不到服務設定就一個都不銷毀；並對 `cloud-run-source-deploy` 設清理規則（以 `$SERVICE` 開頭的套件留最新 5 個）。互動執行會先列計畫問 y/N。
+- ★★ **讀 gcloud 的版本清單要用 `--format=json`，不可用 `value(...)`**（正式專案實測）：gcloud 對 secrets versions 的 `value()` 會套顯示轉換，state 印成小寫 `enabled`、createTime 印成不帶時區的本機時間。照 API 文件比對 `ENABLED` 就全部對不上 ⇒ 第一版每個 Secret 都被判「看不懂」而略過。**本機的假 gcloud 是照 API 文件寫的，所以 112 項測試全過、上線第一次就失效**——模擬外部工具的輸出，要拿真實輸出（`| cat -A`）對過一次。
+- ⚠️ **新增 Secret 名稱時要加進 `cost-cleanup.sh` 的 `SECRETS` 清單**，否則它的舊版本永遠不會被清。手動 `versions add` 之後也要跑一次 cleanup。
+- `.gitattributes` 鎖 `*.sh text eol=lf`：這台 Windows 開了 `core.autocrlf=true`，CRLF 的腳本在 Cloud Shell 會直接壞。
+- ⚠️ 這台機器的 `python`／`python3` 是 WindowsApps 的空殼，**吃 stdin（heredoc）時什麼都不做也不報錯**；要跑 Python 用 `py`。
+
 ## 推播（Web Push）
 
 `server/push.js` 自寫 RFC 8291／8292，**零第三方相依**（node crypto 即可：ES256 簽章＋ECDH＋AES-128-GCM）。
