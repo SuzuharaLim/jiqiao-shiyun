@@ -77,6 +77,7 @@ echo "INSTANCE_CONNECTION_NAME=$INSTANCE_CONNECTION_NAME"
 ```bash
 printf "%s" "$DB_PASS" | gcloud secrets create jiqiao-db-pass --data-file=-
 # 若已存在要更新：printf "%s" "$DB_PASS" | gcloud secrets versions add jiqiao-db-pass --data-file=-
+# ⚠️ 更新後舊版本會一直計費（停用也一樣，只有銷毀才不收）→ 部署完跑 bash deploy/cost-cleanup.sh（見「成本與關閉」）
 ```
 
 ### 1.5 授權服務帳號（★必做，否則第一次部署會失敗）
@@ -310,6 +311,51 @@ gcloud run  services  delete "$SERVICE" --region="$REGION"
 gcloud artifacts repositories delete cloud-run-source-deploy --location="$REGION"   # 刪建置映像
 ```
 db-f1-micro + Cloud Run min-instances=0 是最省的示範組合；正式流量再把 `--tier` 調大。
+
+### Secret 舊版本與舊映像：`deploy/cost-cleanup.sh`
+
+Secret Manager 按「**有效版本數** × 月」計費（每個版本約 1.9 TWD／月，帳單帳戶前 6 個免費），而
+**停用（DISABLED）的版本也算有效**，只有**銷毀（DESTROYED）**才不收錢（官方價目表：
+<https://cloud.google.com/secret-manager/pricing>）。舊版 `deploy.sh` 每跑一次就無條件加一個新版本、
+從不清舊的，版本只增不減——2026-09 帳單 Secret Manager 452 TWD，比 Cloud SQL 還貴，而站上幾乎沒人。
+`gcloud run deploy --source .` 推進 `cloud-run-source-deploy` 的映像也一樣只會堆（Artifact Registry）。
+
+現在 `deploy.sh` 只在值真的變了才加新版本（最新版本建立未滿 24 小時時仍照加，因為 `:latest` 那段時間可能還讀到舊值；
+沒有讀取 Secret 值的權限時——例如只有 Editor 角色——無法比對，也照加），並在第 [5/6] 步部署成功後跑 `deploy/cost-cleanup.sh`：
+在 Cloud Shell 直接跑時會先**列出要銷毀的版本、問 y/N** 才動手（沒有東西要清時不會問）；非互動執行（CI）才不問直接清。
+`SKIP_CLEANUP=1` 可跳過；清理失敗不算部署失敗。也可以單獨跑：
+
+```bash
+cd ~/jiqiao
+export PROJECT_ID="你的-gcp-專案id"       # 沒設就用 gcloud config 的專案——Cloud Shell 會跟著主控台目前開的專案，務必確認
+DRY_RUN=1 bash deploy/cost-cleanup.sh     # 只報告：每個 Secret 有幾個有效版本、會銷毀哪些——什麼都不改
+bash deploy/cost-cleanup.sh               # 列出計畫 → 問 y/N → 才動手（ASSUME_YES=1 不問）
+```
+
+`DRY_RUN`／`ASSUME_YES` 只認 `0`（或不設）與 `1`／`true`／`yes`，其他值腳本直接中止、什麼都不改。
+
+它做兩件事：
+
+1. **Secret**——只碰 `deploy.sh` 會建的 `jiqiao-db-pass`、`jiqiao-gmail-pass`、`jiqiao-smtp-pass`、`jiqiao-resend-key`、
+   `jiqiao-sendgrid-key`、`jiqiao-brevo-key`、`jiqiao-openai-key`（不存在的略過）：
+   每個只留**最新的 ENABLED 版本**，其餘（含已停用的）**銷毀**。新增 Secret 時要加進腳本的 `SECRETS` 清單。
+   下面「接你的 GPT」舊寫法建的 `openai-key` 只**報告**它有幾個版本、哪些可以銷毀，不自動動它
+   （名稱不帶 `jiqiao-`，腳本無法確定只有這個服務在用）。
+2. **Artifact Registry**——在 `cloud-run-source-deploy` 設清理規則：**名稱以服務名稱（`jiqiao`）開頭的映像**，
+   每個保留最新 5 個版本，其餘超過 14 天的刪除（背景作業，約一天內生效）。這個 repo 是同一區所有 `--source` 部署共用的，
+   規則只限定在這個服務的映像（前綴比對，`jiqiao-staging` 這類同名開頭的也算在內）。
+   正在服務的修訂版本不受影響（Cloud Run 部署時已複製映像）；要把流量切回舊修訂版本的話，回最近 5 次部署以內的。
+   repo 上已經有別的清理規則時不動它；**在這個專案讀不到 `jiqiao` 服務時也不設**（多半是開錯專案）。
+
+> ⚠️ **銷毀不可復原**（沒開延遲銷毀時是立即、永久的）。安全規則：
+> - 每個 Secret **最新的 ENABLED 版本永遠不動**——Cloud Run 掛的是 `:latest`、新執行個體啟動時才讀，動到它下一次冷啟動整站起不來。
+> - 最新版本是 DISABLED 或 DESTROYED（`:latest` 讀不到）、或一個 ENABLED 版本都沒有的 Secret **整個不動**，只提醒（要人看的異常狀態）。
+> - 被 Cloud Run（這個服務的目前設定或任一修訂版本、同專案其他服務的目前設定）用版本號釘住的版本不動；**讀不到服務設定時一個都不銷毀**。
+> - 最新版本建立未滿 24 小時，會多留前一版，下次再清。
+> - **不要用「停用」代替銷毀**——停用的版本照樣收費。
+>
+> 對帳：帳單 → 報表 → 服務選 Secret Manager、依 SKU 分組。費用在「Secret version replica storage」
+> ＝版本數造成的（這支清得掉）；在「Secret access operations」＝讀取次數（這支清不掉，要另外查）。
 
 ---
 

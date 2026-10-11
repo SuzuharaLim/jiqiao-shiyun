@@ -90,6 +90,7 @@ $env:MAIL_REPLY_TO="chengqi1943@gmail.com"                        # 使用者按
 printf 'abcdefghijklmnop' | gcloud secrets create jiqiao-gmail-pass --data-file=-
 # 已存在要更新時改用：
 # printf 'newpassword' | gcloud secrets versions add jiqiao-gmail-pass --data-file=-
+# ⚠️ 更新後舊版本會一直計費（停用也一樣，只有銷毀才不收）→ 掛上服務後跑一次：bash deploy/cost-cleanup.sh
 
 # 2) 授權 Cloud Run 讀取
 PROJECT_NUMBER="$(gcloud projects describe "$(gcloud config get-value project)" --format='value(projectNumber)')"

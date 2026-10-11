@@ -2,3 +2,8 @@
 # ⚠️ 這是 A-Frame 的 minified bundle，被行尾正規化改過就可能壞掉，
 #    而且它在 diff 裡是一整行、毫無可讀性，只會把 code review 洗版。
 public/vendor/* binary
+
+# 部署腳本一律 LF：它們在 Cloud Shell（Linux bash）執行，而這台 Windows 開了 core.autocrlf=true，
+# 不鎖的話下次 checkout 會變 CRLF ⇒ `set -o pipefail\r` 直接報錯、整支腳本跑不起來
+# （從 Windows 打包 zip 上傳 Cloud Shell 那條路一定會中）。
+*.sh text eol=lf

@@ -13,6 +13,8 @@ SQL_INSTANCE="${SQL_INSTANCE:-jiqiao-db}"
 DB_NAME="${DB_NAME:-jiqiao}"
 DB_USER="${DB_USER:-jiqiao_app}"
 SERVICE="${SERVICE:-jiqiao}"
+# 與 deploy/cost-cleanup.sh 共用：Secret 最新版本建立未滿這麼多小時，就當作「:latest 可能還沒更新」（見 put_secret）
+GRACE_HOURS="${GRACE_HOURS:-24}"
 : "${DB_PASS:?請先 export DB_PASS（請用 URL 安全字串：openssl rand -hex 24；勿用 base64，'/' 會破壞種子連線字串）}"
 
 # 變數健檢：錯的值（例如把 Email 誤設成 REGION）會讓 gcloud 丟出難懂的端點錯誤，這裡先擋下來
@@ -23,6 +25,9 @@ if ! printf '%s' "$REGION" | grep -qE '^[a-z]+-[a-z]+[0-9]$'; then
 fi
 if printf '%s' "$PROJECT_ID" | grep -qE '[@ ]'; then
   echo "❌ PROJECT_ID 看起來不對：[$PROJECT_ID]（不該含 @ 或空白）"; exit 1
+fi
+if ! printf '%s' "$GRACE_HOURS" | grep -qE '^[0-9]+$'; then
+  echo "❌ GRACE_HOURS 要是整數（小時），例：24"; exit 1
 fi
 # 殘留的端點覆寫會讓部署一直失敗，先清掉
 gcloud config unset api_endpoint_overrides/run >/dev/null 2>&1 || true
@@ -85,12 +90,60 @@ gcloud sql users create "$DB_USER" --instance="$SQL_INSTANCE" --password="$DB_PA
 INSTANCE_CONNECTION_NAME="$(gcloud sql instances describe "$SQL_INSTANCE" --format='value(connectionName)')"
 echo "   INSTANCE_CONNECTION_NAME=$INSTANCE_CONNECTION_NAME"
 
+# ★★ Secret 只在「值真的變了」才加新版本（put_secret）。
+#    Secret Manager 按「有效版本數」逐月計費——**停用的版本也算**，只有銷毀才不收。
+#    原本這裡每跑一次就無條件 `gcloud secrets versions add`、從不清舊版本 ⇒
+#    每次部署多 1～7 個版本、只增不減。2026-09 帳單：Secret Manager 452 TWD（8 月 372），
+#    比 Cloud SQL（約 300）還貴，而站上幾乎沒人。已經累積的舊版本由 deploy/cost-cleanup.sh
+#    銷毀（第 [5/6] 步部署成功後自動跑）。
+# ⚠️ 值只走「參數 → printf（內建指令）→ stdin」，不進任何外部指令的命令列、也不印出來。
+# ★★ 「沒變、不加」要三件事都成立：最新版本建立已超過 GRACE_HOURS 小時、讀得到 :latest、值相同。
+#    `latest` 別名不在強一致保證內（官方：「This doesn't apply when you access a secret version using
+#    aliases or latest」，其他操作「typically converge within minutes, but may take a few hours」，
+#    https://docs.cloud.google.com/secret-manager/docs/reference/consistency ）。
+#    ⇒ 剛加完新版本的這段時間，:latest 可能還讀到前一個值。若這時又用「前一個值」部署（例如換了 DB 密碼
+#    又改回來），比對會說「沒變」而不加，但真正的 :latest 是另一個值——第 [1/6] 步剛把資料庫密碼設成
+#    這次的值，新執行個體卻讀到另一個 ⇒ 連不上資料庫、整站起不來。原本的「無條件加」不會走到這個狀態。
+#    所以最新版本還太新就一律照加（多出來的由 cost-cleanup.sh 清），只信「放了夠久」的 :latest。
+#    ⚠️ 「最新版本多新」靠 versions list 判斷，而 list 官方也沒說是強一致——這是把機率壓低，不是保證。
+# ★ 讀不到值時要講清楚為什麼，不可一律寫「值有變」：Editor 角色沒有 secretmanager.versions.access
+#   （官方：「the roles/editor and roles/viewer do not」），卻有 versions.add ⇒ 每次都會照加，
+#   而畫面說「值有變」是一句不實的話，也讓人看不出「不加版本」這件事對他根本沒生效。
+put_secret() {   # 用法：put_secret <secret 名稱> <值>
+  local name="$1" val="$2" cur="" ctime ts why errf
+  if ! gcloud secrets describe "$name" >/dev/null 2>&1; then
+    printf "%s" "$val" | gcloud secrets create "$name" --data-file=- >/dev/null
+    echo "   已建立 Secret：$name"
+    return 0
+  fi
+  errf="$(mktemp)"
+  # 最新的版本（不論狀態——:latest 就是指「最後建立」的那個）是什麼時候建的。讀不到／看不懂 ⇒ 當成太新、照加。
+  ctime="$(gcloud secrets versions list "$name" --sort-by=~createTime --limit=1 \
+             --format='value(createTime)' 2>/dev/null || true)"
+  if [ -z "$ctime" ] || ! ts="$(date -u -d "$ctime" +%s 2>/dev/null)" \
+     || [ $(( $(date -u +%s) - ts )) -lt $(( GRACE_HOURS * 3600 )) ]; then
+    why="最新版本建立未滿 ${GRACE_HOURS} 小時（或讀不到建立時間），:latest 可能還沒更新，不比對、照加"
+  # ⚠️ 尾巴補一個 x 再去掉：$(…) 會吃掉結尾的換行，不補的話值結尾有換行時永遠比對不上。
+  elif cur="$(gcloud secrets versions access latest --secret="$name" 2>"$errf" && printf x)"; then
+    if [ "${cur%x}" = "$val" ]; then
+      cur=""; rm -f "$errf"
+      echo "   Secret 沒變，不加新版本：$name"
+      return 0
+    fi
+    why="值有變"
+  elif grep -q 'PERMISSION_DENIED' "$errf"; then
+    why="沒有讀取 Secret 值的權限（需 Owner 或 Secret Manager Secret Accessor），無法比對、照加"
+  else
+    # 最新版本被停用／銷毀、或其他錯誤：照加剛好把壞掉的 :latest 修好
+    why="讀不到目前的 :latest（最新版本可能已停用或銷毀），無法比對、照加"
+  fi
+  cur=""; rm -f "$errf"
+  printf "%s" "$val" | gcloud secrets versions add "$name" --data-file=- >/dev/null
+  echo "   已加新版本：$name——$why（舊版本由 deploy/cost-cleanup.sh 清）"
+}
+
 echo "== [2/6] Secret（DB 密碼）=="
-if gcloud secrets describe jiqiao-db-pass >/dev/null 2>&1; then
-  printf "%s" "$DB_PASS" | gcloud secrets versions add jiqiao-db-pass --data-file=-
-else
-  printf "%s" "$DB_PASS" | gcloud secrets create jiqiao-db-pass --data-file=-
-fi
+put_secret jiqiao-db-pass "$DB_PASS"
 
 # 選用金鑰：執行前若 export 了下列任一變數，會自動建 Secret 並在部署時掛上。
 #   寄信 Gmail：export GMAIL_USER=you@gmail.com GMAIL_APP_PASSWORD="16碼應用程式密碼"
@@ -108,11 +161,7 @@ for pair in "GMAIL_APP_PASSWORD:jiqiao-gmail-pass" "SMTP_PASS:jiqiao-smtp-pass" 
             "BREVO_API_KEY:jiqiao-brevo-key" "OPENAI_API_KEY:jiqiao-openai-key"; do
   VAR="${pair%%:*}"; SECRET="${pair##*:}"; VAL="${!VAR:-}"
   [ -z "$VAL" ] && continue
-  if gcloud secrets describe "$SECRET" >/dev/null 2>&1; then
-    printf "%s" "$VAL" | gcloud secrets versions add "$SECRET" --data-file=- >/dev/null
-  else
-    printf "%s" "$VAL" | gcloud secrets create "$SECRET" --data-file=- >/dev/null
-  fi
+  put_secret "$SECRET" "$VAL"
   EXTRA_SECRETS="${EXTRA_SECRETS},${VAR}=${SECRET}:latest"
   EXTRA_SECRET_NAMES="${EXTRA_SECRET_NAMES:-} $SECRET"
   echo "   已設定 Secret：$SECRET"
@@ -179,6 +228,28 @@ gcloud run deploy "$SERVICE" --source . --region="$REGION" --allow-unauthenticat
   --update-env-vars="NODE_ENV=production,INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},DB_USER=${DB_USER},DB_NAME=${DB_NAME}${EXTRA_ENVS}" \
   --update-secrets="DB_PASS=jiqiao-db-pass:latest${EXTRA_SECRETS}" \
   --cpu=1 --memory=512Mi --min-instances=0 --max-instances=3
+
+# ★★ 部署成功之後才清：Secret 的舊版本（停用的也照收費，只有銷毀不收）＋ 映像清理規則。
+#    理由與安全規則見 deploy/cost-cleanup.sh 開頭——那支是清理的唯一實作，這裡只負責呼叫。
+#    放在部署「之後」：每個 Secret 最新的 ENABLED 版本永遠不動，而 :latest 是新執行個體啟動時才解析，
+#    正在跑的不受影響。⚠️ 清理失敗不算部署失敗（服務已經上線了），所以用 || 接住。
+#    跳過： SKIP_CLEANUP=1 bash deploy/deploy.sh　　只看報告： DRY_RUN=1 bash deploy/cost-cleanup.sh
+# ★★ 互動執行（在 Cloud Shell 直接跑）時**不帶 ASSUME_YES**：cost-cleanup.sh 會先列出計畫、問 y/N 才動手。
+#    銷毀不可復原，不該是「照常部署」順手發生、沒看過計畫的副作用——尤其改版後第一次部署會一口氣銷毀
+#    累積的上百個版本。沒有東西要改時它不會問。非互動（CI／管線，沒人能回答）才自動 ASSUME_YES=1。
+# ⚠️ SKIP_CLEANUP 看不懂的值（true／yes／打錯）一律當「跳過」：不清只是多付錢，清錯不可復原。
+case "${SKIP_CLEANUP:-0}" in
+  0|'') SKIP_CLEANUP=0 ;;
+  *)    SKIP_CLEANUP=1 ;;
+esac
+if [ "$SKIP_CLEANUP" = "1" ]; then
+  echo "   成本清理：已略過（有設 SKIP_CLEANUP）"
+else
+  if [ -t 0 ]; then CLEAN_YES="${ASSUME_YES:-0}"; else CLEAN_YES=1; fi
+  PROJECT_ID="$PROJECT_ID" REGION="$REGION" SERVICE="$SERVICE" GRACE_HOURS="$GRACE_HOURS" \
+    ASSUME_YES="$CLEAN_YES" bash "$(dirname "$0")/cost-cleanup.sh" \
+    || echo "   ⚠️ 成本清理沒有完整完成（不影響這次部署）；之後可單獨重跑： bash deploy/cost-cleanup.sh"
+fi
 
 echo "== [6/6] 回填 APP_URL & 驗證 =="
 # APP_URL 決定驗證信/重設密碼信裡的連結網址。已綁自訂網域就優先用它，
