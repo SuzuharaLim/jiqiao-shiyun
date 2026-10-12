@@ -1,4 +1,4 @@
-import { dayFor, offsetFromDate, todayOffset } from '../src/data/almanac.js'
+import { dayFor, offsetFromDate, todayOffset, taipeiToday } from '../src/data/almanac.js'
 import { TERM_ARTICLES, articleBySlug } from '../src/data/termArticle.js'
 import { DEITY_ARTICLES, deityBySlug } from '../src/data/deityArticle.js'
 import { DREAMS } from '../src/data/dream.js'
@@ -202,7 +202,12 @@ export function matchRoute(pathname) {
 // 靜態頁內容的最後實質更新日。⚠️ 手動維護——改了頁面內容才更新這個值。
 // 不可用 new Date()：那會讓爬蟲每次來都看到「全站今天剛更新」，
 // Google 認定 lastmod 不可信之後會整份忽略，連日期頁的真實 lastmod 一起賠掉。
-const SITE_LASTMOD = '2026-07-31'
+// ★ 2026-10-04：App 整個搬到 /app/ ⇒ sitemap 裡**每一個網址都在那天換了**。
+//   這個值原本一直停在 07-31，於是 sitemap-index 對 Google 宣稱「五份都沒變過」，
+//   而 GSC 從 10/6 起冒出三百多頁「Google 選了不同的標準網址」——它手上還是舊網址。
+//   ⚠️ 之後改了頁面內容照樣手動往後推；搬家日另存在 APP_MOVED_AT（那個不會再變）。
+const APP_MOVED_AT = '2026-10-04'
+const SITE_LASTMOD = '2026-10-04'
 
 // ⚠️ ……但「每天真的都在變」的那兩頁是例外，不可沿用上面那個固定值。
 //    首頁與 /almanac/day 顯示的是**今天**的宜忌，內容天天不同；宣告成三天前更新，
@@ -211,7 +216,10 @@ const SITE_LASTMOD = '2026-07-31'
 //    失去可信度而被整份忽略），這裡是「內容確實每天變的頁面才填今天」。
 const DAILY_PATHS = new Set(['/', '/almanac/day'])
 const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const lastmodFor = (path, fallback) => (DAILY_PATHS.has(path) ? isoOf(new Date()) : fallback)
+// ⚠️「今天」一律取台北的日曆日（taipeiToday），不可用 new Date()：Cloud Run 是 UTC，
+//    台灣時間 00:00–08:00 會算成前一天（正式容器有設 TZ，但不該靠那個巧合）。
+const todayIso = () => isoOf(taipeiToday())
+const lastmodFor = (path, fallback) => (DAILY_PATHS.has(path) ? todayIso() : fallback)
 
 // ── 日期頁的滾動視窗 ────────────────────────────────────────────
 // ⚠️ 原本一次送出前後各一年共 731 頁。改成滾動視窗的理由有三，都是機制層面的：
@@ -753,7 +761,10 @@ export function analyticsTags({ ga4 = '', clarity = '', verify = '' } = {}) {
 }
 
 export function injectMeta(html, { origin, pathname, route, analytics, image, imageAlt }) {
-  const url = origin + (pathname === '/' ? '/' : pathname)
+  // canonical／og:url 一律不帶尾斜線（路由 regex 結尾是 `/?$`，`/x/` 與 `/x` 都會回 200）。
+  // /app 底下的尾斜線已在 index.js 301 掉；這一層補的是 `/ar/card/:slug/` 這類根目錄路徑
+  // （那裡不能做去斜線轉址：Windows 本機 static 會把 `/AR` 轉成 `/AR/`，兩邊會繞成迴圈）。
+  const url = origin + (pathname === '/' ? '/' : (pathname.replace(/\/+$/, '') || '/'))
   // 條目頁的 meta 由該條目的真實內容產生，不用路由表那句通用的。
   // ⚠️ 沒有這一層的話，24 個節氣頁會共用同一句 description，
   //    Google 會判成重複內容而只留一頁——條目化的努力就白費了。
@@ -816,44 +827,62 @@ export function injectMeta(html, { origin, pathname, route, analytics, image, im
 // ── sitemap 分拆 ────────────────────────────────────────────────
 // ⚠️ 全部塞在一份裡的話，GSC 只會給你一個總數，出問題時不知道是哪一類沒被收。
 //    拆開之後可以逐類看「已建立索引 ÷ 提交數」，低於 60% 就代表那一類有品質問題。
-export const SITEMAP_KINDS = ['core', 'daily', 'solarterms', 'auspicious', 'entries']
+// ★ 'legacy' 是**暫時的**（2026-10-12 加，見下方 legacyRows 的說明與移除條件）。
+export const SITEMAP_KINDS = ['core', 'daily', 'solarterms', 'auspicious', 'entries', 'legacy']
+
+// sitemap-index 對每一份回報「那份檔案最後一次真的變動」的日子：
+//   core       ——今天：裡面的 /app 與 /app/almanac/day 是「今天」的曆頁（lastmodFor）
+//   daily      ——今天：滾動視窗，每天前後各移一格
+//   auspicious ——月份頁是「今年＋明年」，每年 1/1（台北日）換一批 ⇒ max(SITE_LASTMOD, 今年 1/1)
+//   legacy     ——凍結的快照，回報 LEGACY_LIST_UPDATED（清單最後一次補網址的日子）
+//   其餘       ——SITE_LASTMOD
+// ⚠️ 不可整份 index 一律填今天——理由同 SITE_LASTMOD 的註解：說謊的 lastmod 會讓 Google 整份不信。
+const SITEMAP_DAILY_KINDS = new Set(['core', 'daily'])
+function indexLastmod(kind, lastmod) {
+  if (SITEMAP_DAILY_KINDS.has(kind)) return todayIso()
+  if (kind === 'legacy') return LEGACY_LIST_UPDATED
+  if (kind === 'auspicious') {
+    const jan1 = `${taipeiToday().getFullYear()}-01-01`
+    return jan1 > lastmod ? jan1 : lastmod
+  }
+  return lastmod
+}
 
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8"?>'
 const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 
 export function buildSitemapIndex(origin, lastmod = SITE_LASTMOD) {
   const items = SITEMAP_KINDS.map(k =>
-    `  <sitemap><loc>${origin}/sitemap-${k}.xml</loc><lastmod>${lastmod}</lastmod></sitemap>`)
+    `  <sitemap><loc>${origin}/sitemap-${k}.xml</loc><lastmod>${indexLastmod(k, lastmod)}</lastmod></sitemap>`)
   return [XML_HEAD, `<sitemapindex xmlns="${NS}">`, ...items, '</sitemapindex>', ''].join(String.fromCharCode(10))
 }
 
-export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
-  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  const item = (loc, mod) => `  <url><loc>${loc}</loc><lastmod>${mod}</lastmod></url>`
-  const wrap = (rows) => [XML_HEAD, `<urlset xmlns="${NS}">`, ...rows, '</urlset>', ''].join(String.fromCharCode(10))
+// 各分類的 [網址, lastmod]（現行網址）。legacy 是另一份凍結的清單，見 legacyRows。
+function sitemapRows(origin, kind, lastmod) {
+  const item = (loc, mod) => [loc, mod]
 
   if (kind === 'core') {
     // ★ 根目錄是承氣有限公司官網（server/corporate.js），不在 App 的路由表裡，要另外列。
-    return wrap([item(origin + '/', lastmod), ...ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
-      .map(r => item(origin + toPublic(r.path), lastmodFor(r.path, r.lastmod || lastmod)))])
+    return [item(origin + '/', lastmod), ...ROUTES.filter(r => !r.noindex && !r.path.includes(':'))
+      .map(r => item(origin + toPublic(r.path), lastmodFor(r.path, r.lastmod || lastmod)))]
   }
   if (kind === 'daily') {
     const rows = []
-    const now = new Date()
-    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const base = taipeiToday()
     for (let i = -DAILY_PAST; i <= DAILY_FUTURE; i++) {
       const d = new Date(base); d.setDate(d.getDate() + i)
-      const ds = iso(d)
+      const ds = isoOf(d)
       rows.push(item(`${origin}/app/almanac/day/${ds}`, ds))
     }
-    return wrap(rows)
+    return rows
   }
   if (kind === 'solarterms') {
-    return wrap(TERM_ARTICLES.map(a => item(`${origin}/app/solarterms/${a.slug}`, lastmod)))
+    return TERM_ARTICLES.map(a => item(`${origin}/app/solarterms/${a.slug}`, lastmod))
   }
   if (kind === 'auspicious') {
     // 總表 + 當年與明年的月份頁（吃「9月搬家吉日」這種查詢）
-    const y = new Date().getFullYear()
+    // 「今年」取台北的年份（同 todayIso）：1/1 00:00–08:00 在 UTC 還是去年。
+    const y = taipeiToday().getFullYear()
     const rows = []
     for (const p of PURPOSES) {
       rows.push(item(`${origin}/app/auspicious/${p.slug}`, lastmod))
@@ -863,19 +892,126 @@ export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
         }
       }
     }
-    return wrap(rows)
+    return rows
   }
   if (kind === 'entries') {
-    return wrap([
+    return [
       ...DEITY_ARTICLES.map(d => item(`${origin}/app/deities/${d.slug}`, lastmod)),
       ...DREAM_PAGES.map(d => item(`${origin}/app/dream/${encodeURIComponent(d.k[0])}`, lastmod)),
       ...GLOSSARY.map(g => item(`${origin}/app/glossary/${g.slug}`, lastmod)),
       ...SPOTS.map(x => item(`${origin}/app/sun/${x.slug}`, lastmod)),
       ...PRODUCTS.map(x => item(`${origin}/app/store/${x.slug}`, lastmod)),
       ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
-    ])
+    ]
   }
-  return wrap([])
+  if (kind === 'legacy') return legacyRows(origin)
+  return []
+}
+
+// ── 搬家用的舊網址 sitemap（暫時）──────────────────────────────────
+// ★★★ 為什麼要把「已經 301 走了的舊網址」放進 sitemap：
+//   2026-10-04 App 從 / 搬到 /app/，舊網址全部 301。但 Google 只有在**重新爬到**
+//   舊網址時才看得到那個 301；它手上那一批舊網址不會因為新 sitemap 換了就自己去重爬。
+//   結果是 GSC 從 10/6 起冒出 362 頁「重複網頁，Google 選了不同的標準網址」
+//   （它仍把舊網址當標準網址），「頁面會重新導向」卻只有 7 頁——絕大多數還沒被重爬。
+//   ⇒ Google 的網站搬遷指引就是這樣做：**暫時**保留一份列出舊網址的 sitemap，
+//     讓爬蟲回去抓、看到 301、把訊號轉到新網址。
+// ⚠️ GSC 會把這份裡的每一筆報成「頁面會重新導向」／「已提交的網址會重新導向」。
+//    **那是正確的、預期中的結果，不是錯誤**，不要去「修」它。
+// ★★★ 收錄範圍是**凍結的快照**，不是「現行路由表去掉 /app」：
+//    Google 搬遷指引要的是「搬家前存下來的舊網址對照」。從現行清單推導會隨時間漂移——
+//    擇日月份頁的年份跟著今年走（2027-01-01 起會丟掉 96 個真的舊網址、混進 96 個從沒
+//    提交過的），搬家後才開放索引的路由也會被冒充成舊網址（實測 /calendar/make 搬家前是
+//    noindex，從現行清單推導就混進來了）。
+//    下面的值逐字取自搬家前最後一版 sitemap（4ce4808 的前一版，以 2026-10-03 產生的
+//    core／solarterms／auspicious／entries 四份，325 個非日期網址）。**排除**：
+//      `/`        ——現在是官網，不是轉址（列進來就是叫 Google 把官網當成舊 App 首頁）
+//      `/AR`、`/ar/*` ——從來沒搬過家，舊網址＝新網址
+//    每一筆都必須真的 301 到 /app 的雙胞胎（index.js 的 matchRoute('/app' + 舊路徑)）。
+// ⚠️ 不放進扁平的 /sitemap.xml：那份是「現行網址」的相容版，混進轉址網址只會讓它變髒。
+// ⚠️★ **移除條件**：GSC「重複網頁，Google 選了不同的標準網址」降到接近 0，
+//    或 2027-01-31 之後（以先到者為準）——屆時從 SITEMAP_KINDS 拿掉 'legacy'、
+//    刪掉這一段即可。301 本身**永久保留**，不要一起刪。
+const LEGACY_STATIC = [
+  '/explore', '/create', '/almanac', '/almanac/day', '/auspicious', '/sun', '/quiz', '/glossary',
+  '/editorial', '/myths', '/almanac/year', '/solarterms', '/ingredients', '/festivals', '/flowers',
+  '/proverbs', '/deities', '/zodiac', '/match', '/bone', '/dream', '/name', '/appendix/food',
+  '/appendix/units', '/appendix/ganzhi', '/today', '/challenges', '/leaderboard', '/store',
+  '/subscription', '/about', '/privacy', '/terms', '/contact',
+]
+const LEGACY_ENTRIES = {
+  solarterms: 'lichun yushui jingzhe chunfen qingming guyu lixia xiaoman mangzhong xiazhi xiaoshu dashu liqiu chushu bailu qiufen hanlu shuangjiang lidong xiaoxue daxue dongzhi xiaohan dahan',
+  deities: 'mazu tudigong guansheng guanyin xuantian baosheng wenchang chenghuang yuelao zhusheng wangye dizang',
+  dream: '水 下雨 落水 沐浴 火 太陽 掉牙 頭髮 流血 死人 棺材 蛇 龍 狗 魚 飛 撿到錢 掉錢 金 結婚 懷孕 哭 房子 鏡子 山 樹 門',
+  glossary: 'jianchu pengzu shousiri sanniangsha huangdao ershiba-xiu chongsha taishen ganzhi taisui',
+  sun: 'taipei yangmingshan jiufen taichung alishan sun-moon-lake hehuanshan tainan kaohsiung kenting hualien taitung yilan penghu',
+  store: 'planner collection-set digital-stickers enterprise',
+}
+const LEGACY_AUSPICIOUS = { purposes: 'moving wedding opening bed groundbreaking travel worship burial', years: [2026, 2027] }
+// 日期頁：搬家前的 sitemap 自 2026-07-31（6d0a3b7）起是滾動視窗「過去 30／未來 60」，
+//   最早可能提交的是 07-31 −30 ＝ 07-01；最晚是搬家當天（舊站仍在線到部署為止）10-04 +60 ＝ 12-03。
+//   ⚠️ 從來沒有「前後各一年」在線過幾個月：±365 那版在 git 裡只活了約 80 分鐘
+//      （005f6a8 21:58 → 6d0a3b7 23:18，同一晚）。
+//   ⚠️ 範圍外的舊日期頁若真的在 Google 索引裡（例如經由前後日連結爬到），要拿 GSC 匯出的
+//      實際網址來補，**不可把範圍改成開放式**（例如到「今天＋365」）——那等於把站規否決過的
+//      「日期頁全量 sitemap」偷渡回來（見 DAILY_PAST 的註解），而且清單會每天變。
+const LEGACY_DAYS = ['2026-07-01', '2026-12-03']
+// ★ 依 GSC 證據補的舊網址（2026-10-12，取自「成效 → 網頁」匯出 2026-07-14～10-12）：
+//   這些網址在搬家前的 sitemap 裡**不存在**，但 Google 有給它們曝光 ⇒ 它手上確實有這些舊網址
+//   （多半是沿著曆頁的前後日連結、解夢頁的相關詞連結爬到的），一樣要讓它回去看到 301。
+//   ⚠️ 只收「GSC 實際出現過」的，不可為了湊齊而補推導出來的網址（理由同 LEGACY_DAYS）。
+//   ⚠️ 每一筆都已實測 301 → /app 的雙胞胎 → 200。
+const LEGACY_FROM_GSC = {
+  dream: '喪事 墜落 被追 貓 迷路 鳥',
+  days: [
+  '2025-08-02', '2025-08-07', '2025-08-09', '2025-08-14', '2025-08-25', '2025-08-27', '2025-08-28', '2025-08-30',
+  '2025-08-31', '2025-09-04', '2025-09-09', '2025-09-15', '2025-09-16', '2025-09-21', '2025-09-22', '2025-09-24',
+  '2025-09-28', '2025-09-30', '2025-10-02', '2025-10-03', '2025-10-04', '2025-10-05', '2025-10-06', '2025-10-07',
+  '2025-10-10', '2025-10-11', '2025-10-30', '2025-11-01', '2025-11-05', '2025-11-06', '2025-11-09', '2025-11-10',
+  '2025-11-11', '2025-11-16', '2025-11-19', '2025-12-03', '2025-12-04', '2025-12-06', '2025-12-15', '2025-12-31',
+  '2026-01-01', '2026-01-04', '2026-01-08', '2026-01-10', '2026-01-12', '2026-01-15', '2026-01-19', '2026-01-20',
+  '2026-01-22', '2026-01-24', '2026-01-28', '2026-02-02', '2026-02-05', '2026-02-07', '2026-02-10', '2026-02-11',
+  '2026-02-13', '2026-02-28', '2026-03-21', '2026-03-26', '2026-04-02', '2026-04-06', '2026-04-11', '2026-04-21',
+  '2026-04-23', '2026-04-26', '2026-04-27', '2026-04-30', '2026-05-03', '2026-05-04', '2026-05-10', '2026-05-16',
+  '2026-05-31', '2026-06-02', '2026-06-05', '2026-06-06', '2026-06-14', '2026-06-15', '2026-06-16', '2026-06-18',
+  '2026-06-20', '2026-06-21', '2026-06-27', '2026-12-04', '2026-12-09', '2026-12-10', '2026-12-11', '2026-12-12',
+  '2026-12-14', '2026-12-15', '2026-12-17', '2026-12-20', '2026-12-22', '2026-12-23', '2026-12-26', '2026-12-29',
+  '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-04', '2027-01-05', '2027-01-06', '2027-01-07',
+  '2027-01-09', '2027-01-11', '2027-01-12', '2027-01-13', '2027-01-14', '2027-01-17', '2027-01-19', '2027-01-20',
+  '2027-01-22', '2027-01-23', '2027-01-27', '2027-01-29', '2027-02-07', '2027-02-11', '2027-02-14', '2027-02-17',
+  '2027-02-23', '2027-02-26', '2027-03-04', '2027-03-11', '2027-03-16', '2027-03-22', '2027-03-23', '2027-03-27',
+  '2027-03-29', '2027-04-05', '2027-04-06', '2027-04-08', '2027-04-11', '2027-04-17', '2027-04-18', '2027-04-26',
+  '2027-05-01', '2027-05-13', '2027-05-14', '2027-06-05', '2027-06-13', '2027-06-16', '2027-06-21', '2027-06-27',
+  '2027-07-05', '2027-07-12', '2027-07-21', '2027-07-22',
+  ],
+}
+// lastmod ＝ 搬家日：這些網址就是在那一天從「內容頁」變成「轉址」的。
+// ⚠️ 之後若依 GSC 證據補了網址，**這個值不動**，要推的是下面的 LEGACY_LIST_UPDATED。
+const LEGACY_LASTMOD = APP_MOVED_AT
+// 這份清單最後一次被改動的日子（sitemap-index 用它回報 legacy 這一份的 lastmod）。
+// ⚠️ 與上面那個不同：每一筆網址的 lastmod 仍是搬家日（它們是那天變成轉址的），
+//    但「清單本身」在補 GSC 證據那天變了，index 要誠實說這份檔案哪天變過。補網址時要推這個值。
+const LEGACY_LIST_UPDATED = '2026-10-12'
+function legacyRows(origin) {
+  const month = (m) => String(m).padStart(2, '0')
+  const paths = [
+    ...LEGACY_STATIC,
+    ...Object.entries(LEGACY_ENTRIES).flatMap(([sec, slugs]) =>
+      slugs.split(' ').map(s => `/${sec}/${encodeURIComponent(s)}`)),
+    ...LEGACY_AUSPICIOUS.purposes.split(' ').flatMap(p => [`/auspicious/${p}`,
+      ...LEGACY_AUSPICIOUS.years.flatMap(y => Array.from({ length: 12 }, (_, i) => `/auspicious/${p}/${y}-${month(i + 1)}`))]),
+  ]
+  const [from, to] = LEGACY_DAYS.map(s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) })
+  for (const d = from; d <= to; d.setDate(d.getDate() + 1)) paths.push(`/almanac/day/${isoOf(d)}`)
+  paths.push(...LEGACY_FROM_GSC.dream.split(' ').map(s => `/dream/${encodeURIComponent(s)}`),
+    ...LEGACY_FROM_GSC.days.map(d => `/almanac/day/${d}`))
+  return paths.map(p => [origin + p, LEGACY_LASTMOD])
+}
+
+export function buildSitemapKind(origin, kind, lastmod = SITE_LASTMOD) {
+  const item = ([loc, mod]) => `  <url><loc>${loc}</loc><lastmod>${mod}</lastmod></url>`
+  return [XML_HEAD, `<urlset xmlns="${NS}">`, ...sitemapRows(origin, kind, lastmod).map(item), '</urlset>', '']
+    .join(String.fromCharCode(10))
 }
 
 export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
@@ -893,8 +1029,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
   // 而原本 730 天全部擠在同一個網址上，等於一個都吃不到。
   // lastmod 用該日期本身：那一頁的內容就是那一天的曆訊，不會再變動。
   const days = []
-  const now = new Date()
-  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const base = taipeiToday()   // 台北的今天（同 todayIso 的理由）
   for (let i = -DAILY_PAST; i <= DAILY_FUTURE; i++) {
     const d = new Date(base)
     d.setDate(d.getDate() + i)
@@ -915,7 +1050,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
     ...OFFICIAL_CARDS.map(c => item(`${origin}/ar/card/${c.slug}`, lastmod)),
     ...PURPOSES.flatMap(p => [
       item(`${origin}/app/auspicious/${p.slug}`, lastmod),
-      ...[new Date().getFullYear(), new Date().getFullYear() + 1].flatMap(yy =>
+      ...[taipeiToday().getFullYear(), taipeiToday().getFullYear() + 1].flatMap(yy =>
         Array.from({ length: 12 }, (_, m) =>
           item(`${origin}/app/auspicious/${p.slug}/${yy}-${String(m + 1).padStart(2, '0')}`, lastmod))),
     ]),

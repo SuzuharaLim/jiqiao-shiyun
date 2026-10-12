@@ -51,4 +51,6 @@ Disallow: /app/me
 # 對每一類分別統計「已建立索引 ÷ 已提交」——只宣告扁平版的話，
 # GSC 只會給一個總數，出問題時不知道是哪一類沒被收，分檔等於白做。
 # 扁平版仍然保留供相容，但不主動宣告（宣告兩份會讓同一批網址重複提交）。
+# 2026-10 起 index 裡另有暫時的 sitemap-legacy.xml（/app 搬家前的舊網址，全部 301），
+# 讓 Google 回去重爬看到轉址；移除條件見 server/seo.js 的 legacyRows()。
 Sitemap: https://chengqi.tw/sitemap-index.xml

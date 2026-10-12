@@ -2867,13 +2867,28 @@ if (existsSync(distDir)) {
         .send(corporateHtml({ origin: originOf(req) }))
     }
 
+    // ★ `/app/` 底下帶尾斜線的網址 → 301 去掉尾斜線（保留查詢字串）：
+    //   `/app/` → `/app`、`/app/explore/` → `/app/explore`、`/app/?date=…` → `/app?date=…`。
+    //   路由 regex 結尾是 `/?$`，兩種寫法都回 200、canonical 各指自己＝同一頁兩個網址。
+    //   標準形是**不帶斜線**的：toPublic()、sitemap、官網按鈕、manifest 都是它。
+    //   ⚠️ 只限 `/app/` 開頭，不做全站去尾斜線：Windows 本機 `/AR` 會被 static 轉成 `/AR/`
+    //      （撞到 dist/ar/），在那裡去斜線會繞成轉址迴圈。`/app` 底下沒有實體目錄（dist/app
+    //      不存在），static 不會反向加斜線 ⇒ 這裡不會迴圈。根目錄的 `/ar/*` 由 injectMeta 的
+    //      canonical 去斜線處理。
+    if (req.path.startsWith('/app/') && req.path.endsWith('/')) {
+      return res.redirect(301, req.path.replace(/\/+$/, '') + qs)
+    }
+
     // ★★★ 搬家前的舊網址一律 301 到 /app/…（2026-10-04）。
     //   Google 已收錄的頁面、別人貼出去的連結、已寄出的驗證信／重設密碼信，
     //   都還指向沒有前綴的舊網址。301 會把排名一起帶過去；回 404 等於整站從零開始。
     //   ⚠️ `/AR`、`/ar/*` 本來就在根目錄，toLogical 不是 null，不會走進這裡。
+    //   ⚠️ 先去掉尾斜線再接 /app：舊的 `/explore/` 要一跳到標準形 `/app/explore`，
+    //      不可先轉到 `/app/explore/` 再轉一次（Google：轉址要直接指到最終目的地）。
     if (toLogical(req.path) == null) {
-      const legacy = '/app' + req.path
-      if (matchRoute(legacy) || /^\/(verify-email|reset-password)\/?$/.test(req.path)) {
+      const bare = req.path.replace(/\/+$/, '')
+      const legacy = '/app' + bare
+      if (matchRoute(legacy) || /^\/(verify-email|reset-password)$/.test(bare)) {
         return res.redirect(301, legacy + qs)
       }
     }
