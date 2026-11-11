@@ -5,7 +5,7 @@ import { TopBar, SectionHead, Link, Breadcrumb, Disclaimer } from '../components
 import Icon from '../components/Icon.jsx'
 import AnimatedText from '../components/AnimatedText.jsx'
 import { useNav } from '../store/nav.jsx'
-import { cardBySlug, objectForHotspot } from '../data/arCards.js'
+import { OFFICIAL_CARDS, cardBySlug, characterOf, objectForHotspot, topicsOf } from '../data/arCards.js'
 import SpeakButton from '../components/SpeakButton.jsx'
 // 小挑戰抽成共用元件——`/ar/model/:slug` 也要同一段動線
 import ArQuiz from '../components/ArQuiz.jsx'
@@ -76,7 +76,7 @@ export default function CardPage({ slug }) {
 
   // 預設選中主物件——進頁就有東西看，不必先猜要點哪裡
   useEffect(() => {
-    if (card && !hotId) setHotId(card.hotspots.find(h => h.primary)?.id ?? null)
+    if (card && !hotId) setHotId((topicsOf(card).find(h => h.primary) ?? topicsOf(card)[0])?.id ?? null)
   }, [card, hotId])
 
   if (!card) {
@@ -93,8 +93,10 @@ export default function CardPage({ slug }) {
     )
   }
 
-  const hot = card.hotspots.find(h => h.id === hotId) ?? null
-  const obj = objectForHotspot(hot)
+  const spots = topicsOf(card)
+  const hot = spots.find(h => h.id === hotId) ?? null
+  // ★ 沒有任何主題的卡（節氣貓卡）就介紹那隻節氣貓，頁面才不會只剩一張圖。
+  const obj = objectForHotspot(hot) ?? (spots.length ? null : characterOf(card))
 
   return (
     <>
@@ -107,7 +109,9 @@ export default function CardPage({ slug }) {
 
         <h1 className="cardp-h1">{card.title}　<small>{card.subtitle}</small></h1>
         <p className="muted cardp-lead">
-          沒有實體卡片也能看：點卡面上任一個標記，就會跳出那個物件的內容。
+          {card.hotspots.some(h => h.rect)
+            ? '沒有實體卡片也能看：點卡面上任一個標記，就會跳出那個物件的內容。'
+            : '沒有實體卡片也能看：下面是這張卡的內容，也可以直接打開 3D 節氣貓跟牠聊天。'}
           有卡片的話到 <Link screen="scan">AR 掃描</Link> 用鏡頭對著它。
         </p>
 
@@ -128,7 +132,7 @@ export default function CardPage({ slug }) {
                 </p>
               </div>
             )}
-          {card.hotspots.map(h => (
+          {card.hotspots.filter(h => h.rect).map(h => (
             <button
               key={h.id}
               className={`cardp-hot${h.id === hotId ? ' on' : ''}${h.primary ? ' primary' : ''}`}
@@ -152,10 +156,28 @@ export default function CardPage({ slug }) {
           ))}
         </div>
 
+        {/* ★ 沒有卡面位置的主題（topics）：列成一排按鈕，作用與點熱區相同。 */}
+        {spots.some(h => !h.rect) && (
+          <div className="chips cardp-topics" role="group" aria-label="這張卡的主題">
+            {spots.filter(h => !h.rect).map(h => (
+              <button key={h.id} className={`chip tap${h.id === hotId ? ' on' : ''}`}
+                aria-pressed={h.id === hotId}
+                onClick={() => { setHotId(h.id); setWant3d(false) }}>
+                {h.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="cardp-tools">
-          <button className="btn-ghost tap" onClick={() => setShowBox(v => !v)}>
-            {showBox ? '關閉' : '開啟'}熱區校對（顯示座標）
-          </button>
+          <Link screen="arModel" params={{ slug: card.slug }} className="btn-primary tap">
+            打開 3D 節氣貓
+          </Link>
+          {card.hotspots.some(h => h.rect) && (
+            <button className="btn-ghost tap" onClick={() => setShowBox(v => !v)}>
+              {showBox ? '關閉' : '開啟'}熱區校對（顯示座標）
+            </button>
+          )}
           {/* ── 沒有印表機也要能測 AR ──
               ⚠️ 為什麼需要這個：四角偵測找的是**紙與桌面的邊界**，而卡面的紙緣是白的
                  （實測原稿紙緣內側灰階 254、98% 高於 240）。在瀏覽器裡直接看這張圖時
@@ -222,8 +244,10 @@ export default function CardPage({ slug }) {
               </p>
             )}
 
-            {/* 有 3D 模型的物件才給按鈕。⚠️ 不點不下載 three。 */}
-            {obj.model && (
+            {/* 有 3D 模型的物件才給按鈕。⚠️ 不點不下載 three。
+                ⚠️ 節氣貓（`model.cat`）不走 ProduceStage——那支只會畫結球白菜；
+                   節氣貓由上方「打開 3D 節氣貓」進模型頁看。 */}
+            {obj.model && !obj.model.cat && (
               want3d
                 ? (
                   <Suspense fallback={<div className="ui-skeleton" style={{ height: 320 }} />}>
@@ -271,6 +295,19 @@ export default function CardPage({ slug }) {
             )}
           </div>
         )}
+
+        {/* ★ 24 張卡：從 /AR 的「沒有相機」出口進來的人一律先落在第一張，
+            要在這裡換到自己手上那一張。用真的 <a href>（Link），爬蟲也走得到每一張。 */}
+        <SectionHead title="其他節氣卡" />
+        <div className="chips cardp-others">
+          {OFFICIAL_CARDS.map(c => (
+            <Link key={c.id} screen="arCard" params={{ slug: c.slug }}
+              className={`chip tap${c.id === card.id ? ' on' : ''}`}
+              aria-current={c.id === card.id ? 'page' : undefined}>
+              {c.term}
+            </Link>
+          ))}
+        </div>
 
         <Disclaimer>
           卡面的節氣、農曆與交節日期由站內天文演算逐日產生；品種與產地引用農業部開放資料。

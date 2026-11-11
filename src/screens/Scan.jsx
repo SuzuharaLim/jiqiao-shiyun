@@ -21,6 +21,9 @@ import SpeakButton from '../components/SpeakButton.jsx'
 //    交還給 React 之後，那一類 bug 在結構上就不可能發生了。
 // ============================================================================
 
+// ★ 24 張卡共用一個 .mind：CARD（第 0 張）只用來取目標檔網址、跑自我測試、
+//   給「沒有相機」的人一個起點（卡片頁可以再換到他手上那一張）。
+//   **認出來的是哪一張看 `st.card`**，跳轉與狀態列都用它。
 const CARD = OFFICIAL_CARDS[0] ?? null
 
 /**
@@ -79,7 +82,7 @@ export default function Scan() {
       video: videoRef.current,
       canvas: canvasRef.current,
       container: stageRef.current,
-      card: CARD,
+      cards: OFFICIAL_CARDS,
       onState: setSt,
     })
     sessionRef.current = s
@@ -115,11 +118,15 @@ export default function Scan() {
   //    狀態列說得斬釘截鐵，實際上什麼都不會來。
   const hotspotRef = useRef(null)
   hotspotRef.current = hotspot
+  // ⚠️ 認出來的卡同理用 ref 讀：它與 phase 在同一次 emit 裡更新，但不放進 deps
+  //    才不會在 QR／比對先後到達時重排計時器（理由同上）。
+  const foundRef = useRef(null)
+  foundRef.current = st.card ?? null
   useEffect(() => {
     if (phase !== 'locked' || jumpedRef.current || !CARD) return
     jumpedRef.current = true
     const t = setTimeout(() => {
-      push('arModel', { slug: CARD.slug, hotspot: hotspotRef.current?.id ?? null })
+      push('arModel', { slug: (foundRef.current ?? CARD).slug, hotspot: hotspotRef.current?.id ?? null })
     }, JUMP_DELAY_MS)
     return () => clearTimeout(t)
   }, [phase, push])
@@ -283,10 +290,11 @@ export default function Scan() {
               {phase !== 'opening' && phase !== 'loading' && CARD && (
                 <div className="scan-fallback-out">
                   <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
-                    沒有相機？看示範內容 ›
+                    沒有相機？看卡片內容 ›
                   </Link>
                   <p className="muted">
-                    那一頁不用相機也能走完：卡面、六個物件、3D 白菜、小挑戰、徽章都在。
+                    那一頁不用相機也能看：卡面、節氣貓的介紹與 3D 模型都在，
+                    頁面下方可以換到你手上那一張。
                   </p>
                 </div>
               )}
@@ -375,7 +383,7 @@ export default function Scan() {
                       <br />② <b>你掃的那張圖與網站的目標檔不是同一版</b>。
                       最快的驗證法：直接用這支手機打開
                       <b> chengqi.tw/ar/card/{CARD?.slug} </b>
-                      看網站上的卡面長什麼樣，再跟你螢幕上那張比對。
+                      （頁面下方可以換到其他節氣）看網站上的卡面長什麼樣，再跟你手上那張比對。
                     </p>
                   </>
                 ) : selfTest.stage === 'match' ? (
@@ -444,7 +452,7 @@ export default function Scan() {
                               而且完全不需要相機。
                             </p>
                             <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
-                              改看這張卡的完整內容 ›
+                              改看卡片內容（不需要相機）›
                             </Link>
                             <p className="muted">
                               如果願意幫我們一把：按下方「掃描診斷 → 複製診斷資料」貼給我們，
@@ -466,7 +474,7 @@ export default function Scan() {
                     </p>
                     {/* 同上：任何一種「沒救了」都要給得出下一步，不可以只報錯誤碼。 */}
                     <Link screen="arCard" params={{ slug: CARD.slug }} className="btn-primary tap">
-                      改看這張卡的完整內容 ›
+                      改看卡片內容（不需要相機）›
                     </Link>
                   </>
                 ))}
@@ -478,8 +486,8 @@ export default function Scan() {
         <div className="scan-status">
           <span aria-live="polite">
             {phase === 'locked' ? (st.viaQr
-              ? `認出來了（用卡片上的 QR）：${CARD.title}——正在開啟 3D 模型…`
-              : `認出來了：${CARD.title}——正在開啟 3D 模型…`)
+              ? `認出來了（用卡片上的 QR）：${(st.card ?? CARD).title}——正在開啟 3D 模型…`
+              : `認出來了：${(st.card ?? CARD).title}——正在開啟 3D 模型…`)
               : phase === 'searching' ? (qrOnly
                 ? '這台手機不支援圖像辨識——請改對準卡片左下角的 QR code'
                 : imageTrackingDead
@@ -494,7 +502,7 @@ export default function Scan() {
           <div className="scan-hit ui-enter">
             <div className="scan-hit-hd">
               <b>{obj.name}</b>
-              <span className="muted">{CARD?.title}</span>
+              <span className="muted">{(st.card ?? CARD)?.title}</span>
             </div>
             {obj.line && <p className="scan-hit-line">{obj.line}</p>}
             {obj.facts?.length > 0 && (
@@ -544,7 +552,7 @@ export default function Scan() {
               相機會開，但永遠不會認出卡片。
             </p>
             <p>
-              <b>解法：</b><code>npm run card:mind -- 卡面稿.png</code>，
+              <b>解法：</b><code>npm run card:all -- 卡面圖資料夾</code>，
               產出的檔案會自動放進 <code>public/ar/targets/</code>。
             </p>
           </div>
@@ -721,29 +729,21 @@ export default function Scan() {
           )}
         </div>
 
-        {/* ── 官方卡片 ── */}
+        {/* ── 官方卡片 ──
+            ★ 2026-11-11 起 24 張節氣卡全部可以掃（共用一個 .mind）。不再一張一大塊列出來
+              （24 塊會把下面的圖鑑推到很遠），改成一段說明；每一張的卡片頁與 3D 在下方圖鑑。 */}
         <div className="scan-official">
           <SectionHead title="官方節氣卡片" />
-          {OFFICIAL_CARDS.map(c => (
-            <div key={c.id} className={`scan-card${phase === 'locked' && c.id === CARD?.id ? ' on' : ''}`}>
-              <div className="scan-card-hd">
-                <b>{c.title}</b>
-                <span className="muted">{c.subtitle}</span>
-                {phase === 'locked' && c.id === CARD?.id && <span className="scan-card-live">正在掃描中</span>}
-              </div>
-              <p className="muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
-                拿這張卡對著鏡頭就會跳出內容；點卡面上的物件可以換內容。
-              </p>
-              <div className="scan-card-spots">
-                {c.hotspots.map(h => (
-                  <span key={h.id} className={`chip${hotspot?.id === h.id ? ' on' : ''}`}>{h.label}</span>
-                ))}
-              </div>
-              <Link screen="arCard" params={{ slug: c.slug }} className="btn-ghost tap">
-                沒有實體卡？看這張卡的完整內容 ›
-              </Link>
+          <div className={`scan-card${phase === 'locked' ? ' on' : ''}`}>
+            <div className="scan-card-hd">
+              <b>2027 節氣卡・共 {OFFICIAL_CARDS.length} 張</b>
+              {phase === 'locked' && st.card && <span className="scan-card-live">認出：{st.card.title}</span>}
             </div>
-          ))}
+            <p className="muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
+              每一張都能掃：把卡片有節氣貓插畫的那一面對著鏡頭，就會跳到那一隻節氣貓。
+              月曆那一面不用掃。
+            </p>
+          </div>
         </div>
 
         {/* ── 二十四節氣貓 3D 圖鑑（2026-10-04）──

@@ -3897,10 +3897,15 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   position: absolute; left: 2px; top: 2px; font: 10px/1.3 ui-monospace, monospace;
   color: var(--ink); background: rgba(255, 255, 255, .9); padding: 1px 3px; border-radius: 3px;
 }
-.cardp-tools { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
+.cardp-tools { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* 主題按鈕（沒有卡面位置的主題）與「其他節氣卡」：會有 6～24 顆，換行不橫捲——
+   橫捲時大部分節氣藏在畫面外，使用者不知道還有。 */
+.cardp-topics, .cardp-others { flex-wrap: wrap; overflow-x: visible; }
 
 .cardp-obj { padding: 0 var(--space-4) var(--space-4); flex: 0 0 auto; }
 .cardp-line { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+/* .atx 預設白字（給相機疊層用），放在白底泡泡裡會整句隱形 */
+.cardp-line .atx { color: inherit; }
 .cardp-facts { margin: var(--space-3) 0; }
 .cardp-facts > div { display: flex; gap: var(--space-3); margin-bottom: var(--space-2); }
 .cardp-facts dt { flex: 0 0 4.5em; font-size: var(--text-xs); color: var(--muted); font-weight: 600; }
@@ -3946,6 +3951,7 @@ h2.sech { margin: 0; font-size: var(--text-xs); }
   .screen-arCard .body > * { grid-column: 1 / -1; }
   .screen-arCard .cardp-stage { grid-column: 1; margin-inline: var(--space-4) 0; width: auto; }
   .screen-arCard .cardp-tools { grid-column: 1; padding-inline: var(--space-4) 0; }
+  .screen-arCard .cardp-topics { grid-column: 1; padding-inline: var(--space-4) 0; }
   .screen-arCard .cardp-obj { grid-column: 2; grid-row: span 2; padding-inline: 0 var(--space-4); }
 }
 

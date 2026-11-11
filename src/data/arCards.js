@@ -1,31 +1,25 @@
 // ============================================================================
 // 官方 AR 卡包 —— 進 /AR 就能掃，不必自己登錄
 //
-// 原本 /AR 只能「使用者自己登錄目標」，所以拿到實體明信片的人進到這一頁
-// 其實沒東西可掃——那是工程 demo 的動線，不是消費者動線。
+// ★★★★ 2026-11-11 起卡面全面換成「承氣名片」那一套 24 張節氣貓卡
+//   （PDF 除了前兩頁之外的單數頁＝卡面，雙數頁是月曆背面）。
+//   24 張全部可以掃，共用**一個** .mind（`src/data/arTargets.js`，由
+//   `npm run card:all` 產生）；比對成功時的 targetIndex 對回這裡的 `targetIndex`。
 //
-// ⚠️ 使用者自訂登錄（從圖片檔／相機）**完全保留**，只是降級成進階選項。
+// ⚠️ 新卡面沒有熱區（`hotspots: []`）：整張是一幅插畫，沒有舊稿那種
+//    「掃描主物件」「身體保健」框。認出來就直接跳去 `/ar/model/:slug` 看那隻節氣貓。
+//    熱區機制（`src/ar/cardSpace.js` 的 hitTest、卡片頁的熱區校對）完整保留，
+//    之後的卡面若再有分區，填 `hotspots` 即可。
+//    熱區座標系：卡面正規化 0..1，原點左上，相對目標圖。
 //
-// 熱區座標系：卡面正規化 0..1，原點左上，相對「拉正後的目標圖」。
-// 命中判定見 src/ar/cardSpace.js 的 hitTest（不做物件偵測）。
-//
-// ★ 下面的 rect 已於 2026-08 用**真的設計稿**重量（1831×1335），不是目測：
-//   用色塊偵測找出每個元素的包圍盒（綠虛線框、藍框、橘色帶、粉紅格、粉色櫻花、
-//   橘色果實），再套上收邊的座標轉換。
-//
-//   ⚠️ 關鍵：熱區是相對「**加了收邊之後**的目標圖」，不是原稿。
-//      `card:install` 的收邊在四邊各內縮 73px（白邊 33 ＋ 深色框 40，取短邊的
-//      2.5% 與 3.0%）而**畫布尺寸不變**，所以原稿座標要這樣換：
-//        x' = 73/1831 + x × 1685/1831 = 0.039869 + x × 0.920262
-//        y' = 73/1335 + y × 1189/1335 = 0.054682 + y × 0.890637
-//      ⚠️ x 與 y 的縮放**不一樣**（內縮量以 px 計是四邊相等，換成比例就不等）。
-//      用同一個係數套兩軸會讓熱區在長邊方向整體偏移約 3%＝卡片上約 4mm。
-//
-//   熱區標錯不會拋錯，只會讓使用者點不到東西或點到卡片另一邊。
-//   `/ar/card/:slug` 的「熱區校對」會把 rect 直接畫在卡面上，用眼睛就能複核。
+// ⚠️ 小寒卡原本的六個主題（結球白菜／身體保健／當令農產／曆頁／臘八粥／櫻花）
+//    與它們的小挑戰、徽章**全部保留**，改掛在 `topics`（沒有卡面位置的主題）：
+//    `badge-term-xiaohan` 要集滿那幾枚小挑戰徽章，拿掉的話那一枚就永遠拿不到。
+//    舊卡面的熱區 rect 在 git 歷史裡（a32180f 之前的 arCards.js）。
 // ============================================================================
 
 import { AR_CATS } from './arCats.js'
+import { AR_MIND, AR_TARGETS } from './arTargets.js'
 
 /**
  * 2027 小寒（丁未年 · 中華民國116年）
@@ -38,110 +32,36 @@ import { AR_CATS } from './arCats.js'
  * - 臘八節 1/15 ＝ 農曆十二月初八 ✓
  * - 丁未年 · 羊 ✓；2027-01-01 為星期五，週欄位對齊 ✓
  */
-export const CARD_2027_XIAOHAN = {
-  id: 'card-2027-xiaohan',
-  slug: '2027-xiaohan',
-  title: '2027 小寒',
-  subtitle: '一月五日交節',
-  term: '小寒',
-  year: 2027,
-  // ★★★ 座標系：**原稿（未收邊）1831×1335**。2026-08-10 起。
-  //
-  // 底下所有 hotspot 的 rect、以及 .mind 的特徵點，全部以這張原稿為基準。
-  // ⚠️ 三者必須是**同一版**，否則會「追得到但整個貼歪」：
-  //      target（卡片頁底圖與熱區校對）／mindTarget（追蹤）／hotspots（rect）
-  // ⚠️ 先前用的是**收邊版**（內容內縮到畫布的 0.905）。實測拿收邊版的 .mind 去掃
-  //    原稿，投影出的卡片外框比原稿**大 10.5%**——那不是 bug，是它在找收邊版的紙緣。
-  //    但實際印出來的是原稿，所以整條線改以原稿為準才會對齊。
-  // ⚠️ MindAR **不需要邊框**（特徵點比對），實測收邊版與原稿的偵測率相同（都 12/12），
-  //    所以改用原稿沒有損失。收邊只對已退役的「四角偵測」有意義。
-  target: '/ar/targets/2027-xiaohan.png',
-  mindTarget: '/ar/targets/2027-xiaohan.mind',
-  // 實體尺寸（mm）。
-  // ⚠️ 這個欄位**唯一的用途**是 `CardPage.jsx` 算海報框的 `aspectRatio`——
-  //    追蹤用的尺寸是 .mind 自己帶的（Controller 的 dimensions），與這裡無關。
-  //    所以它寫錯不會影響掃描，只會讓**熱區校對頁的框整體對不上**，
-  //    而那正是拿來校熱區的頁面（曾寫 148×105＝1.4095，實際稿是 1.3715）。
-  // ⚠️ 實際付印尺寸尚未定案，這裡先取「A4 短邊 210mm ＋ 稿件實際長寬比」，
-  //    確保比例正確。尺寸定了要改成真值（比例必須與印出來的一致）。
-  sizeMM: [288, 210],
-  // ★★★ 3D 主角（2026-10-04 使用者指定）：**小寒節氣貓「八爺黑貓」取代結球白菜**。
-  //   `/ar/model/:slug` 的 3D 角色、對話的說話者、第一個話題都改用它。
-  //   ⚠️ 卡面熱區（含「結球白菜」那一格）與 `napa-cabbage` 物件**保留不動**：
-  //      實體卡已經印出「掃描主物件：結球白菜」，掃描時的熱區提示、卡片頁、
-  //      徽章與小挑戰都還靠它。只有模型頁不再把白菜當主角。
-  //      卡面改版時再把那一格換掉。
-  character: 'cat-xiaohan',
-  hotspots: [
-    {
-      // 卡面左側綠色虛線框，框內含插圖與「掃描主物件：結球白菜」那行字
-      // 量到的綠框（原稿 1831×1335）px 42..339 × 208..756
-      id: 'hs-napa',
-      objectId: 'napa-cabbage',
-      rect: { x: 0.023, y: 0.156, w: 0.162, h: 0.410 },
-      label: '結球白菜',
-      hint: '對準圖上的大白菜',
-      primary: true,
-    },
-    {
-      // 身體保健四格（藍圓角框）　量到的藍框（原稿）px 377..1359 × 313..675
-      id: 'hs-health',
-      objectId: 'xiaohan-health',
-      rect: { x: 0.206, y: 0.234, w: 0.536, h: 0.271 },
-      label: '身體保健',
-      hint: '小寒怎麼顧身體',
-    },
-    {
-      // 「食在地」產地列 ＋ 茂谷柑橘 ＋ 文旦
-      // 量到的果實（原稿）px 65..338 × 876..1039；上緣拉到「食在地」那行字
-      // 上緣自果實的 y=876 往上拉到 791（納入「食在地」那行字）
-      id: 'hs-produce',
-      objectId: 'xiaohan-produce',
-      rect: { x: 0.036, y: 0.593, w: 0.149, h: 0.186 },
-      label: '當令農產',
-      hint: '這個月還有什麼當令',
-    },
-    {
-      // 月曆格（03–16 兩列），導向站上的完整曆頁。
-      // ⚠️ 原本只寫 h:0.130＝只蓋到第一列，瞄準下面那列（10–16）會什麼都沒有。
-      // 由粉紅的小寒格（原稿 px 763..955 × 667..870）反推格線：欄寬 (1799-354)/7 = 206.4，
-      // (763-354)/206.4 = 1.98 → 第 2 欄＝星期二，與 1/5 小寒是星期二相符 ✓
-      // 上緣 y=672 是整張圖唯一的連續橫線（掃描 x 360..1795 有 60% 命中）。
-      // ⚠️ 下緣刻意收在 y≈1000（粥碗開始出現的那一列）而不是吃到底：
-      //    第一版讓它延伸到 0.755，與臘八粥重疊 39%——雖然 `hitTest` 取面積最小者
-      //    會讓粥碗贏，但重疊那麼多就代表兩個熱區在搶同一塊紙面，
-      //    使用者瞄準邊界時的結果會取決於他偏了幾公釐。現在兩者完全不相交。
-      // 原稿 px：x 354..1799、y 672..1000
-      id: 'hs-almanac',
-      objectId: 'xiaohan-almanac',
-      rect: { x: 0.193, y: 0.503, w: 0.789, h: 0.246 },
-      label: '曆頁',
-      hint: '看這一天的宜忌',
-    },
-    {
-      // 臘八粥（右下）＋「吃一碗臘八粥　暖身又開運」標語
-      // 逐列掃描（原稿）：粥碗自 y=1000 出現、y=1030 起佔 x 1483..1614；
-      // 標語在 y 1070..1130、x 1475..1782 → 合併 x 1475..1793 × 1000..1130
-      // ⚠️ 圖元本身換算後只有 h≈0.087，低於「單邊 ≥12%」的觸控下限。
-      //    所以上緣貼齊曆頁的下緣（0.716，相接但不重疊）、下緣延到 0.837——
-      //    多出來的是紙面白邊，擴進去只是加大觸控目標，不會搶到別的圖元。
-      // 原稿 px：x 1475..1793、y 1000..1179（下緣延進白邊以達觸控下限）
-      id: 'hs-laba',
-      objectId: 'xiaohan-laba',
-      rect: { x: 0.806, y: 0.749, w: 0.174, h: 0.134 },
-      label: '臘八粥',
-      hint: '臘八節吃什麼',
-    },
-    {
-      // 櫻花（右上，花期）＋粉色「櫻花」標籤
-      // 量到的粉色花瓣（原稿）px 1460..1804 × 24..294
-      id: 'hs-sakura',
-      objectId: 'xiaohan-sakura',
-      rect: { x: 0.797, y: 0.018, w: 0.188, h: 0.202 },
-      label: '櫻花',
-      hint: '這個節氣開什麼花',
-    },
-  ],
+export const CARD_2027_XIAOHAN = cardFor(AR_TARGETS[0], {
+  // ★ 舊卡面那六個主題沒有新卡面上的位置，改成「主題」：模型頁的話題、卡片頁的主題按鈕。
+  topics: ['napa-cabbage', 'xiaohan-health', 'xiaohan-produce', 'xiaohan-almanac', 'xiaohan-laba', 'xiaohan-sakura'],
+})
+
+/**
+ * 由 `arTargets.js`（編譯腳本產生）與 `arCats.js`（節氣貓角色）組出一張卡。
+ *
+ * ⚠️ `target` 與 `mindTarget` 必須來自同一次編譯：卡面圖是自我測試餵進去比對的
+ *    那張，與 .mind 不同版就會「自我測試失敗」而誤判成裝置不相容。
+ */
+function cardFor(t, extra = {}) {
+  const cat = AR_CATS.find(c => c.id === t.character)
+  return {
+    id: `card-${t.slug}`,
+    slug: t.slug,
+    title: `2027 ${t.term}`,
+    subtitle: cat ? `${cat.term}節氣貓・${cat.name}` : '',
+    term: t.term,
+    year: 2027,
+    target: t.image,
+    mindTarget: AR_MIND,
+    targetIndex: t.index,
+    // 實體尺寸（mm）：名片 PDF 的裁切框 252×144pt。
+    // ⚠️ 唯一用途是卡片頁的 aspectRatio（追蹤用的尺寸是 .mind 自己帶的）。
+    sizeMM: [88.9, 50.8],
+    character: t.character,
+    hotspots: [],
+    ...extra,
+  }
 }
 
 /**
@@ -322,7 +242,8 @@ export const CARD_OBJECTS = {
 //   有 `model.cat` 的物件在模型頁用節氣貓引擎畫（見 ArModel.jsx）。資料由 arCats.js 自動產生。
 for (const c of AR_CATS) CARD_OBJECTS[c.id] = c
 
-export const OFFICIAL_CARDS = [CARD_2027_XIAOHAN]
+/** 24 張全部是實體卡，順序＝年曆順序（小寒、大寒、立春…冬至）＝ targetIndex。 */
+export const OFFICIAL_CARDS = AR_TARGETS.map(t => (t.index === 0 ? CARD_2027_XIAOHAN : cardFor(t)))
 
 /**
  * ★★★ 沒有實體卡的節氣也有 `/ar/model/2027-<節氣代號>`（2026-10-04 使用者指定「24 隻都可以看」）。
@@ -331,7 +252,9 @@ export const OFFICIAL_CARDS = [CARD_2027_XIAOHAN]
  *    `/AR` 會把 OFFICIAL_CARDS 全部編進辨識目標、徽章與卡片頁也逐張列出——
  *    沒有 `.mind`／卡面圖的項目放進去，掃描頁會壞、卡片頁會開出空白卡。
  *    所以 `cardBySlug`（卡片頁、掃描）維持只認實體卡，模型頁改用 `arPageBySlug`。
- * ⚠️ 已有實體卡的節氣（小寒）不再產生虛擬頁：同一個節氣兩個網址會互相搶。
+ * ⚠️ 已有實體卡的節氣不再產生虛擬頁：同一個節氣兩個網址會互相搶。
+ *    2026-11-11 起 24 個節氣都有實體卡，所以這份清單目前是空的（保留給日後
+ *    「角色有了、卡還沒印」的情況）。
  */
 export const TERM_CAT_PAGES = AR_CATS
   .filter(c => !OFFICIAL_CARDS.some(card => card.term === c.term))
@@ -351,6 +274,15 @@ export const cardBySlug = (slug) => OFFICIAL_CARDS.find(c => c.slug === slug) ||
 /** 模型頁用：實體卡優先，其次是節氣貓的虛擬頁。 */
 export const arPageBySlug = (slug) => cardBySlug(slug) || TERM_CAT_PAGES.find(c => c.slug === slug) || null
 export const objectForHotspot = (hs) => (hs?.objectId ? CARD_OBJECTS[hs.objectId] : null) || null
+/**
+ * 一張卡的全部主題：卡面熱區＋沒有卡面位置的 `topics`。
+ * 後者包成沒有 `rect` 的熱區形狀，卡片頁與模型頁就能用同一套程式列出來
+ * （⚠️ 沒有 rect 的不可拿去畫熱區框或做命中判定）。
+ */
+export const topicsOf = (card) => [
+  ...(card?.hotspots ?? []),
+  ...(card?.topics ?? []).filter(id => CARD_OBJECTS[id]).map(id => ({ id: `tp-${id}`, objectId: id, label: CARD_OBJECTS[id].name })),
+]
 /** 這一頁的 3D 主角：有 `character` 就用它，否則沿用 primary 熱區的物件（舊卡的寫法）。 */
 export const characterOf = (card) => (card?.character ? CARD_OBJECTS[card.character] : null)
   ?? objectForHotspot(card?.hotspots?.find(h => h.primary) ?? card?.hotspots?.[0])

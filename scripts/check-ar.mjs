@@ -19,7 +19,7 @@ import {
 import { pickMainCameraId, listBackCameras, labelIndex } from '../src/ar/camera.js'
 import { cpuInputSize } from '../src/ar/cpuPipeline.js'
 import { inAppBrowser } from '../src/ar/session.js'
-import { OFFICIAL_CARDS, objectForHotspot } from '../src/data/arCards.js'
+import { OFFICIAL_CARDS, objectForHotspot, topicsOf, characterOf } from '../src/data/arCards.js'
 import { BADGES } from '../src/lib/arBadges.js'
 
 let pass = 0
@@ -371,8 +371,16 @@ const W = 1831, H = 1335
   //   「等光流穩定」與「去抖動」兩職，只認一次比對就跳轉會把後者一起丟掉，
   //   而這條動線誤跳的代價是直接把人送到另一頁。
   ok(/const MATCH_CONFIRM = 2/.test(SRC.tracker), '★★ 要有比對確認次數（防誤判）')
-  ok(/matches >= \(cpu \? MATCH_CONFIRM_CPU : MATCH_CONFIRM\)/.test(SRC.tracker),
+  ok(/streak >= \(cpu \? MATCH_CONFIRM_CPU : MATCH_CONFIRM\)/.test(SRC.tracker),
     '★★ 宣告 found 前要達到確認次數（兩種後端各自的門檻）')
+  // ★★★ 多張卡共用一個 .mind：確認次數要算在「同一張」上。
+  //   看總次數的話，一次比對到 A、一次比對到 B 也會湊滿門檻而跳去其中一張。
+  ok(/streak = r\.targetIndex === foundIndex \? streak \+ 1 : 1/.test(SRC.tracker),
+    '★★★ 確認次數要算在同一張卡上（換張就重新計數）')
+  ok(/onFound\?\.\(foundIndex\)/.test(SRC.tracker) && /cardAt\(i\)/.test(SRC.session),
+    '★★★ 認出的是第幾張要一路傳到 session（否則 24 張全部跳去第一張）')
+  ok(/foundRef\.current \?\? CARD\)\.slug/.test(SRC.scan),
+    '★★★ 跳轉要去「認出來的那一張」，不是固定第一張')
   // ★★ CPU 後備的門檻可以是 1（一輪要 3~8 秒，多等一輪的成本遠高於誤跳），
   //    但**絕不可是 0**——那等於完全沒有確認。
   ok(/const MATCH_CONFIRM_CPU = [1-9]/.test(SRC.tracker),
@@ -753,8 +761,12 @@ const W = 1831, H = 1335
   ok(matchCardFromQr('https://example.com/', cards) === null, '★★ 外站的 QR 不可觸發')
   ok(matchCardFromQr('隨便一段文字', cards) === null, '不是網址的 QR 不可觸發')
   ok(matchCardFromQr('', cards) === null, '空字串不可觸發')
-  ok(matchCardFromQr('https://chengqi.tw/', cards)?.slug === cards[0].slug,
-    '★ 本站網址的 QR 要對應到唯一那張官方卡')
+  // ★ 卡背的 QR 只編了 https://chengqi.tw/app（2026-11 那一版名片實測）——
+  //   24 張卡時分不出是哪一張，**不可以猜**（猜錯會帶到別張卡的內容）。
+  ok(cards.length < 2 || matchCardFromQr('https://chengqi.tw/app', cards) === null,
+    '★★ 多張卡時，不帶 slug 的本站 QR 不可亂猜成某一張')
+  ok(matchCardFromQr('https://chengqi.tw/', cards.slice(0, 1))?.slug === cards[0].slug,
+    '★ 只有一張官方卡時，本站網址的 QR 對應到那一張')
   ok(matchCardFromQr(`https://chengqi.tw/ar/model/${cards[0].slug}`, cards)?.slug === cards[0].slug,
     '★ 帶 slug 的網址要對應到該張卡')
 
@@ -795,24 +807,51 @@ const W = 1831, H = 1335
   for (const c of OFFICIAL_CARDS) {
     const bad = validateCard(c)
     ok(bad.length === 0, `卡片 ${c.slug} 定義有問題：${bad.join('；')}`)
-    ok(/\.mind$/.test(c.mindTarget), `${c.slug}：mindTarget 必須是 .mind`)
-    // ★ 三者必須同一版：.mind、卡面圖、hotspots。檔名不同源最容易走鐘。
-    ok(c.mindTarget.includes(c.slug) && c.target.includes(c.slug),
-      `${c.slug}：.mind 與卡面圖的檔名都要含 slug（三者同版的最低保證）`)
+    ok(/\.mind(\?v=[0-9a-f]+)?$/.test(c.mindTarget), `${c.slug}：mindTarget 必須是 .mind`)
+    ok(c.target.includes(c.slug), `${c.slug}：卡面圖的檔名要含 slug`)
+    // ★★★ 網址要帶內容雜湊：express.static 對 dist 一律快取一年，換稿後不帶雜湊
+    //   ⇒ 使用者一年內拿舊的卡面／舊的 .mind（/ar/cats 實際踩過）。
+    ok(/\?v=[0-9a-f]{6,}$/.test(c.target) && /\?v=[0-9a-f]{6,}$/.test(c.mindTarget),
+      `${c.slug}：卡面圖與 .mind 的網址要帶 ?v=<內容雜湊>`)
+    ok(Number.isInteger(c.targetIndex), `${c.slug}：要有 targetIndex（在共用 .mind 裡的位置）`)
+    ok(!!characterOf(c) || c.hotspots.length > 0, `${c.slug}：沒有熱區的卡一定要有節氣貓主角`)
+  }
+  // ★★★ 24 張共用一個 .mind：索引必須剛好是 0..n-1 且不重複，而且全部指向同一個檔。
+  //   索引錯一格，症狀是「掃立春卻跳到雨水」，畫面上完全看不出原因。
+  {
+    const idx = OFFICIAL_CARDS.map(c => c.targetIndex).sort((a, b) => a - b)
+    ok(idx.every((v, i) => v === i), '★★★ targetIndex 必須剛好是 0..n-1')
+    ok(new Set(OFFICIAL_CARDS.map(c => c.mindTarget)).size === 1, '★★★ 所有卡共用同一個 .mind')
+    const { AR_TARGETS } = await import('../src/data/arTargets.js')
+    ok(OFFICIAL_CARDS.every(c => AR_TARGETS[c.targetIndex]?.slug === c.slug),
+      '★★★ 每張卡的 targetIndex 要對到 arTargets.js 同一張（.mind 的編譯順序）')
+    ok(OFFICIAL_CARDS[0].targetIndex === 0, '★★ 自我測試固定比對第 0 張，所以 CARD（第一張）必須是 index 0')
+    // .mind 的目標數要與卡片數一樣（少編了一張＝那張永遠掃不到）。
+    // ⚠️ 正式容器建置時 public/ 在，這一項讀得到；讀不到就算失敗（缺檔＝全部掃不到）。
+    const { decode } = await import('@msgpack/msgpack')
+    let n = -1
+    try {
+      n = decode(fs.readFileSync(new URL('../public' + OFFICIAL_CARDS[0].mindTarget.split('?')[0], import.meta.url))).dataList.length
+    } catch { /* 檔案不在 */ }
+    ok(n === OFFICIAL_CARDS.length, `★★★ .mind 裡的目標數（${n}）要等於卡片數（${OFFICIAL_CARDS.length}）`)
   }
 
   // ★★★ 3D 角色錨在 **primary** 熱區，不可綁「目前選中的熱區」。
   //   使用者最自然的動作是把整張卡擺在畫面正中央 ⇒ 中心落在某個沒有 model 的
   //   熱區上 ⇒ 白菜永遠不出現，而卡面上白紙黑字印著「掃描主物件：結球白菜」。
-  const card = OFFICIAL_CARDS[0]
-  const centreHit = hitTest(card.hotspots, 0.5, 0.5)
-  const primary = card.hotspots.find(h => h.primary)
-  ok(!!primary, '★★ 一定要有 primary 熱區')
+  //   ⚠️ 2026-11 起的節氣貓卡沒有熱區；下面這幾項只在「有熱區的卡」上驗
+  //      （session 的程式本身仍然要錨在 primary，日後的卡面若有分區就用得到）。
   ok(/find\(h => h\.primary\)/.test(SRC.session),
     '★★★ 角色必須錨在 primary 熱區（畫面中心常落在沒有模型的熱區上）')
-  // 這個事實本身要釘住：中心確實會落在別的熱區
-  ok(centreHit && centreHit.id !== primary.id,
-    `★ 已確認畫面中心落在「${centreHit?.label ?? '（無）'}」而不是 primary，所以上一項不可拿掉`)
+  const card = OFFICIAL_CARDS.find(c => c.hotspots.length) ?? { hotspots: [] }
+  if (card.hotspots.length) {
+    const centreHit = hitTest(card.hotspots, 0.5, 0.5)
+    const primary = card.hotspots.find(h => h.primary)
+    ok(!!primary, '★★ 一定要有 primary 熱區')
+    // 這個事實本身要釘住：中心確實會落在別的熱區
+    ok(centreHit && centreHit.id !== primary.id,
+      `★ 已確認畫面中心落在「${centreHit?.label ?? '（無）'}」而不是 primary，所以上一項不可拿掉`)
+  }
 
   // 熱區不可完全重疊（那樣小的永遠選不到，等於少一個）
   let dup = false
@@ -992,7 +1031,9 @@ const W = 1831, H = 1335
 //      尤其是這種「平常永遠通過、所以感覺不到它存在」的。
 {
   // 營養素：只要出現在使用者看得到的任何一個字串就不行
-  const NUTRIENT = /維生素|維他命|膳食纖維|礦物質|胡蘿蔔素|花青素|葉黃素|蛋白質|胺基酸|熱量|卡路里|硫化物|蒜素|鉀|鈣|鐵|鋅|鎂|磷|鈉含量|葉酸|菸鹼酸|omega/i
+  // ⚠️ 「鐵」只鎖營養語境（鐵質／含鐵／補鐵／鐵含量）：節氣貓的角色設定有「鐵鎖鏈」「金色鐵鐏」
+  //    這種**道具**描述，單字「鐵」會把它們誤判成營養素（2026-11 節氣貓併進這道閘門時實測）。
+  const NUTRIENT = /維生素|維他命|膳食纖維|礦物質|胡蘿蔔素|花青素|葉黃素|蛋白質|胺基酸|熱量|卡路里|硫化物|蒜素|鉀|鈣|鐵質|[含補]鐵|鐵含量|鋅|鎂|磷|鈉含量|葉酸|菸鹼酸|omega/i
   // 保健／療效宣稱
   // ⚠️ 刻意**不**列「預防」「避免」：卡面的 `warn` 是一氧化碳中毒的公共安全提醒
   //    （「避免使用瓦斯熱水器…發生一氧化碳中毒」），那是公共安全資訊不是食品的
@@ -1005,6 +1046,8 @@ const W = 1831, H = 1335
   //    一個永遠通過的檢查比沒有檢查更糟）。
   ok(NUTRIENT.test('維生素 C') && NUTRIENT.test('膳食纖維') && NUTRIENT.test('硫化物'),
     '自我驗證：營養素 regex 抓得到「維生素 C／膳食纖維／硫化物」')
+  ok(NUTRIENT.test('富含鐵質') && NUTRIENT.test('可以補鐵') && !NUTRIENT.test('一條沉甸甸的灰色鐵鎖鏈'),
+    '自我驗證：「鐵」只在營養語境才算（鐵質要抓到，鐵鎖鏈不可誤判）')
   // ⚠️ 這三句就是使用者參考圖上的原文——那張圖示意的正是本站不能放的內容
   ok(CLAIM.test('具有抗氧化作用') && CLAIM.test('幫助維持免疫力')
     && CLAIM.test('促進腸道蠕動，幫助消化') && CLAIM.test('有助於調節體內水分與電解質平衡'.replace('調節體內', '調節生理')),
@@ -1014,8 +1057,10 @@ const W = 1831, H = 1335
     && !CLAIM.test('天冷別把門窗關得密不透風，記得保持適度通風，避免使用瓦斯熱水器或燃氣設備時發生一氧化碳中毒。'),
     '自我驗證：正常的卡面內容（含一氧化碳安全提醒）不可被誤判')
 
+  // ⚠️ 要走 `topicsOf`（熱區＋沒有卡面位置的主題）再加上節氣貓主角——只走 hotspots 的話，
+  //    2026-11 起小寒那六個主題（含小挑戰）都掛在 topics，**整段法規閘門會靜默略過它們**。
   for (const c of OFFICIAL_CARDS) {
-    for (const hs of c.hotspots ?? []) {
+    for (const hs of [...topicsOf(c), { objectId: c.character }]) {
       const obj = objectForHotspot(hs)
       if (!obj) continue
       ok(!obj.nutrients, `${obj.id}：不可有 nutrients 欄位（營養標示需食藥署核可）`)
@@ -1427,9 +1472,10 @@ const W = 1831, H = 1335
     // ★★★ 語態三態的實測（等同回歸測試 #10：模擬三個日期各跑一次）。
     //   ⚠️ 這是**確定性**的，不需要等到小寒也不需要動系統時鐘。
     const { cardTimeContext, greetingFor, cardTimeLabel } = await import('../src/data/cardTime.js')
-    const { OFFICIAL_CARDS, objectForHotspot } = await import('../src/data/arCards.js')
+    const { OFFICIAL_CARDS, characterOf } = await import('../src/data/arCards.js')
     const card0 = OFFICIAL_CARDS[0]
-    const obj0 = objectForHotspot(card0.hotspots.find(h => h.primary))
+    // 開場白的說話者＝模型頁的主角（節氣貓卡沒有熱區，主角由 character 決定）
+    const obj0 = characterOf(card0)
     const cases = [
       ['2026-08-16', 'BEFORE', '立秋', 142],
       ['2027-01-05', 'DURING', '小寒', 0],

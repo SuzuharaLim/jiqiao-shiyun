@@ -47,7 +47,9 @@ add(/'wasm-unsafe-eval'/.test(csp), "CSP 允許 WebAssembly（'wasm-unsafe-eval'
 add(res.status === 200, '/AR 可以打開', 'HTTP ' + res.status)
 
 // 目標檔：缺了就永遠不會命中（症狀同樣與「沒對準」難分辨）
-const mind = await head('/ar/targets/2027-xiaohan.mind')
+// ★ 路徑從 arTargets.js 讀（編譯腳本產生），換稿後不必回來改這裡
+const { AR_MIND } = await import('../src/data/arTargets.js')
+const mind = await head(AR_MIND)
 const ct = mind.headers.get('content-type') || ''
 const len = Number(mind.headers.get('content-length') || 0)
 // ⚠️ 只看 200 不夠：檔案不存在時 SPA fallback 會回 200 + index.html

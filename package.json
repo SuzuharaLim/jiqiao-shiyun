@@ -22,7 +22,7 @@
     "check:live": "node scripts/check-live.mjs",
     "check:char": "node scripts/check-char.mjs",
     "check:speak": "node scripts/check-speak.mjs",
-    "card:mind": "node scripts/compile-mind.mjs",
+    "card:all": "node scripts/compile-cards.mjs",
     "badge:icons": "node scripts/build-badge-icons.mjs",
     "check:ar": "node scripts/check-ar.mjs"
   },

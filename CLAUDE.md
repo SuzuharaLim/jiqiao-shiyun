@@ -699,10 +699,16 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
   - **文旦不是一月當令**：原本寫「文旦：一月當令，source 農業部開放資料」，但 `produce.js`（正是 `build-produce.mjs` 從那份資料產生的）裡「文旦柚」**只出現在八、九月**。品項保留（卡面「食在地」那一區真的畫了它），但不可再宣稱當令。
   - **櫻花不是小寒開**：原本寫「花期：小寒前後陸續開花，source 站內節氣生活資料庫（花期）」，但 `termGuide.js` 小寒那筆的 `flowers` 是**空陣列**，整份檔案一次櫻花都沒有；而站上其他資料的方向相反——賞花清單寫陽明山「2–3 月」、武陵農場「2 月」，`termArticle.js` 把「山區的櫻花陸續開」放在**立春**。小寒是 1/5，**按這張卡自己的「看賞花地圖」點過去就會看到 2–3 月**。⇒ 這一區因此**沒有小挑戰**：唯一一條素材的出處查不到，湊不出可查證的題目，寧可少一題也不要編。
   - **徽章存 `localStorage['jq-ar-badges']`**（沿用站上 `jq-` 慣例，不要用文件寫的 `cq.ar.badges`——同一個 app 兩套命名遲早會漏掉一邊，例如「刪帳號時清本機資料」那段）。訪客也能拿（站上訪客沒有 session，寫入 API 一律 401）。
-  - **底圖用 `card.target` 那張靜態檔**（`card:mind` 會順手縮出短邊 900px 的版本）。舊版另有一份 localStorage 縮圖快取，已隨自研路線刪除。
-- **官方 AR 卡包在 `src/data/arCards.js`**：進 `/AR` 就有東西可掃。**「使用者自己登錄目標」已於 2026-08 移除**——那是工程 demo 的動線，拿到卡片的人不該先被要求登錄一張目標才能掃。追蹤只吃官方卡（`.mind` 由 `card:mind` 編譯）。舊裝置殘留的 `jq-ar-cards-v3` 刻意不主動刪除（使用者資料不該在改版裡被靜默清掉）。
+  - **底圖用 `card.target` 那張靜態檔**（`card:all` 會順手縮出寬 1008px 的 jpg）。舊版另有一份 localStorage 縮圖快取，已隨自研路線刪除。
+- **官方 AR 卡包在 `src/data/arCards.js`**：進 `/AR` 就有東西可掃。**「使用者自己登錄目標」已於 2026-08 移除**——那是工程 demo 的動線，拿到卡片的人不該先被要求登錄一張目標才能掃。追蹤只吃官方卡（`.mind` 由 `card:all` 編譯）。舊裝置殘留的 `jq-ar-cards-v3` 刻意不主動刪除（使用者資料不該在改版裡被靜默清掉）。
   - **★ 沒有目標檔時的失敗是「靜默」的，必須主動講出來**：`public/ar/targets/` 缺 `.mind` 時，相機、掃描線、取景框全部正常，但沒有可比對的目標 → 永遠不命中 → 3D 永遠不出現。症狀與「沒對準／光線不夠／角度太斜」**一模一樣**，使用者會一直換角度重試。`Scan.jsx` 的 `.scan-nofile` 橫幅與 aria-live 都把這一種狀態**單獨列出**：那不是使用者對不準，再怎麼喬角度都不會成功。⚠️ 同理 aria-live 不可留著叫人去按已經移除的按鈕——**叫使用者去按一個不存在的東西，比不給提示更糟**。
-  - **換稿用 `npm run card:mind -- 稿.png`**（`scripts/compile-mind.mjs`）：編出 `.mind` 並縮出備援頁底圖，檔名都從 `arCards.js` 讀（不讓人手打）。⚠️ `.mind`／png 底圖／`hotspots` **三者必須同一版**，否則「追得到但整個貼歪」（實測差 10.5%）。
+  - **★★★ 2026-11-11 起官方卡是 24 張節氣貓卡（承氣名片 PDF 除前兩頁外的單數頁），共用一個 `.mind`**：換稿用 `npm run card:all -- 卡面圖資料夾`（`scripts/compile-cards.mjs`，檔名含節氣名即可）⇒ 產出 `public/ar/targets/2027-cards.mind`（＋`.mind.gz`，`server/index.js` 對支援 gzip 的瀏覽器直接送它）、24 張 `2027-<slug>.jpg`、自動產生的 `src/data/arTargets.js`（**不要手改**）。陣列順序＝MindAR 的 `targetIndex`（小寒＝0，自我測試固定拿它）。
+    - 認出哪一張靠 `targetIndex`：`tracker.js` 的 `onFound(foundIndex)` → `session.js` 的 `cardAt(i)`；確認次數只算**同一張卡連續**命中（`streak`），兩張卡各中一次不算。
+    - 24 張依序比對、中了就停，沒東西時一幀要比完 24 張 ⇒ 比對順序依「上次認出的卡＋離今天最近的節氣」排（`orderByToday`）。
+    - 新卡沒有熱區（`hotspots: []`），3D 主角由 `character` 決定；小寒卡的舊白菜熱區降成無座標的 `topics`（`topicsOf(card)`），`badge-term-xiaohan` 照樣拿得到。其他 23 張沒有小挑戰 ⇒ 節氣卡徽章仍標「尚未發行」。
+    - ⚠️ **卡背 QR 只編了 `https://chengqi.tw/app`**，24 張卡時 `matchCardFromQr` 一律不猜 ⇒ QR 備援認不出是哪張卡。要讓 QR 有用，印刷稿要改成各卡的 `/ar/model/<slug>`。
+    - ⚠️ `.mind` 約 14.5 MB（gzip 8.7 MB），大小與張數成正比；只有按下開始掃描才下載。
+  - （舊）**換稿用 `card:mind`** 已刪除。⚠️ `.mind`／卡面圖／`hotspots` **三者必須同一版**，否則「追得到但整個貼歪」（實測差 10.5%）。
   - **抓目標檔不可用 `cache: 'force-cache'`，而且只看 `res.ok` 不夠**：檔案不存在時 SPA fallback 回 **200 + index.html**，force-cache 把那份 HTML 存下來後，就算圖補上了也永遠拿到 HTML。症狀是「The source image could not be decoded.」——**「檔案不存在」偽裝成「圖片壞掉」**，會讓人去查圖片格式而不是查路徑。要檢查 `content-type` 是不是 `image/`。
   - **★★ 3D 角色不可綁「目前選中的熱區」**：`Scan.jsx` 原本寫 `if (!objectForHotspot(hotspot)?.model) return null`，而**使用者最自然的動作是把整張卡擺在畫面正中央** → 畫面中心對到卡面 (0.5, 0.5) → 落在「身體保健」區（x 0.224~0.728、y 0.258~0.510 正好含住中心）→ 那一區沒有 `model` → **白菜永遠不出現**，而卡面上白紙黑字印著「掃描主物件：結球白菜」。⚠️ `applyHotspot` 裡的「預設主物件」保底解不掉：它的條件是「完全沒瞄到任何熱區」，而這裡是**瞄到了另一個沒有模型的熱區**。**註解寫對了問題、程式卻沒解到**，正是它藏起來的原因。規則：選中的熱區自己有 model 就用它，否則退回 `primary` 熱區並錨在那一區。`check-mind.mjs` 用真的熱區資料算出「中心落在哪一區、那區有沒有 model」把這個事實釘住。
   - **★★★ 比對門檻是可以調的（我先前寫「沒有分數可調」是錯的）**：`matching/matching.js` 有三個常數 `HAMMING_THRESHOLD`(0.7, Lowe 比值)／`MIN_NUM_INLIERS`(6)／`INLIER_THRESHOLD`(3px)。`vite.config.js` 用建置期字串替換把 **Lowe 比值放寬到 0.75**，另外兩個**原封不動**。

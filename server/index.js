@@ -2627,6 +2627,21 @@ setInterval(() => { calSweep().catch(e => console.error('[cal] sweep', e.message
 // ---------- 靜態前端 ----------
 const distDir = join(__dirname, '..', 'dist')
 if (existsSync(distDir)) {
+  // ★ AR 目標檔：24 張節氣卡共用一個 .mind（約 13 MB），而它是二進位、壓縮中介層
+  //   不會碰（server/compress.js 只壓文字型）。編譯腳本另產一份預先壓好的 `.mind.gz`
+  //   （約省四成），瀏覽器接受 gzip 就直接送它，fetch 會自己解開——MindAR 拿到的
+  //   還是原本的位元組。⚠️ 一定要帶 Vary，否則 CDN／代理可能把 gzip 版送給不支援的客戶端。
+  app.get(/^\/ar\/targets\/[\w-]+\.mind$/, (req, res, next) => {
+    const gz = join(distDir, `${req.path}.gz`)
+    if (!/\bgzip\b/.test(req.get('accept-encoding') || '') || !existsSync(gz)) return next()
+    res.set({
+      'Content-Type': 'application/octet-stream',
+      'Content-Encoding': 'gzip',
+      'Cache-Control': 'public, max-age=31536000',
+      Vary: 'Accept-Encoding',
+    })
+    res.sendFile(gz)
+  })
   app.use(express.static(distDir, { index: false, maxAge: '1y', setHeaders: (res, p) => { if (p.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache') } }))
 
   const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf8')

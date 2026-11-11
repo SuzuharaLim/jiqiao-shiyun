@@ -134,7 +134,8 @@ export function validateCard(card) {
   if (!card.mindTarget) bad.push('缺 mindTarget（.mind 目標檔）')
   if (!card.target) bad.push('缺 target（卡面圖）')
   const hs = card.hotspots || []
-  if (!hs.length) bad.push('沒有任何熱區')
+  // ★ 節氣貓卡（2026-11 起）整張是插畫、沒有熱區，主角由 `character` 決定——那是合法的。
+  if (!hs.length && !card.character) bad.push('沒有任何熱區（也沒有 character 主角）')
   if (hs.length && !hs.some(h => h.primary)) bad.push('沒有標記 primary 熱區（角色會不知道站哪裡）')
   for (const h of hs) {
     const r = h.rect || {}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, Link, SheetMask } from '../components/ui.jsx'
-import { arPageBySlug, characterOf, objectForHotspot } from '../data/arCards.js'
+import { arPageBySlug, characterOf, objectForHotspot, topicsOf } from '../data/arCards.js'
 import { cardTimeContext, cardTimeLabel } from '../data/cardTime.js'
 import { useNav } from '../store/nav.jsx'
 import SpeakButton from '../components/SpeakButton.jsx'
@@ -411,7 +411,7 @@ export default function ArModel({ slug, hotspot }) {
   //     例如結球白菜）就不再當話題——使用者指定由節氣貓取代它。
   const spots = [
     ...(card?.character && hero ? [{ id: 'hs-character', objectId: card.character, label: hero.name, primary: true }] : []),
-    ...(card?.hotspots ?? []).filter(h => objectForHotspot(h) && !(card?.character && objectForHotspot(h)?.model)),
+    ...topicsOf(card).filter(h => objectForHotspot(h) && !(card?.character && objectForHotspot(h)?.model)),
   ]
   // 掃描時瞄到的熱區（有的話），沒有就用 primary
   const initial = Math.max(0, spots.findIndex(h => h.id === hotspot)) ||

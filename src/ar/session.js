@@ -35,6 +35,25 @@ import { openCamera, retune, stopStream, attach, listBackCameras } from './camer
 import { hitTest, makeHotspotLatch } from './cardSpace.js'
 import { isCompat } from './tfjsCompat.js'
 import { startQrScan, qrSupported } from './qrFallback.js'
+import { termDateInYear } from '../data/cardTime.js'
+import { taipeiToday } from '../data/almanac.js'
+
+/**
+ * 依「離今天多近」排出比對順序（targetIndex 陣列）。
+ * 只看月日、繞一整年算距離：2027 年的卡在 2026 年底也會被拿出來掃。
+ * ⚠️ 算不出日期的卡排最後，不可以因此被丟掉。
+ */
+export function orderByToday(cards, today = taipeiToday()) {
+  const doy = (d) => Math.round((Date.UTC(2001, d.getMonth(), d.getDate()) - Date.UTC(2001, 0, 1)) / 86400000)
+  const t = doy(today)
+  const dist = (c) => {
+    const d = termDateInYear(c.term, c.year)
+    if (!d) return 999
+    const x = Math.abs(doy(d) - t)
+    return Math.min(x, 365 - x)
+  }
+  return [...cards].sort((a, b) => dist(a) - dist(b)).map(c => c.targetIndex).filter(Number.isInteger)
+}
 
 // ★★★ 這一支**只能靜態 import 輕量模組**（camera / cardSpace 都是零相依）。
 //
@@ -113,10 +132,14 @@ export function isSecure() {
  * @param video      React 渲染的 <video>
  * @param canvas     React 渲染的 <canvas>
  * @param container  兩者的容器（量大小用）
- * @param card       卡片定義
- * @param onState    (state) => void，state 見檔頭
+ * @param cards      官方卡清單（共用同一個 .mind；`targetIndex` 對應比對結果）
+ * @param onState    (state) => void，state 見檔頭；`card` 是認出來的那一張
  */
-export function createSession({ video, canvas, container, card, onState }) {
+export function createSession({ video, canvas, container, cards, onState }) {
+  // ★ 24 張節氣卡編在**同一個** .mind 裡。認出來之前 `card` 是第 0 張（只用來
+  //   取目標檔網址），認出來之後換成實際比對到的那一張——跳轉看的是它。
+  let card = cards[0]
+  const cardAt = (i) => cards.find(c => c.targetIndex === i) ?? card
   let phase = 'idle'
   let error = null
   let stream = null
@@ -147,6 +170,7 @@ export function createSession({ video, canvas, container, card, onState }) {
     onState?.({
       phase,
       error,
+      card,
       hotspot,
       features,
       cameras,
@@ -223,8 +247,14 @@ export function createSession({ video, canvas, container, card, onState }) {
   const makeTracker = (backendName) => createTrackerLazy({
     video,
     mindUrl: card.mindTarget,
+    order: orderByToday(cards),
     backend: backendName,
-    onFound: () => { if (!disposed) to('locked') },
+    onFound: (i) => {
+      if (disposed) return
+      // ⚠️ 已經鎖定（例如 QR 先命中）就不換卡：跳轉計時器已經用舊的那張排程了。
+      if (phase !== 'locked') card = cardAt(i)
+      to('locked')
+    },
     onLost: () => {
       if (disposed) return
       latch.reset(); hotspot = null; manualUntil = 0
@@ -273,10 +303,11 @@ export function createSession({ video, canvas, container, card, onState }) {
         try {
           qrReady = await qrSupported()
           stopQr = await startQrScan({
-            video, cards: [card],
-            onCard: () => {
+            video, cards,
+            onCard: (c) => {
               if (disposed || phase === 'locked') return
               viaQr = true
+              if (c) card = c
               to('locked')
             },
           })
@@ -294,7 +325,10 @@ export function createSession({ video, canvas, container, card, onState }) {
         })
         syncSize()
         try { ro?.observe(container) } catch { /* 舊瀏覽器沒有就靠 window 事件 */ }
-        await stage.mountCharacter(card.hotspots?.find(h => h.primary) ?? card.hotspots?.[0] ?? null)
+        // ★ 只有舊版卡（卡面上印著結球白菜、有 primary 熱區）才在卡片上疊 3D 白菜。
+        //   節氣貓卡沒有熱區：認出來就跳去模型頁看貓，不在卡面上疊一顆無關的白菜。
+        const primary = card.hotspots?.find(h => h.primary) ?? null
+        if (primary) await stage.mountCharacter(primary)
         if (disposed) return
 
         // ★★★ 這裡**不可以無條件**設回 searching。

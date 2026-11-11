@@ -63,11 +63,14 @@ const MATCH_CONFIRM_CPU = 1
  * @param onPose      (worldMatrix|null) → void，每幀（追到才有）
  * @param onFound/onLost
  * @param onTick      每輪處理迴圈跑完一次
+ * @param order       比對時先試哪幾張（targetIndex 陣列）。多張卡共用一個 .mind 時，
+ *                    worker 是**逐張**比對、命中即停——沒有卡入鏡的一幀要走完全部，
+ *                    排在後面的卡也要多等。把最可能被掃的排前面就是最便宜的加速。
  * @param backend     'webgl'（預設）｜'cpu'。見 cpuPipeline.js 檔頭——
  *                    `'cpu'` 是給「特徵點抓得到、比對永遠 0 次」的 GPU 用的
  *                    後備，慢很多，**只在已經證明 GPU 算不對時才切**。
  */
-export async function createTracker({ video, mindUrl, onPose, onFound, onLost, onTick, backend = 'webgl' } = {}) {
+export async function createTracker({ video, mindUrl, onPose, onFound, onLost, onTick, order = null, backend = 'webgl' } = {}) {
   if (!video?.videoWidth || !video?.videoHeight) {
     throw new Error('影像尚未就緒（videoWidth 是 0）')
   }
@@ -102,12 +105,15 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   let disposed = false
   let ticks = 0
   let visible = false
+  // ★ 最近一次比對成功的是第幾張卡。24 張節氣卡編在同一個 .mind 裡，
+  //   跳轉要靠它知道該去哪一張（session 依 index 對回卡片）。
+  let foundIndex = 0
 
   // 單一入口切換「有沒有認出來」，避免 onUpdate 與比對攔截兩條路各自維護狀態。
   const setVisible = (v) => {
     if (v === visible) return
     visible = v
-    v ? onFound?.() : onLost?.()
+    v ? onFound?.(foundIndex) : onLost?.()
   }
 
   // ★ CPU 路徑刻意降解析度（見 cpuPipeline.js 的實測表：像素數砍到 1/7，
@@ -140,6 +146,7 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
       if (data.type === 'processDone') { onTick?.(); return }
       if (data.type !== 'updateMatrix') return
       const m = data.worldMatrix
+      if (m && Number.isInteger(data.targetIndex)) foundIndex = data.targetIndex
       if (m) { setVisible(true) } else if (visible) { setVisible(false) }
       onPose?.(m ?? null)
     },
@@ -171,6 +178,7 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   //   依賴相機。所以直接把第②關拿掉——包住 `_detectAndMatch`，比對一成功就
   //   自己算出 worldMatrix 並宣告 found。這同時讓辨識快很多（不必等暖機）。
   let matches = 0
+  let streak = 0           // 連續比對到「同一張」的次數（確認門檻看它，不看總數）
   // ★★★ 處理迴圈現在有幾輪還在飛。**自我測試要等它歸零才能開始。**
   //
   // ⚠️ `workerMatchDone` 是**單一欄位不是佇列**：迴圈那一輪還在等 worker 回覆時，
@@ -181,13 +189,25 @@ export async function createTracker({ video, mindUrl, onPose, onFound, onLost, o
   //    而賭輸的結果是整條追蹤鏈靜默死掉。改成真的等它結束。
   let inFlight = 0
   const origDetectAndMatch = controller._detectAndMatch.bind(controller)
+  // ★ 比對順序：上一次認出的那張 → `order` → 其餘。只換順序不增減，
+  //   所以不影響「哪些目標正在追蹤」的上游判斷。
+  const reorder = (idx) => {
+    if (!Array.isArray(idx) || idx.length < 2) return idx
+    const pri = [foundIndex, ...(order ?? [])]
+    const head = pri.filter((i, k) => idx.includes(i) && pri.indexOf(i) === k)
+    return [...head, ...idx.filter(i => !head.includes(i))]
+  }
   controller._detectAndMatch = async (inputT, targetIndexes) => {
     inFlight++
     let r
-    try { r = await origDetectAndMatch(inputT, targetIndexes) } finally { inFlight-- }
+    try { r = await origDetectAndMatch(inputT, reorder(targetIndexes)) } finally { inFlight-- }
     if (!disposed && r && r.targetIndex !== -1 && r.modelViewTransform) {
       matches++
-      if (!visible && matches >= (cpu ? MATCH_CONFIRM_CPU : MATCH_CONFIRM)) {
+      // ⚠️ 確認次數要算在**同一張卡**上：前後兩次比對到不同張時重新計數，
+      //    否則一次 A、一次 B 也會湊滿 MATCH_CONFIRM 而跳去其中一張。
+      streak = r.targetIndex === foundIndex ? streak + 1 : 1
+      foundIndex = r.targetIndex
+      if (!visible && streak >= (cpu ? MATCH_CONFIRM_CPU : MATCH_CONFIRM)) {
         setVisible(true)
         // ⚠️ 這裡要自己把 modelViewTransform 換成 worldMatrix：上游只有在
         //    `showing` 為 true 時才會做這件事，而我們就是不想等它。
