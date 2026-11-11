@@ -4,7 +4,8 @@ import { TopBar, Switch, PhotoImg } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import LocationPicker from '../components/LocationPicker.jsx'
-import { solarTermNames, licenseTiers } from '../data/mock.js'
+import { licenseTiers } from '../data/mock.js'
+import { TERM_NAMES } from '../data/lunisolar.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 import { CAPTION_MAX, TITLE_MAX } from '../data/postRules.js'
 
@@ -171,10 +172,17 @@ export default function NewPost({ photo: incomingPhoto = null }) {
           <div className="muted" style={{ color: 'var(--cinnabar)' }}>{term} {pickTerm ? '▾' : '›'}</div>
         </button>
         {pickTerm && (
-          <div className="chips" style={{ padding: '10px var(--space-4)' }}>
-            {solarTermNames.map(t => (
-              <button key={t} className={`chip tap ${term === t ? 'on' : ''}`}
-                onClick={() => { setTerm(t); setPickTerm(false) }}>{t}</button>
+          // 24 節氣全列，依四季分四列（立春起），換行不橫捲——橫捲時大半個節氣藏在畫面外
+          <div className="np-terms" style={{ padding: '10px var(--space-4)', display: 'grid', gap: 8 }}>
+            {['春', '夏', '秋', '冬'].map((s, si) => (
+              <div key={s} role="group" aria-label={s + '季節氣'}
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+                <span className="muted" style={{ gridColumn: '1 / -1', fontSize: 'var(--text-2xs)' }}>{s}</span>
+                {TERM_NAMES.slice(si * 6, si * 6 + 6).map(t => (
+                  <button key={t} type="button" aria-pressed={term === t} className={`chip tap ${term === t ? 'on' : ''}`} style={{ justifyContent: 'center', margin: 0 }}
+                    onClick={() => { setTerm(t); setPickTerm(false) }}>{t}</button>
+                ))}
+              </div>
             ))}
           </div>
         )}

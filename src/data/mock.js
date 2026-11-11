@@ -279,9 +279,6 @@ export const challenges = [
   { id: 'c2', emoji: '', title: '植物曆・夏花', prize: 'Premium 季訂 ×5', join: 156, days: 9 },
 ]
 
-// 節氣（新貼文標記用）
-export const solarTermNames = ['立夏', '小滿', '芒種', '夏至', '小暑', '大暑', '立秋']
-
 // 授權價帶（單張授權分級）
 export const licenseTiers = [0, 30, 45, 60]
 

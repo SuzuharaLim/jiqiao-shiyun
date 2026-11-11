@@ -95,9 +95,13 @@ export default function EditProfile() {
         <div className="muted" style={{ fontSize: 'var(--text-2xs)', textAlign: 'center', padding: '2px 16px 6px' }}>
           {avatarImageId ? '目前使用上傳的照片；下方圖示需先移除照片才會生效' : '或從下列圖示挑一個'}
         </div>
-        <div className="chips" style={{ justifyContent: 'center', paddingBottom: 14 }}>
+        {/* 換行不橫捲：橫捲列配 justify-content:center 會把頭尾裁掉且捲不到 */}
+        <div className="chips" style={{ justifyContent: 'center', flexWrap: 'wrap', overflowX: 'visible', paddingBottom: 14 }}>
           {AVATARS.map(a => (
-            <button key={a} className={`th tap ${avatar === a ? 'on' : ''}`} style={{ width: 40, height: 40, fontSize: 'var(--text-lg)', background: 'var(--field)' }} onClick={() => setAvatar(a)}>{a}</button>
+            <button key={a} type="button" aria-label={`使用圖示頭像 ${a}`} aria-pressed={avatar === a}
+              className={`th tap ${avatar === a ? 'on' : ''}`}
+              style={{ width: 44, height: 44, flex: '0 0 auto', display: 'grid', placeItems: 'center', padding: 0, overflow: 'hidden', background: 'var(--field)' }}
+              onClick={() => setAvatar(a)}><Icon name={a} style={{ width: 22, height: 22 }} /></button>
           ))}
         </div>
 
