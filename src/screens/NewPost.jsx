@@ -1,6 +1,6 @@
 import Icon from '../components/Icon.jsx'
 import { useState, useRef, useEffect } from 'react'
-import { TopBar, Switch, PhotoImg } from '../components/ui.jsx'
+import { TopBar, Switch, PhotoImg, SheetMask } from '../components/ui.jsx'
 import { useNav } from '../store/nav.jsx'
 import { api } from '../api.js'
 import LocationPicker from '../components/LocationPicker.jsx'
@@ -8,6 +8,7 @@ import { licenseTiers } from '../data/mock.js'
 import { TERM_NAMES } from '../data/lunisolar.js'
 import { dayFor, todayOffset } from '../data/almanac.js'
 import { CAPTION_MAX, TITLE_MAX } from '../data/postRules.js'
+import { stripEmoji } from '../lib/text.js'
 
 // ============================================================================
 // 發布貼文（2026-10-04 改版：不再限定照片）
@@ -55,17 +56,23 @@ function compressImage(file) {
 
 // photo：由相機「下一步」帶進來的照片（已套好濾鏡）。
 // 走這條路徑時不再另外壓縮——相機的 bakeImage() 已縮到 1600px / JPEG 0.85。
-export default function NewPost({ photo: incomingPhoto = null }) {
-  const { push, pop, popAll, setToast, setStamp, requireAccount } = useNav()
+// challenge：從「節氣挑戰」的「參加投稿」進來時帶入的節氣名稱——節氣鎖定為它
+//   （標記當前節氣＝參賽），頁首另顯示一行參賽提示。
+//   ⚠️ 參加投稿過去直接 push('camera')，使用者沒辦法用手機相簿或自己站上的舊作品投稿。
+export default function NewPost({ photo: incomingPhoto = null, challenge = null }) {
+  const { push, pop, popAll, setToast, setStamp, requireAccount, user } = useNav()
   const draft = useRef(readDraft()).current
   const [sel, setSel] = useState(draft?.sel ?? 0)
   const [photo, setPhoto] = useState(incomingPhoto)   // 使用者選的照片（壓縮後 dataURL）
   const fromCamera = !!incomingPhoto
+  // 從「網站相簿」（自己發過的照片）選的：圖已經在伺服器上，發佈時直接用這個 id，不必再上傳一次
+  const [siteImageId, setSiteImageId] = useState(null)
+  const [sitePicker, setSitePicker] = useState(false)
   const fileRef = useRef(null)
   const [titleIn, setTitleIn] = useState(draft?.title ?? '')
   const [cap, setCap] = useState(draft?.cap ?? '')
   const [onSale, setOnSale] = useState(true)
-  const [term, setTerm] = useState(() => draft?.term || dayFor(todayOffset()).term)   // 預設＝真實當前節氣
+  const [term, setTerm] = useState(() => challenge || draft?.term || dayFor(todayOffset()).term)   // 預設＝真實當前節氣
   const [pickTerm, setPickTerm] = useState(false)
   const [place, setPlace] = useState(draft?.place ?? '')
   const [locOpen, setLocOpen] = useState(false)
@@ -80,8 +87,11 @@ export default function NewPost({ photo: incomingPhoto = null }) {
     e.target.value = ''
     if (!f) return
     if (!/^image\//.test(f.type)) return setToast('請選擇圖片檔')
-    try { setPhoto(await compressImage(f)) } catch { setToast('讀取圖片失敗，請換一張') }
+    try { setPhoto(await compressImage(f)); setSiteImageId(null) } catch { setToast('讀取圖片失敗，請換一張') }
   }
+  const openSite = () => { if (requireAccount('從網站相簿選照片')) setSitePicker(true) }
+  const pickSite = (item) => { setPhoto(item.image); setSiteImageId(item.imageId) }
+  const removePhoto = () => { setPhoto(null); setSiteImageId(null) }
 
   const price = licenseTiers[priceI]
   const sell = !!photo && onSale          // 沒照片就沒有東西可以上架
@@ -100,7 +110,8 @@ export default function NewPost({ photo: incomingPhoto = null }) {
     try {
       // 1) 有照片先上傳（拿 imageId）
       let imageId = null
-      if (photo) { const r = await api.uploadImage(photo); imageId = r.id }
+      if (siteImageId) imageId = siteImageId
+      else if (photo) { const r = await api.uploadImage(photo); imageId = r.id }
       // 2) 發佈貼文
       await api.createPost({
         emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, caption: cap.trim(), tags,
@@ -123,6 +134,9 @@ export default function NewPost({ photo: incomingPhoto = null }) {
       <TopBar title="發布貼文" onClose={pop}
         right={<button className="acc tap" onClick={publish} disabled={busy || empty}>發佈</button>} />
       <div className="body np-body">
+        {challenge && (
+          <div className="np-chal" role="note">參加「{challenge}攝影挑戰」：發佈後即自動參賽{term !== challenge && `（目前標記的是「${term}」，改回「${challenge}」才算參賽）`}</div>
+        )}
 
         <div className="np-compose">
           <input className="np-title" placeholder="標題（選填）" aria-label="標題（選填）"
@@ -141,8 +155,8 @@ export default function NewPost({ photo: incomingPhoto = null }) {
             <div className="np-photo-acts">
               {fromCamera
                 ? <button className="b tap" onClick={pop}>返回重拍</button>
-                : <button className="b tap" onClick={() => fileRef.current?.click()}>換一張</button>}
-              <button className="b tap" onClick={() => setPhoto(null)}>移除照片</button>
+                : <button className="b tap" onClick={() => siteImageId ? openSite() : fileRef.current?.click()}>換一張</button>}
+              <button className="b tap" onClick={removePhoto}>移除照片</button>
             </div>
           </div>
         ) : (
@@ -153,7 +167,10 @@ export default function NewPost({ photo: incomingPhoto = null }) {
                 <Icon name="camera" /><span>拍照<small>相機工作室・濾鏡特效</small></span>
               </button>
               <button className="np-attach-b tap" onClick={() => fileRef.current?.click()}>
-                <Icon name="image" /><span>從相簿選<small>手機或電腦裡的照片</small></span>
+                <Icon name="image" /><span>手機相簿<small>手機或電腦裡的照片</small></span>
+              </button>
+              <button className="np-attach-b tap" onClick={openSite}>
+                <Icon name="grid" /><span>網站相簿<small>我在站上發過的照片</small></span>
               </button>
             </div>
             <span className="np-attach-h" style={{ marginTop: 6 }}>沒有照片時的文章卡片底色</span>
@@ -224,7 +241,49 @@ export default function NewPost({ photo: incomingPhoto = null }) {
         <div style={{ height: 16 }} />
       </div>
 
+      {sitePicker && <SitePicker handle={user?.handle} onPick={pickSite} onClose={() => setSitePicker(false)} />}
       {locOpen && <LocationPicker onClose={() => setLocOpen(false)} onPick={(p) => setPlace(p.name)} />}
     </>
+  )
+}
+
+// 網站相簿：自己貼文／市集作品裡的照片（同一張圖上架時貼文與作品共用 image，以網址去重）
+function SitePicker({ handle, onPick, onClose }) {
+  const [items, setItems] = useState(null)
+  useEffect(() => {
+    let alive = true
+    if (!handle) { setItems([]); return }
+    api.userProfile(handle).then(r => {
+      if (!alive) return
+      const seen = new Set(), out = []
+      for (const x of [...(r.posts || []), ...(r.works || [])]) {
+        const m = /\/api\/images\/([^/?#]+)/.exec(x.image || '')
+        if (!m || seen.has(x.image)) continue
+        seen.add(x.image); out.push({ key: x.image, image: x.image, imageId: decodeURIComponent(m[1]), title: x.title || '', term: x.term || '' })
+      }
+      setItems(out)
+    }).catch(() => { if (alive) setItems([]) })
+    return () => { alive = false }
+  }, [handle])
+  return (
+    <SheetMask onClose={onClose} label="從網站相簿選照片">
+      {(close) => (
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="np-pick-hd"><b>網站相簿</b><button className="iconbtn tap" aria-label="關閉" onClick={close}><Icon name="x" /></button></div>
+          {items === null ? <div className="np-pick-skel ui-skeleton" /> : items.length === 0
+            ? <div className="empty"><div className="empty-t">站上還沒有你發過的照片</div><div style={{ marginTop: 6 }}>可以改用拍照或手機相簿</div></div>
+            : (
+              <div className="np-pick">
+                {items.map(p => (
+                  <button key={p.key} type="button" className="tap" onClick={() => { onPick(p); close() }}
+                    aria-label={`選這張：${stripEmoji(p.title) || '照片'}${p.term ? '（' + p.term + '）' : ''}`}>
+                    <img src={p.image} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            )}
+        </div>
+      )}
+    </SheetMask>
   )
 }

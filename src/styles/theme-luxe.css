@@ -1323,3 +1323,16 @@ button.ty.glossable, button.tn.glossable {
 .cal-dot.custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; }
 .cal-props-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 4px; border-top: 1px solid var(--ws-edge); }
 .cal-ws .cal-danger { color: var(--ws-danger); }
+
+/* 發文頁：參賽提示＋網站相簿選圖（2026-11-13，「參加投稿」不再直接跳相機） */
+.np-chal { margin: 10px var(--space-4) 0; padding: 10px 14px; border-radius: 14px; background: var(--tone-2); color: var(--text); font-size: var(--text-xs); line-height: 1.6; }
+.np-pick-hd { display: flex; align-items: center; justify-content: space-between; padding: 4px var(--space-4) 8px; }
+.np-pick-hd b { font-family: var(--serif); font-size: var(--text-base); }
+.np-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 4px var(--space-4) 16px; }
+.np-pick button { padding: 0; min-height: 0; border: none; border-radius: 10px; overflow: hidden; aspect-ratio: 1; cursor: pointer; background: var(--chip); }
+.np-pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.np-pick-skel { height: 220px; margin: 4px var(--space-4) 16px; border-radius: 14px; }
+@media (min-width: 600px) { .np-pick { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* 三個附加來源：手機直排三列（每顆都看得清副標），平板以上並排三欄 */
+.np-attach-g { grid-template-columns: 1fr; }
+@media (min-width: 600px) { .np-attach-g { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

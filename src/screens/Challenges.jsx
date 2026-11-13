@@ -51,7 +51,7 @@ export default function Challenges() {
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button className="b tap" onClick={() => push('challengesBoard')}>排行榜</button>
-            <button className="b dark tap" onClick={() => push('camera')}>參加投稿</button>
+            <button className="b dark tap" onClick={() => push('newPost', { challenge: term })}>參加投稿</button>
           </div>
         </div>
 
