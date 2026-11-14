@@ -1091,7 +1091,7 @@ function WorksPicker({ handle, onPick, onClose }) {
           {items === null ? <div className="cal-skel ui-skeleton" /> : items.length === 0
             ? <div className="empty"><div className="empty-t">還沒有含照片的作品</div></div>
             : (
-              <div className="cal-picker">
+              <div className="cal-wpick">
                 {items.map(p => (
                   <button key={p.id} className="tap" onClick={() => { onPick(p); close() }} aria-label={stripEmoji(p.title)}>
                     <img src={p.image} alt="" loading="lazy" />

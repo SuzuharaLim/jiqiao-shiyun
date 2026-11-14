@@ -814,6 +814,7 @@ Token 驅動；淺/深色以 `[data-theme]` 44 個 CSS 變數切換。三斷點�
 - **hook 一律寫在提早 return 之前**：`PostDetail` 的編輯狀態（`editing/eTitle/eCap/saving`）原本寫在 `if (!post) return 載入中` 之後——第一次渲染只跑 11 個 hook、資料回來後 15 個，React 丟「Rendered more hooks than during the previous render」，**整個貼文詳情頁被 ErrorBoundary 接走**（點進貼文只看到錯誤畫面，build 不會報錯）。新增狀態時務必放在所有 `return` 之前。
 - **`ToolRow` 本身是 `<button>`**：放進去的互動子元件不能是 `<button>`（button 巢 button＝DOM 穿模）；`Switch` 用 `<span role="switch">`。
 - **★★ AI 回覆的逐句 span 曾叫 `.seg`，撞到全站「分段切換」元件 `.seg`（2026-10-04 修）**：結果 AI 的每一句都被畫成一顆獨立的白色膠囊（白底、6px 16px 內距、14px 圓角），行內換行處出現缺口與互相重疊，看起來像排版壞掉。已改名 `.ai-seg`。這是 `.calcell.empty` 之後第二次撞名——**新元件取 class 名前一律先 grep 有沒有同名的全站元件**，短字（`seg`／`empty`／`chip`／`tag`）尤其危險。
+- **★★ 桌曆設計器的「從我的作品選」曾叫 `.cal-picker`，撞到首頁日期選擇器 `.cal-picker`（2026-11-14 修）**：那組 3 欄 grid＋正方形按鈕的樣式把首頁月曆整個打散（年月列、星期列、日期格左右並排，部分日期點不到）。已改名 `.cal-wpick`。這是第三次撞名。
 - **AI 頁 `/app/ai` 的樣式全部收在 `theme-luxe.css` 末段、帶 `.screen-aiChat` 前綴的一塊**：原本散在 styles.css 本體、styles.css 末段舊主題、theme-luxe 三層互相打架。開場建議（`.ai-starters`）放在 `.chat` 裡緊接開場白，不再黏在畫面底部；免責文案在輸入列正下方（`.ai-note`）。
 - **`.calcell.empty` 的 `empty` 會撞到全站空狀態元件 `.empty`**（那個有 `padding:50px 24px`）：月曆前導空白格是 `<span class="calcell empty">`，被撐成 100px 把首週那列從 46px 拉高（就是舊註解說的「首週大空隙」，但原因不是 aspect-ratio）。`visibility:hidden` **不會讓它不占位**，必須顯式 `padding:0; min-height:0`。**新元件取 class 名前先確認沒有同名的全站元件。**
 - **月曆格 `.calgrid`/`.calwk`**：用 `grid-template-columns:repeat(7,minmax(0,1fr))`，且高度用 `grid-auto-rows:46px` 固定、**不要用 `aspect-ratio`**——前導空白格是空 `<span>`，aspect-ratio 會把它撐成 ~100px 拉高首週那列、產生大空隙。
