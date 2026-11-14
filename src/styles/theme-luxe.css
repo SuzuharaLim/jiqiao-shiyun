@@ -1336,3 +1336,7 @@ button.ty.glossable, button.tn.glossable {
 /* 三個附加來源：手機直排三列（每顆都看得清副標），平板以上並排三欄 */
 .np-attach-g { grid-template-columns: 1fr; }
 @media (min-width: 600px) { .np-attach-g { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 數字一律用「齊線數字」：襯線字的 Georgia 預設是舊式數字（3、4、5、7、9 會掉到基線下），
+   「3D 模型」的 3 與 D 因此不在同一水平（2026-11-14 使用者回報）。 */
+body { font-variant-numeric: lining-nums; }

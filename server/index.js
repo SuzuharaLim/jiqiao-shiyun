@@ -1741,6 +1741,57 @@ function almanacBrief(d) {
   const good = d.hours12.filter(h => h.luck === '吉').map(h => `${h.zhi}時`)
   return `${d.solar}（${d.weekday}）${d.lunar}・${d.ganzhi}・${d.term}｜宜：${d.yi.join('、') || '無'}｜忌：${d.ji.join('、') || '無'}｜${d.zheng}｜吉時：${good.join('、') || '無'}`
 }
+// ── 整月曆訊（2026-11-14）──────────────────────────────────────────────
+// 使用者問「一月什麼時候適合出門玩」時，原本的曆訊只有單一天＋前後一日，模型只能回
+// 「目前沒有一月各日資料，請自己去曆頁翻」——叫使用者自己一天一天翻，等於沒回答。
+// 問句裡點名某個月份時，伺服器把那個月逐日算好附上，模型照表挑日子。
+// · 月份取「接下來最近的那一個」：11 月問「一月」＝明年 1 月；問本月＝本月。
+// · 「農曆X月」「正月」「臘月」不處理（那是農曆月，對到國曆會錯開），交給模型照原本的方式回答。
+// · 仍限在可翻閱範圍內（BROWSE_RANGE_DAYS），超出就不附。
+const ZH_MONTH = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12 }
+function monthAsked(text) {
+  const t = String(text || '')
+  const now = taipeiToday()
+  const cy = now.getFullYear(), cm = now.getMonth() + 1
+  if (/這個月|本月|這月/.test(t)) return { y: cy, m: cm }
+  if (/下個月|下月/.test(t)) return cm === 12 ? { y: cy + 1, m: 1 } : { y: cy, m: cm + 1 }
+  const re = /(?:(\d{4})\s*年\s*)?(十[一二]?|[一二三四五六七八九]|1[0-2]|0?[1-9])\s*月/g
+  let mt
+  while ((mt = re.exec(t))) {
+    const before = t.slice(Math.max(0, mt.index - 3), mt.index)
+    if (/農曆|陰曆|舊曆/.test(before)) continue
+    const raw = mt[2]
+    const m = ZH_MONTH[raw] || Number(raw)
+    if (!(m >= 1 && m <= 12)) continue
+    // 「1月」後面若緊接日期數字（1月3日）是在問單一天，不附整月
+    if (/^\s*\d{1,2}\s*[日號]/.test(t.slice(mt.index + mt[0].length))) continue
+    const y = mt[1] ? Number(mt[1]) : (m < cm ? cy + 1 : cy)
+    return { y, m }
+  }
+  return null
+}
+function monthAlmanacBlock(text) {
+  const q = monthAsked(text)
+  if (!q) return ''
+  const first = new Date(q.y, q.m - 1, 1)
+  const days = new Date(q.y, q.m, 0).getDate()
+  const off0 = offsetFromDate(first)
+  if (Math.abs(off0 - todayOffset()) > BROWSE_RANGE_DAYS) return ''
+  const today = todayOffset()
+  const rows = []
+  for (let i = 0; i < days; i++) {
+    const off = off0 + i
+    const d = dayFor(off)
+    const past = off < today ? '（已過）' : ''
+    rows.push(`${d.solar} ${d.weekday}${past}｜${d.stars}星 ${d.rating || ''}｜宜：${d.yi.join('、') || '無'}｜忌：${d.ji.slice(0, 4).join('、') || '無'}｜沖${d.chong.zodiac}${d.festival ? '｜' + d.festival : ''}`)
+  }
+  return `
+
+【${q.y} 年 ${q.m} 月逐日曆訊｜使用者問到這個月，以下為整月資料，一律照抄不得自行推算】
+${rows.join('\n')}
+回答「這個月哪天適合◯◯」時：從上表挑出宜欄含相關用途（出遊、旅行看「出行」；搬家看「移徙、入宅」；結婚看「嫁娶」…）且星等較高的日子，列出 3～5 個具體日期（含星期），已過的日子不要推薦；若整月都沒有就照實說。不要叫使用者自己去曆頁翻。`
+}
+
 function buildAlmanacContext(user, iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''))
   let off = todayOffset()
@@ -1983,7 +2034,7 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
   const sys = AI_SYSTEM + `
 
 【曆訊｜以下數字一律照抄，不得自行推算】
-${buildAlmanacContext(req.user, req.body?.date)}`
+${buildAlmanacContext(req.user, req.body?.date)}${monthAlmanacBlock(lastUser)}`
 
   const out = await streamGuarded(res, {
     sys, hist, persona: null, maxTokens: 500,
