@@ -1796,7 +1796,8 @@ function monthAlmanacBlock(text) {
 
 【${q.y} 年 ${q.m} 月逐日曆訊｜使用者問到這個月，以下為整月資料，一律照抄不得自行推算】
 ${rows.join('\n')}
-回答「這個月哪天適合◯◯」時：從上表挑出宜欄含相關用途（出遊、旅行看「出行」；搬家看「移徙、入宅」；結婚看「嫁娶」…）且星等較高的日子，列出 3～5 個具體日期（含星期），已過的日子不要推薦；若整月都沒有就照實說。不要叫使用者自己去曆頁翻。`
+回答「這個月哪天適合◯◯」時：從上表挑出宜欄含相關用途（出遊、旅行看「出行」；搬家看「移徙、入宅」；結婚看「嫁娶」…）且星等較高的日子，列出 3～5 個具體日期（含星期），已過的日子不要推薦；若整月都沒有就照實說。不要叫使用者自己去曆頁翻。
+推薦地點、活動或行程時（包括接續先前月份話題的追問，例如「適合去哪裡玩」），每一項後面都要標上表中適合的具體日期，格式如「① 想泡暖湯：北投或礁溪（1/22 週五、1/15 週五較佳）」——依宜欄是否含「出行」與星等挑選；同一天可以重複出現在不同項目。`
 }
 
 function buildAlmanacContext(user, iso) {
@@ -2036,12 +2037,17 @@ app.post('/api/ai/chat', requireAuth, requireCsrf, aiLimiter, ah(async (req, res
     return res.json({ reply: AI_REFUSAL, refused: true })
   }
 
+  // 月份話題要延續：「一月什麼時候適合出門？」之後追問「適合去哪裡玩？」不會再提月份，
+  //   只看最後一句的話整月曆訊就消失了，模型標不出日期。往回找最近一則有點名月份的使用者訊息。
+  const monthTopic = [...hist].reverse().filter(m => m.role === 'user').slice(0, 4)
+    .map(m => m.content).find(t => monthAsked(t)) || ''
+
   // 刻意不使用前端傳來的 context——那是可竄改的輸入，而且原本只有薄薄一行。
   //    改由伺服器自己算完整曆訊（見 buildAlmanacContext 的註解）。
   const sys = AI_SYSTEM + `
 
 【曆訊｜以下數字一律照抄，不得自行推算】
-${buildAlmanacContext(req.user, req.body?.date)}${monthAlmanacBlock(lastUser)}`
+${buildAlmanacContext(req.user, req.body?.date)}${monthAlmanacBlock(monthTopic)}`
 
   const out = await streamGuarded(res, {
     sys, hist, persona: null, maxTokens: 500,
