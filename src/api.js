@@ -85,6 +85,23 @@ export const api = {
   createWork: (b) => req('/works', { method: 'POST', body: b }),
   leaderboard: () => req('/leaderboard'),
   uploadImage: (dataUrl) => req('/images', { method: 'POST', body: { data: dataUrl } }),
+  // 影片：直接送原始位元組（不包 base64 JSON），逾時放寬到 3 分鐘——30 MB 在慢速行動網路要很久。
+  uploadVideo: async (blob) => {
+    const headers = { 'Content-Type': (blob.type || 'video/mp4').split(';')[0] }
+    if (csrf) headers['x-csrf-token'] = csrf
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 180000)
+    let res
+    try {
+      res = await fetch('/api/videos', { method: 'POST', credentials: 'include', headers, body: blob, signal: ctrl.signal })
+    } catch (e) {
+      throw Object.assign(new Error(e?.name === 'AbortError' ? '影片上傳逾時，請改用較短的影片或換個網路' : '網路連線異常，請稍後再試'), { network: true })
+    } finally { clearTimeout(timer) }
+    let data = null
+    try { data = await res.json() } catch { /* 無 body */ }
+    if (!res.ok) throw Object.assign(new Error(data?.error || '影片上傳失敗，請稍後再試'), { status: res.status, data })
+    return data
+  },
   userProfile: (handle) => req('/users/' + encodeURIComponent(handle)),
   follow: (b) => req('/follow', { method: 'POST', body: b }),
   followers: (handle) => req('/users/' + encodeURIComponent(handle) + '/followers'),

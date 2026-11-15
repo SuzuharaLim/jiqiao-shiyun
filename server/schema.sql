@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS posts (
   caption       TEXT,
   tags_json     TEXT,                            -- ["芒種","田間"]
   place         TEXT,
-  image_id      TEXT,                            -- 使用者上傳的照片（images 表；NULL＝emoji 佔位）
+  image_id      TEXT,                            -- 使用者上傳的照片（images 表；NULL＝emoji 佔位）；影片貼文＝影片封面
+  video_id      TEXT,                            -- 影片（videos 表；檔案在 printStore 的 vid/ 底下）
   like_count    INTEGER NOT NULL DEFAULT 0,      -- 反正規化計數（配合 post_likes）
   comment_count INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL,
@@ -151,6 +152,18 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- 使用者上傳的圖片（base64 存 TEXT，pg/sqlite 皆可；由 /api/images/:id 供圖）
+-- 貼文影片（2026-11-15）：檔案本體**不進資料庫**（base64 放 Cloud SQL 會讓 DB 快速膨脹），
+-- 存在 printStore（正式＝Cloud Storage 的 PRINT_BUCKET、本機＝磁碟）的 vid/<id>.<ext>。
+CREATE TABLE IF NOT EXISTS videos (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  mime        TEXT NOT NULL,                     -- video/mp4 | video/webm | video/quicktime
+  bytes       INTEGER NOT NULL,
+  store_key   TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS images (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL,

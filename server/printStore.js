@@ -66,6 +66,14 @@ export async function putPrint(key, buf, type = 'image/jpeg') {
   fs.writeFileSync(p, buf)
 }
 
+// ── 貼文影片（2026-11-15）：與印刷原圖共用同一個 bucket，但**只能碰 vid/ 底下**。──
+// ★★★ 影片要公開播放（/api/videos/:id 不需登入），所以絕不可讓那支路由呼叫 getPrint——
+//   getPrint 拿得到 inq/ 底下的印刷原圖。這兩支只接受 vid/ 開頭的 key，閘門（check-cal C 段）鎖住。
+const VIDEO_KEY = /^vid\/[a-z0-9-]{8,64}\.(mp4|webm|mov)$/i
+const videoKey = (key) => { const k = safeKey(key); if (!VIDEO_KEY.test(k)) throw new Error('bad video key'); return k }
+export async function putVideo(key, buf, type) { return putPrint(videoKey(key), buf, type) }
+export async function getVideo(key) { return getPrint(videoKey(key)) }
+
 export async function getPrint(key) {
   const k = safeKey(key)
   if (BUCKET) {

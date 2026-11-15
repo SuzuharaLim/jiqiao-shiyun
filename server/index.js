@@ -20,7 +20,7 @@ import { toLogical } from '../src/data/appBase.js'
 // 貼文內文上限：前後端同一個常數（2026-10-04 開放文章型貼文，400 → 3000）
 import { CAPTION_MAX } from '../src/data/postRules.js'
 import { CAL_LIMITS, normalizeDesign, designImageIds, designFlags, isSlot } from '../src/data/calendarRules.js'
-import { putPrint, getPrint, deletePrefix, printUsage, printStoreKind, printStoreReady } from './printStore.js'
+import { putPrint, getPrint, putVideo, getVideo, deletePrefix, printUsage, printStoreKind, printStoreReady } from './printStore.js'
 import { matchRoute, injectMeta, entryExists, buildSitemap, buildSitemapIndex, buildSitemapKind, SITEMAP_KINDS } from './seo.js'
 // ⚠️ 曆算引擎在後端也要用：AI 的曆訊 context 必須由伺服器自己算，
 //    不能沿用前端傳來的字串（前端可竄改，而且原本只傳一行，
@@ -186,6 +186,7 @@ const jsonImage = express.json({ limit: '4mb' })
 // ⚠️ 需要較大 body 的路由要在這裡**排除**，自己在路由上掛較大的 parser——
 //    否則這條全域的 32kb 先解析、先擋掉，路由上寫多大都沒用（桌曆原圖約 3 MB）。
 const bigBody = (req) => (req.method === 'POST' && req.path === '/api/images')
+  || (req.method === 'POST' && req.path === '/api/videos')
   || (req.method === 'POST' && /^\/api\/calinquiries\/[^/]+\/print\/\d+$/.test(req.path))
   || ((req.method === 'POST' || req.method === 'PATCH') && /^\/api\/caldesigns(\/[^/]+)?$/.test(req.path))
 app.use((req, res, next) => bigBody(req) ? next() : jsonSmall(req, res, next))
@@ -380,6 +381,10 @@ app.delete('/api/account', requireAuth, requireCsrf, ah(async (req, res) => {
   // 桌曆洽詢的印刷原圖在 Cloud Storage，不會跟著資料庫的 CASCADE 一起刪——要自己清
   for (const q of await db.all('SELECT id FROM cal_inquiries WHERE user_id=?', [req.user.id])) {
     await deletePrefix('inq/' + q.id + '/').catch(() => {})
+  }
+  // 貼文影片同理（檔案在 printStore 的 vid/ 底下）
+  for (const v of await db.all('SELECT store_key FROM videos WHERE user_id=?', [req.user.id])) {
+    await deletePrefix(v.store_key).catch(() => {})
   }
   await db.run('DELETE FROM users WHERE id=?', [req.user.id])
   res.clearCookie('sid', { ...cookieOpts, maxAge: undefined })
@@ -634,12 +639,76 @@ app.get('/api/images/:id', ah(async (req, res) => {
   res.send(Buffer.from(img.data, 'base64'))
 }))
 
+// ================= 貼文影片（上傳 / 供片，2026-11-15）=================
+// ★ 直接送**原始位元組**（Content-Type: video/*），不包 base64 JSON：30 MB 的影片
+//   base64 之後多 33%，而且要整份 JSON.parse 進記憶體。
+// ★ 檔案存 printStore（正式站＝PRINT_BUCKET，private bucket），由這裡轉送——
+//   正式站沒設 bucket 時 putPrint 會 503（容器磁碟重啟就清空，不可假裝存好了）。
+// ⚠️ 這條路由列在 bigBody 裡：全域 32kb parser 雖然只解析 JSON，仍排除以免日後改型別踩雷。
+const VIDEO_MAX_BYTES = 30 * 1024 * 1024
+const VIDEO_EXT = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }
+const rawVideo = express.raw({ type: ['video/*'], limit: VIDEO_MAX_BYTES + 1024 })
+// 檔頭驗證：WebM/Matroska 是 EBML 1A45DFA3；MP4/MOV 是 ISO BMFF，第 4–8 byte 是 box 型別
+const videoMagicOk = (mime, b) => {
+  if (!b || b.length < 12) return false
+  if (mime === 'video/webm') return b[0] === 0x1A && b[1] === 0x45 && b[2] === 0xDF && b[3] === 0xA3
+  return ['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip'].includes(b.toString('latin1', 4, 8))
+}
+app.post('/api/videos', requireAuth, requireCsrf, (req, res, next) => rawVideo(req, res, (err) => {
+  if (err?.type === 'entity.too.large') return res.status(413).json({ error: '影片太大，上限 30 MB（約 1 分鐘以內）' })
+  next(err)
+}), ah(async (req, res) => {
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+  const ext = VIDEO_EXT[mime]
+  if (!ext) return res.status(400).json({ error: '影片格式不支援（僅支援 MP4／WebM／MOV）' })
+  const buf = Buffer.isBuffer(req.body) ? req.body : null
+  if (!buf || !buf.length) return res.status(400).json({ error: '沒有收到影片內容' })
+  if (buf.length > VIDEO_MAX_BYTES) return res.status(413).json({ error: '影片太大，上限 30 MB（約 1 分鐘以內）' })
+  if (!videoMagicOk(mime, buf)) return res.status(400).json({ error: '影片內容驗證失敗' })
+  const id = uuid()
+  const key = `vid/${id}.${ext}`
+  await putVideo(key, buf, mime)
+  await db.run('INSERT INTO videos (id,user_id,mime,bytes,store_key,created_at) VALUES (?,?,?,?,?,?)', [id, req.user.id, mime, buf.length, key, now()])
+  await audit('video_upload', req, req.user.id, `${id}:${Math.round(buf.length / 1024)}kb`)
+  res.json({ id, url: `/api/videos/${id}` })
+}))
+// ★ 要支援 Range：iOS Safari 播 <video> 時會先送 Range: bytes=0-1，伺服器只回 200 整份的話它拒播。
+//   printStore 拿回來是整份 Buffer（上限 30 MB），在記憶體裡切片即可。
+app.get('/api/videos/:id', ah(async (req, res) => {
+  const v = await db.get('SELECT mime,store_key FROM videos WHERE id=?', [String(req.params.id).slice(0, 60)])
+  if (!v) return res.status(404).end()
+  const buf = await getVideo(v.store_key)
+  if (!buf) return res.status(404).end()
+  res.set('Content-Type', v.mime).set('Accept-Ranges', 'bytes').set('Cache-Control', 'public, max-age=31536000, immutable')
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''))
+  if (m && (m[1] || m[2])) {
+    const size = buf.length
+    let start = m[1] ? Number(m[1]) : size - Number(m[2])
+    let end = m[1] && m[2] ? Number(m[2]) : size - 1
+    start = Math.max(0, start); end = Math.min(size - 1, end)
+    if (start > end || start >= size) return res.status(416).set('Content-Range', `bytes */${size}`).end()
+    res.status(206).set('Content-Range', `bytes ${start}-${end}/${size}`).set('Content-Length', String(end - start + 1))
+    return res.end(buf.subarray(start, end + 1))
+  }
+  res.set('Content-Length', String(buf.length)).end(buf)
+}))
+// 刪掉「沒有貼文在用」的影片（檔案在 printStore，不會跟著 DB 的 CASCADE 一起刪）
+async function dropVideoIfOrphan(videoId) {
+  if (!videoId) return
+  if (await db.get('SELECT 1 AS x FROM posts WHERE video_id=?', [videoId])) return
+  const v = await db.get('SELECT store_key FROM videos WHERE id=?', [videoId])
+  if (v) await deletePrefix(v.store_key).catch(() => {})
+  await db.run('DELETE FROM videos WHERE id=?', [videoId])
+}
+
 // ================= 社群內容（貼文 / 作品 / 留言 / 讚 / 追蹤）=================
 const postShape = (r) => ({
   id: r.id, user: r.handle || r.uname, avatar: r.avatar, avatarBg: r.avatar_bg, emoji: r.emoji, bg: r.bg,
   term: r.term, title: r.title, caption: r.caption, tags: r.tags_json ? JSON.parse(r.tags_json) : [],
   likes: r.like_count, comments: r.comment_count, place: r.place, time: relTime(r.created_at),
   image: r.image_id ? `/api/images/${r.image_id}` : null,
+  // 影片貼文：image 是封面（前端擷取的一格畫面），video 是影片本體
+  video: r.video_id ? `/api/videos/${r.video_id}` : null,
   // 市集：price 0 是「免費授權」，不是「沒在賣」（有 sale 物件就代表有上架）
   sale: r.sale_id ? { id: r.sale_id, price: Number(r.sale_price) || 0 } : null,
 })
@@ -726,11 +795,17 @@ app.post('/api/posts', requireAuth, requireCsrf, ah(async (req, res) => {
     const img = await db.get('SELECT id FROM images WHERE id=? AND user_id=?', [String(b.imageId).slice(0, 60), req.user.id])
     if (img) imageId = img.id
   }
-  await db.run(`INSERT INTO posts (id,user_id,emoji,bg,term,title,caption,tags_json,place,image_id,like_count,comment_count,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,0,0,?)`,
+  // 影片：同樣必須是自己上傳的
+  let videoId = null
+  if (b.videoId) {
+    const v = await db.get('SELECT id FROM videos WHERE id=? AND user_id=?', [String(b.videoId).slice(0, 60), req.user.id])
+    if (v) videoId = v.id
+  }
+  await db.run(`INSERT INTO posts (id,user_id,emoji,bg,term,title,caption,tags_json,place,image_id,video_id,like_count,comment_count,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,?)`,
     [id, req.user.id, String(b.emoji || '').slice(0, 8), String(b.bg || '#dcfce7').slice(0, 16),
      String(b.term || '').slice(0, 8), title, String(b.caption || '').slice(0, CAPTION_MAX), JSON.stringify(tags),
-     String(b.place || '').slice(0, 40), imageId, now()])
+     String(b.place || '').slice(0, 40), imageId, videoId, now()])
   await audit('post_create', req, req.user.id, id)
   const r = await db.get(`${POST_SELECT} WHERE p.id=?`, [id])
   res.json({ post: postShape(r) })
@@ -1357,10 +1432,11 @@ app.delete('/api/reports/:id', requireAuth, requireCsrf, ah(async (req, res) => 
 }))
 
 app.delete('/api/posts/:id', requireAuth, requireCsrf, ah(async (req, res) => {
-  const post = await db.get('SELECT id,user_id FROM posts WHERE id=?', [req.params.id])
+  const post = await db.get('SELECT id,user_id,video_id FROM posts WHERE id=?', [req.params.id])
   if (!post) return res.status(404).json({ error: '找不到貼文' })
   if (!canModerate(req, post.user_id)) return res.status(403).json({ error: '只能刪除自己的貼文' })
   await db.run('DELETE FROM posts WHERE id=?', [req.params.id])   // 留言/按讚 FK CASCADE 連帶清除
+  await dropVideoIfOrphan(post.video_id)
   await audit('post_delete', req, req.user.id, req.params.id)
   res.json({ ok: true })
 }))

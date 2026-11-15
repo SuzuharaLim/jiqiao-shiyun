@@ -146,6 +146,18 @@ ok(dayInfo({ y: 2027, m: 2, d: 6 }).lunar === '正月', 'A 正月初一要顯示
   ok(leaks(SERVER).length === 0, `C 有路由在沒有 requireRole 的情況下讀了原圖：${leaks(SERVER).map(m => m[2]).join('、')}`)
   ok([...SERVER.matchAll(routeRe)].filter(m => /getPrint\(/.test(m[3])).length === 1, 'C 讀原圖的路由應該只有一支（後台那支）')
   ok(!/upload\/storage\/v1[^`]*predefinedAcl=public/.test(read('server/printStore.js')), 'C 原圖不可上傳成公開物件')
+  // 貼文影片是公開播放的，只能走 getVideo（只認 vid/ 開頭的 key，碰不到 inq/ 的原圖）
+  {
+    const PS = read('server/printStore.js')
+    const m = /const VIDEO_KEY = (\/.+\/i?)\r?\n/.exec(PS)
+    ok(!!m, 'C 找不到 printStore 的 VIDEO_KEY')
+    if (m) {
+      const re = eval(m[1])
+      ok(re.test('vid/0b6a3c1e-1111-4222-8333-123456789abc.mp4'), 'C VIDEO_KEY 應接受 vid/<uuid>.mp4')
+      ok(!re.test('inq/abc/p3.jpg') && !re.test('vid/../inq/a.mp4') && !re.test('vid/x/p1.jpg'), 'C VIDEO_KEY 不可放行 vid/ 以外的 key')
+    }
+    ok(/export async function getVideo\(key\) \{ return getPrint\(videoKey\(key\)\) \}/.test(PS), 'C getVideo 必須先經過 videoKey 檢查')
+  }
 }
 
 // ── D) 大檔上傳要排除在全域 32kb 之外 ───────────────────────────

@@ -1340,3 +1340,43 @@ button.ty.glossable, button.tn.glossable {
 /* 數字一律用「齊線數字」：襯線字的 Georgia 預設是舊式數字（3、4、5、7、9 會掉到基線下），
    「3D 模型」的 3 與 D 因此不在同一水平（2026-11-14 使用者回報）。 */
 body { font-variant-numeric: lining-nums; }
+
+/* ============================================================================
+   貼文影片＋照片「調整位置與縮放」（2026-11-15）
+   ============================================================================ */
+/* 發文頁：三顆動作鈕時「調整位置與縮放」獨佔一列（375px 下三顆擠一列字會斷） */
+.np-photo-acts { flex-wrap: wrap; }
+.np-photo-acts .b.dark { flex: 1 1 100%; }
+.np-video video, .post-video video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.np-media-meta { margin-top: 6px; font-size: var(--text-2xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 詳情頁影片：依影片本身比例，最高一個視窗的 70% */
+.post-video { background: #000; display: flex; justify-content: center; }
+.post-video video { width: 100%; height: auto; max-height: 70dvh; }
+/* 卡片角落的播放標記（影片貼文的封面上） */
+.vidbadge {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; pointer-events: none;
+  background: rgba(20, 14, 8, .58); color: #fff;
+}
+.vidbadge .ic { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+
+/* 裁切面板 */
+.np-crop-asp { display: flex; gap: 8px; padding: 0 var(--space-4) 10px; flex-wrap: wrap; }
+.np-crop-asp .chip { margin: 0; }
+.np-crop-stage { display: flex; justify-content: center; padding: 0 var(--space-4); }
+.np-crop-frame {
+  position: relative; overflow: hidden; border-radius: 14px; background: #000;
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; max-width: 100%;
+}
+.np-crop-frame:active { cursor: grabbing; }
+.np-crop-frame img { position: absolute; max-width: none; max-height: none; pointer-events: none; display: block; }
+/* 三分線：讓人知道「框內＝會被留下來的部分」（用邊框畫線，不用漸層） */
+.np-crop-frame::before, .np-crop-frame::after { content: ''; position: absolute; pointer-events: none; border: 0 solid rgba(255,255,255,.4); }
+.np-crop-frame::before { top: 0; bottom: 0; left: 33.333%; right: 33.333%; border-left-width: 1px; border-right-width: 1px; }
+.np-crop-frame::after { left: 0; right: 0; top: 33.333%; bottom: 33.333%; border-top-width: 1px; border-bottom-width: 1px; }
+.np-crop-zoom { display: flex; align-items: center; gap: 8px; padding: 12px var(--space-4) 0; }
+.np-crop-zoom input[type="range"] { flex: 1; accent-color: var(--primary); }
+.np-crop-zoom .iconbtn { font-size: var(--text-lg); font-weight: 700; }
+.np-crop-hint { padding: 6px var(--space-4) 0; font-size: var(--text-2xs); color: var(--muted); text-align: center; }
+.np-crop-acts { display: flex; gap: 8px; padding: 12px var(--space-4) calc(12px + env(safe-area-inset-bottom)); }
+.np-crop-acts .b { flex: 1; }

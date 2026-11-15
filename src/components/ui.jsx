@@ -452,8 +452,10 @@ const SEASON_OF = {}
   ['autumn', '立秋處暑白露秋分寒露霜降'], ['winter', '立冬小雪大雪冬至小寒大寒']]
   .forEach(([s, str]) => { for (let i = 0; i < str.length; i += 2) SEASON_OF[str.slice(i, i + 2)] = s })
 
-export function PostCover({ image, alt = '', title = '', caption = '', term = '' }) {
-  if (image) return <PhotoImg src={image} alt={alt} />
+// video：影片貼文的網址（有就在角落加播放標記；image 此時是影片封面）
+export function PostCover({ image, alt = '', title = '', caption = '', term = '', video = null }) {
+  const badge = video ? <span className="vidbadge" aria-label="影片"><Icon name="play" /></span> : null
+  if (image) return badge ? <><PhotoImg src={image} alt={alt} />{badge}</> : <PhotoImg src={image} alt={alt} />
   const body = stripEmoji(String(caption || '')).replace(/#[^\s#]+/g, '').replace(/\s+/g, ' ').trim()
   // 標題通常就是內文第一行（發文頁沒填標題時的推導規則），引言要跳過重複的那段
   const t = stripEmoji(String(title || '')).trim()
@@ -465,7 +467,7 @@ export function PostCover({ image, alt = '', title = '', caption = '', term = ''
   return (
     <span className={`txtcover s-${SEASON_OF[tm] || 'none'}`}>
       {tm && <span className="txtcover-term" aria-hidden="true">{tm}</span>}
-      <span className="txtcover-k"><Icon name="pen" className="txtcover-ic" />文章</span>
+      <span className="txtcover-k"><Icon name={video ? 'play' : 'pen'} className="txtcover-ic" />{video ? '影片' : '文章'}</span>
       <q className="txtcover-q">{quote}</q>
     </span>
   )

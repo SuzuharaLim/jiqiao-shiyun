@@ -26,6 +26,7 @@ export default function Camera({ onDone }) {
   const [shot, setShot] = useState(null)            // {url, w, h} 拍好的照片（進檢視）
   const [recording, setRecording] = useState(false)
   const [videoUrl, setVideoUrl] = useState(null)
+  const videoBlobRef = useRef(null)   // 錄好的影片本體：「下一步」帶進發文頁上傳
 
   const [stream, setStream] = useState(null)        // ★ 用 state 而非 ref：換串流一定會重新掛上 video
   const [camKey, setCamKey] = useState(0)           // 「再試一次」用的重試計數
@@ -104,7 +105,11 @@ export default function Camera({ onDone }) {
       const mime = ['video/webm;codecs=vp9', 'video/webm', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t))
       const mr = new MediaRecorder(streamRef.current, mime ? { mimeType: mime } : undefined)
       mr.ondataavailable = e => e.data.size && chunksRef.current.push(e.data)
-      mr.onstop = () => { const blob = new Blob(chunksRef.current, { type: mime || 'video/mp4' }); setVideoUrl(URL.createObjectURL(blob)) }
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: (mime || mr.mimeType || 'video/mp4').split(';')[0] })
+        videoBlobRef.current = blob
+        setVideoUrl(URL.createObjectURL(blob))
+      }
       mr.start(); recRef.current = mr; setRecording(true); setToast('錄影中…放開停止')
     } catch { setToast('此裝置不支援錄影') }
   }
@@ -132,21 +137,26 @@ export default function Camera({ onDone }) {
       <TopBar title="影片" onBack={() => setVideoUrl(null)}
         right={<button className="iconbtn tap" aria-label="離開相機" onClick={popAll}><Icon name="x" /></button>} />
       <div className="cam-stage"><video src={videoUrl} controls autoPlay loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
-      {/* ⚠️ 原本 onClick 只 toast「影片已保存（示範）」然後 setVideoUrl(null)——
-          使用者拍的影片直接被丟棄，卻以為存好了。
-          影片發布需要後端影片上傳（images 表只存 base64，影片體積不適用），
-          在那之前至少讓使用者真的把檔案存下來，不要弄丟他的東西。 */}
+      {/* 影片貼文（2026-11-15）：跟照片一樣先進發文頁，寫好說明再發佈（影片存 printStore，見 server /api/videos）。
+          ⚠️ 下載保留：原本這裡只 toast「已保存（示範）」就把影片丟掉——不可再讓使用者以為存好了卻弄丟。 */}
       <div className="cam-bottom" style={{ gap: 8 }}>
-        <button className="btn-primary tap" onClick={() => {
+        {!onDone && (
+          <button className="btn-primary tap" onClick={() => {
+            if (!requireAccount('發佈影片')) return
+            const blob = videoBlobRef.current
+            if (!blob) return
+            popAll()
+            push('newPost', { video: blob })
+          }}>下一步 →</button>
+        )}
+        <button className="b tap" onClick={() => {
+          const ext = /mp4/.test(videoBlobRef.current?.type || '') ? 'mp4' : 'webm'
           const a = document.createElement('a')
           a.href = videoUrl
-          a.download = `機巧時運_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.webm`
+          a.download = `機巧時運_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`
           document.body.appendChild(a); a.click(); a.remove()
           setToast('影片已下載到你的裝置')
-        }}>下載影片</button>
-        <p className="cam-hint" style={{ textAlign: 'center', marginTop: 6 }}>
-          影片發布功能尚未開放，目前可先下載保存
-        </p>
+        }}>下載到裝置</button>
       </div>
     </div>
   )

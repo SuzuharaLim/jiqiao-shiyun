@@ -206,7 +206,7 @@ export default function Explore() {
             {list.map(p => (
               <button key={p.id} className={`it tap${isText(p) ? ' is-text' : ''}`} onClick={() => push('postDetail', { id: p.id })}>
                 <div className="ph" style={{ background: p.bg, position: 'relative', overflow: 'hidden' }}>
-                  <PostCover image={p.image} alt={`${p.title}｜${p.term || '節氣'}攝影，攝影者 @${p.user}`}
+                  <PostCover video={p.video} image={p.image} alt={`${p.title}｜${p.term || '節氣'}攝影，攝影者 @${p.user}`}
                     title={p.title} caption={p.caption} term={p.term} />
                   {p.sale && <div className="gbadge">{saleLabel(p.sale.price)}</div>}
                 </div>

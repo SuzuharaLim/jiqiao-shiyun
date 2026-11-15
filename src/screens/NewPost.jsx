@@ -54,17 +54,78 @@ function compressImage(file) {
   })
 }
 
+// ── 影片（2026-11-15）──
+// 上限 30 MB／60 秒（後端 /api/videos 也擋 30 MB）。檔案直接以原始位元組上傳，存 printStore。
+// 封面：在瀏覽器裡擷取一格畫面當 image 上傳——卡片、分享預覽、og:image 都不必另外處理影片。
+const VIDEO_MAX_MB = 30
+const VIDEO_MAX_SEC = 60
+const VIDEO_EXT = { mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' }
+// file.type 有時是空字串（部分 Android 檔案管理員、.mov），用副檔名補
+function videoType(f) {
+  const t = String(f?.type || '').split(';')[0].toLowerCase()
+  if (/^video\/(mp4|webm|quicktime)$/.test(t)) return t
+  return VIDEO_EXT[String(f?.name || '').split('.').pop().toLowerCase()] || ''
+}
+// 讀影片：長度、尺寸、封面。⚠️ 瀏覽器解不開的格式（例如 Chrome 遇到 iPhone 的 HEVC）
+//   metadata 不會載入 ⇒ 直接拒絕：這裡播不了，別人多半也播不了。
+// ⚠️ MediaRecorder 錄的 webm 沒有長度資訊（duration＝Infinity），這時不檢查秒數，靠 30 MB 擋。
+function readVideo(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
+    const v = document.createElement('video')
+    v.muted = true; v.playsInline = true; v.preload = 'auto'
+    let done = false, seeking = false
+    const end = (fn) => { if (done) return; done = true; clearTimeout(timer); fn() }
+    const meta = (poster) => ({ url, poster, w: v.videoWidth, h: v.videoHeight,
+      duration: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null })
+    const grab = () => end(() => {
+      let poster = null
+      try {
+        const s = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight))
+        const c = document.createElement('canvas')
+        c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s)
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height)
+        poster = c.toDataURL('image/jpeg', 0.82)
+      } catch { /* 擷取失敗就沒有封面，仍可發佈 */ }
+      resolve(meta(poster))
+    })
+    v.onloadedmetadata = () => {
+      if (!v.videoWidth) return end(() => { URL.revokeObjectURL(url); reject(new Error('decode')) })
+      const d = v.duration
+      // 第一格常是黑畫面（淡入），封面取 0.5 秒（短片取三分之一處）
+      if (Number.isFinite(d) && d > 0.6) { seeking = true; try { v.currentTime = Math.min(0.5, d / 3) } catch { seeking = false } }
+    }
+    v.onseeked = grab
+    v.onloadeddata = () => { if (!seeking) grab() }
+    v.onerror = () => end(() => { URL.revokeObjectURL(url); reject(new Error('decode')) })
+    const timer = setTimeout(() => {
+      if (v.videoWidth) end(() => resolve(meta(null)))
+      else end(() => { URL.revokeObjectURL(url); reject(new Error('decode')) })
+    }, 8000)
+    v.src = url
+  })
+}
+const fmtDur = (sec) => sec == null ? '' : `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
+
 // photo：由相機「下一步」帶進來的照片（已套好濾鏡）。
 // 走這條路徑時不再另外壓縮——相機的 bakeImage() 已縮到 1600px / JPEG 0.85。
 // challenge：從「節氣挑戰」的「參加投稿」進來時帶入的節氣名稱——節氣鎖定為它
 //   （標記當前節氣＝參賽），頁首另顯示一行參賽提示。
 //   ⚠️ 參加投稿過去直接 push('camera')，使用者沒辦法用手機相簿或自己站上的舊作品投稿。
-export default function NewPost({ photo: incomingPhoto = null, challenge = null }) {
+// video：由相機錄影「下一步」帶進來的影片 Blob。
+export default function NewPost({ photo: incomingPhoto = null, video: incomingVideo = null, challenge = null }) {
   const { push, pop, popAll, setToast, setStamp, requireAccount, user } = useNav()
   const draft = useRef(readDraft()).current
   const [sel, setSel] = useState(draft?.sel ?? 0)
-  const [photo, setPhoto] = useState(incomingPhoto)   // 使用者選的照片（壓縮後 dataURL）
-  const fromCamera = !!incomingPhoto
+  const [photo, setPhoto] = useState(incomingPhoto)   // 使用者選的照片（壓縮後 dataURL；調整過就是裁好的版本）
+  // 調整位置與縮放：orig＝未裁切的原圖（再調整一次要從原圖開始，不可對裁過的圖再裁）
+  const [orig, setOrig] = useState(incomingPhoto)
+  const [cropInfo, setCropInfo] = useState(null)       // { aspect, z, x, y }；null＝沒調整過
+  const [cropOpen, setCropOpen] = useState(false)
+  // 影片：{ blob, url, poster, duration, w, h }。照片與影片擇一。
+  const [video, setVideo] = useState(null)
+  const [readingVideo, setReadingVideo] = useState(false)
+  const fromCamera = !!incomingPhoto || !!incomingVideo
   // 從「網站相簿」（自己發過的照片）選的：圖已經在伺服器上，發佈時直接用這個 id，不必再上傳一次
   const [siteImageId, setSiteImageId] = useState(null)
   const [sitePicker, setSitePicker] = useState(false)
@@ -82,20 +143,53 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
   // 草稿：照片不存（dataURL 太大，sessionStorage 會爆），只存文字與選項
   useEffect(() => { writeDraft({ title: titleIn, cap, term, place, sel }) }, [titleIn, cap, term, place, sel])
 
+  // 影片網址用完要釋放（換一個、移除、離開頁面）
+  useEffect(() => () => { if (video?.url) URL.revokeObjectURL(video.url) }, [video?.url])
+
+  const takeVideo = async (blob) => {
+    const type = videoType(blob)
+    if (!type) return setToast('影片格式不支援，請用 MP4、WebM 或 MOV')
+    if (blob.size > VIDEO_MAX_MB * 1024 * 1024) return setToast(`影片太大（${(blob.size / 1048576).toFixed(1)} MB），上限 ${VIDEO_MAX_MB} MB`)
+    setReadingVideo(true)
+    try {
+      const info = await readVideo(blob)
+      if (info.duration && info.duration > VIDEO_MAX_SEC + 0.5) {
+        URL.revokeObjectURL(info.url)
+        return setToast(`影片太長（${fmtDur(info.duration)}），上限 ${VIDEO_MAX_SEC} 秒`)
+      }
+      // type 正規化：上傳時 Content-Type 要對（Blob 包一層不會複製資料）
+      setVideo({ ...info, blob: blob.type === type ? blob : new Blob([blob], { type }) })
+      setPhoto(null); setOrig(null); setCropInfo(null); setSiteImageId(null)
+    } catch {
+      setToast('這個影片在瀏覽器裡無法播放（例如 iPhone 的 HEVC 格式），請改用 MP4（H.264）')
+    } finally { setReadingVideo(false) }
+  }
+  // 相機錄好的影片：掛載時讀一次
+  useEffect(() => { if (incomingVideo) takeVideo(incomingVideo) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
   const pickFile = async (e) => {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
-    if (!/^image\//.test(f.type)) return setToast('請選擇圖片檔')
-    try { setPhoto(await compressImage(f)); setSiteImageId(null) } catch { setToast('讀取圖片失敗，請換一張') }
+    if (videoType(f) || /^video\//.test(f.type)) return takeVideo(f)
+    if (!/^image\//.test(f.type)) return setToast('請選擇照片或影片')
+    try {
+      const c = await compressImage(f)
+      setPhoto(c); setOrig(c); setCropInfo(null); setSiteImageId(null); setVideo(null)
+      setCropOpen(true)        // 選完直接進「調整位置與縮放」（可略過）
+    } catch { setToast('讀取圖片失敗，請換一張') }
   }
   const openSite = () => { if (requireAccount('從網站相簿選照片')) setSitePicker(true) }
-  const pickSite = (item) => { setPhoto(item.image); setSiteImageId(item.imageId) }
-  const removePhoto = () => { setPhoto(null); setSiteImageId(null) }
+  const pickSite = (item) => { setPhoto(item.image); setOrig(item.image); setCropInfo(null); setSiteImageId(item.imageId); setVideo(null) }
+  const removePhoto = () => { setPhoto(null); setOrig(null); setCropInfo(null); setSiteImageId(null) }
+  const applyCrop = (data, info) => {
+    if (!data) { setPhoto(orig); setCropInfo(null) }   // 沒有調整＝用原圖（網站相簿的圖就不必重傳）
+    else { setPhoto(data); setCropInfo(info) }
+  }
 
   const price = licenseTiers[priceI]
-  const sell = !!photo && onSale          // 沒照片就沒有東西可以上架
-  const empty = !photo && !cap.trim() && !titleIn.trim()
+  const sell = !!photo && !video && onSale          // 沒照片就沒有東西可以上架（影片不上架市集）
+  const empty = !photo && !video && !cap.trim() && !titleIn.trim()
 
   const publish = async () => {
     if (!requireAccount('發佈貼文')) return
@@ -108,21 +202,24 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
       || (cap.trim().split('\n')[0] || '').replace(/#[^\s#]+/g, '').trim().slice(0, TITLE_MAX)
       || `${term}・新作`
     try {
-      // 1) 有照片先上傳（拿 imageId）
-      let imageId = null
-      if (siteImageId) imageId = siteImageId
+      // 1) 有照片先上傳（拿 imageId）；網站相簿的圖沒調整過就直接用原本的 id
+      let imageId = null, videoId = null
+      if (video) {
+        if (video.poster) { try { imageId = (await api.uploadImage(video.poster)).id } catch { /* 沒封面仍可發 */ } }
+        videoId = (await api.uploadVideo(video.blob)).id
+      } else if (siteImageId && !cropInfo) imageId = siteImageId
       else if (photo) { const r = await api.uploadImage(photo); imageId = r.id }
       // 2) 發佈貼文
       await api.createPost({
         emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, caption: cap.trim(), tags,
-        place: place || '', imageId,
+        place: place || '', imageId, videoId,
       })
       // 3) 有照片且勾「上架市集」→ 真的建立市集作品（同一張圖）
       if (sell) await api.createWork({ emoji: COVERS[sel].e, bg: COVERS[sel].bg, term, title, tags, price: price || 0, imageId })
       clearDraft()
       popAll()
       setStamp('已發佈')
-      setToast(`已發佈「${term}」${photo ? '貼文' : '文章'}` + (sell ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
+      setToast(`已發佈「${term}」${video ? '影片' : photo ? '貼文' : '文章'}` + (sell ? `（已上架市集 ${price ? 'NT$' + price : '免費授權'}）` : ''))
     } catch (e) {
       setBusy(false)
       setToast(e?.message || '發佈失敗，請稍後再試')
@@ -142,17 +239,36 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
           <input className="np-title" placeholder="標題（選填）" aria-label="標題（選填）"
             maxLength={TITLE_MAX} value={titleIn} onChange={e => setTitleIn(e.target.value)} />
           <textarea className="np-text" placeholder={'寫下這個節氣的觀察、心得或一篇文章…\n#芒種 #田間'}
-            aria-label="內文" maxLength={CAPTION_MAX} rows={photo ? 4 : 9}
+            aria-label="內文" maxLength={CAPTION_MAX} rows={photo || video ? 4 : 9}
             value={cap} onChange={e => setCap(e.target.value)} />
           <div className="np-count">{cap.length} / {CAPTION_MAX}</div>
         </div>
 
-        {/* 照片：附加，不是必要 */}
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} aria-label="從相簿選照片" />
-        {photo ? (
+        {/* 照片或影片：附加，不是必要 */}
+        <input ref={fileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime,video/*" hidden onChange={pickFile} aria-label="從相簿選照片或影片" />
+        {readingVideo ? (
+          <div className="np-photo"><div className="np-photo-img ui-skeleton" aria-busy="true" aria-label="讀取影片中" /></div>
+        ) : video ? (
           <div className="np-photo">
-            <div className="np-photo-img"><PhotoImg src={photo} alt="即將發布的照片預覽" /></div>
+            <div className="np-photo-img np-video">
+              <video src={video.url} poster={video.poster || undefined} controls playsInline preload="metadata" aria-label="即將發布的影片預覽" />
+            </div>
+            <div className="np-media-meta">
+              影片{video.duration ? ` · ${fmtDur(video.duration)}` : ''} · {video.blob.size < 1048576 ? `${Math.max(1, Math.round(video.blob.size / 1024))} KB` : `${(video.blob.size / 1048576).toFixed(1)} MB`}
+              {video.poster ? '' : ' · 無法擷取封面，卡片會改顯示文字'}
+            </div>
             <div className="np-photo-acts">
+              {fromCamera
+                ? <button className="b tap" onClick={pop}>返回重拍</button>
+                : <button className="b tap" onClick={() => fileRef.current?.click()}>換一個</button>}
+              <button className="b tap" onClick={() => setVideo(null)}>移除影片</button>
+            </div>
+          </div>
+        ) : photo ? (
+          <div className="np-photo">
+            <div className="np-photo-img"><PhotoImg src={photo} alt="即將發布的照片預覽" style={{ objectFit: 'contain' }} /></div>
+            <div className="np-photo-acts">
+              <button className="b dark tap" onClick={() => setCropOpen(true)}>調整位置與縮放</button>
               {fromCamera
                 ? <button className="b tap" onClick={pop}>返回重拍</button>
                 : <button className="b tap" onClick={() => siteImageId ? openSite() : fileRef.current?.click()}>換一張</button>}
@@ -160,14 +276,14 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
             </div>
           </div>
         ) : (
-          <div className="np-attach" role="group" aria-label="附加照片（選填）">
-            <span className="np-attach-h">附加照片（選填）· 附照片才能同時上架市集</span>
+          <div className="np-attach" role="group" aria-label="附加照片或影片（選填）">
+            <span className="np-attach-h">附加照片或影片（選填）· 附照片才能同時上架市集</span>
             <div className="np-attach-g">
               <button className="np-attach-b tap" onClick={() => push('camera')}>
-                <Icon name="camera" /><span>拍照<small>相機工作室・濾鏡特效</small></span>
+                <Icon name="camera" /><span>拍照・錄影<small>相機工作室・濾鏡特效</small></span>
               </button>
               <button className="np-attach-b tap" onClick={() => fileRef.current?.click()}>
-                <Icon name="image" /><span>手機相簿<small>手機或電腦裡的照片</small></span>
+                <Icon name="image" /><span>手機相簿<small>照片或影片（{VIDEO_MAX_SEC} 秒內）</small></span>
               </button>
               <button className="np-attach-b tap" onClick={openSite}>
                 <Icon name="grid" /><span>網站相簿<small>我在站上發過的照片</small></span>
@@ -210,8 +326,8 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
           <div className="muted" style={{ color: place ? 'var(--cinnabar)' : undefined }}>{place || '搜尋或定位'} ›</div>
         </button>
 
-        {/* 上架市集：只有附了照片才有東西可以授權 */}
-        {photo && <>
+        {/* 上架市集：只有附了照片才有東西可以授權（影片不上架） */}
+        {photo && !video && <>
           <div className="opt">
             <div className="l">同時上架市集販售</div>
             <Switch on={onSale} onChange={setOnSale} />
@@ -235,12 +351,13 @@ export default function NewPost({ photo: incomingPhoto = null, challenge = null 
         <div style={{ height: 16 }} />
         <div style={{ padding: '0 var(--space-4)' }}>
           <button className="btn-primary tap" onClick={publish} disabled={busy || empty}>
-            {busy ? '發佈中…' : photo ? '發佈貼文' : '發佈文章'}
+            {busy ? (video ? '上傳影片中…' : '發佈中…') : video ? '發佈影片' : photo ? '發佈貼文' : '發佈文章'}
           </button>
         </div>
         <div style={{ height: 16 }} />
       </div>
 
+      {cropOpen && orig && <CropSheet src={orig} init={cropInfo} onApply={applyCrop} onClose={() => setCropOpen(false)} />}
       {sitePicker && <SitePicker handle={user?.handle} onPick={pickSite} onClose={() => setSitePicker(false)} />}
       {locOpen && <LocationPicker onClose={() => setLocOpen(false)} onPick={(p) => setPlace(p.name)} />}
     </>
@@ -282,6 +399,148 @@ function SitePicker({ handle, onPick, onClose }) {
                 ))}
               </div>
             )}
+        </div>
+      )}
+    </SheetMask>
+  )
+}
+
+// ── 調整位置與縮放（2026-11-15）──
+// 模型與桌曆設計器的 img.crop 相同：z＝填滿之上再放大幾倍、x/y＝可移動範圍的比例（-1…1）。
+// 版面全用「相對框的百分比」算，與框的實際像素無關 ⇒ 換尺寸、轉向都不會跑掉。
+// 套用時才用 canvas 把那一塊裁出來（最長邊 1600），所以後端與資料庫一行都不用改。
+// ⚠️ 滾輪監聽要 passive:false（React 的 onWheel 是 passive，preventDefault 無效 ⇒ 整頁會被捲走）。
+// ⚠️ setPointerCapture 可能拋例外（指標已放開），要包 try，否則拖不動且沒有任何提示。
+const ASPECTS = [
+  { k: 'orig', l: '原比例' }, { k: '1:1', l: '1:1', r: 1 }, { k: '4:5', l: '4:5', r: 4 / 5 }, { k: '16:9', l: '16:9', r: 16 / 9 },
+]
+const ZMAX = 4
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+function CropSheet({ src, init, onApply, onClose }) {
+  const [nat, setNat] = useState(null)
+  const [aspect, setAspect] = useState(init?.aspect || 'orig')
+  const [z, setZ] = useState(init?.z || 1)
+  const [x, setX] = useState(init?.x || 0)
+  const [y, setY] = useState(init?.y || 0)
+  const frameRef = useRef(null)
+  const imgRef = useRef(null)
+  useEffect(() => {
+    let alive = true
+    const im = new Image()
+    im.onload = () => { if (alive) { imgRef.current = im; setNat({ w: im.naturalWidth, h: im.naturalHeight }) } }
+    im.src = src
+    return () => { alive = false }
+  }, [src])
+
+  const a = nat ? nat.w / nat.h : 1
+  const A = aspect === 'orig' ? a : ASPECTS.find(o => o.k === aspect).r
+  // 圖片在框裡的大小（% of 框）：先 cover 填滿，再乘 z
+  const W = 100 * z * (a > A ? a / A : 1)
+  const H = 100 * z * (a > A ? 1 : A / a)
+  const mx = (W - 100) / 2, my = (H - 100) / 2
+  const left = mx * (x - 1), top = my * (y - 1)
+
+  // 手勢處理用的最新值（監聽器只掛一次）
+  const st = useRef({})
+  st.current = { z, x, y, mx, my }
+  const ptrs = useRef(new Map())
+  const pinch = useRef(null)
+  const onDown = (e) => {
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* 已放開 */ }
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (ptrs.current.size === 2) {
+      const [p, q] = [...ptrs.current.values()]
+      pinch.current = { d: Math.hypot(p.x - q.x, p.y - q.y) || 1, z: st.current.z }
+    }
+  }
+  const onMove = (e) => {
+    const prev = ptrs.current.get(e.pointerId)
+    if (!prev) return
+    const cur = { x: e.clientX, y: e.clientY }
+    ptrs.current.set(e.pointerId, cur)
+    if (ptrs.current.size >= 2 && pinch.current) {
+      const [p, q] = [...ptrs.current.values()]
+      setZ(clamp(pinch.current.z * Math.hypot(p.x - q.x, p.y - q.y) / pinch.current.d, 1, ZMAX))
+      return
+    }
+    const r = frameRef.current?.getBoundingClientRect()
+    if (!r) return
+    const { mx: MX, my: MY } = st.current
+    if (MX > 0.01) setX(v => clamp(v + ((cur.x - prev.x) / r.width * 100) / MX, -1, 1))
+    if (MY > 0.01) setY(v => clamp(v + ((cur.y - prev.y) / r.height * 100) / MY, -1, 1))
+  }
+  const onUp = (e) => { ptrs.current.delete(e.pointerId); if (ptrs.current.size < 2) pinch.current = null }
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el) return
+    const wheel = (e) => { e.preventDefault(); setZ(v => clamp(v * Math.exp(-e.deltaY * 0.0015), 1, ZMAX)) }
+    el.addEventListener('wheel', wheel, { passive: false })
+    return () => el.removeEventListener('wheel', wheel)
+  }, [nat])
+  const onKey = (e) => {
+    const step = 0.08
+    const k = e.key
+    if (k === 'ArrowLeft') setX(v => clamp(v - step, -1, 1))
+    else if (k === 'ArrowRight') setX(v => clamp(v + step, -1, 1))
+    else if (k === 'ArrowUp') setY(v => clamp(v - step, -1, 1))
+    else if (k === 'ArrowDown') setY(v => clamp(v + step, -1, 1))
+    else if (k === '+' || k === '=') setZ(v => clamp(v * 1.1, 1, ZMAX))
+    else if (k === '-' || k === '_') setZ(v => clamp(v / 1.1, 1, ZMAX))
+    else return
+    e.preventDefault()
+  }
+  const reset = () => { setZ(1); setX(0); setY(0) }
+  const untouched = aspect === 'orig' && z === 1
+
+  const apply = (close) => {
+    if (untouched) { onApply(null, null); close(); return }
+    const im = imgRef.current
+    if (!im || !nat) return
+    const sx = (-left / W) * nat.w, sw = (100 / W) * nat.w
+    const sy = (-top / H) * nat.h, sh = (100 / H) * nat.h
+    let ow, oh
+    if (A >= 1) { ow = Math.min(1600, Math.round(sw)); oh = Math.round(ow / A) }
+    else { oh = Math.min(1600, Math.round(sh)); ow = Math.round(oh * A) }
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, ow); c.height = Math.max(1, oh)
+    c.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, c.width, c.height)
+    onApply(c.toDataURL('image/jpeg', 0.85), { aspect, z, x, y })
+    close()
+  }
+
+  return (
+    <SheetMask onClose={onClose} label="調整位置與縮放">
+      {(close) => (
+        <div className="sheet np-crop" onClick={e => e.stopPropagation()}>
+          <div className="np-pick-hd"><b>調整位置與縮放</b><button className="iconbtn tap" aria-label="關閉" onClick={close}><Icon name="x" /></button></div>
+          <div className="np-crop-asp" role="group" aria-label="裁切比例">
+            {ASPECTS.map(o => (
+              <button key={o.k} type="button" className={`chip tap ${aspect === o.k ? 'on' : ''}`} aria-pressed={aspect === o.k}
+                onClick={() => { setAspect(o.k); setX(0); setY(0) }}>{o.l}</button>
+            ))}
+          </div>
+          <div className="np-crop-stage">
+            {nat ? (
+              <div ref={frameRef} className="np-crop-frame" tabIndex={0}
+                style={{ aspectRatio: String(A), width: `min(100%, calc(48dvh * ${A}))` }}
+                role="group" aria-label="拖曳移動照片、雙指或滾輪縮放；鍵盤可用方向鍵移動、加減號縮放" onKeyDown={onKey}
+                onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+                <img src={src} alt="" draggable={false}
+                  style={{ left: `${left}%`, top: `${top}%`, width: `${W}%`, height: `${H}%` }} />
+              </div>
+            ) : <div className="np-crop-frame ui-skeleton" style={{ aspectRatio: '1', width: 'min(100%, 48dvh)' }} />}
+          </div>
+          <div className="np-crop-zoom">
+            <button type="button" className="iconbtn tap" aria-label="縮小" onClick={() => setZ(v => clamp(v / 1.15, 1, ZMAX))}>−</button>
+            <input type="range" min="1" max={ZMAX} step="0.01" value={z} aria-label="縮放"
+              onChange={e => setZ(Number(e.target.value))} />
+            <button type="button" className="iconbtn tap" aria-label="放大" onClick={() => setZ(v => clamp(v * 1.15, 1, ZMAX))}>+</button>
+          </div>
+          <div className="np-crop-hint">拖曳移動位置 · 雙指或滾輪縮放 · 框內就是發佈出去的樣子</div>
+          <div className="np-crop-acts">
+            <button type="button" className="b tap" onClick={reset} disabled={z === 1 && x === 0 && y === 0}>重設</button>
+            <button type="button" className="b dark tap" onClick={() => apply(close)} disabled={!nat}>套用</button>
+          </div>
         </div>
       )}
     </SheetMask>

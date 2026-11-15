@@ -53,7 +53,7 @@ export default function PostDetail({ id }) {
   // 文章內文：標題通常就是內文第一行（發文頁沒填標題時的推導規則），不要重複印兩次；
   // #標籤 另列在下方，從內文裡拿掉。全站禁用 emoji → 過 stripEmoji（DB 舊資料仍可能帶）。
   const articleBody = (() => {
-    if (post.image) return ''
+    if (post.image || post.video) return ''
     const lines = stripEmoji(String(post.caption || '')).replace(/#[^\s#]+/g, '').split('\n')
     if (lines[0]?.trim() === stripEmoji(post.title).trim()) lines.shift()
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
@@ -140,20 +140,27 @@ export default function PostDetail({ id }) {
         </div>
         {/* 文章型貼文（沒有照片）不畫封面色塊——那一塊空的 300px 看起來像圖片壞掉。
             改成標題＋內文直接排成文章，內文放在動作列上方（文章是主體，不是說明）。 */}
-        {post.image ? (
+        {post.video ? (
+          // 影片貼文：image 是封面（發文時擷取的一格），當 poster 用。
+          // ⚠️ 不 autoPlay：詳情頁可能在公共場合打開，有聲自動播放也會被瀏覽器擋掉。
+          <div className="post-video">
+            <video src={post.video} poster={post.image || undefined} controls playsInline preload="metadata"
+              aria-label={`${post.title}｜${post.term || '節氣'}影片，作者 @${post.user}`} />
+          </div>
+        ) : post.image ? (
           <div className="img" style={{ background: post.bg, height: 300, fontSize: 66, padding: 0, position: 'relative', overflow: 'hidden' }}>
             <PhotoImg src={post.image} alt={`${post.title}｜${post.term || "節氣"}攝影${post.place ? `，攝於${post.place}` : ""}，攝影者 @${post.user}`} />
           </div>
         ) : null}
         {/* 這張照片有上架市集：探索頁的卡片掛了價格標籤，點進來卻找不到哪裡買，
             等於把人帶到門口又不開門。（sale 由後端用 image_id 對應出來） */}
-        {post.image && post.sale && (
+        {post.image && !post.video && post.sale && (
           <Link screen="workDetail" params={{ id: post.sale.id }} className="post-sale">
             <span>這張照片在市集上架 · <b>{post.sale.price ? `NT$${post.sale.price}` : '免費授權'}</b></span>
             <span>看授權方案 <Icon name="chev" style={{ display: 'inline-block', verticalAlign: '-3px' }} /></span>
           </Link>
         )}
-        {!post.image && !editing && (
+        {!post.image && !post.video && !editing && (
           <article className="post-article">
             <span className="post-article-k">{post.term ? `${post.term} · 文章` : '文章'}</span>
             <h2>{stripEmoji(post.title)}</h2>
@@ -172,7 +179,7 @@ export default function PostDetail({ id }) {
             }}><Icon name="share" /></button>
           </div>
           {/* 「加入月曆」是收集做月曆用的照片素材——文章沒有照片，放了也排不進月曆 */}
-          {post.image && (
+          {post.image && !post.video && (
           <button className={`pill tap ${isSaved ? 'on' : 'dark'}`} onClick={() => { toggleSave(post.id); setToast(isSaved ? '已移除' : '已加入月曆素材 ✓') }}>
             {isSaved ? '已加入月曆' : '加入月曆'}
           </button>
