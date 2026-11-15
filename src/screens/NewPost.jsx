@@ -442,16 +442,36 @@ function CropSheet({ src, init, onApply, onClose }) {
 
   // 手勢處理用的最新值（監聽器只掛一次）
   const st = useRef({})
-  st.current = { z, x, y, mx, my }
+  st.current = { z, x, y, mx, my, left, top, W, H }
   const ptrs = useRef(new Map())
   const pinch = useRef(null)
+  // 螢幕座標 → 框內百分比
+  const toPct = (cx, cy) => {
+    const r = frameRef.current?.getBoundingClientRect()
+    return r ? { px: (cx - r.left) / r.width * 100, py: (cy - r.top) / r.height * 100 } : null
+  }
+  // ★ 以「手指（或游標）底下那一點」為中心縮放：(u,v) 是那一點在圖片上的比例位置，
+  //   縮放後讓同一點仍落在 (px,py)。只繞框中心縮放的話，捏的地方會一直滑走，手感很怪。
+  const zoomAt = (z2, px, py, u, v) => {
+    const s = st.current
+    const W2 = s.W / s.z * z2, H2 = s.H / s.z * z2
+    const mx2 = (W2 - 100) / 2, my2 = (H2 - 100) / 2
+    setZ(z2)
+    setX(mx2 > 0.01 ? clamp((px - u * W2) / mx2 + 1, -1, 1) : 0)
+    setY(my2 > 0.01 ? clamp((py - v * H2) / my2 + 1, -1, 1) : 0)
+  }
+  const startPinch = () => {
+    const [p, q] = [...ptrs.current.values()]
+    const m = toPct((p.x + q.x) / 2, (p.y + q.y) / 2)
+    if (!m) return
+    const s = st.current
+    pinch.current = { d: Math.hypot(p.x - q.x, p.y - q.y) || 1, z: s.z,
+      u: (m.px - s.left) / s.W, v: (m.py - s.top) / s.H }
+  }
   const onDown = (e) => {
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* 已放開 */ }
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    if (ptrs.current.size === 2) {
-      const [p, q] = [...ptrs.current.values()]
-      pinch.current = { d: Math.hypot(p.x - q.x, p.y - q.y) || 1, z: st.current.z }
-    }
+    if (ptrs.current.size === 2) startPinch()
   }
   const onMove = (e) => {
     const prev = ptrs.current.get(e.pointerId)
@@ -459,8 +479,12 @@ function CropSheet({ src, init, onApply, onClose }) {
     const cur = { x: e.clientX, y: e.clientY }
     ptrs.current.set(e.pointerId, cur)
     if (ptrs.current.size >= 2 && pinch.current) {
+      // 雙指：捏合縮放＋兩指一起移動＝平移（以兩指中點為錨）
       const [p, q] = [...ptrs.current.values()]
-      setZ(clamp(pinch.current.z * Math.hypot(p.x - q.x, p.y - q.y) / pinch.current.d, 1, ZMAX))
+      const m = toPct((p.x + q.x) / 2, (p.y + q.y) / 2)
+      if (!m) return
+      const pc = pinch.current
+      zoomAt(clamp(pc.z * Math.hypot(p.x - q.x, p.y - q.y) / pc.d, 1, ZMAX), m.px, m.py, pc.u, pc.v)
       return
     }
     const r = frameRef.current?.getBoundingClientRect()
@@ -473,7 +497,13 @@ function CropSheet({ src, init, onApply, onClose }) {
   useEffect(() => {
     const el = frameRef.current
     if (!el) return
-    const wheel = (e) => { e.preventDefault(); setZ(v => clamp(v * Math.exp(-e.deltaY * 0.0015), 1, ZMAX)) }
+    const wheel = (e) => {
+      e.preventDefault()
+      const m = toPct(e.clientX, e.clientY)
+      const s = st.current
+      if (!m) return
+      zoomAt(clamp(s.z * Math.exp(-e.deltaY * 0.0015), 1, ZMAX), m.px, m.py, (m.px - s.left) / s.W, (m.py - s.top) / s.H)
+    }
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
   }, [nat])
@@ -489,6 +519,8 @@ function CropSheet({ src, init, onApply, onClose }) {
     else return
     e.preventDefault()
   }
+  // 觸控裝置用手指縮放（滑桿那一列在 CSS 以 pointer:coarse 隱藏），提示文字跟著換
+  const isTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   const reset = () => { setZ(1); setX(0); setY(0) }
   const untouched = aspect === 'orig' && z === 1
 
@@ -536,7 +568,9 @@ function CropSheet({ src, init, onApply, onClose }) {
               onChange={e => setZ(Number(e.target.value))} />
             <button type="button" className="iconbtn tap" aria-label="放大" onClick={() => setZ(v => clamp(v * 1.15, 1, ZMAX))}>+</button>
           </div>
-          <div className="np-crop-hint">拖曳移動位置 · 雙指或滾輪縮放 · 框內就是發佈出去的樣子</div>
+          <div className="np-crop-hint">{isTouch
+            ? '單指拖曳移動 · 雙指捏合放大縮小 · 框內就是發佈出去的樣子'
+            : '拖曳移動位置 · 滾輪或滑桿縮放 · 框內就是發佈出去的樣子'}</div>
           <div className="np-crop-acts">
             <button type="button" className="b tap" onClick={reset} disabled={z === 1 && x === 0 && y === 0}>重設</button>
             <button type="button" className="b dark tap" onClick={() => apply(close)} disabled={!nat}>套用</button>

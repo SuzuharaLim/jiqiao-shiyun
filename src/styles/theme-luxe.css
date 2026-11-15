@@ -1378,5 +1378,7 @@ body { font-variant-numeric: lining-nums; }
 .np-crop-zoom input[type="range"] { flex: 1; accent-color: var(--primary); }
 .np-crop-zoom .iconbtn { font-size: var(--text-lg); font-weight: 700; }
 .np-crop-hint { padding: 6px var(--space-4) 0; font-size: var(--text-2xs); color: var(--muted); text-align: center; }
+/* 手機／平板：縮放一律用雙指捏合，不放滑桿（使用者指定 2026-11-15）；滑鼠裝置保留滑桿與滾輪 */
+@media (pointer: coarse) { .np-crop-zoom { display: none; } .np-crop-hint { padding-top: 12px; } }
 .np-crop-acts { display: flex; gap: 8px; padding: 12px var(--space-4) calc(12px + env(safe-area-inset-bottom)); }
 .np-crop-acts .b { flex: 1; }
