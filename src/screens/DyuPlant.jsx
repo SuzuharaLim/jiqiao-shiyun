@@ -24,6 +24,7 @@ const paras = s => (s || '').split('\n').filter(Boolean)
 export default function DyuPlant({ slug }) {
   const hit = findPlant(slug)
   const [all, setAll] = useState(null)
+  const [bad, setBad] = useState(() => new Set())   // 載入失敗的照片序號
   useEffect(() => { let on = true; loadDetails().then(d => on && setAll(d)); return () => { on = false } }, [])
 
   if (!hit) {
@@ -45,11 +46,18 @@ export default function DyuPlant({ slug }) {
     <>
       <TopBar title={p.name} onBack />
       <div className="body dyu-body">
+        {/* ⚠️ 載不出來的照片直接拿掉（不留「破圖＋alt 文字」的空框）；全部失敗就顯示字形磚。
+               實際發生過：部署切換新版本的那幾十秒，部分請求打到還沒有這些照片的舊版本。
+               ⚠️ 不用 loading="lazy"：相簿只有 2–3 張小圖（各約 20 KB），橫向捲動容器裡的
+               lazy 圖有些瀏覽器要捲到才載，使用者會先看到空框。 */}
         <div className={`dyu-gal is-${g.key}`} aria-label={`${p.name}的照片`}>
-          {(d?.photos || [[240, 180]]).map(([w, h], k) => d
-            ? <img key={k} src={`/dyu/${slug}-${k}.jpg`} width={w} height={h} loading={k ? 'lazy' : 'eager'} decoding="async"
-                alt={`${p.name}照片 ${k + 1}，攝於大葉大學校園`} style={{ aspectRatio: `${w} / ${h}` }} />
-            : <span key={k} className="dyu-gal-ph" aria-hidden="true">{p.name[0]}</span>)}
+          {d && d.photos.some((_, k) => !bad.has(k))
+            ? d.photos.map(([w, h], k) => !bad.has(k) && (
+                <img key={`${slug}-${k}`} src={`/dyu/${slug}-${k}.jpg`} width={w} height={h} decoding="async"
+                  alt={`${p.name}照片 ${k + 1}，攝於大葉大學校園`} style={{ aspectRatio: `${w} / ${h}` }}
+                  onError={() => setBad(s => new Set(s).add(k))} />
+              ))
+            : <span className="dyu-gal-ph" aria-hidden="true">{p.name[0]}</span>}
         </div>
 
         <header className="dyu-head">
