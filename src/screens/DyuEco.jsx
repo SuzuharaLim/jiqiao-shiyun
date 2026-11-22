@@ -1,24 +1,25 @@
-// 大葉大學生態區 —— 校園植物名錄，逐種連回大葉大學校園植物圖鑑原站。
-// 資料與內容紀律見 src/data/dyuPlants.js（只收名稱，不搬原站介紹文字與照片）。
+// 大葉大學生態區 —— 校園植物名錄。每一種點進去是本站的介紹頁（DyuPlant.jsx，/dyu-eco/:slug）。
+// 內容與照片來自大葉大學校園植物圖鑑（經授權，2026-11-22），見 scripts/build-dyu.mjs。
 //
 // 版面（2026-11-22 美化）：
 //   ① 標本封面卡：標題＋三格分類統計（點了直接切到那一類並捲到名錄）
 //   ② 先認識這三種：標本卡，手機橫向滑、桌機三欄
 //   ③ 名錄：分段切換＋跨分類搜尋；每一格有分類色的字形磚
-//   外連一律有「新分頁」圖示——使用者要知道點下去會離開本站。
+//   站內頁用一般箭頭；只有「開啟原站名錄」是外連，帶「新分頁」圖示。
 import { useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { TopBar, SectionHead } from '../components/ui.jsx'
+import { TopBar, SectionHead, Link } from '../components/ui.jsx'
 import { scrollIntoContainer } from '../store/nav.jsx'
 import { DYU_GROUPS, DYU_FEATURED, DYU_TOTAL, DYU_INDEX } from '../data/dyuPlants.js'
 import { DYU_PHOTOS } from '../data/dyuPhotos.js'
 
 // 照片載不出來（檔案缺、舊快取）就退回字形磚，尺寸一樣、版面不跳
-function Thumb({ slug, name, large }) {
+// large＝精選卡：用相簿第一張（原尺寸，長邊約 300px），object-fit 填滿
+function Thumb({ slug, large }) {
   const [bad, setBad] = useState(false)
   if (!DYU_PHOTOS.has(slug) || bad) return null
-  return <img className="dyu-photo" src={`/dyu/${slug}${large ? '-l' : ''}.jpg`} alt="" loading="lazy" decoding="async"
-    width={large ? 720 : 160} height={large ? 480 : 160} onError={() => setBad(true)} />
+  return <img className="dyu-photo" src={`/dyu/${slug}${large ? '-0' : ''}.jpg`} alt="" loading="lazy" decoding="async"
+    onError={() => setBad(true)} />
 }
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' }
@@ -48,12 +49,10 @@ export default function DyuEco() {
       <TopBar title="大葉大學生態區" onBack />
       <div className="body dyu-body">
         <section className="dyu-hero" aria-labelledby="dyu-h">
-          <span className="dyu-hero-mark" aria-hidden="true">葉</span>
           <p className="dyu-eyebrow">校園植物圖鑑</p>
           <h1 id="dyu-h" className="dyu-title">大葉大學生態區</h1>
           <p className="dyu-lead">
-            校園裡常見的 {DYU_TOTAL} 種植物。點任一種，就會在新分頁開啟大葉大學植物圖鑑的原頁，
-            看學名、科屬、原產地、用途與形態特徵。
+            校園裡常見的 {DYU_TOTAL} 種植物。點任一種，看照片、學名、科屬、原產地、用途與形態特徵。
           </p>
           <div className="dyu-stats">
             {DYU_GROUPS.map(g => (
@@ -71,11 +70,11 @@ export default function DyuEco() {
         <SectionHead title="先認識這三種" />
         <div className="dyu-feat">
           {DYU_FEATURED.map(f => (
-            <a key={f.name} className={`dyu-spec tap is-${GROUP_KEY[f.group] || 'tree'}`} href={f.url} {...ext}
-              aria-label={`${f.name}（在新分頁開啟原站介紹）`}>
+            <Link key={f.name} className={`dyu-spec tap is-${GROUP_KEY[f.group] || 'tree'}`}
+              screen="dyuPlant" params={{ slug: f.slug }}>
               <div className="dyu-spec-top">
                 <span className="dyu-spec-glyph" aria-hidden="true">{f.name[0]}</span>
-                <Thumb slug={f.slug} name={f.name} large />
+                <Thumb slug={f.slug} large />
                 <span className="dyu-tag">{f.group}</span>
               </div>
               <div className="dyu-spec-body">
@@ -84,8 +83,8 @@ export default function DyuEco() {
                 <span className="dyu-fam">{f.family}</span>
                 <p>{f.note}</p>
               </div>
-              <span className="dyu-spec-more">看原站介紹<Icon name="ext" /></span>
-            </a>
+              <span className="dyu-spec-more">看完整介紹<Icon name="chev" /></span>
+            </Link>
           ))}
         </div>
 
@@ -114,15 +113,14 @@ export default function DyuEco() {
           <ul className="dyu-grid">
             {items.map(p => (
               <li key={p.url}>
-                <a className={`dyu-plant tap is-${p.g.key}`} href={p.url} {...ext}
-                  aria-label={`${p.name}，${p.g.label}（在新分頁開啟原站介紹）`}>
-                  <span className="dyu-chip" aria-hidden="true">{p.name[0]}<Thumb slug={p.slug} name={p.name} /></span>
+                <Link className={`dyu-plant tap is-${p.g.key}`} screen="dyuPlant" params={{ slug: p.slug }}>
+                  <span className="dyu-chip" aria-hidden="true">{p.name[0]}<Thumb slug={p.slug} /></span>
                   <span className="dyu-plant-t">
                     <b>{p.name}</b>
                     {query && <small>{p.g.label}</small>}
                   </span>
-                  <Icon name="ext" />
-                </a>
+                  <Icon name="chev" />
+                </Link>
               </li>
             ))}
           </ul>
@@ -131,7 +129,7 @@ export default function DyuEco() {
         )}
 
         <p className="dyu-note">
-          植物名稱、分類與照片：大葉大學校園植物圖鑑（plants.dyu.edu.tw），經授權使用；完整介紹請至原站閱讀。
+          植物名稱、分類、介紹與照片：大葉大學校園植物圖鑑（plants.dyu.edu.tw），經授權使用。
         </p>
       </div>
     </>

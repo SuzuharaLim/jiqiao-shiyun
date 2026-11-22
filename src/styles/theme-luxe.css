@@ -1397,8 +1397,6 @@ body { font-variant-numeric: lining-nums; }
   background: var(--tone-2); background-clip: padding-box;
   border: 6px solid var(--color-shell); border-radius: 26px;
   box-shadow: 0 0 0 1px var(--line), var(--shadow-md), var(--inset-hi); }
-.dyu-hero-mark { position: absolute; right: -10px; top: -26px; font-family: var(--font-serif);
-  font-size: 168px; line-height: 1; color: var(--text); opacity: .06; pointer-events: none; user-select: none; }
 .dyu-eyebrow { position: relative; margin: 0 0 6px; font-size: var(--text-2xs); font-weight: 600;
   letter-spacing: .18em; color: var(--muted); }
 .dyu-title { position: relative; margin: 0 0 10px; font-family: var(--font-serif); font-weight: 500;
@@ -1506,3 +1504,62 @@ a.dyu-plant { display: flex; align-items: center; gap: 10px; min-height: 54px; p
 a.dyu-plant { min-height: 60px; }
 .dyu-spec-top { height: 150px; }
 .dyu-spec-top .dyu-tag { position: relative; z-index: 1; }
+
+/* ════════ 大葉大學生態區 · 單一植物頁（screens/DyuPlant.jsx）════════
+   ⚠️ 原站照片很小（長邊約 220–400px）：相簿固定高度、寬度照比例，不拉滿版。 */
+.dyu-gal { display: flex; gap: 10px; overflow-x: auto; padding: var(--space-4) var(--space-4) 4px;
+  scroll-snap-type: x mandatory; scroll-padding-left: var(--space-4); flex: 0 0 auto; }
+.dyu-gal::-webkit-scrollbar { height: 0; }
+.dyu-gal img, .dyu-gal-ph { flex: 0 0 auto; height: 200px; width: auto; border-radius: 16px; scroll-snap-align: start;
+  object-fit: cover; box-shadow: 0 0 0 1px var(--line), var(--shadow-sm); background: var(--field); }
+.dyu-gal-ph { width: 260px; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif); font-size: 64px; color: var(--text); opacity: .5; }
+.dyu-gal.is-tree .dyu-gal-ph { background: var(--tone-2); }
+.dyu-gal.is-shrub .dyu-gal-ph { background: var(--tone-5); }
+.dyu-gal.is-herb .dyu-gal-ph { background: var(--tone-4); }
+
+.dyu-head { padding: 14px var(--space-4) 6px; flex: 0 0 auto; }
+.dyu-head .dyu-tag { display: inline-block; margin-bottom: 8px; box-shadow: 0 0 0 1px var(--line); }
+.dyu-tag.is-tree { background: var(--tone-2); } .dyu-tag.is-shrub { background: var(--tone-5); } .dyu-tag.is-herb { background: var(--tone-4); }
+.dyu-pname { margin: 0; font-family: var(--font-serif); font-weight: 500; font-size: var(--text-2xl); line-height: 1.2; letter-spacing: .04em; }
+.dyu-psci { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.dyu-psci i { font-family: var(--font-serif); font-size: var(--text-sm); color: var(--text); }
+.dyu-psci span { font-size: var(--text-xs); color: var(--muted); }
+
+.dyu-facts { margin: 12px var(--space-4) 6px; padding: 4px 18px; flex: 0 0 auto;
+  background: var(--card); background-clip: padding-box; border: 6px solid var(--color-shell); border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm), var(--inset-hi); }
+.dyu-facts > div { display: grid; grid-template-columns: 4.5em 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.dyu-facts > div:last-child { border-bottom: 0; }
+.dyu-facts dt { font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
+.dyu-facts dd { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--text); }
+
+.dyu-sec { padding: 14px var(--space-4) 2px; flex: 0 0 auto; }
+.dyu-sec h2 { margin: 0 0 8px; font-size: var(--text-xs); font-weight: 600; letter-spacing: .14em; color: var(--muted); }
+.dyu-sec p { margin: 0 0 10px; max-width: var(--measure); font-size: var(--text-base); line-height: var(--leading-body);
+  color: var(--text); text-wrap: pretty; }
+
+.dyu-loading { display: grid; gap: 10px; padding: 16px var(--space-4); }
+.dyu-loading span { height: 18px; border-radius: 8px; background: var(--field); }
+.dyu-loading span:nth-child(2) { width: 80%; } .dyu-loading span:nth-child(3) { width: 60%; }
+
+.dyu-credit { margin: 14px var(--space-4) 0; padding: 14px 16px; border-radius: 16px; background: var(--field);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; flex: 0 0 auto; }
+.dyu-credit p { margin: 0; font-size: var(--text-2xs); line-height: 1.6; color: var(--muted); }
+a.dyu-credit-a { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: var(--text-xs);
+  font-weight: 600; color: var(--text); text-decoration: none; }
+.dyu-credit-a .ic { width: 14px; height: 14px; stroke: currentColor; }
+
+.dyu-pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 16px var(--space-4) 20px; flex: 0 0 auto; }
+.dyu-pager a { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-sm); color: var(--text); text-decoration: none; }
+.dyu-pager a:nth-child(2) { justify-content: center; padding: 0 16px; border-radius: 999px; box-shadow: 0 0 0 1px var(--line2); }
+.dyu-pager a:last-child { justify-content: flex-end; }
+
+@media (min-width: 600px) {
+  .dyu-gal img, .dyu-gal-ph { height: 240px; }
+  .dyu-pname { font-size: var(--text-3xl); }
+}
+@media (min-width: 900px) {
+  .stage.signed-in .screen-dyuPlant .body { width: min(100%, 760px); }
+}

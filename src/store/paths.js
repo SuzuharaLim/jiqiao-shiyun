@@ -22,7 +22,7 @@ export const SCREEN_PATH = {
   calDesign: '/calendar/design/:id', calView: '/calendar/view/:token',
   myProjects: '/projects', deities: '/deities', zodiac: '/zodiac', dream: '/dream',
   nameFortune: '/name', matchmaking: '/match', bone: '/bone', proverbs: '/proverbs',
-  festivals: '/festivals', flowers: '/flowers', dyuEco: '/dyu-eco', ingredients: '/ingredients', solarterms: '/solarterms',
+  festivals: '/festivals', flowers: '/flowers', dyuEco: '/dyu-eco', dyuPlant: '/dyu-eco/:slug', ingredients: '/ingredients', solarterms: '/solarterms',
   subscription: '/subscription', wallet: '/wallet', notifications: '/notifications',
   dms: '/messages', settings: '/settings', records: '/records',
   creatorConsole: '/creator-console', store: '/store', productDetail: '/store/:slug', orders: '/orders',

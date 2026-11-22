@@ -41,6 +41,7 @@ import CreatorPage from './CreatorPage.jsx'
 import FollowList from './FollowList.jsx'
 import Leaderboard from './Leaderboard.jsx'
 import DyuEco from './DyuEco.jsx'
+import DyuPlant from './DyuPlant.jsx'
 import PrePlan from './PrePlan.jsx'
 import EditProfile from './EditProfile.jsx'
 import About from './About.jsx'
@@ -94,6 +95,7 @@ export const SCREENS = {
   festivals: Festivals,
   flowers: Flowers,
   dyuEco: DyuEco,
+  dyuPlant: DyuPlant,
   ingredients: Ingredients,
   solarterms: SolarTerms,
   subscription: Subscription,

@@ -13,6 +13,8 @@ import { termTable } from '../src/data/lunisolar.js'
 import { OFFICIAL_CARDS, arPageBySlug, characterOf } from '../src/data/arCards.js'
 // ★ 路由表是 App 的邏輯路徑；實際網址多一層 /app（/AR、/ar/* 例外）。見 appBase.js 檔頭。
 import { toPublic, toLogical } from '../src/data/appBase.js'
+import { DYU_GROUPS } from '../src/data/dyuPlants.js'
+import { DYU_DETAILS } from '../src/data/dyuDetails.js'
 
 // 有獨立頁的夢境：只收「有原典斷語」者。沒有原典的條目內容太薄，
 // 做成獨立頁就是空殼，量一多反而拖累全站評價。
@@ -102,6 +104,11 @@ const ROUTES = [
     desc: '鹽水蜂炮、大甲媽祖遶境、頭城搶孤、東港迎王等台灣特色慶典。綁農曆日的慶典逐年實算成國曆日期並標出所屬節氣，附地點、簡介與倒數天數。' },
   { path: '/flowers', title: '臺灣賞花景點與花期｜櫻花、荷花、金針、杭菊',
     desc: '各月花期與台灣賞花景點一覽：陽明山櫻花、台北植物園荷花、六十石山金針、銅鑼杭菊等，搭配節氣時序安排拍攝行程，也能看看別人在那裡拍了什麼。' },
+  // ★ 單一植物頁：內容逐字來自大葉大學校園植物圖鑑（經授權）。刻意 noindex——
+  //   同一份文字在原站也有，讓搜尋引擎收原站那一份；本站這一頁是給站內瀏覽用的。
+  //   要開放索引就拿掉 noindex，並把它加進 sitemap 的 entries。
+  { path: '/dyu-eco/:slug', title: '校園植物｜大葉大學生態區｜機巧時運',
+    desc: '大葉大學校園植物介紹：學名、科屬、別名、原產地、用途、生長習性與形態特徵。', noindex: true },
   { path: '/dyu-eco', title: '大葉大學生態區｜校園植物名錄：喬木、灌木、草花',
     desc: '大葉大學校園常見的 80 種植物，依喬木、灌木、草花分類，逐種連到大葉大學校園植物圖鑑，看學名、科屬、原產地、用途與形態特徵。' },
   { path: '/proverbs', title: '台灣諺語｜每日一句與二十四節氣俗語',
@@ -353,6 +360,16 @@ function entryMeta(pathname, route) {
     return {
       title: `${g.term}是什麼意思？定義、典據與常見誤解｜農民曆術語`,
       desc: `${g.answer.slice(0, 62)}${g.source ? `　典據：${g.source.slice(0, 24)}` : ''}`,
+    }
+  }
+  if (p === '/dyu-eco/:slug') {
+    const slug = slugOf(pathname)
+    const pl = DYU_GROUPS.flatMap(g => g.items.map(x => ({ ...x, group: g.label }))).find(x => x.slug === slug)
+    const d = DYU_DETAILS[slug]
+    if (!pl || !d) return null
+    return {
+      title: `${pl.name}（${d.sci}）｜大葉大學校園植物`,
+      desc: `${pl.name}，${pl.group}，${d.family.replace(/\([^)]*\)/g, '')}。${d.use.slice(0, 60)}`,
     }
   }
   if (p === '/dream/:slug') {
@@ -1068,7 +1085,7 @@ export function buildSitemap(origin, lastmod = SITE_LASTMOD) {
 //    內容重複的有效頁面。條目化之後這個風險比以前大得多（三種路由 × 任意字串）。
 export function entryExists(pathname, route) {
   const p = route?.path
-  const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date',
+  const ENTRY = ['/solarterms/:slug', '/deities/:slug', '/dream/:slug', '/almanac/day/:date', '/dyu-eco/:slug',
     '/glossary/:slug', '/auspicious/:kind', '/auspicious/:kind/:ym', '/sun/:spot',
     '/store/:slug', '/ar/card/:slug', '/ar/model/:slug']
   if (!ENTRY.includes(p)) return true
