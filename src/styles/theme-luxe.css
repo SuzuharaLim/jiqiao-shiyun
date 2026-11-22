@@ -1382,3 +1382,22 @@ body { font-variant-numeric: lining-nums; }
 @media (pointer: coarse) { .np-crop-zoom { display: none; } .np-crop-hint { padding-top: 12px; } }
 .np-crop-acts { display: flex; gap: 8px; padding: 12px var(--space-4) calc(12px + env(safe-area-inset-bottom)); }
 .np-crop-acts .b { flex: 1; }
+
+/* ════════ 大葉大學生態區（screens/DyuEco.jsx，2026-11-22）════════
+   名錄每一格都是外連（新分頁開原站），所以是真的 <a>。 */
+.dyu-intro { margin: var(--space-4); }
+.dyu-intro p { font-size: var(--text-sm); line-height: var(--leading-body); color: var(--text); margin: 0 0 12px; }
+.dyu-src { display: inline-flex; align-items: center; gap: 4px; width: auto; }
+.dyu-item { color: inherit; text-decoration: none; align-items: center; }
+.dyu-item .txt span { line-height: 1.6; }
+.dyu-sci { font-style: italic; font-weight: 400; color: var(--muted); font-size: var(--text-2xs); margin-left: 8px; }
+.dyu-chips { padding-top: 4px; }
+.dyu-grid { list-style: none; margin: 0; padding: 0 var(--space-4);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 600px) { .dyu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.dyu-plant { display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--card); color: var(--text); text-decoration: none; font-size: var(--text-sm); }
+.dyu-plant span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) { .dyu-plant:hover { border-color: var(--text); } }
+.dyu-note { padding: 16px var(--space-4) 20px; font-size: var(--text-2xs); line-height: 1.7; }

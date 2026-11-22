@@ -57,6 +57,7 @@ export default function Almanac() {
         ))}
 
         <ToolRow iconName="trophy" title="節氣知識王" sub="三分鐘計時問答｜闖關生存・兩人對戰｜節氣・曆法・擇日・民俗" screen="quiz" />
+        <ToolRow iconName="branch" title="大葉大學生態區" sub="校園植物名錄｜喬木・灌木・草花，連到大葉大學植物圖鑑" screen="dyuEco" />
         </section>
 
         <section className="toolgrid">

@@ -40,6 +40,7 @@ import Challenges from './Challenges.jsx'
 import CreatorPage from './CreatorPage.jsx'
 import FollowList from './FollowList.jsx'
 import Leaderboard from './Leaderboard.jsx'
+import DyuEco from './DyuEco.jsx'
 import PrePlan from './PrePlan.jsx'
 import EditProfile from './EditProfile.jsx'
 import About from './About.jsx'
@@ -92,6 +93,7 @@ export const SCREENS = {
   proverbs: Proverbs,
   festivals: Festivals,
   flowers: Flowers,
+  dyuEco: DyuEco,
   ingredients: Ingredients,
   solarterms: SolarTerms,
   subscription: Subscription,
