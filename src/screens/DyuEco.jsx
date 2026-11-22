@@ -11,6 +11,15 @@ import Icon from '../components/Icon.jsx'
 import { TopBar, SectionHead } from '../components/ui.jsx'
 import { scrollIntoContainer } from '../store/nav.jsx'
 import { DYU_GROUPS, DYU_FEATURED, DYU_TOTAL, DYU_INDEX } from '../data/dyuPlants.js'
+import { DYU_PHOTOS } from '../data/dyuPhotos.js'
+
+// 照片載不出來（檔案缺、舊快取）就退回字形磚，尺寸一樣、版面不跳
+function Thumb({ slug, name, large }) {
+  const [bad, setBad] = useState(false)
+  if (!DYU_PHOTOS.has(slug) || bad) return null
+  return <img className="dyu-photo" src={`/dyu/${slug}${large ? '-l' : ''}.jpg`} alt="" loading="lazy" decoding="async"
+    width={large ? 720 : 160} height={large ? 480 : 160} onError={() => setBad(true)} />
+}
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' }
 const GROUP_KEY = Object.fromEntries(DYU_GROUPS.map(g => [g.label, g.key]))
@@ -66,6 +75,7 @@ export default function DyuEco() {
               aria-label={`${f.name}（在新分頁開啟原站介紹）`}>
               <div className="dyu-spec-top">
                 <span className="dyu-spec-glyph" aria-hidden="true">{f.name[0]}</span>
+                <Thumb slug={f.slug} name={f.name} large />
                 <span className="dyu-tag">{f.group}</span>
               </div>
               <div className="dyu-spec-body">
@@ -106,7 +116,7 @@ export default function DyuEco() {
               <li key={p.url}>
                 <a className={`dyu-plant tap is-${p.g.key}`} href={p.url} {...ext}
                   aria-label={`${p.name}，${p.g.label}（在新分頁開啟原站介紹）`}>
-                  <span className="dyu-chip" aria-hidden="true">{p.name[0]}</span>
+                  <span className="dyu-chip" aria-hidden="true">{p.name[0]}<Thumb slug={p.slug} name={p.name} /></span>
                   <span className="dyu-plant-t">
                     <b>{p.name}</b>
                     {query && <small>{p.g.label}</small>}
@@ -121,7 +131,7 @@ export default function DyuEco() {
         )}
 
         <p className="dyu-note">
-          植物名稱與分類依大葉大學校園植物圖鑑（plants.dyu.edu.tw）；介紹內容與照片屬原站所有，請至原站閱讀。
+          植物名稱、分類與照片：大葉大學校園植物圖鑑（plants.dyu.edu.tw），經授權使用；完整介紹請至原站閱讀。
         </p>
       </div>
     </>

@@ -9,7 +9,9 @@
 //    那是大葉大學的內容，原站沒有授權聲明 ⇒ 一律連回原站閱讀。
 //    唯一例外是 FEATURED 那三筆，是逐頁讀過後用自己的話寫的極短摘要，
 //    而且只寫原站頁面上明寫的事項（不補、不推論）。
-// ⚠️ 原站的植物照片不可直接嵌入：CSP 是 `img-src 'self'`，而且那是別人的照片。
+// ★ 照片（2026-11-22）：使用者表示大葉已同意授權，由 scripts/build-dyu-photos.mjs
+//   抓原站主照片縮圖存進 public/dyu/（不可直接引用原站網址：CSP 是 `img-src 'self'`）。
+//   頁面上必須保留照片出處。介紹文字仍然不搬，一律連回原站。
 // ⚠️ 名稱照原站用字（含「鳯」這種異體字），不要「順手修正」——
 //    使用者點過去看到的標題要與這裡一致。
 
@@ -53,7 +55,7 @@ export const DYU_GROUPS = [
       ['金針花', 'daylily'], ['水金英', 'poppy'], ['白鷺莞', 'sedge'], ['石菖蒲', 'sweetflag'],
     ],
   },
-].map(g => ({ ...g, items: g.items.map(([name, slug]) => ({ name, url: `${DYU_BASE}${slug}.html` })) }))
+].map(g => ({ ...g, items: g.items.map(([name, slug]) => ({ name, slug, url: `${DYU_BASE}${slug}.html` })) }))
 
 export const DYU_TOTAL = DYU_GROUPS.reduce((n, g) => n + g.items.length, 0)
 
@@ -62,16 +64,16 @@ export const DYU_FEATURED = [
   {
     name: '楓香', group: '喬木', sci: 'Liquidambar formosana', family: '金縷梅科 楓香屬',
     note: '落葉喬木，秋天轉紅；常作園景樹與行道樹。',
-    url: DYU_BASE + 'formosan.html',
+    slug: 'formosan', url: DYU_BASE + 'formosan.html',
   },
   {
     name: '福木', group: '喬木', sci: 'Garcinia subelliptica', family: '藤黃科 福木屬',
     note: '常綠中喬木，枝葉茂密；常作園景樹，也用來防風、隔音。',
-    url: DYU_BASE + 'common.html',
+    slug: 'common', url: DYU_BASE + 'common.html',
   },
   {
     name: '睡蓮', group: '草花', sci: 'Nymphaea', family: '睡蓮科 睡蓮屬',
     note: '多年生水生草本；白天開花的品種，花到夜間會閉合。',
-    url: DYU_BASE + 'water-lily.html',
+    slug: 'water-lily', url: DYU_BASE + 'water-lily.html',
   },
 ]
